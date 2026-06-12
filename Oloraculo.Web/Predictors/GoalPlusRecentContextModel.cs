@@ -77,7 +77,7 @@ namespace Oloraculo.Web.Predictors
                 missingFeatures.AddRange(["disponibilidad de jugadores", "alineaciones", "cuotas"]);
             }
 
-            var scoreline = ProbabilityHelper.PoissonScoreline(homeGoals, awayGoals);
+            var scoreline = _goalModel.BuildScoreline(homeGoals, awayGoals);
             usedFeatures.AddRange(
             [
                 "Fuerza de ataque ajustada por rival",

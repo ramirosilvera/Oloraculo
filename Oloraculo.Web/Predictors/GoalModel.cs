@@ -6,7 +6,10 @@ namespace Oloraculo.Web.Predictors
     public class GoalModel : IPredictor
     {
         private const double DefaultAverageGoals = 1.25;
-        private const double PriorMatches = 6.0;
+        private const double PriorMatches = 2.0;
+        private const double GoalScale = 1.10;
+        private const double LowScoreRho = -0.03;
+        private const double HomeAdvantageMultiplier = 1.08;
         private const int MinimumTeamMatches = 3;
         private const int Iterations = 8;
 
@@ -15,7 +18,7 @@ namespace Oloraculo.Web.Predictors
         protected readonly int _matchesUsed;
         protected readonly int _yearsWindow;
 
-        public GoalModel(IReadOnlyList<MatchResult> results, int yearsWindow = 3)
+        public GoalModel(IReadOnlyList<MatchResult> results, int yearsWindow = 8)
         {
             _yearsWindow = yearsWindow;
             (_strengths, _avgGoals, _matchesUsed) = Fit(results, yearsWindow);
@@ -27,7 +30,7 @@ namespace Oloraculo.Web.Predictors
         public virtual MatchPrediction Predict(MatchContext context)
         {
             var (homeGoals, awayGoals, degraded) = ExpectedGoals(context);
-            var scoreline = ProbabilityHelper.PoissonScoreline(homeGoals, awayGoals);
+            var scoreline = BuildScoreline(homeGoals, awayGoals);
             var mostLikely = scoreline.MostLikelyScoreline();
 
             return new MatchPrediction
@@ -64,11 +67,19 @@ namespace Oloraculo.Web.Predictors
             away ??= new GoalStrength();
 
             var degraded = !hasHome || !hasAway || home.Matches < MinimumTeamMatches || away.Matches < MinimumTeamMatches;
+            var homeGoals = _avgGoals * home.Attack * away.DefenseVulnerability * GoalScale;
+            var awayGoals = _avgGoals * away.Attack * home.DefenseVulnerability * GoalScale;
+            if (!context.Fixture.NeutralVenue)
+                homeGoals *= HomeAdvantageMultiplier;
+
             return (
-                Math.Clamp(_avgGoals * home.Attack * away.DefenseVulnerability, 0.1, 5.5),
-                Math.Clamp(_avgGoals * away.Attack * home.DefenseVulnerability, 0.1, 5.5),
+                Math.Clamp(homeGoals, 0.1, 5.5),
+                Math.Clamp(awayGoals, 0.1, 5.5),
                 degraded);
         }
+
+        public ScorelineDistribution BuildScoreline(double homeGoals, double awayGoals) =>
+            ProbabilityHelper.PoissonScoreline(homeGoals, awayGoals, lowScoreRho: LowScoreRho);
 
         private static (IReadOnlyDictionary<string, GoalStrength> Strengths, double AvgGoals, int MatchesUsed) Fit(IReadOnlyList<MatchResult> results, int yearsWindow)
         {
