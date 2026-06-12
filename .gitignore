@@ -28,6 +28,9 @@ bld/
 ## Codex
 /.codex-tmp/
 
+## Local automation
+/publish-readme-snapshot.bat
+
 ## ASP.NET / dotnet
 project.lock.json
 project.fragment.lock.json
