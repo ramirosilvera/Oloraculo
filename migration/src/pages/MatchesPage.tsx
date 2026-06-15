@@ -60,6 +60,14 @@ function formatDateLabel(iso: string): string {
   return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
+function kickoffART(utc: string): string {
+  return new Date(utc).toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+}
+
 // ---------------------------------------------------------------------------
 // FixtureRow — shared between "Hoy" and "Por grupo"
 // ---------------------------------------------------------------------------
@@ -361,7 +369,9 @@ export function MatchesPage() {
   }, [searchTerm, fixtures, teamMap]);
 
   const todayFixtures = useMemo(() =>
-    fixtures.filter(f => fixtureDate(f) === selectedDate),
+    fixtures
+      .filter(f => fixtureDate(f) === selectedDate)
+      .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? '')),
     [fixtures, selectedDate]
   );
 
@@ -498,25 +508,40 @@ export function MatchesPage() {
                     <div key={f.id} className={i > 0 ? 'border-t border-white/10' : ''}>
                       <button
                         onClick={() => expand(f)}
-                        className="w-full flex items-center gap-3 px-5 py-3 hover:bg-white/10 transition-colors text-left"
+                        className="w-full flex flex-col px-5 py-3 hover:bg-white/10 transition-colors text-left"
                       >
-                        <span className="text-xl leading-none">{flag(f.home_team_id)}</span>
-                        <span className="font-bold text-white text-sm truncate flex-1">{homeName}</span>
-                        <span className="text-white/40 text-xs font-medium shrink-0">vs</span>
-                        <span className="font-bold text-white text-sm truncate flex-1 text-right">{awayName}</span>
-                        <span className="text-xl leading-none">{flag(f.away_team_id)}</span>
-                        <span className="ml-1 shrink-0">
-                          {played ? (
-                            <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
-                          ) : (
-                            <span className="text-xs font-semibold text-wc-gold bg-wc-navy/50 px-2 py-0.5 rounded-md">
-                              Grp {f.group_name}
-                            </span>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="text-[10px] font-bold text-wc-gold/80 uppercase tracking-wide">
+                            Partido {i + 1}
+                          </span>
+                          {f.kickoff_utc && (
+                            <>
+                              <span className="text-white/30 text-[10px]">·</span>
+                              <span className="text-[10px] font-semibold text-white/60">
+                                {kickoffART(f.kickoff_utc)} ART
+                              </span>
+                            </>
                           )}
-                        </span>
-                        <span className="text-white/40 shrink-0">
-                          {expandedId === f.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </span>
+                        </div>
+                        <div className="flex items-center gap-3 w-full">
+                          <span className="text-xl leading-none">{flag(f.home_team_id)}</span>
+                          <span className="font-bold text-white text-sm truncate flex-1">{homeName}</span>
+                          <span className="text-white/40 text-xs font-medium shrink-0">vs</span>
+                          <span className="font-bold text-white text-sm truncate flex-1 text-right">{awayName}</span>
+                          <span className="text-xl leading-none">{flag(f.away_team_id)}</span>
+                          <span className="ml-1 shrink-0">
+                            {played ? (
+                              <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
+                            ) : (
+                              <span className="text-xs font-semibold text-wc-gold bg-wc-navy/50 px-2 py-0.5 rounded-md">
+                                Grp {f.group_name}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-white/40 shrink-0">
+                            {expandedId === f.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </span>
+                        </div>
                       </button>
                       {expandedId === f.id && (
                         <div className="bg-white">
