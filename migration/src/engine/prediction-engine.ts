@@ -54,7 +54,7 @@ export class PredictionEngine {
       source: '',
     };
 
-    const latestRating = (teamId: string, type: 'Elo' | 'Fifa'): Rating | null =>
+    const latestRating = (teamId: string, type: 'elo' | 'fifa'): Rating | null =>
       ratings
         .filter(r => r.team_id === teamId && r.type === type)
         .sort((a, b) => new Date(b.as_of).getTime() - new Date(a.as_of).getTime())[0] ?? null;
@@ -69,10 +69,10 @@ export class PredictionEngine {
       fixture,
       homeTeam,
       awayTeam,
-      homeElo: latestRating(fixture.home_team_id, 'Elo'),
-      awayElo: latestRating(fixture.away_team_id, 'Elo'),
-      homeFifaRating: latestRating(fixture.home_team_id, 'Fifa'),
-      awayFifaRating: latestRating(fixture.away_team_id, 'Fifa'),
+      homeElo: latestRating(fixture.home_team_id, 'elo'),
+      awayElo: latestRating(fixture.away_team_id, 'elo'),
+      homeFifaRating: latestRating(fixture.home_team_id, 'fifa'),
+      awayFifaRating: latestRating(fixture.away_team_id, 'fifa'),
       homeRecentResults: recentResults(fixture.home_team_id),
       awayRecentResults: recentResults(fixture.away_team_id),
       fixtureContext: fixtureContexts.get(fixture.id) ?? null,
@@ -124,14 +124,7 @@ export function predictPair(
     home_team_id: homeId,
     away_team_id: awayId,
     neutral_venue: true,
-    kickoff_utc: null,
-    venue: null,
-    city: null,
-    status: null,
     is_played: false,
-    home_goals: null,
-    away_goals: null,
-    source: 'pair',
   };
   const ctx = engine.buildContext(fixture, teams, ratings, new Map());
   return engine.predict(ctx);

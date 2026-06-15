@@ -5,11 +5,14 @@
 // =============================================================================
 
 import type { MatchContext, MatchPrediction, OutcomeProbabilities } from '../../types/domain';
+import { UNIFORM_OUTCOME } from '../../types/domain';
 import {
   eloExpectation,
   outcomeFromExpectation,
   normalizeOutcome,
-  UNIFORM_OUTCOME,
+  poissonScoreline,
+  scorelineToOutcome,
+  mostLikelyScore,
 } from '../probability-helper';
 import { GoalModel } from './goal-model';
 import type { MatchResult } from '../../types/domain';
@@ -261,11 +264,8 @@ export function goalContextModelPredict(ctx: MatchContext, goalModel: GoalModel)
     missingFeatures.push('disponibilidad de jugadores', 'alineaciones', 'cuotas');
   }
 
-  const { poissonScoreline: ps, scorelineToOutcome: sto, mostLikelyScore: mls } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('../probability-helper') as typeof import('../probability-helper');
-  const scoreline = ps(homeGoals, awayGoals, 8, -0.03);
-  const best = mls(scoreline);
+  const scoreline = poissonScoreline(homeGoals, awayGoals, 8, -0.03);
+  const best = mostLikelyScore(scoreline);
 
   return {
     predictorName: 'Goles + contexto reciente',
@@ -273,7 +273,7 @@ export function goalContextModelPredict(ctx: MatchContext, goalModel: GoalModel)
     fixtureId: ctx.fixture.id,
     homeTeamId: ctx.homeTeam.id,
     awayTeamId: ctx.awayTeam.id,
-    outcome: sto(scoreline),
+    outcome: scorelineToOutcome(scoreline),
     expectedHomeGoals: Math.round(homeGoals * 100) / 100,
     expectedAwayGoals: Math.round(awayGoals * 100) / 100,
     scoreline,

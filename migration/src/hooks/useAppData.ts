@@ -1,28 +1,27 @@
-// =============================================================================
-// useAppData — loads all static data once per session from Supabase
-// Replaces: all OnInitializedAsync() DB calls across Blazor pages
-// =============================================================================
+// Central data hook — static data from JSON files, mutable data from Supabase.
 
 import { useQuery } from '@tanstack/react-query';
 import {
-  loadAllTeams,
-  loadAllGroups,
-  loadAllFixtures,
-  loadAllResults,
-  loadAllRatings,
-  loadAllFixtureContexts,
-} from '../services/supabase-client';
+  loadStaticTeams,
+  loadStaticGroups,
+  loadStaticFixtures,
+  loadStaticRatings,
+  loadStaticResults,
+} from '../services/static-data';
+import { loadAllFixtureContexts } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
 import type { FixtureContext, Rating, Team } from '../types/domain';
 import { useMemo } from 'react';
 
+const FOREVER = Infinity;
+
 export function useAppData() {
-  const teams = useQuery({ queryKey: ['teams'], queryFn: loadAllTeams });
-  const groups = useQuery({ queryKey: ['groups'], queryFn: loadAllGroups });
-  const fixtures = useQuery({ queryKey: ['fixtures'], queryFn: loadAllFixtures });
-  const results = useQuery({ queryKey: ['results'], queryFn: loadAllResults });
-  const ratings = useQuery({ queryKey: ['ratings'], queryFn: loadAllRatings });
-  const contexts = useQuery({ queryKey: ['contexts'], queryFn: loadAllFixtureContexts });
+  const teams    = useQuery({ queryKey: ['teams'],    queryFn: loadStaticTeams,    staleTime: FOREVER });
+  const groups   = useQuery({ queryKey: ['groups'],   queryFn: loadStaticGroups,   staleTime: FOREVER });
+  const fixtures = useQuery({ queryKey: ['fixtures'], queryFn: loadStaticFixtures, staleTime: FOREVER });
+  const results  = useQuery({ queryKey: ['results'],  queryFn: loadStaticResults,  staleTime: FOREVER });
+  const ratings  = useQuery({ queryKey: ['ratings'],  queryFn: loadStaticRatings,  staleTime: FOREVER });
+  const contexts = useQuery({ queryKey: ['contexts'], queryFn: loadAllFixtureContexts, staleTime: 60_000 });
 
   const teamMap = useMemo(
     () => new Map<string, Team>((teams.data ?? []).map(t => [t.id, t])),
@@ -43,18 +42,18 @@ export function useAppData() {
 
   const isLoading =
     teams.isLoading || groups.isLoading || fixtures.isLoading ||
-    results.isLoading || ratings.isLoading || contexts.isLoading;
+    results.isLoading || ratings.isLoading;
 
   const error =
     teams.error ?? groups.error ?? fixtures.error ??
     results.error ?? ratings.error ?? contexts.error;
 
   return {
-    teams: teams.data ?? [],
-    groups: groups.data ?? [],
+    teams:    teams.data    ?? [],
+    groups:   groups.data   ?? [],
     fixtures: fixtures.data ?? [],
-    results: results.data ?? [],
-    ratings: ratingsList,
+    results:  results.data  ?? [],
+    ratings:  ratingsList,
     contexts: contexts.data ?? [],
     teamMap,
     ratingsList,

@@ -3,9 +3,8 @@
 // Migrated from: Oloraculo.Web/Components/Pages/Home.razor
 // =============================================================================
 
-import { useQuery } from '@tanstack/react-query';
-import { loadDashboardStats } from '../services/supabase-client';
 import { Link } from 'react-router-dom';
+import { useAppData } from '../hooks/useAppData';
 
 const SIMULATION_COUNT = 10_000;
 
@@ -20,15 +19,12 @@ const ladder = [
 ];
 
 export function HomePage() {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: loadDashboardStats,
-  });
+  const { teams, fixtures, results, isLoading } = useAppData();
 
   const statCards = [
-    { label: 'Equipos', value: stats?.teams ?? 0 },
-    { label: 'Partidos', value: stats?.fixtures ?? 0 },
-    { label: 'Resultados', value: stats?.results ?? 0 },
+    { label: 'Equipos', value: isLoading ? '—' : teams.length },
+    { label: 'Partidos', value: isLoading ? '—' : fixtures.length },
+    { label: 'Resultados históricos', value: isLoading ? '—' : results.length.toLocaleString('es') },
     { label: 'Simulaciones', value: SIMULATION_COUNT.toLocaleString('es') },
   ];
 
@@ -43,9 +39,7 @@ export function HomePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(card => (
           <div key={card.label} className="bg-white border border-gray-200 rounded-xl p-5">
-            <div className="text-3xl font-bold text-gray-900">
-              {isLoading ? '—' : card.value}
-            </div>
+            <div className="text-3xl font-bold text-gray-900">{card.value}</div>
             <div className="text-sm text-gray-500 mt-1">{card.label}</div>
           </div>
         ))}
@@ -56,24 +50,24 @@ export function HomePage() {
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Flujo del proyecto</h2>
           <ol className="space-y-2 text-sm text-gray-600">
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">1.</span> Los CSV crean el mundo futbolero.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">2.</span> API-Football puede enriquecer partidos cuando hay datos.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">3.</span> La escalera predice un partido por vez.</li>
+            <li className="flex gap-2"><span className="font-semibold text-blue-600">1.</span> Los datos estáticos (equipos, historial, ratings) se cargan de archivos JSON.</li>
+            <li className="flex gap-2"><span className="font-semibold text-blue-600">2.</span> El motor de predicción corre 100% en el browser sin servidor.</li>
+            <li className="flex gap-2"><span className="font-semibold text-blue-600">3.</span> La escalera predice un partido por vez con hasta 6 modelos.</li>
             <li className="flex gap-2"><span className="font-semibold text-blue-600">4.</span> El Oráculo final elige el escalón usable más alto.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">5.</span> Monte Carlo juega muchas veces el torneo oficial 2026.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">6.</span> Las predicciones guardadas se evalúan cuando llegan resultados.</li>
+            <li className="flex gap-2"><span className="font-semibold text-blue-600">5.</span> Monte Carlo juega 10.000 veces el torneo completo en un Web Worker.</li>
+            <li className="flex gap-2"><span className="font-semibold text-blue-600">6.</span> Las predicciones guardadas se evalúan cuando lleguen resultados reales.</li>
           </ol>
           <Link
             to="/lab"
             className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
-            🔬 Abrir laboratorio
+            Abrir laboratorio
           </Link>
         </div>
 
         {/* Ladder */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Escalera</h2>
+          <h2 className="font-semibold text-gray-800 mb-4">Escalera de modelos</h2>
           <table className="w-full text-sm">
             <tbody>
               {ladder.map(row => (

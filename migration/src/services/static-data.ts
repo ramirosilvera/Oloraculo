@@ -1,0 +1,35 @@
+// Loads static data from JSON files in public/data/
+// These files are committed to the repo and served by the CDN.
+// They never change at runtime — React Query caches them forever.
+
+import type { Fixture, Group, MatchResult, Rating, Team } from '../types/domain';
+
+interface CompactResults {
+  cols: string[];
+  rows: [string, string, string, number, number, string, boolean][];
+}
+
+async function fetchJson<T>(file: string): Promise<T> {
+  const res = await fetch(`./data/${file}`);
+  if (!res.ok) throw new Error(`No se pudo cargar ${file}: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export const loadStaticTeams    = () => fetchJson<Team[]>('teams.json');
+export const loadStaticGroups   = () => fetchJson<Group[]>('groups.json');
+export const loadStaticFixtures = () => fetchJson<Fixture[]>('fixtures.json');
+export const loadStaticRatings  = () => fetchJson<Rating[]>('ratings.json');
+
+export async function loadStaticResults(): Promise<MatchResult[]> {
+  const compact = await fetchJson<CompactResults>('historical_results.json');
+  return compact.rows.map(([date, home_id, away_id, home_goals, away_goals, tournament, neutral]) => ({
+    id: `${home_id}-${away_id}-${date}`,
+    home_team_id: home_id,
+    away_team_id: away_id,
+    home_goals,
+    away_goals,
+    date,
+    tournament,
+    neutral,
+  }));
+}

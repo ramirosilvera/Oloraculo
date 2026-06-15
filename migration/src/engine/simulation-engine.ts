@@ -161,7 +161,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
   const fifaPoints = new Map<string, number>();
   for (const r of ratings) {
-    if (r.type !== 'Fifa') continue;
+    if (r.type !== 'fifa') continue;
     const existing = fifaPoints.get(r.team_id);
     if (!existing || new Date(r.as_of) > new Date()) {
       fifaPoints.set(r.team_id, r.value);
@@ -170,7 +170,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
   const eloMap = new Map<string, number>();
   for (const r of ratings) {
-    if (r.type !== 'Elo') continue;
+    if (r.type !== 'elo') continue;
     eloMap.set(r.team_id, r.value);
   }
 
@@ -187,8 +187,8 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
         fixture: { id: key, home_team_id: homeId, away_team_id: awayId, neutral_venue: true } as Fixture,
         homeTeam: { id: homeId, name: homeId, source: '' } as Team,
         awayTeam: { id: awayId, name: awayId, source: '' } as Team,
-        homeElo: eloMap.has(homeId) ? { id: 0, team_id: homeId, type: 'Elo' as const, value: eloMap.get(homeId)!, as_of: '', source: '' } : null,
-        awayElo: eloMap.has(awayId) ? { id: 0, team_id: awayId, type: 'Elo' as const, value: eloMap.get(awayId)!, as_of: '', source: '' } : null,
+        homeElo: eloMap.has(homeId) ? { id: 0, team_id: homeId, type: 'elo' as const, value: eloMap.get(homeId)!, as_of: '', source: '' } : null,
+        awayElo: eloMap.has(awayId) ? { id: 0, team_id: awayId, type: 'elo' as const, value: eloMap.get(awayId)!, as_of: '', source: '' } : null,
         homeFifaRating: null,
         awayFifaRating: null,
         homeRecentResults: [],

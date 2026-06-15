@@ -1,0 +1,48 @@
+name: Deploy a Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/github-pages-compatibility-b6bdl6
+    paths:
+      - 'migration/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: migration/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: migration
+        run: npm ci
+
+      - name: Build
+        working-directory: migration
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Deploy a Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: oloraculo
+          directory: migration/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

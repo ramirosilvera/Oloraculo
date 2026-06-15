@@ -1,23 +1,23 @@
 // =============================================================================
 // Oloráculo — TypeScript domain types
-// Migrated from: Oloraculo.Web/Models/*.cs
 // =============================================================================
 
 // ---------------------------------------------------------------------------
-// Core entities (mirror Supabase tables)
+// Core entities — match static JSON files in public/data/
 // ---------------------------------------------------------------------------
 
 export interface Team {
   id: string;
   name: string;
-  source: string;
+  group?: string;
+  source?: string;
 }
 
 export interface Group {
-  id: number;
+  id?: number;
   name: string;
   team_ids: string[];
-  source: string;
+  source?: string;
 }
 
 export interface Fixture {
@@ -26,14 +26,14 @@ export interface Fixture {
   home_team_id: string;
   away_team_id: string;
   neutral_venue: boolean;
-  kickoff_utc: string | null;
-  venue: string | null;
-  city: string | null;
-  status: string | null;
+  kickoff_utc?: string | null;
+  venue?: string | null;
+  city?: string | null;
+  status?: string | null;
   is_played: boolean;
-  home_goals: number | null;
-  away_goals: number | null;
-  source: string;
+  home_goals?: number | null;
+  away_goals?: number | null;
+  source?: string;
 }
 
 export interface MatchResult {
@@ -45,19 +45,23 @@ export interface MatchResult {
   date: string;
   tournament: string;
   neutral: boolean;
-  source: string;
+  source?: string;
 }
 
-export type RatingType = 'Elo' | 'Fifa';
+export type RatingType = 'elo' | 'fifa';
 
 export interface Rating {
-  id: number;
+  id?: number;
   team_id: string;
   type: RatingType;
   value: number;
   as_of: string;
-  source: string;
+  source?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Mutable entities — stored in Supabase
+// ---------------------------------------------------------------------------
 
 export interface FixtureContext {
   fixture_id: string;
@@ -74,28 +78,12 @@ export interface FixtureContext {
   updated_at: string;
 }
 
-export type AvailabilityStatus = 'ConfirmedOut' | 'Doubtful' | 'Available' | 'NotRelevant';
-
-export interface AvailabilityClaim {
+export interface WcActualResult {
   id: number;
-  player: string;
-  player_key: string;
-  team_id: string;
-  team_name: string;
-  status: AvailabilityStatus;
-  reason: string;
-  confidence: string;
-  evidence_level: number;
-  source_url: string;
-  publisher: string | null;
-  supporting_quote: string;
-  observed_date: string | null;
-  affects_prediction: boolean;
-  api_football_player_id: number | null;
-  position: string;
-  position_source: string;
-  position_matched_at: string | null;
-  created_at: string;
+  fixture_id: string;
+  home_goals: number;
+  away_goals: number;
+  played_at: string;
 }
 
 export interface PredictionSnapshot {
@@ -134,8 +122,6 @@ export interface PredictionEvaluation {
 
 // ---------------------------------------------------------------------------
 // Prediction engine types
-// Migrated from: Oloraculo.Web/Models/MatchPrediction.cs, OutcomeProbabilities.cs,
-//                ScorelineDistribution.cs, MatchContext.cs
 // ---------------------------------------------------------------------------
 
 export interface OutcomeProbabilities {
@@ -150,10 +136,9 @@ export const UNIFORM_OUTCOME: OutcomeProbabilities = {
   awayWin: 1 / 3,
 };
 
-/** Scoreline probability matrix [home][away] — max 9x9 (0..8 goals each side) */
 export interface ScorelineDistribution {
   maxGoals: number;
-  matrix: number[][];  // matrix[homeGoals][awayGoals] = probability
+  matrix: number[][];
 }
 
 export interface SourceMetadata {
@@ -189,7 +174,6 @@ export interface MatchPredictionResult {
   bestPrediction: MatchPrediction;
 }
 
-/** All data needed to run the prediction engine for a fixture — loaded once from Supabase */
 export interface MatchContext {
   fixture: Fixture;
   homeTeam: Team;
@@ -205,7 +189,6 @@ export interface MatchContext {
 
 // ---------------------------------------------------------------------------
 // Simulation / Tournament types
-// Migrated from: TournamentProjection.cs, TeamTournamentProbability.cs
 // ---------------------------------------------------------------------------
 
 export interface TeamTournamentProbability {
