@@ -46,3 +46,4 @@ jobs:
           projectName: oloraculo
           directory: migration/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
