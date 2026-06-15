@@ -49,6 +49,15 @@ export function HomePage() {
           </Badge>
         </div>
 
+        <div className="flex justify-center">
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/1/17/2026_FIFA_World_Cup_emblem.svg"
+            alt="FIFA World Cup 2026"
+            className="h-28 sm:h-40 object-contain drop-shadow-xl"
+            loading="eager"
+          />
+        </div>
+
         <h1 className="font-black text-4xl sm:text-6xl tracking-tight leading-none">
           Oloráculo
         </h1>

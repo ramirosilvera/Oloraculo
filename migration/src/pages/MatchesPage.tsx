@@ -26,7 +26,7 @@ import {
 } from '../components/ui';
 import {
   ChevronDown, ChevronUp, Save, CheckCircle2, AlertCircle,
-  Trophy, Info, Search, X, ChevronLeft, ChevronRight, Calendar,
+  Trophy, Info, Search, X, ChevronLeft, ChevronRight, Calendar, Loader2,
 } from 'lucide-react';
 
 const FLAGS: Record<string, string> = {
@@ -76,6 +76,7 @@ interface FixtureRowProps {
   played: WcActualResult | undefined;
   pred: MatchPredictionResult | undefined;
   isExpanded: boolean;
+  isExpanding: boolean;
   isSavingThis: boolean;
   savedSnap: Set<string>;
   evalDone: Set<string>;
@@ -93,7 +94,7 @@ interface FixtureRowProps {
 }
 
 function FixtureRow({
-  fixture, played, pred, isExpanded, isSavingThis, savedSnap, evalDone,
+  fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, homeName, awayName, compact,
 }: FixtureRowProps) {
@@ -101,7 +102,8 @@ function FixtureRow({
     <div>
       <button
         onClick={onExpand}
-        className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-wc-cream/50 transition-colors text-left ${compact ? 'py-2.5' : ''}`}
+        disabled={isExpanding}
+        className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-wc-cream/50 transition-colors text-left ${compact ? 'py-2.5' : ''} ${isExpanding ? 'opacity-60' : ''}`}
       >
         <span className="text-2xl leading-none">{flag(fixture.home_team_id)}</span>
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{homeName}</span>
@@ -114,7 +116,11 @@ function FixtureRow({
           <Badge color="blue">calculado</Badge>
         ) : null}
         <span className="text-gray-400 ml-1 shrink-0">
-          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {isExpanding
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : isExpanded
+              ? <ChevronUp className="w-4 h-4" />
+              : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
 
@@ -250,6 +256,7 @@ export function MatchesPage() {
   const qc = useQueryClient();
 
   const [expandedId, setExpandedId]     = useState<string | null>(null);
+  const [expandingId, setExpandingId]   = useState<string | null>(null);
   const [predictions, setPredictions]   = useState<Map<string, MatchPredictionResult>>(new Map());
   const [saving, setSaving]             = useState<string | null>(null);
   const [savedSnap, setSavedSnap]       = useState<Set<string>>(new Set());
@@ -278,16 +285,20 @@ export function MatchesPage() {
   const prevDate = dateIdx > 0 ? fixtureDates[dateIdx - 1] : null;
   const nextDate = dateIdx < fixtureDates.length - 1 ? fixtureDates[dateIdx + 1] : null;
 
-  const expand = useCallback((fixture: Fixture) => {
+  const expand = useCallback(async (fixture: Fixture) => {
     const isSame = expandedId === fixture.id;
     setExpandedId(isSame ? null : fixture.id);
     setResultHome('');
     setResultAway('');
     setErr('');
     if (!isSame && !predictions.has(fixture.id) && engine) {
+      setExpandingId(fixture.id);
+      // Yield to browser so the expanded row renders before the heavy compute
+      await new Promise(r => setTimeout(r, 0));
       const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap);
       const result = engine.predict(ctx);
       setPredictions(prev => new Map(prev).set(fixture.id, result));
+      setExpandingId(null);
     }
   }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap]);
 
@@ -344,6 +355,7 @@ export function MatchesPage() {
     played: playedMap.get(fixture.id),
     pred: predictions.get(fixture.id),
     isExpanded: expandedId === fixture.id,
+    isExpanding: expandingId === fixture.id,
     isSavingThis: saving === fixture.id,
     savedSnap, evalDone, resultHome, resultAway,
     err: expandedId === fixture.id ? err : '',
@@ -508,7 +520,8 @@ export function MatchesPage() {
                     <div key={f.id} className={i > 0 ? 'border-t border-white/10' : ''}>
                       <button
                         onClick={() => expand(f)}
-                        className="w-full flex flex-col px-5 py-3 hover:bg-white/10 transition-colors text-left"
+                        disabled={expandingId === f.id}
+                        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 transition-colors text-left ${expandingId === f.id ? 'opacity-70' : ''}`}
                       >
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <span className="text-[10px] font-bold text-wc-gold/80 uppercase tracking-wide">
@@ -539,7 +552,11 @@ export function MatchesPage() {
                             )}
                           </span>
                           <span className="text-white/40 shrink-0">
-                            {expandedId === f.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            {expandingId === f.id
+                              ? <Loader2 className="w-4 h-4 animate-spin text-wc-gold" />
+                              : expandedId === f.id
+                                ? <ChevronUp className="w-4 h-4" />
+                                : <ChevronDown className="w-4 h-4" />}
                           </span>
                         </div>
                       </button>
