@@ -58,6 +58,10 @@ coverage*.info
 *.env
 secrets.json
 
+## Node / Vite (migration app)
+migration/node_modules/
+migration/dist/
+
 ## OS files
 .DS_Store
 Thumbs.db
