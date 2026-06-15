@@ -46,13 +46,14 @@ const FLAGS: Record<string, string> = {
   'qatar': '🇶🇦',
 };
 
-const TODAY = '2026-06-15';
+const TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 
 function flag(id: string) { return FLAGS[id] ?? '🏳️'; }
 function pct(n: number)   { return `${(n * 100).toFixed(1)}%`; }
 
 function fixtureDate(f: Fixture): string | null {
-  return f.kickoff_utc ? f.kickoff_utc.slice(0, 10) : null;
+  if (!f.kickoff_utc) return null;
+  return new Date(f.kickoff_utc).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 }
 
 function formatDateLabel(iso: string): string {
@@ -276,9 +277,9 @@ export function MatchesPage() {
     [wcResults]
   );
 
-  // Sorted unique dates that have fixtures
+  // Sorted unique dates that have fixtures (in ART timezone)
   const fixtureDates = useMemo(() =>
-    [...new Set(fixtures.filter(f => f.kickoff_utc).map(f => f.kickoff_utc!.slice(0, 10)))].sort(),
+    [...new Set(fixtures.map(f => fixtureDate(f)).filter((d): d is string => d !== null))].sort(),
     [fixtures]
   );
   const dateIdx = fixtureDates.indexOf(selectedDate);
