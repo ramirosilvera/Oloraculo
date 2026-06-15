@@ -28,6 +28,9 @@ bld/
 ## Codex
 /.codex-tmp/
 
+## Claude Code local config
+/.claude/
+
 ## Local automation
 /publish-readme-snapshot.bat
 
@@ -57,6 +60,10 @@ coverage*.info
 **/appsettings.Development.json
 *.env
 secrets.json
+
+## Node / Vite (migration app)
+migration/node_modules/
+migration/dist/
 
 ## OS files
 .DS_Store

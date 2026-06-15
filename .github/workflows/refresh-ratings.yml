@@ -1,0 +1,40 @@
+name: Actualizar ratings ELO y FIFA
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Todos los lunes a las 6 AM UTC
+  workflow_dispatch:        # También se puede lanzar manualmente desde GitHub
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install requests beautifulsoup4
+
+      - name: Actualizar ELO y FIFA
+        run: python migration/scripts/refresh_ratings.py
+        # El script descarga los ratings actuales y actualiza:
+        # migration/Oloraculo.Web/Data/elo_snapshot.csv
+        # migration/Oloraculo.Web/Data/fifa_rankings.csv
+
+      - name: Regenerar ratings.json desde CSV actualizados
+        run: python migration/generate_data.py --only-ratings
+
+      - name: Commit y push si hay cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add migration/public/data/ratings.json
+          git add Oloraculo.Web/Data/elo_snapshot.csv
+          git add Oloraculo.Web/Data/fifa_rankings.csv
+          git diff --staged --quiet || git commit -m "chore: actualizar ratings ELO y FIFA $(date -u +'%Y-%m-%d')"
+          git push
