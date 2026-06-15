@@ -198,7 +198,7 @@ export function HomePage() {
       <section className="animate-fade-in">
         <Card>
           <CardHeader>
-            <SectionTitle sub="El proyecto no existiría sin la lógica de predicción creada por Mariana Villa.">
+            <SectionTitle sub="Mariano Villa tuvo la idea y construyó el motor estadístico. Ramiro Silvera lo convirtió en aplicación web.">
               Creadores
             </SectionTitle>
           </CardHeader>
@@ -211,6 +211,7 @@ export function HomePage() {
               <div className="flex-1">
                 <p className="font-black text-gray-800">Ramiro Silvera</p>
                 <p className="text-sm text-gray-500 mt-0.5">Desarrollo de la aplicación web</p>
+
               </div>
             </div>
 
@@ -219,8 +220,8 @@ export function HomePage() {
                 <span className="text-wc-gold font-black text-base">MV</span>
               </div>
               <div className="flex-1">
-                <p className="font-black text-gray-800">Mariana Villa</p>
-                <p className="text-sm text-gray-500 mt-0.5">Lógica y modelos de predicción</p>
+                <p className="font-black text-gray-800">Mariano Villa</p>
+                <p className="text-sm text-gray-500 mt-0.5">Idea original y motor estadístico de predicciones</p>
                 <a
                   href="https://github.com/marianovilla/oloraculo"
                   target="_blank"
@@ -236,7 +237,7 @@ export function HomePage() {
 
           <div className="px-5 py-4 bg-wc-cream/60 rounded-b-2xl border-t border-gray-100">
             <p className="text-sm text-gray-600 leading-relaxed">
-              Gracias a Mariana Villa por crear el motor estadístico que le da vida a Oloráculo. ⚽
+              Gracias a Mariano Villa por la idea y el trabajo estadístico que le dan vida a Oloráculo. ⚽
             </p>
           </div>
         </Card>
