@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { Link } from 'react-router-dom';
-import { Trophy, Target, Cpu, Users, Database, Github } from 'lucide-react';
+import { Trophy, Target, Cpu, Users, Database, ExternalLink } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import {
   Card,
@@ -228,7 +228,7 @@ export function HomePage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-wc-navy hover:text-wc-gold transition-colors"
                 >
-                  <Github className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-3.5 h-3.5" />
                   marianovilla/oloraculo
                 </a>
               </div>
