@@ -87,24 +87,24 @@ export function HomePage() {
           </Link>
         </div>
 
-        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs text-white/50">
-          <span>
-            <span className="text-white/80 font-semibold">Mariano Villa</span>
-            {' '}· idea y motor estadístico
-            {' '}<a
+        <div className="pt-5 border-t border-white/20 space-y-1 text-center">
+          <p className="text-white/40 text-[10px] uppercase tracking-widest font-semibold">Creadores</p>
+          <p className="text-white text-sm font-bold">
+            Mariano Villa
+            <span className="font-normal text-white/60"> · idea y motor estadístico · </span>
+            <a
               href="https://github.com/marianovilla/oloraculo"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-wc-gold hover:text-white transition-colors underline underline-offset-2"
+              className="text-wc-gold underline underline-offset-2 hover:text-white transition-colors"
             >
               marianovilla/oloraculo
             </a>
-          </span>
-          <span className="hidden sm:inline text-white/20">·</span>
-          <span>
-            <span className="text-white/80 font-semibold">Ramiro Silvera</span>
-            {' '}· app web
-          </span>
+          </p>
+          <p className="text-white text-sm font-bold">
+            Ramiro Silvera
+            <span className="font-normal text-white/60"> · app web</span>
+          </p>
         </div>
       </section>
 
