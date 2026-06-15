@@ -1,88 +1,188 @@
 // =============================================================================
-// HomePage — Dashboard
-// Migrated from: Oloraculo.Web/Components/Pages/Home.razor
+// HomePage — Marketing + Dashboard — FIFA World Cup 2026
 // =============================================================================
 
 import { Link } from 'react-router-dom';
+import { Trophy, Target, Cpu, Users, Database } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
+import {
+  Card,
+  CardHeader,
+  StatCard,
+  Badge,
+  SectionTitle,
+  Button,
+  Skeleton,
+  SkeletonCard,
+} from '../components/ui';
 
-const SIMULATION_COUNT = 10_000;
-
-const ladder = [
-  { level: 'L0', model: 'Base', signal: 'probabilidad uniforme' },
-  { level: 'L1', model: 'Ranking FIFA', signal: 'puntos externos' },
-  { level: 'L2', model: 'Elo', signal: 'fortaleza de largo plazo' },
-  { level: 'L3', model: 'Forma reciente', signal: 'resultados de corto plazo' },
-  { level: 'L4', model: 'Goles', signal: 'marcadores Poisson' },
-  { level: 'L5', model: 'Contexto', signal: 'ajuste con fuentes' },
-  { level: 'Final', model: 'Oráculo final', signal: 'escalón usable más alto' },
+// ---------------------------------------------------------------------------
+// Escalera de predicción
+// ---------------------------------------------------------------------------
+const ladder: { level: string; model: string; signal: string; color: 'gray' | 'blue' | 'green' | 'gold' | 'red' | 'navy' }[] = [
+  { level: 'L0',    model: 'Base',           signal: 'probabilidad uniforme',      color: 'gray'  },
+  { level: 'L1',    model: 'Ranking FIFA',   signal: 'puntos externos',            color: 'blue'  },
+  { level: 'L2',    model: 'Elo',            signal: 'fortaleza de largo plazo',   color: 'blue'  },
+  { level: 'L3',    model: 'Forma reciente', signal: 'resultados de corto plazo',  color: 'green' },
+  { level: 'L4',    model: 'Goles (Poisson)',signal: 'marcadores Dixon-Coles',     color: 'gold'  },
+  { level: 'L5',    model: 'Contexto',       signal: 'ajuste con disponibilidad',  color: 'red'   },
+  { level: 'Final', model: 'Oráculo',        signal: 'escalón usable más alto',    color: 'navy'  },
 ];
 
+// ---------------------------------------------------------------------------
+// HomePage
+// ---------------------------------------------------------------------------
 export function HomePage() {
   const { teams, fixtures, results, isLoading } = useAppData();
 
-  const statCards = [
-    { label: 'Equipos', value: isLoading ? '—' : teams.length },
-    { label: 'Partidos', value: isLoading ? '—' : fixtures.length },
-    { label: 'Resultados históricos', value: isLoading ? '—' : results.length.toLocaleString('es') },
-    { label: 'Simulaciones', value: SIMULATION_COUNT.toLocaleString('es') },
-  ];
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Oloráculo</h1>
-        <p className="text-gray-500 mt-1">Funciona como huele</p>
-      </div>
+    <div className="space-y-10 animate-fade-in">
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map(card => (
-          <div key={card.label} className="bg-white border border-gray-200 rounded-xl p-5">
-            <div className="text-3xl font-bold text-gray-900">{card.value}</div>
-            <div className="text-sm text-gray-500 mt-1">{card.label}</div>
-          </div>
-        ))}
-      </div>
+      {/* ------------------------------------------------------------------ */}
+      {/* 1. HERO BANNER                                                       */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="bg-wc-gradient rounded-2xl py-12 sm:py-20 px-6 text-white text-center space-y-5">
+        <div className="flex justify-center">
+          <Badge color="gold">
+            <Trophy className="w-3 h-3 mr-1 inline-block" />
+            FIFA World Cup 2026 · USA · CAN · MEX
+          </Badge>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Project flow */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Flujo del proyecto</h2>
-          <ol className="space-y-2 text-sm text-gray-600">
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">1.</span> Los datos estáticos (equipos, historial, ratings) se cargan de archivos JSON.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">2.</span> El motor de predicción corre 100% en el browser sin servidor.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">3.</span> La escalera predice un partido por vez con hasta 6 modelos.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">4.</span> El Oráculo final elige el escalón usable más alto.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">5.</span> Monte Carlo juega 10.000 veces el torneo completo en un Web Worker.</li>
-            <li className="flex gap-2"><span className="font-semibold text-blue-600">6.</span> Las predicciones guardadas se evalúan cuando lleguen resultados reales.</li>
-          </ol>
-          <Link
-            to="/lab"
-            className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Abrir laboratorio
+        <h1 className="font-black text-4xl sm:text-6xl tracking-tight leading-none">
+          Oloráculo
+        </h1>
+
+        <p className="text-white/80 text-base sm:text-xl max-w-xl mx-auto leading-relaxed">
+          Predicciones estadísticas con Machine Learning para el Mundial 2026
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          <Link to="/matches">
+            <Button
+              variant="secondary"
+              size="lg"
+              className="bg-white text-wc-navy hover:bg-wc-cream font-black w-full sm:w-auto"
+            >
+              Predecir partido →
+            </Button>
+          </Link>
+          <Link to="/tournament">
+            <Button
+              variant="ghost"
+              size="lg"
+              className="text-white border border-white/30 hover:bg-white/10 w-full sm:w-auto"
+            >
+              Ver simulación
+            </Button>
           </Link>
         </div>
+      </section>
 
-        {/* Ladder */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Escalera de modelos</h2>
-          <table className="w-full text-sm">
-            <tbody>
-              {ladder.map(row => (
-                <tr key={row.level} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2 pr-3">
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded">{row.level}</span>
-                  </td>
-                  <td className="py-2 pr-3 font-medium text-gray-700">{row.model}</td>
-                  <td className="py-2 text-gray-500 text-xs">{row.signal}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* ------------------------------------------------------------------ */}
+      {/* 2. STATS ROW                                                         */}
+      {/* ------------------------------------------------------------------ */}
+      <section>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {isLoading ? (
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          ) : (
+            <>
+              <StatCard
+                label="Equipos"
+                value={teams.length}
+                icon={<Users className="w-5 h-5" />}
+              />
+              <StatCard
+                label="Partidos"
+                value={fixtures.length}
+                icon={<Target className="w-5 h-5" />}
+              />
+              <StatCard
+                label="Resultados históricos"
+                value={results.length.toLocaleString('es')}
+                icon={<Database className="w-5 h-5" />}
+              />
+              <StatCard
+                label="Simulaciones"
+                value="10.000"
+                icon={<Cpu className="w-5 h-5" />}
+              />
+            </>
+          )}
         </div>
-      </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 3. CÓMO FUNCIONA — Escalera de predicción                           */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="animate-fade-in">
+        <Card>
+          <CardHeader>
+            <SectionTitle sub="Cada partido se predice con el mejor modelo disponible, de menor a mayor fidelidad.">
+              Escalera de predicción
+            </SectionTitle>
+          </CardHeader>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-left">
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20">Nivel</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Modelo</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Señal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ladder.map((row) => (
+                  <tr
+                    key={row.level}
+                    className={`border-b border-gray-50 last:border-0 transition-colors hover:bg-gray-50 ${
+                      row.level === 'Final' ? 'bg-wc-navy/5' : ''
+                    }`}
+                  >
+                    <td className="px-5 py-3">
+                      <Badge color={row.color}>{row.level}</Badge>
+                    </td>
+                    <td className="px-3 py-3 font-semibold text-gray-800">{row.model}</td>
+                    <td className="px-3 py-3 text-gray-500">{row.signal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 4. CALL TO ACTION                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="animate-fade-in">
+        <Card className="bg-wc-navy text-white border-0 px-8 py-10 text-center space-y-4">
+          <p className="text-xs font-semibold tracking-widest text-white/50 uppercase">
+            Monte Carlo · Dixon-Coles
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-black leading-tight">
+            ¿Quién va a ganar el Mundial?
+          </h2>
+          <p className="text-white/70 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
+            Corremos 10.000 simulaciones del bracket completo. Monte Carlo. Dixon-Coles. Sin humo.
+          </p>
+          <div className="pt-2">
+            <Link to="/tournament">
+              <button className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-wc-gold text-wc-navy font-black text-base rounded-xl hover:brightness-110 transition-all shadow-lg">
+                Simular torneo completo →
+              </button>
+            </Link>
+          </div>
+        </Card>
+      </section>
+
     </div>
   );
 }
