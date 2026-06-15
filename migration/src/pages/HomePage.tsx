@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { Link } from 'react-router-dom';
-import { Trophy, Target, Cpu, Users, Database, ExternalLink } from 'lucide-react';
+import { Trophy, Target, Cpu, Users, Database } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import {
   Card,
@@ -85,6 +85,26 @@ export function HomePage() {
               Ver simulación
             </Button>
           </Link>
+        </div>
+
+        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6 text-xs text-white/50">
+          <span>
+            <span className="text-white/80 font-semibold">Mariano Villa</span>
+            {' '}· idea y motor estadístico
+            {' '}<a
+              href="https://github.com/marianovilla/oloraculo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-wc-gold hover:text-white transition-colors underline underline-offset-2"
+            >
+              marianovilla/oloraculo
+            </a>
+          </span>
+          <span className="hidden sm:inline text-white/20">·</span>
+          <span>
+            <span className="text-white/80 font-semibold">Ramiro Silvera</span>
+            {' '}· app web
+          </span>
         </div>
       </section>
 
@@ -188,57 +208,6 @@ export function HomePage() {
                 Simular torneo completo →
               </button>
             </Link>
-          </div>
-        </Card>
-      </section>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* 5. CREADORES                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      <section className="animate-fade-in">
-        <Card>
-          <CardHeader>
-            <SectionTitle sub="Mariano Villa tuvo la idea y construyó el motor estadístico. Ramiro Silvera lo convirtió en aplicación web.">
-              Creadores
-            </SectionTitle>
-          </CardHeader>
-
-          <div className="px-5 py-6 space-y-4">
-            <div className="flex items-start gap-4 pb-4 border-b border-gray-100">
-              <div className="w-12 h-12 rounded-xl bg-wc-navy/10 flex items-center justify-center shrink-0">
-                <span className="text-wc-navy font-black text-base">RS</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-black text-gray-800">Ramiro Silvera</p>
-                <p className="text-sm text-gray-500 mt-0.5">Desarrollo de la aplicación web</p>
-
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-wc-gold/15 flex items-center justify-center shrink-0">
-                <span className="text-wc-gold font-black text-base">MV</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-black text-gray-800">Mariano Villa</p>
-                <p className="text-sm text-gray-500 mt-0.5">Idea original y motor estadístico de predicciones</p>
-                <a
-                  href="https://github.com/marianovilla/oloraculo"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-wc-navy hover:text-wc-gold transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  marianovilla/oloraculo
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-5 py-4 bg-wc-cream/60 rounded-b-2xl border-t border-gray-100">
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Gracias a Mariano Villa por la idea y el trabajo estadístico que le dan vida a Oloráculo. ⚽
-            </p>
           </div>
         </Card>
       </section>
