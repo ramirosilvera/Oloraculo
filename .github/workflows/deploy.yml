@@ -39,7 +39,7 @@ jobs:
 
       - name: Deploy a Cloudflare Pages (producción)
         working-directory: migration
-        run: npx wrangler@3 pages deploy dist --project-name=oloraculo --branch=main --commit-dirty=true
+        run: npx wrangler@3 pages deploy dist --project-name=oloraculo --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
