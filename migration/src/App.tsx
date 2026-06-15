@@ -7,6 +7,7 @@ import { TournamentPage } from './pages/TournamentPage';
 import { TournamentSnapshotsPage } from './pages/TournamentSnapshotsPage';
 import { PerformancePage } from './pages/PerformancePage';
 import { DataPage } from './pages/DataPage';
+import { DebugPage } from './pages/DebugPage';
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
         <Route path="tournament/snapshots" element={<TournamentSnapshotsPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="data" element={<DataPage />} />
+        <Route path="debug" element={<DebugPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

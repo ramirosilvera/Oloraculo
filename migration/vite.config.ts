@@ -11,7 +11,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Split engine into its own chunk (heavy computation, loaded lazily)
           'prediction-engine': [
             './src/engine/prediction-engine',
             './src/engine/models/goal-model',
@@ -22,8 +21,9 @@ export default defineConfig({
     },
   },
   define: {
-    // Make env vars available at build time
     'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL),
     'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __GIT_COMMIT__: JSON.stringify(process.env.GITHUB_SHA ?? 'local'),
   },
 });
