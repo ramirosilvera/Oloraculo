@@ -4,16 +4,16 @@
  *
  * Pipeline (mirrors the original AvailabilityNewsService.cs design):
  *   1. Serper.dev (Google Search) → recent injury/suspension news per team
- *   2. OpenRouter LLM             → extract structured availability claims
+ *   2. Gemini LLM                 → extract structured availability claims
  *      from the search snippets (player, position, status, reason)
  *   3. Position-impact table      → per-fixture goal adjustments
  *
  * Required env:
  *   SERPER_API_KEY        Serper.dev key (https://serper.dev — 2500 free queries)
- *   OPENROUTER_API_KEY    OpenRouter key (https://openrouter.ai)
+ *   GEMINI_API_KEY        Google AI Studio key (https://aistudio.google.com/apikey)
  * Optional env:
- *   OPENROUTER_MODEL      default openai/gpt-4o-mini
- *   OPENROUTER_BASE_URL   default https://openrouter.ai/api/v1/
+ *   GEMINI_MODEL          default gemini-2.0-flash
+ *   GEMINI_BASE_URL       default https://generativelanguage.googleapis.com/v1beta/
  *   CONTEXT_QUERY_DATE    e.g. "June 2026" — biases the search to recent news
  *
  * The position-impact table mirrors AvailabilityNewsService.cs:
@@ -36,11 +36,11 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const SERPER_API_KEY    = process.env.SERPER_API_KEY ?? '';
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? '';
-const OPENROUTER_MODEL   = process.env.OPENROUTER_MODEL ?? 'openai/gpt-4o-mini';
-const OPENROUTER_BASE    = (process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1/').replace(/\/?$/, '/');
-const QUERY_DATE         = process.env.CONTEXT_QUERY_DATE ?? new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const SERPER_API_KEY = process.env.SERPER_API_KEY ?? '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
+const GEMINI_MODEL   = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+const GEMINI_BASE    = (process.env.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta/').replace(/\/?$/, '/');
+const QUERY_DATE     = process.env.CONTEXT_QUERY_DATE ?? new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 // ── Impact table ──────────────────────────────────────────────────────────────
 const IMPACT = {
@@ -124,31 +124,29 @@ Return JSON only, shape: {"claims":[{"player":"","position":"","status":"","reas
 - Use Doubtful for race-to-be-fit / major doubt / fitness concern. Use NotRelevant for anything not about availability.
 - Only include players for the team named by the user. Do not invent players. If nothing relevant, return {"claims":[]}.`;
 
-async function openRouterExtract(teamName, snippets) {
+async function geminiExtract(teamName, snippets) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
   try {
-    const res = await fetch(`${OPENROUTER_BASE}chat/completions`, {
+    const url = `${GEMINI_BASE}models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://oloraculo.pages.dev',
-        'X-Title': 'Oloraculo',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: LLM_SYSTEM_PROMPT },
-          { role: 'user', content: `Team: ${teamName}\nSearch snippets (${QUERY_DATE}):\n${snippets}` },
+        system_instruction: { parts: [{ text: LLM_SYSTEM_PROMPT }] },
+        contents: [
+          { role: 'user', parts: [{ text: `Team: ${teamName}\nSearch snippets (${QUERY_DATE}):\n${snippets}` }] },
         ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0,
+        },
       }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    const content = json.choices?.[0]?.message?.content ?? '{}';
+    const content = json.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '{}';
     const parsed = JSON.parse(content);
     return Array.isArray(parsed) ? parsed : (parsed.claims ?? []);
   } finally {
@@ -160,8 +158,8 @@ async function openRouterExtract(teamName, snippets) {
 async function main() {
   const outContexts = resolve(__dirname, '../migration/public/data/fixture-contexts.json');
 
-  if (!SERPER_API_KEY || !OPENROUTER_API_KEY) {
-    console.log('Missing SERPER_API_KEY and/or OPENROUTER_API_KEY — skipping fetch, leaving files untouched.');
+  if (!SERPER_API_KEY || !GEMINI_API_KEY) {
+    console.log('Missing SERPER_API_KEY and/or GEMINI_API_KEY — skipping fetch, leaving files untouched.');
     writeEmptyIfMissing();
     return;
   }
@@ -176,7 +174,7 @@ async function main() {
     fixtures.filter(f => !f.is_played).flatMap(f => [f.home_team_id, f.away_team_id]),
   )];
   console.log(`Working with ${fixtures.length} fixtures; ${upcomingTeamIds.length} teams with upcoming matches`);
-  console.log(`LLM model: ${OPENROUTER_MODEL}; query date bias: ${QUERY_DATE}`);
+  console.log(`LLM model: ${GEMINI_MODEL}; query date bias: ${QUERY_DATE}`);
 
   // ── Per team: Serper search → LLM extraction → unavailable players ─────────
   const unavailableByTeam = new Map(); // slug → [{playerName, pos, reason, status}]
@@ -189,7 +187,7 @@ async function main() {
       const snippets = snippetsFromSerper(serper);
       if (!snippets) { console.log(`    ${teamId}: no snippets`); continue; }
 
-      const claims = await openRouterExtract(teamName, snippets);
+      const claims = await geminiExtract(teamName, snippets);
       // Keep confirmed-out players, dedup by normalized name
       const seen = new Map();
       for (const c of claims) {

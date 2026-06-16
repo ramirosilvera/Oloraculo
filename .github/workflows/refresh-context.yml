@@ -33,12 +33,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Obtener contexto (Serper + OpenRouter)
+      - name: Obtener contexto (Serper + Gemini)
         run: node scripts/build-context.mjs
         continue-on-error: true
         env:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Commitear si hubo cambios
         run: |
@@ -51,6 +51,6 @@ jobs:
           else
             git commit \
               -m "chore: actualizar contexto de partidos [$(date -u +%Y-%m-%d)]" \
-              -m "Lesiones/suspensiones y posiciones actualizadas automáticamente desde Serper + OpenRouter."
+              -m "Lesiones/suspensiones y posiciones actualizadas automáticamente desde Serper + Gemini."
             git push origin main
           fi
