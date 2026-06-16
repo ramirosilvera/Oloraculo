@@ -2,11 +2,12 @@
 /**
  * build-context.mjs — pre-builds fixture-contexts.json for the React app.
  *
- * Pipeline (mirrors the original AvailabilityNewsService.cs design):
- *   1. Serper.dev (Google Search) → recent injury/suspension news per team
- *   2. Gemini LLM                 → extract structured availability claims
- *      from the search snippets (player, position, status, reason)
- *   3. Position-impact table      → per-fixture goal adjustments
+ * Pipeline:
+ *   1. Detect TODAY's fixtures (ART timezone, UTC-3)
+ *   2. Per fixture: one Serper search ("TeamA" "TeamB" World Cup 2026 injury <date>)
+ *   3. One Gemini call per fixture → extracts unavailable players for BOTH teams
+ *   4. Grounding filter → drops any claim not verbatim found in snippets
+ *   5. Merge into existing fixture-contexts.json (non-today entries preserved)
  *
  * Required env:
  *   SERPER_API_KEY        Serper.dev key (https://serper.dev — 2500 free queries)
@@ -14,7 +15,7 @@
  * Optional env:
  *   GEMINI_MODEL          default gemini-2.5-flash
  *   GEMINI_BASE_URL       default https://generativelanguage.googleapis.com/v1beta/
- *   CONTEXT_QUERY_DATE    e.g. "June 2026" — biases the search to recent news
+ *   CONTEXT_QUERY_DATE    override date label e.g. "June 16, 2026" (for testing)
  *
  * The position-impact table mirrors AvailabilityNewsService.cs:
  *   Attacker   → −3.5% goals scored
@@ -40,7 +41,13 @@ const SERPER_API_KEY = process.env.SERPER_API_KEY ?? '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
 const GEMINI_MODEL   = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
 const GEMINI_BASE    = (process.env.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta/').replace(/\/?$/, '/');
-const QUERY_DATE     = process.env.CONTEXT_QUERY_DATE ?? new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+// Today in ART (UTC-3) — used to filter fixtures and bias searches.
+// CONTEXT_QUERY_DATE can override (e.g. "June 16 2026") for testing.
+const _nowART = new Date(Date.now() - 3 * 3600_000);
+const TODAY_ART   = _nowART.toISOString().slice(0, 10);          // "2026-06-16"
+const TODAY_LABEL = process.env.CONTEXT_QUERY_DATE
+  ?? _nowART.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); // "June 16, 2026"
 
 // ── Impact table ──────────────────────────────────────────────────────────────
 const IMPACT = {
@@ -135,19 +142,28 @@ function snippetsFromSerper(data) {
   return lines.join('\n').slice(0, 6000);
 }
 
-const LLM_SYSTEM_PROMPT = `You extract CURRENT football player availability claims from search snippets about a national team, for the 2026 FIFA World Cup.
-Return JSON only, shape: {"claims":[{"player":"","position":"","status":"","reason":"","supportingText":""}]}
+// Prompt is rendered at call time (TODAY_LABEL injected).
+function buildSystemPrompt(homeName, awayName) {
+  return `You are analysing match-day news for the FIFA World Cup 2026 match: ${homeName} vs ${awayName} on ${TODAY_LABEL}.
 
-STRICT RULES — follow exactly:
-- Use ONLY information stated in the snippets. NEVER add players from your own memory of the squad or from old tournaments.
-- "supportingText" MUST be a short verbatim quote copied from the snippets that justifies the claim. If you cannot quote the snippet, DO NOT include the player.
-- Ignore retired players and players who are no longer in the national team. Ignore news older than the current year unless it explicitly concerns the 2026 World Cup.
-- status: one of ConfirmedOutInjury, ConfirmedOutIllness, ConfirmedOutSuspension, ConfirmedOutOther, Doubtful, Available, NotRelevant.
-- Use ConfirmedOut* ONLY when the snippet explicitly says the player is ruled out / will miss / withdrew / is suspended / is unavailable. A general injury mention without "out/miss/ruled out" is Doubtful, not ConfirmedOut.
-- position: one of Goalkeeper, Defender, Midfielder, Attacker (infer from the snippet or your knowledge of that player; else "Unknown").
-- Only include players for the team named by the user. If nothing in the snippets clearly applies, return {"claims":[]}.`;
+Return JSON ONLY, shape:
+{
+  "home_claims": [{"player":"","position":"","status":"","reason":"","supportingText":""}],
+  "away_claims": [{"player":"","position":"","status":"","reason":"","supportingText":""}]
+}
 
-async function geminiExtract(teamName, snippets) {
+STRICT RULES — no exceptions:
+- Use ONLY information explicitly stated in today's snippets. Never draw on training-data knowledge of past squads or previous tournaments.
+- Only include players CONFIRMED ABSENT for THIS specific match today. "Confirmed absent" means the snippet explicitly says: ruled out / will miss / suspended / withdrawn / unavailable / won't play / not in squad.
+- "supportingText" MUST be a short verbatim quote from the snippets. If you cannot find the quote in the snippets, EXCLUDE the player entirely.
+- Discard any player mentioned in pre-2026 context (June window, qualifiers, friendlies) unless the snippet clearly states the player is also absent from the 2026 World Cup.
+- status: one of ConfirmedOutInjury | ConfirmedOutIllness | ConfirmedOutSuspension | ConfirmedOutOther.
+- position: one of Goalkeeper | Defender | Midfielder | Attacker (infer if not stated; else Unknown).
+- home_claims = players ONLY from ${homeName}; away_claims = players ONLY from ${awayName}.
+- If no confirmed absences are found, return {"home_claims":[], "away_claims":[]}.`;
+}
+
+async function geminiExtractMatch(homeName, awayName, snippets) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
   try {
@@ -156,15 +172,14 @@ async function geminiExtract(teamName, snippets) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: LLM_SYSTEM_PROMPT }] },
-        contents: [
-          { role: 'user', parts: [{ text: `Team: ${teamName}\nSearch snippets (${QUERY_DATE}):\n${snippets}` }] },
-        ],
+        system_instruction: { parts: [{ text: buildSystemPrompt(homeName, awayName) }] },
+        contents: [{
+          role: 'user',
+          parts: [{ text: `Match: ${homeName} (home) vs ${awayName} (away) — ${TODAY_LABEL}\n\nSearch snippets:\n${snippets}` }],
+        }],
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0,
-          // Disable "thinking" — extraction is a simple task and thinking
-          // adds large latency/cost per call (gemini-2.5-flash defaults on).
           thinkingConfig: { thinkingBudget: 0 },
         },
       }),
@@ -174,10 +189,49 @@ async function geminiExtract(teamName, snippets) {
     const json = await res.json();
     const content = json.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '{}';
     const parsed = JSON.parse(content);
-    return Array.isArray(parsed) ? parsed : (parsed.claims ?? []);
+    return {
+      home: Array.isArray(parsed) ? [] : (parsed.home_claims ?? []),
+      away: Array.isArray(parsed) ? [] : (parsed.away_claims ?? []),
+    };
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Returns today's date string in ART (UTC-3) — "2026-06-16"
+function kickoffDateART(kickoff_utc) {
+  return new Date(kickoff_utc).toLocaleDateString('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+}
+
+// Ground and dedup a raw claims array from the LLM.
+function filterClaims(rawClaims, haystack) {
+  const seen = new Map();
+  let dropped = 0;
+  for (const c of rawClaims) {
+    if (!c.player || !isConfirmedOut(c.status)) continue;
+    const support = (c.supportingText ?? '').toString().trim();
+    if (!support || !nameAppearsIn(c.player, haystack)) { dropped++; continue; }
+    const key = normalizePlayerKey(c.player);
+    if (!key || seen.has(key)) continue;
+    seen.set(key, {
+      playerName: String(c.player).trim(),
+      pos:        normalizePosition(c.position),
+      reason:     (c.reason ?? c.status ?? '').toString().trim(),
+    });
+  }
+  return { players: [...seen.values()], dropped };
+}
+
+function buildNotes(homeId, awayId, homePlayers, awayPlayers) {
+  const fmt = (ps) => ps.map(p => `${p.playerName}${p.reason ? ` (${p.reason})` : ''}`).join(', ');
+  return [
+    homePlayers.length ? `${homeId}: ${fmt(homePlayers)}` : null,
+    awayPlayers.length ? `${awayId}: ${fmt(awayPlayers)}` : null,
+  ].filter(Boolean).join(' | ') || null;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -195,100 +249,84 @@ async function main() {
   const teams    = JSON.parse(readFileSync(`${dataDir}/teams.json`, 'utf-8'));
   const nameById = new Map(teams.map(t => [t.id, t.name]));
 
-  // Only teams that still have an unplayed fixture
-  const upcomingTeamIds = [...new Set(
-    fixtures.filter(f => !f.is_played).flatMap(f => [f.home_team_id, f.away_team_id]),
-  )];
-  console.log(`Working with ${fixtures.length} fixtures; ${upcomingTeamIds.length} teams with upcoming matches`);
-  console.log(`LLM model: ${GEMINI_MODEL}; query date bias: ${QUERY_DATE}`);
+  // ── Only process fixtures kicking off TODAY (ART timezone) ─────────────────
+  const todayFixtures = fixtures.filter(
+    f => !f.is_played && f.kickoff_utc && kickoffDateART(f.kickoff_utc) === TODAY_ART,
+  );
+  console.log(`Today (ART ${TODAY_ART}): ${todayFixtures.length} fixture(s) to process`);
+  console.log(`LLM model: ${GEMINI_MODEL} | date label: ${TODAY_LABEL}`);
 
-  // ── Per team: Serper search → LLM extraction → unavailable players ─────────
-  const unavailableByTeam = new Map(); // slug → [{playerName, pos, reason, status}]
-  for (const teamId of upcomingTeamIds) {
-    const teamName = nameById.get(teamId) ?? teamId;
-    try {
-      const serper = await serperSearch(
-        `${teamName} national football team injury suspension doubtful players ${QUERY_DATE} World Cup`,
-      );
-      const snippets = snippetsFromSerper(serper);
-      if (!snippets) { console.log(`    ${teamId}: no snippets`); continue; }
-
-      const claims = await geminiExtract(teamName, snippets);
-      const haystack = normalizeText(snippets);
-      // Keep confirmed-out players, dedup by normalized name.
-      const seen = new Map();
-      let dropped = 0;
-      for (const c of claims) {
-        if (!c.player || !isConfirmedOut(c.status)) continue;
-        // Grounding: the player must actually be named in the snippets,
-        // and the LLM must have quoted supporting text. Drops hallucinated
-        // names pulled from historical squads.
-        const support = (c.supportingText ?? '').toString().trim();
-        if (!support || !nameAppearsIn(c.player, haystack)) { dropped++; continue; }
-        const key = normalizePlayerKey(c.player);
-        if (!key || seen.has(key)) continue;
-        seen.set(key, {
-          playerName: String(c.player).trim(),
-          pos:        normalizePosition(c.position),
-          reason:     (c.reason ?? c.status ?? '').toString().trim(),
-          status:     c.status,
-        });
-      }
-      if (seen.size > 0) {
-        unavailableByTeam.set(teamId, [...seen.values()]);
-        console.log(`    ${teamId}: ${seen.size} out${dropped ? ` (${dropped} ungrounded dropped)` : ''} — ${[...seen.values()].map(p => p.playerName).join(', ')}`);
-      } else {
-        console.log(`    ${teamId}: none confirmed out${dropped ? ` (${dropped} ungrounded dropped)` : ''}`);
-      }
-      await new Promise(r => setTimeout(r, 200)); // be polite
-    } catch (e) {
-      console.warn(`    ⚠ ${teamId}: ${e.message}`);
-    }
+  if (todayFixtures.length === 0) {
+    console.log('No fixtures today — leaving fixture-contexts.json untouched.');
+    writeEmptyIfMissing();
+    return;
   }
 
-  // ── Build fixture-contexts.json ────────────────────────────────────────────
-  console.log('\nBuilding fixture contexts...');
+  // ── Load existing contexts so we can merge instead of overwrite ─────────────
+  let existingContexts = [];
+  if (existsSync(outContexts)) {
+    try { existingContexts = JSON.parse(readFileSync(outContexts, 'utf-8')); } catch {}
+  }
+  // Map: fixture_id → context entry (non-today entries will be preserved)
+  const contextMap = new Map(existingContexts.map(c => [c.fixture_id, c]));
+
   const now = new Date().toISOString();
-  const contexts = [];
 
-  for (const fixture of fixtures) {
-    if (fixture.is_played) continue;
-    const home = unavailableByTeam.get(fixture.home_team_id) ?? [];
-    const away = unavailableByTeam.get(fixture.away_team_id) ?? [];
-    if (home.length === 0 && away.length === 0) continue;
+  // ── Per fixture: one Serper search → one Gemini call (both teams) ──────────
+  for (const fixture of todayFixtures) {
+    const homeName = nameById.get(fixture.home_team_id) ?? fixture.home_team_id;
+    const awayName = nameById.get(fixture.away_team_id) ?? fixture.away_team_id;
 
-    const homeImpact = sumImpacts(home.map(p => p.pos));
-    const awayImpact = sumImpacts(away.map(p => p.pos));
+    console.log(`\n  ${homeName} vs ${awayName} (${fixture.id})`);
+    try {
+      // Match-specific query: names + date so results are current and relevant
+      const query = `"${homeName}" "${awayName}" FIFA World Cup 2026 injury suspension squad available ${TODAY_LABEL}`;
+      const serper   = await serperSearch(query);
+      const snippets = snippetsFromSerper(serper);
+      if (!snippets) { console.log('    no snippets returned'); continue; }
 
-    const fmt = (players) =>
-      players.map(p => `${p.playerName}${p.reason ? ` (${p.reason})` : ''}`).join(', ');
-    const notesParts = [
-      home.length > 0 ? `${fixture.home_team_id}: ${fmt(home)}` : null,
-      away.length > 0 ? `${fixture.away_team_id}: ${fmt(away)}` : null,
-    ].filter(Boolean);
+      const { home: rawHome, away: rawAway } = await geminiExtractMatch(homeName, awayName, snippets);
+      const haystack = normalizeText(snippets);
 
-    contexts.push({
-      fixture_id:                       fixture.id,
-      unavailable_home_players:         home.length,
-      unavailable_home_attack_impact:   homeImpact.attack,
-      unavailable_home_defense_impact:  homeImpact.defense,
-      unavailable_away_players:         away.length,
-      unavailable_away_attack_impact:   awayImpact.attack,
-      unavailable_away_defense_impact:  awayImpact.defense,
-      has_lineups:             false,
-      has_odds:                false,
-      has_availability_news:   true,
-      notes:                   notesParts.join(' | ') || null,
-      updated_at:              now,
-    });
+      const { players: homePlayers, dropped: hDrop } = filterClaims(rawHome, haystack);
+      const { players: awayPlayers, dropped: aDrop } = filterClaims(rawAway, haystack);
+
+      console.log(`    local  (${homeName}): ${homePlayers.length} out${hDrop ? ` (${hDrop} dropped)` : ''}${homePlayers.length ? ' — ' + homePlayers.map(p => p.playerName).join(', ') : ''}`);
+      console.log(`    visita (${awayName}): ${awayPlayers.length} out${aDrop ? ` (${aDrop} dropped)` : ''}${awayPlayers.length ? ' — ' + awayPlayers.map(p => p.playerName).join(', ') : ''}`);
+
+      if (homePlayers.length === 0 && awayPlayers.length === 0) {
+        console.log('    → sin bajas confirmadas, sin cambios para este partido');
+        continue;
+      }
+
+      const homeImpact = sumImpacts(homePlayers.map(p => p.pos));
+      const awayImpact = sumImpacts(awayPlayers.map(p => p.pos));
+
+      contextMap.set(fixture.id, {
+        fixture_id:                      fixture.id,
+        unavailable_home_players:        homePlayers.length,
+        unavailable_home_attack_impact:  homeImpact.attack,
+        unavailable_home_defense_impact: homeImpact.defense,
+        unavailable_away_players:        awayPlayers.length,
+        unavailable_away_attack_impact:  awayImpact.attack,
+        unavailable_away_defense_impact: awayImpact.defense,
+        has_lineups:          false,
+        has_odds:             false,
+        has_availability_news: true,
+        notes:     buildNotes(fixture.home_team_id, fixture.away_team_id, homePlayers, awayPlayers),
+        updated_at: now,
+      });
+    } catch (e) {
+      console.warn(`    ⚠ error: ${e.message}`);
+    }
+
+    await new Promise(r => setTimeout(r, 300)); // be polite between fixtures
   }
 
-  if (contexts.length === 0 && existsSync(outContexts)) {
-    console.log('⚠ No confirmed-out players found — preserving existing fixture-contexts.json to avoid wiping good data.');
-  } else {
-    writeFileSync(outContexts, JSON.stringify(contexts, null, 2));
-    console.log(`✓ Wrote ${contexts.length} fixture contexts → ${outContexts}`);
-  }
+  // ── Write merged result ────────────────────────────────────────────────────
+  const merged = [...contextMap.values()];
+  writeFileSync(outContexts, JSON.stringify(merged, null, 2));
+  console.log(`\n✓ Wrote ${merged.length} fixture contexts (${todayFixtures.length} today refreshed) → ${outContexts}`);
 }
 
 function writeEmptyIfMissing() {
