@@ -21,8 +21,8 @@ export default defineConfig({
     },
   },
   define: {
-    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL),
-    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY),
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL ?? ''),
+    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY ?? ''),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     __GIT_COMMIT__: JSON.stringify(process.env.GITHUB_SHA ?? 'local'),
   },
