@@ -140,6 +140,9 @@ async function geminiExtract(teamName, snippets) {
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0,
+          // Disable "thinking" — extraction is a simple task and thinking
+          // adds large latency/cost per call (gemini-2.5-flash defaults on).
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       signal: controller.signal,
