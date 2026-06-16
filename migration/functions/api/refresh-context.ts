@@ -208,9 +208,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
-  if (!env.SERPER_API_KEY || !env.GEMINI_API_KEY) {
+  const missing = [
+    !env.SERPER_API_KEY && 'SERPER_API_KEY',
+    !env.GEMINI_API_KEY && 'GEMINI_API_KEY',
+  ].filter(Boolean).join(', ');
+  if (missing) {
     return new Response(
-      JSON.stringify({ error: 'Missing SERPER_API_KEY or GEMINI_API_KEY on the server.' }),
+      JSON.stringify({ error: `Variables no encontradas en el servidor: ${missing}. Verificá que estén cargadas en Cloudflare Pages → Settings → Environment variables → Production, y que el deploy posterior a esa carga haya terminado.` }),
       { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
@@ -290,12 +294,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 };
 
+export const onRequestGet: PagesFunction<Env> = async ({ env }) =>
+  new Response(JSON.stringify({
+    serper_key_set: !!env.SERPER_API_KEY,
+    gemini_key_set: !!env.GEMINI_API_KEY,
+    gemini_model:   env.GEMINI_MODEL ?? 'gemini-2.5-flash (default)',
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
 export const onRequestOptions: PagesFunction<Env> = async () =>
   new Response(null, {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
   });
