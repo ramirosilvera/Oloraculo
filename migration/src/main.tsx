@@ -10,6 +10,8 @@ import {
   loadStaticFixtures,
   loadStaticRatings,
   loadStaticResults,
+  loadStaticFixtureContexts,
+  loadStaticSquads,
 } from './services/static-data';
 import { PredictionEngine } from './engine/prediction-engine';
 
@@ -26,11 +28,13 @@ const queryClient = new QueryClient({
 // Teams/groups/fixtures/ratings load in parallel; engine starts once results arrive.
 setTimeout(() => {
   Promise.all([
-    queryClient.fetchQuery({ queryKey: ['teams'],    queryFn: loadStaticTeams,    staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['groups'],   queryFn: loadStaticGroups,   staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['fixtures'], queryFn: loadStaticFixtures, staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['ratings'],  queryFn: loadStaticRatings,  staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['results'],  queryFn: loadStaticResults,  staleTime: Infinity })
+    queryClient.fetchQuery({ queryKey: ['teams'],           queryFn: loadStaticTeams,            staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['groups'],          queryFn: loadStaticGroups,           staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['fixtures'],        queryFn: loadStaticFixtures,         staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['ratings'],         queryFn: loadStaticRatings,          staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['static-contexts'], queryFn: loadStaticFixtureContexts,  staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['squads'],          queryFn: loadStaticSquads,           staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['results'],         queryFn: loadStaticResults,          staleTime: Infinity })
       .then(results =>
         queryClient.fetchQuery({
           queryKey: ['engine'],

@@ -30,6 +30,10 @@ jobs:
         working-directory: migration
         run: npm ci
 
+      - name: Obtener contexto de partidos (ESPN + OpenFootball)
+        run: node scripts/build-context.mjs
+        continue-on-error: true
+
       - name: Build
         working-directory: migration
         run: npm run build
