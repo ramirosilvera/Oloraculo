@@ -562,6 +562,73 @@ function FixtureRow({
 }
 
 // ---------------------------------------------------------------------------
+// TournamentPace — "Racha del Mundial" journalistic widget
+// Compares WC2026 avg goals/match to the historical WC baseline (2.50)
+// ---------------------------------------------------------------------------
+const WC_HISTORICAL_GOALS_PER_MATCH = 2.50;
+
+function TournamentPace({ wcResults }: { wcResults: WcActualResult[] }) {
+  if (wcResults.length < 3) return null;
+
+  const totalGoals = wcResults.reduce((s, r) => s + r.home_goals + r.away_goals, 0);
+  const avgPerMatch = totalGoals / wcResults.length;
+  const factor = avgPerMatch / WC_HISTORICAL_GOALS_PER_MATCH;
+
+  let emoji: string, label: string, sub: string, barColor: string;
+  if (factor >= 1.6) {
+    emoji = '💥'; label = 'Mundial Explosivo';
+    sub = 'Ritmo goleador histórico. El modelo amplifica predicciones de goles.';
+    barColor = 'bg-red-500';
+  } else if (factor >= 1.3) {
+    emoji = '🔥'; label = 'Muy goleador';
+    sub = 'El torneo está siendo excepcionalmente abierto y goleador.';
+    barColor = 'bg-orange-400';
+  } else if (factor >= 1.1) {
+    emoji = '⚡'; label = 'Ritmo alto';
+    sub = 'Por encima del promedio histórico de mundiales.';
+    barColor = 'bg-yellow-400';
+  } else if (factor >= 0.9) {
+    emoji = '📊'; label = 'Ritmo histórico';
+    sub = 'Promedio de goles en línea con los mundiales anteriores.';
+    barColor = 'bg-blue-400';
+  } else {
+    emoji = '🧱'; label = 'Ritmo defensivo';
+    sub = 'Torneo de bajo puntaje. Las defensas están dominando.';
+    barColor = 'bg-gray-400';
+  }
+
+  const barWidth = Math.min(100, Math.round((factor / 2) * 100));
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-4 pt-3 pb-2 flex items-start gap-3">
+        <span className="text-2xl leading-none mt-0.5 shrink-0">{emoji}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-black text-sm text-gray-800">{label}</p>
+            <span className="text-[10px] font-bold text-wc-navy bg-wc-navy/10 px-1.5 py-0.5 rounded-md">
+              ×{factor.toFixed(2)}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+        </div>
+        <Tooltip text="Factor de inflación goleadora del torneo: compara el promedio actual del Mundial 2026 contra el histórico de mundiales (2.50 goles/partido). El modelo L6 lo aplica automáticamente para amplificar las predicciones de goles cuando el torneo lo justifica.">
+          <Info className="w-4 h-4 text-gray-300 shrink-0 mt-0.5" />
+        </Tooltip>
+      </div>
+      <div className="px-4 pb-1 flex items-center gap-2">
+        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${barWidth}%` }} />
+        </div>
+        <span className="text-[10px] text-gray-400 shrink-0 tabular-nums">
+          {avgPerMatch.toFixed(2)} vs {WC_HISTORICAL_GOALS_PER_MATCH.toFixed(2)} goles/pdo · {wcResults.length} partidos
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MatchesPage
 // ---------------------------------------------------------------------------
 export function MatchesPage() {
@@ -793,6 +860,13 @@ export function MatchesPage() {
           </button>
         )}
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* RACHA DEL MUNDIAL                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      {wcResults && wcResults.length >= 3 && (
+        <TournamentPace wcResults={wcResults} />
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* RESULTADOS DE BÚSQUEDA                                               */}

@@ -33,9 +33,10 @@ export function tournamentMomentumPredict(
 
   const netDiff = clamp(homeTMS - awayTMS, -1, 1);
   const adjustment = netDiff * 0.12;
+  const inflation = clamp(ctx.tournamentGoalInflation ?? 1.0, 0.5, 3.0);
 
-  let homeGoals = baseHome * (1 + adjustment);
-  let awayGoals = baseAway * (1 - adjustment);
+  let homeGoals = baseHome * inflation * (1 + adjustment);
+  let awayGoals = baseAway * inflation * (1 - adjustment);
 
   homeGoals = Math.max(0.3, homeGoals);
   awayGoals = Math.max(0.3, awayGoals);
@@ -45,6 +46,7 @@ export function tournamentMomentumPredict(
 
   const drivers: string[] = [
     `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(3)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(3)} (diff ${netDiff.toFixed(3)}, ajuste ${(adjustment * 100).toFixed(1)}%)`,
+    `Inflación de goles del torneo: ×${inflation.toFixed(3)} (histórico base: ×1.000)`,
   ];
 
   if (homeTF && homeTF.upsetBonus > 0) {
@@ -69,9 +71,10 @@ export function tournamentMomentumPredict(
   }
   if (goalDegraded) featuresMissing.push('datos requeridos por el modelo de goles');
 
+  const inflationNote = inflation !== 1.0 ? ` · Inflación goleadora del torneo: ×${inflation.toFixed(2)}` : '';
   const explanation = bothNull
     ? `Sin datos de torneo disponibles. Goles base: ${ctx.homeTeam.name} ${baseHome.toFixed(2)} - ${baseAway.toFixed(2)} ${ctx.awayTeam.name}.`
-    : `Modelo de goles ajustado por momentum en torneo (${(adjustment * 100).toFixed(1)}%). ${ctx.homeTeam.name} ${homeGoals.toFixed(2)} - ${awayGoals.toFixed(2)} ${ctx.awayTeam.name}.`;
+    : `Modelo de goles ajustado por momentum (${(adjustment * 100).toFixed(1)}%)${inflationNote}. ${ctx.homeTeam.name} ${homeGoals.toFixed(2)} - ${awayGoals.toFixed(2)} ${ctx.awayTeam.name}.`;
 
   return {
     predictorName: 'Momentum del Mundial',

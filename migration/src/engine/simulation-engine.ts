@@ -196,6 +196,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
         fixtureContext: null,
         homeTournamentForm: null,
         awayTournamentForm: null,
+        tournamentGoalInflation: null,
       };
       const { home, away } = goalModel.expectedGoals(ctx);
       const dist = poissonScoreline(home, away, 8, -0.03);

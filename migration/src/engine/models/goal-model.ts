@@ -136,7 +136,7 @@ export class GoalModel {
   readonly priority = 4;
 
   private readonly strengths: Map<string, GoalStrength>;
-  private readonly avgGoals: number;
+  readonly avgGoals: number;
   private readonly matchesUsed: number;
   readonly yearsWindow: number;
 

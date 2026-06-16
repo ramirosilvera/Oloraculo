@@ -130,6 +130,14 @@ export class PredictionEngine {
     return { played, wins, draws, losses, goalsFor, goalsAgainst, momentumScore, upsetBonus };
   }
 
+  private computeGoalInflation(wcResults: WcActualResult[]): number | null {
+    if (wcResults.length < 3) return null;
+    const totalGoals = wcResults.reduce((s, r) => s + r.home_goals + r.away_goals, 0);
+    const wcAvgPerTeam = totalGoals / (wcResults.length * 2);
+    const historicalAvg = this.goalModel.avgGoals;
+    return Math.max(0.5, Math.min(3.0, +(wcAvgPerTeam / historicalAvg).toFixed(3)));
+  }
+
   buildContext(
     fixture: Fixture,
     teams: Map<string, Team>,
@@ -177,6 +185,7 @@ export class PredictionEngine {
       awayTournamentForm: (wcResults && allFixtures)
         ? this.computeTournamentForm(fixture.away_team_id, wcResults, allFixtures, ratings)
         : null,
+      tournamentGoalInflation: wcResults ? this.computeGoalInflation(wcResults) : null,
     };
   }
 

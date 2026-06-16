@@ -198,6 +198,7 @@ export interface MatchContext {
   fixtureContext: FixtureContext | null;
   homeTournamentForm: TournamentFormStats | null;
   awayTournamentForm: TournamentFormStats | null;
+  tournamentGoalInflation: number | null;
 }
 
 // ---------------------------------------------------------------------------
