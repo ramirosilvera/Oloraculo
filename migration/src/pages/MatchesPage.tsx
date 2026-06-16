@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
 import {
@@ -295,6 +295,10 @@ export function MatchesPage() {
   const [evalDone, setEvalDone]         = useState<Set<string>>(new Set());
   const [err, setErr]                   = useState('');
 
+  // Holds a fixture that was tapped while the engine was still loading,
+  // so we can run the prediction as soon as the engine becomes ready.
+  const pendingFixtureRef = useRef<Fixture | null>(null);
+
   // Filter state
   const [search, setSearch]             = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -315,21 +319,38 @@ export function MatchesPage() {
   const prevDate = dateIdx > 0 ? fixtureDates[dateIdx - 1] : null;
   const nextDate = dateIdx < fixtureDates.length - 1 ? fixtureDates[dateIdx + 1] : null;
 
+  // When engine finishes loading, complete any prediction that was queued while it was null.
+  useEffect(() => {
+    if (!engine) return;
+    const fixture = pendingFixtureRef.current;
+    if (!fixture) return;
+    pendingFixtureRef.current = null;
+    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap);
+    const result = engine.predict(ctx);
+    setPredictions(prev => new Map(prev).set(fixture.id, result));
+    setExpandingId(null);
+  }, [engine, teamMap, ratingsList, contextMap]);
+
   const expand = useCallback(async (fixture: Fixture) => {
     const isSame = expandedId === fixture.id;
     setExpandedId(isSame ? null : fixture.id);
     setResultHome('');
     setResultAway('');
     setErr('');
-    if (!isSame && !predictions.has(fixture.id) && engine) {
-      setExpandingId(fixture.id);
-      // Yield to browser so the expanded row renders before the heavy compute
-      await new Promise(r => setTimeout(r, 0));
-      const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap);
-      const result = engine.predict(ctx);
-      setPredictions(prev => new Map(prev).set(fixture.id, result));
-      setExpandingId(null);
+    if (isSame || predictions.has(fixture.id)) return;
+    setExpandingId(fixture.id);
+    if (!engine) {
+      // Engine is still warming up — queue the fixture; the useEffect above
+      // will run the prediction the moment the engine becomes available.
+      pendingFixtureRef.current = fixture;
+      return;
     }
+    // Yield to browser so the expanded row renders before the heavy compute
+    await new Promise(r => setTimeout(r, 0));
+    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap);
+    const result = engine.predict(ctx);
+    setPredictions(prev => new Map(prev).set(fixture.id, result));
+    setExpandingId(null);
   }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap]);
 
   const saveSnapshot = async (fixture: Fixture) => {
