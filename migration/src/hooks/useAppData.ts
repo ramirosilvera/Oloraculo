@@ -42,6 +42,10 @@ export function useAppData() {
     const map = new Map<string, FixtureContext>();
     for (const c of (staticContexts.data ?? [])) map.set(c.fixture_id, c);
     for (const c of (contexts.data ?? []))        map.set(c.fixture_id, c);
+    console.debug(
+      `[contextMap] total=${map.size} | estático=${staticContexts.data?.length ?? 0} | supabase=${contexts.data?.length ?? 0}`,
+      [...map.keys()].slice(0, 5),
+    );
     return map;
   }, [staticContexts.data, contexts.data]);
 

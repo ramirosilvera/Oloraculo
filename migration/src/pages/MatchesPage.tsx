@@ -376,6 +376,43 @@ function FixtureRow({
                 ))}
               </div>
 
+              {/* ── Debug de contexto ── */}
+              {(() => {
+                const l5 = pred.predictions.find(p => p.predictorName === 'Goles + contexto reciente');
+                const ctxLoaded = context !== null;
+                const l5Active  = l5 && !l5.degraded;
+                return (
+                  <div className="p-2 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-[10px] font-mono text-gray-500 space-y-0.5 leading-4">
+                    <p className="font-bold text-gray-600 text-[11px]">🔍 debug contexto</p>
+                    <p>
+                      fixture_id: <span className="text-gray-700">{fixture.id}</span>
+                    </p>
+                    <p>
+                      contexto cargado:{' '}
+                      {ctxLoaded
+                        ? <span className="text-green-700 font-bold">✓ sí ({context!.unavailable_home_players} local / {context!.unavailable_away_players} visita)</span>
+                        : <span className="text-red-600 font-bold">✗ no (fixture-contexts.json vacío o ID no encontrado)</span>
+                      }
+                    </p>
+                    {ctxLoaded && (
+                      <>
+                        <p>local — ataque: {(context!.unavailable_home_attack_impact * 100).toFixed(1)}% | defensa: {(context!.unavailable_home_defense_impact * 100).toFixed(1)}%</p>
+                        <p>visita — ataque: {(context!.unavailable_away_attack_impact * 100).toFixed(1)}% | defensa: {(context!.unavailable_away_defense_impact * 100).toFixed(1)}%</p>
+                        <p>notas: {context!.notes ?? '—'}</p>
+                      </>
+                    )}
+                    <p>
+                      L5:{' '}
+                      {l5Active
+                        ? <span className="text-green-700 font-bold">✓ activo — {l5!.explanation}</span>
+                        : <span className="text-orange-600">degradado — faltante: {l5?.featuresMissing?.join(', ') ?? '?'}</span>
+                      }
+                    </p>
+                    <p>modelo elegido: <span className="text-gray-700">{pred.bestPrediction.predictorName}</span></p>
+                  </div>
+                );
+              })()}
+
               <div className="flex flex-wrap items-center gap-2">
                 <Tooltip text="Guardá antes del partido para medir tu accuracy después">
                   <Button
