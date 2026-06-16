@@ -12,7 +12,7 @@
  *   SERPER_API_KEY        Serper.dev key (https://serper.dev — 2500 free queries)
  *   GEMINI_API_KEY        Google AI Studio key (https://aistudio.google.com/apikey)
  * Optional env:
- *   GEMINI_MODEL          default gemini-2.0-flash
+ *   GEMINI_MODEL          default gemini-2.5-flash
  *   GEMINI_BASE_URL       default https://generativelanguage.googleapis.com/v1beta/
  *   CONTEXT_QUERY_DATE    e.g. "June 2026" — biases the search to recent news
  *
@@ -38,7 +38,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ── Config ──────────────────────────────────────────────────────────────────
 const SERPER_API_KEY = process.env.SERPER_API_KEY ?? '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
-const GEMINI_MODEL   = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+const GEMINI_MODEL   = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
 const GEMINI_BASE    = (process.env.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta/').replace(/\/?$/, '/');
 const QUERY_DATE     = process.env.CONTEXT_QUERY_DATE ?? new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
