@@ -5,20 +5,43 @@ name: Refrescar contexto de partidos
 # the commit triggers the deploy workflow automatically.
 #
 # Runs daily at 08:00 UTC (05:00 ART), and on demand via workflow_dispatch.
+# Valid only until the 2026 World Cup final (2026-07-19): after that date the
+# job disables its own schedule so no further automatic runs happen.
 
 on:
   schedule:
     - cron: '0 8 * * *'   # 08:00 UTC = 05:00 ART, every day
   workflow_dispatch:        # manual trigger any time
 
+env:
+  WC_FINAL_DATE: '2026-07-19'   # last day the refresh is relevant
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # needed to push the updated JSON files
+      contents: write       # push the updated JSON files
+      actions: write        # disable this workflow after the final
 
     steps:
+      - name: Verificar vigencia (hasta la final del Mundial)
+        id: vigencia
+        run: |
+          TODAY=$(date -u +%F)
+          if [[ "$TODAY" > "$WC_FINAL_DATE" ]]; then
+            echo "El Mundial terminó el $WC_FINAL_DATE (hoy $TODAY). Desactivando el cron automático."
+            curl -sS -X PUT \
+              -H "Authorization: Bearer ${{ secrets.PAT_TOKEN || github.token }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh-context.yml/disable"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Vigente (hoy $TODAY ≤ $WC_FINAL_DATE). Continuando."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.vigencia.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           # Use a PAT so the commit can trigger the deploy workflow.
@@ -26,11 +49,13 @@ jobs:
           token: ${{ secrets.PAT_TOKEN || github.token }}
 
       - name: Set up Node.js
+        if: steps.vigencia.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Obtener contexto (Serper + Gemini)
+        if: steps.vigencia.outputs.skip != 'true'
         run: node scripts/build-context.mjs
         continue-on-error: true
         env:
@@ -38,6 +63,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Commitear si hubo cambios
+        if: steps.vigencia.outputs.skip != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
