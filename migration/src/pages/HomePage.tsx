@@ -204,7 +204,7 @@ export function HomePage() {
           </p>
           <div className="pt-2">
             <Link to="/tournament">
-              <button className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-wc-gold text-wc-navy font-black text-base rounded-xl hover:brightness-110 transition-all shadow-lg">
+              <button className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-wc-gold text-wc-navy font-black text-base rounded-xl hover:brightness-110 active:scale-[0.96] active:brightness-90 transition-all shadow-lg">
                 Simular torneo completo →
               </button>
             </Link>

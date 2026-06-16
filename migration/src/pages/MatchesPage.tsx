@@ -104,7 +104,7 @@ function FixtureRow({
       <button
         onClick={onExpand}
         disabled={isExpanding}
-        className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-wc-cream/50 transition-colors text-left ${compact ? 'py-2.5' : ''} ${isExpanding ? 'opacity-60' : ''}`}
+        className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-wc-cream/50 active:bg-wc-cream transition-all text-left ${compact ? 'py-2.5' : ''} ${isExpanding ? 'opacity-60' : ''}`}
       >
         <span className="text-2xl leading-none">{flag(fixture.home_team_id)}</span>
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{homeName}</span>
@@ -434,7 +434,7 @@ export function MatchesPage() {
         {search && (
           <button
             onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 active:scale-90 transition-transform"
           >
             <X className="w-4 h-4" />
           </button>
@@ -486,20 +486,20 @@ export function MatchesPage() {
                 <button
                   onClick={() => prevDate && setSelectedDate(prevDate)}
                   disabled={!prevDate}
-                  className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 active:bg-white/20 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setSelectedDate(TODAY)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${selectedDate === TODAY ? 'bg-wc-gold text-wc-navy' : 'text-white/70 hover:bg-white/10'}`}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 active:brightness-90 ${selectedDate === TODAY ? 'bg-wc-gold text-wc-navy' : 'text-white/70 hover:bg-white/10 active:bg-white/20'}`}
                 >
                   Hoy
                 </button>
                 <button
                   onClick={() => nextDate && setSelectedDate(nextDate)}
                   disabled={!nextDate}
-                  className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 active:bg-white/20 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -522,7 +522,7 @@ export function MatchesPage() {
                       <button
                         onClick={() => expand(f)}
                         disabled={expandingId === f.id}
-                        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 transition-colors text-left ${expandingId === f.id ? 'opacity-70' : ''}`}
+                        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 active:bg-white/20 transition-all text-left ${expandingId === f.id ? 'opacity-70' : ''}`}
                       >
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <span className="text-[10px] font-bold text-wc-gold/80 uppercase tracking-wide">
@@ -582,7 +582,7 @@ export function MatchesPage() {
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           <button
             onClick={() => setSelectedGroup(null)}
-            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${!selectedGroup ? 'bg-wc-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 active:brightness-90 ${!selectedGroup ? 'bg-wc-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'}`}
           >
             Todos
           </button>
@@ -590,7 +590,7 @@ export function MatchesPage() {
             <button
               key={g.name}
               onClick={() => setSelectedGroup(selectedGroup === g.name ? null : g.name)}
-              className={`shrink-0 w-9 h-8 rounded-lg text-xs font-bold transition-colors ${selectedGroup === g.name ? 'bg-wc-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`shrink-0 w-9 h-8 rounded-lg text-xs font-bold transition-all active:scale-95 active:brightness-90 ${selectedGroup === g.name ? 'bg-wc-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'}`}
             >
               {g.name}
             </button>

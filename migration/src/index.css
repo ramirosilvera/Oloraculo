@@ -15,6 +15,11 @@
     --wc-red: #CC2929;
     --wc-gold: #C9A84C;
   }
+
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
 }
 
 @layer utilities {

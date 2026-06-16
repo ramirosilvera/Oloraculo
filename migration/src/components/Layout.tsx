@@ -40,10 +40,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             end={to === '/'}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all active:scale-[0.96] active:brightness-90 ${
                 isActive
                   ? 'bg-white/10 text-white'
-                  : 'text-white/60 hover:bg-white/5 hover:text-white'
+                  : 'text-white/60 hover:bg-white/5 hover:text-white active:bg-white/15'
               }`
             }
           >
@@ -90,7 +90,7 @@ export function MainLayout() {
           </div>
           <button
             onClick={() => setOpen(true)}
-            className="text-white/80 hover:text-white p-1"
+            className="text-white/80 hover:text-white p-1 active:scale-[0.90] active:brightness-75 transition-all"
             aria-label="Abrir menú"
           >
             <Menu size={22} />
