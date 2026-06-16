@@ -96,7 +96,7 @@ async function serperSearch(query) {
       body: JSON.stringify({ q: query, gl: 'us', hl: 'en', num: 10 }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`serper HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
     return await res.json();
   } finally {
     clearTimeout(timer);
@@ -144,7 +144,7 @@ async function geminiExtract(teamName, snippets) {
       }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`gemini HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
     const json = await res.json();
     const content = json.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '{}';
     const parsed = JSON.parse(content);
