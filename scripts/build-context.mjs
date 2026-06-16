@@ -85,6 +85,25 @@ function isConfirmedOut(status) {
   return (status ?? '').toLowerCase().startsWith('confirmedout');
 }
 
+// Normalize free text for grounding checks (accent-free, lowercase, words).
+function normalizeText(s) {
+  return (s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// Anti-hallucination guard: keep a claim only if the player is actually
+// named in the search snippets we sent. Requires that a meaningful name
+// token (>=4 letters, i.e. a surname) appears verbatim in the snippets.
+function nameAppearsIn(name, haystack) {
+  const tokens = normalizeText(name).split(' ').filter(t => t.length >= 4);
+  if (tokens.length === 0) return false;
+  return tokens.some(t => haystack.includes(t));
+}
+
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 async function serperSearch(query) {
   const controller = new AbortController();
@@ -116,13 +135,17 @@ function snippetsFromSerper(data) {
   return lines.join('\n').slice(0, 6000);
 }
 
-const LLM_SYSTEM_PROMPT = `You extract football player availability claims from search snippets about a national team.
+const LLM_SYSTEM_PROMPT = `You extract CURRENT football player availability claims from search snippets about a national team, for the 2026 FIFA World Cup.
 Return JSON only, shape: {"claims":[{"player":"","position":"","status":"","reason":"","supportingText":""}]}
-- position: one of Goalkeeper, Defender, Midfielder, Attacker (best guess from your knowledge if not stated; else "Unknown").
+
+STRICT RULES — follow exactly:
+- Use ONLY information stated in the snippets. NEVER add players from your own memory of the squad or from old tournaments.
+- "supportingText" MUST be a short verbatim quote copied from the snippets that justifies the claim. If you cannot quote the snippet, DO NOT include the player.
+- Ignore retired players and players who are no longer in the national team. Ignore news older than the current year unless it explicitly concerns the 2026 World Cup.
 - status: one of ConfirmedOutInjury, ConfirmedOutIllness, ConfirmedOutSuspension, ConfirmedOutOther, Doubtful, Available, NotRelevant.
-- Use ConfirmedOut* only for clearly ruled out / withdrawn / will miss / suspended / unavailable players.
-- Use Doubtful for race-to-be-fit / major doubt / fitness concern. Use NotRelevant for anything not about availability.
-- Only include players for the team named by the user. Do not invent players. If nothing relevant, return {"claims":[]}.`;
+- Use ConfirmedOut* ONLY when the snippet explicitly says the player is ruled out / will miss / withdrew / is suspended / is unavailable. A general injury mention without "out/miss/ruled out" is Doubtful, not ConfirmedOut.
+- position: one of Goalkeeper, Defender, Midfielder, Attacker (infer from the snippet or your knowledge of that player; else "Unknown").
+- Only include players for the team named by the user. If nothing in the snippets clearly applies, return {"claims":[]}.`;
 
 async function geminiExtract(teamName, snippets) {
   const controller = new AbortController();
@@ -191,10 +214,17 @@ async function main() {
       if (!snippets) { console.log(`    ${teamId}: no snippets`); continue; }
 
       const claims = await geminiExtract(teamName, snippets);
-      // Keep confirmed-out players, dedup by normalized name
+      const haystack = normalizeText(snippets);
+      // Keep confirmed-out players, dedup by normalized name.
       const seen = new Map();
+      let dropped = 0;
       for (const c of claims) {
         if (!c.player || !isConfirmedOut(c.status)) continue;
+        // Grounding: the player must actually be named in the snippets,
+        // and the LLM must have quoted supporting text. Drops hallucinated
+        // names pulled from historical squads.
+        const support = (c.supportingText ?? '').toString().trim();
+        if (!support || !nameAppearsIn(c.player, haystack)) { dropped++; continue; }
         const key = normalizePlayerKey(c.player);
         if (!key || seen.has(key)) continue;
         seen.set(key, {
@@ -206,9 +236,9 @@ async function main() {
       }
       if (seen.size > 0) {
         unavailableByTeam.set(teamId, [...seen.values()]);
-        console.log(`    ${teamId}: ${seen.size} out — ${[...seen.values()].map(p => p.playerName).join(', ')}`);
+        console.log(`    ${teamId}: ${seen.size} out${dropped ? ` (${dropped} ungrounded dropped)` : ''} — ${[...seen.values()].map(p => p.playerName).join(', ')}`);
       } else {
-        console.log(`    ${teamId}: none confirmed out`);
+        console.log(`    ${teamId}: none confirmed out${dropped ? ` (${dropped} ungrounded dropped)` : ''}`);
       }
       await new Promise(r => setTimeout(r, 200)); // be polite
     } catch (e) {
