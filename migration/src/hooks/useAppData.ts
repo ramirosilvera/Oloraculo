@@ -35,10 +35,16 @@ export function useAppData() {
     [contexts.data],
   );
 
-  const engine = useMemo(
-    () => (results.data ? new PredictionEngine(results.data) : null),
-    [results.data],
-  );
+  // Cache the engine in React Query so it's built once per session, not on
+  // every page navigation (each new component instance would re-run useMemo).
+  const engineQuery = useQuery({
+    queryKey: ['engine'],
+    queryFn: () => new PredictionEngine(results.data!),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    enabled: !!results.data,
+  });
+  const engine = engineQuery.data ?? null;
 
   const isLoading =
     teams.isLoading || groups.isLoading || fixtures.isLoading ||
