@@ -2,7 +2,7 @@
 // HomePage — Marketing + Dashboard — FIFA World Cup 2026
 // =============================================================================
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, Target, Cpu, Users, Database, ChevronRight } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
@@ -50,6 +50,7 @@ function flag(id: string) { return FLAGS[id] ?? '🏳️'; }
 
 export function HomePage() {
   const { teams, fixtures, results, teamMap, isLoading } = useAppData();
+  const [logoLoaded, setLogoLoaded] = useState(false);
 
   return (
     <div className="space-y-10 animate-fade-in">
@@ -66,12 +67,19 @@ export function HomePage() {
         </div>
 
         <div className="flex justify-center">
-          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/1/17/2026_FIFA_World_Cup_emblem.svg"
-            alt="FIFA World Cup 2026"
-            className="h-28 sm:h-40 object-contain drop-shadow-xl"
-            loading="eager"
-          />
+          <div className="relative h-28 sm:h-40 w-28 sm:w-40">
+            {!logoLoaded && (
+              <div className="absolute inset-0 rounded-full animate-pulse bg-white/10" />
+            )}
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/1/17/2026_FIFA_World_Cup_emblem.svg"
+              alt="FIFA World Cup 2026"
+              className={`h-28 sm:h-40 object-contain drop-shadow-xl transition-opacity duration-500 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+              loading="eager"
+              onLoad={() => setLogoLoaded(true)}
+              onError={() => setLogoLoaded(true)}
+            />
+          </div>
         </div>
 
         <h1 className="font-black text-4xl sm:text-6xl tracking-tight leading-none">
