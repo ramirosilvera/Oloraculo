@@ -200,11 +200,12 @@ async function geminiExtractMatch(homeName, awayName, snippets) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Returns today's date string in ART (UTC-3) — "2026-06-16"
+// Returns the ART (UTC-3) date string for a UTC kickoff — "2026-06-16".
+// Uses pure arithmetic (no toLocaleDateString) so it works regardless of
+// the Node.js ICU dataset installed on the runner.
 function kickoffDateART(kickoff_utc) {
-  return new Date(kickoff_utc).toLocaleDateString('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-  });
+  const artMs = new Date(kickoff_utc).getTime() - 3 * 3600_000;
+  return new Date(artMs).toISOString().slice(0, 10);
 }
 
 // Ground and dedup a raw claims array from the LLM.
@@ -250,11 +251,22 @@ async function main() {
   const nameById = new Map(teams.map(t => [t.id, t.name]));
 
   // ── Only process fixtures kicking off TODAY (ART timezone) ─────────────────
+  console.log(`UTC now: ${new Date().toISOString()} | TODAY_ART: ${TODAY_ART} | TODAY_LABEL: ${TODAY_LABEL}`);
+  console.log(`SERPER_API_KEY set: ${!!SERPER_API_KEY} | GEMINI_API_KEY set: ${!!GEMINI_API_KEY}`);
+  console.log(`Fixtures total: ${fixtures.length} | Teams: ${teams.length}`);
+
+  // Log sample kickoffDateART values for the first few unplayed fixtures
+  const unplayed = fixtures.filter(f => !f.is_played && f.kickoff_utc);
+  unplayed.slice(0, 4).forEach(f =>
+    console.log(`  sample: ${f.id} kickoff=${f.kickoff_utc} → artDate=${kickoffDateART(f.kickoff_utc)}`),
+  );
+
   const todayFixtures = fixtures.filter(
     f => !f.is_played && f.kickoff_utc && kickoffDateART(f.kickoff_utc) === TODAY_ART,
   );
   console.log(`Today (ART ${TODAY_ART}): ${todayFixtures.length} fixture(s) to process`);
-  console.log(`LLM model: ${GEMINI_MODEL} | date label: ${TODAY_LABEL}`);
+  todayFixtures.forEach(f => console.log(`  → ${f.id} | kickoff ${f.kickoff_utc}`));
+  console.log(`LLM model: ${GEMINI_MODEL}`);
 
   if (todayFixtures.length === 0) {
     console.log('No fixtures today — leaving fixture-contexts.json untouched.');
