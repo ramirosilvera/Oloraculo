@@ -30,27 +30,42 @@ import {
   Trophy, Info, Search, X, ChevronLeft, ChevronRight, Calendar, Loader2,
 } from 'lucide-react';
 
-const FLAGS: Record<string, string> = {
-  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
-  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
-  'belgium': '🇧🇪', 'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽',
-  'united-states': '🇺🇸', 'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷',
-  'morocco': '🇲🇦', 'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺',
-  'croatia': '🇭🇷', 'switzerland': '🇨🇭', 'norway': '🇳🇴', 'sweden': '🇸🇪',
-  'austria': '🇦🇹', 'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬',
-  'saudi-arabia': '🇸🇦', 'south-africa': '🇿🇦', 'ghana': '🇬🇭', 'tunisia': '🇹🇳',
-  'algeria': '🇩🇿', 'ivory-coast': '🇨🇮', 'nigeria': '🇳🇬', 'cameroon': '🇨🇲',
-  'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'czechia': '🇨🇿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
-  'paraguay': '🇵🇾', 'haiti': '🇭🇹', 'panama': '🇵🇦', 'curacao': '🇨🇼',
-  'jordan': '🇯🇴', 'iraq': '🇮🇶', 'new-zealand': '🇳🇿', 'cape-verde': '🇨🇻',
-  'uzbekistan': '🇺🇿', 'congo-dr': '🇨🇩', 'bosnia-and-herzegovina': '🇧🇦',
-  'qatar': '🇶🇦',
+// ISO 3166-1 alpha-2 codes for flagcdn.com (gb-eng / gb-sct for home nations)
+const FLAG_ISO: Record<string, string> = {
+  'argentina': 'ar', 'brazil': 'br', 'france': 'fr', 'england': 'gb-eng',
+  'spain': 'es', 'germany': 'de', 'portugal': 'pt', 'netherlands': 'nl',
+  'belgium': 'be', 'colombia': 'co', 'uruguay': 'uy', 'mexico': 'mx',
+  'united-states': 'us', 'canada': 'ca', 'japan': 'jp', 'south-korea': 'kr',
+  'morocco': 'ma', 'senegal': 'sn', 'ecuador': 'ec', 'australia': 'au',
+  'croatia': 'hr', 'switzerland': 'ch', 'norway': 'no', 'sweden': 'se',
+  'austria': 'at', 'turkey': 'tr', 'iran': 'ir', 'egypt': 'eg',
+  'saudi-arabia': 'sa', 'south-africa': 'za', 'ghana': 'gh', 'tunisia': 'tn',
+  'algeria': 'dz', 'ivory-coast': 'ci', 'nigeria': 'ng', 'cameroon': 'cm',
+  'scotland': 'gb-sct', 'czechia': 'cz', 'poland': 'pl', 'serbia': 'rs',
+  'paraguay': 'py', 'haiti': 'ht', 'panama': 'pa', 'curacao': 'cw',
+  'jordan': 'jo', 'iraq': 'iq', 'new-zealand': 'nz', 'cape-verde': 'cv',
+  'uzbekistan': 'uz', 'congo-dr': 'cd', 'bosnia-and-herzegovina': 'ba',
+  'qatar': 'qa',
 };
 
 const TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 
-function flag(id: string) { return FLAGS[id] ?? '🏳️'; }
-function pct(n: number)   { return `${(n * 100).toFixed(1)}%`; }
+function FlagImg({ id, className = 'w-6 h-4 object-cover rounded-[2px] shrink-0' }: { id: string; className?: string }) {
+  const iso = FLAG_ISO[id];
+  if (!iso) return <span className="text-xl leading-none shrink-0">🏳️</span>;
+  return (
+    <img
+      src={`https://flagcdn.com/32x24/${iso}.png`}
+      srcSet={`https://flagcdn.com/64x48/${iso}.png 2x`}
+      width={32}
+      height={24}
+      alt={id}
+      className={className}
+    />
+  );
+}
+
+function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 
 function fixtureDate(f: Fixture): string | null {
   if (!f.kickoff_utc) return null;
@@ -125,6 +140,34 @@ function ContextEditor({ fixture, homeName, awayName, existingContext, onSave }:
   const [notes,        setNotes]        = useState(existingContext?.notes ?? '');
   const [saving,       setSaving]       = useState(false);
   const [saved,        setSaved]        = useState(false);
+  const [fetching,     setFetching]     = useState(false);
+  const [fetchErr,     setFetchErr]     = useState('');
+
+  async function handleFetchContext() {
+    setFetching(true);
+    setFetchErr('');
+    try {
+      const res = await fetch('/api/refresh-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fixture_id: fixture.id, home_name: homeName, away_name: awayName }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setFetchErr(json.error ?? `Error ${res.status}`); return; }
+      setHomeUnavail(json.unavailable_home_players ?? 0);
+      setHomeAttack(Math.round((json.unavailable_home_attack_impact ?? 0) * 100));
+      setHomeDefense(Math.round((json.unavailable_home_defense_impact ?? 0) * 100));
+      setAwayUnavail(json.unavailable_away_players ?? 0);
+      setAwayAttack(Math.round((json.unavailable_away_attack_impact ?? 0) * 100));
+      setAwayDefense(Math.round((json.unavailable_away_defense_impact ?? 0) * 100));
+      setHasAvailNews(true);
+      if (json.notes) setNotes(json.notes);
+    } catch (e: any) {
+      setFetchErr(e?.message ?? 'Error de red');
+    } finally {
+      setFetching(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -173,6 +216,26 @@ function ContextEditor({ fixture, homeName, awayName, existingContext, onSave }:
             Completá disponibilidad de jugadores para que el Oráculo use el modelo L5 (Goles + Contexto).
             Impacto en ataque/defensa: % de reducción de los goles esperados (ej: 15 = 15% menos goles).
           </p>
+
+          {/* Auto-fetch from Serper + Gemini */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={fetching}
+              disabled={fetching}
+              onClick={handleFetchContext}
+            >
+              {fetching
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Buscando bajas…</>
+                : <><Search className="w-3.5 h-3.5 mr-1" />Buscar bajas automáticamente</>}
+            </Button>
+            {fetchErr && (
+              <span className="text-[10px] text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />{fetchErr}
+              </span>
+            )}
+          </div>
 
           {/* Home team */}
           <div className="space-y-2">
@@ -307,11 +370,11 @@ function FixtureRow({
         disabled={isExpanding}
         className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-wc-cream/50 active:bg-wc-cream transition-all text-left ${compact ? 'py-2.5' : ''} ${isExpanding ? 'opacity-60' : ''}`}
       >
-        <span className="text-2xl leading-none">{flag(fixture.home_team_id)}</span>
+        <FlagImg id={fixture.home_team_id} />
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{homeName}</span>
         <span className="text-xs text-gray-400 font-medium px-1 shrink-0">vs</span>
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate text-right">{awayName}</span>
-        <span className="text-2xl leading-none">{flag(fixture.away_team_id)}</span>
+        <FlagImg id={fixture.away_team_id} />
         {played ? (
           <Badge color="green">{played.home_goals} – {played.away_goals}</Badge>
         ) : pred ? (
@@ -828,11 +891,11 @@ export function MatchesPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-3 w-full">
-                          <span className="text-xl leading-none">{flag(f.home_team_id)}</span>
+                          <FlagImg id={f.home_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
                           <span className="font-bold text-white text-sm truncate flex-1">{homeName}</span>
                           <span className="text-white/40 text-xs font-medium shrink-0">vs</span>
                           <span className="font-bold text-white text-sm truncate flex-1 text-right">{awayName}</span>
-                          <span className="text-xl leading-none">{flag(f.away_team_id)}</span>
+                          <FlagImg id={f.away_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
                           <span className="ml-1 shrink-0">
                             {played ? (
                               <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
@@ -928,9 +991,11 @@ export function MatchesPage() {
                       <tr key={row.id} className={`border-t border-gray-50 ${i < 2 ? 'bg-green-50/40' : ''}`}>
                         <td className="py-2.5 text-[11px] text-gray-400 font-medium">{i + 1}</td>
                         <td className="py-2.5">
-                          <span className="mr-1.5 text-base leading-none">{flag(row.id)}</span>
-                          <span className={`text-sm ${i < 2 ? 'font-bold text-gray-800' : 'font-medium text-gray-500'}`}>
-                            {teamMap.get(row.id)?.name ?? row.id}
+                          <span className="inline-flex items-center gap-1.5">
+                            <FlagImg id={row.id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
+                            <span className={`text-sm ${i < 2 ? 'font-bold text-gray-800' : 'font-medium text-gray-500'}`}>
+                              {teamMap.get(row.id)?.name ?? row.id}
+                            </span>
                           </span>
                         </td>
                         <td className="py-2.5 text-center text-xs text-gray-500">{row.pj}</td>
@@ -960,23 +1025,23 @@ export function MatchesPage() {
                         {result ? (
                           <>
                             <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
-                            <span className="text-base leading-none">{flag(f.home_team_id)}</span>
+                            <FlagImg id={f.home_team_id} />
                             <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{homeName}</span>
                             <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{result.home_goals}–{result.away_goals}</span>
                             <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{awayName}</span>
-                            <span className="text-base leading-none">{flag(f.away_team_id)}</span>
+                            <FlagImg id={f.away_team_id} />
                             {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
                           </>
                         ) : (
                           <>
                             <span className="text-gray-300 text-[10px] shrink-0">○</span>
-                            <span className="text-base leading-none">{flag(f.home_team_id)}</span>
+                            <FlagImg id={f.home_team_id} />
                             <span className="flex-1 text-xs font-medium text-gray-500 truncate">{homeName}</span>
                             <span className="text-[11px] text-gray-400 shrink-0 font-medium tabular-nums">
                               {f.kickoff_utc ? kickoffART(f.kickoff_utc) : 'vs'}
                             </span>
                             <span className="flex-1 text-xs font-medium text-gray-500 truncate text-right">{awayName}</span>
-                            <span className="text-base leading-none">{flag(f.away_team_id)}</span>
+                            <FlagImg id={f.away_team_id} />
                             {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
                           </>
                         )}
@@ -1007,7 +1072,7 @@ export function MatchesPage() {
                   <div className="space-y-1.5">
                     {standings.map((row, i) => (
                       <div key={row.id} className="flex items-center gap-1.5">
-                        <span className={`text-base leading-none ${i >= 2 ? 'opacity-40' : ''}`}>{flag(row.id)}</span>
+                        <FlagImg id={row.id} className={`w-5 h-3.5 object-cover rounded-[2px] shrink-0 ${i >= 2 ? 'opacity-40' : ''}`} />
                         <span className={`flex-1 text-xs truncate ${i < 2 ? 'font-semibold text-gray-800' : 'text-gray-400'}`}>
                           {teamMap.get(row.id)?.name ?? row.id}
                         </span>
