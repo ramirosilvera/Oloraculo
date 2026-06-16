@@ -29,9 +29,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Obtener contexto (ESPN + OpenFootball)
+      - name: Obtener contexto (API-Football)
         run: node scripts/build-context.mjs
         continue-on-error: true
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
 
       - name: Commitear si hubo cambios
         run: |
