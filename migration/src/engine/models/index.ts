@@ -296,3 +296,4 @@ export function goalContextModelPredict(ctx: MatchContext, goalModel: GoalModel)
 // Re-export GoalModel for convenience
 export { GoalModel } from './goal-model';
 export type { GoalStrength } from './goal-model';
+export { tournamentMomentumPredict } from './tournament-momentum';

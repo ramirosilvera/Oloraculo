@@ -194,6 +194,8 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
         homeRecentResults: [],
         awayRecentResults: [],
         fixtureContext: null,
+        homeTournamentForm: null,
+        awayTournamentForm: null,
       };
       const { home, away } = goalModel.expectedGoals(ctx);
       const dist = poissonScoreline(home, away, 8, -0.03);

@@ -174,6 +174,17 @@ export interface MatchPredictionResult {
   bestPrediction: MatchPrediction;
 }
 
+export interface TournamentFormStats {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  momentumScore: number;  // normalized -1..+1
+  upsetBonus: number;     // cumulative upset-win extra score
+}
+
 export interface MatchContext {
   fixture: Fixture;
   homeTeam: Team;
@@ -185,6 +196,8 @@ export interface MatchContext {
   homeRecentResults: MatchResult[];
   awayRecentResults: MatchResult[];
   fixtureContext: FixtureContext | null;
+  homeTournamentForm: TournamentFormStats | null;
+  awayTournamentForm: TournamentFormStats | null;
 }
 
 // ---------------------------------------------------------------------------

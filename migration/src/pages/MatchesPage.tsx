@@ -608,11 +608,11 @@ export function MatchesPage() {
     const fixture = pendingFixtureRef.current;
     if (!fixture) return;
     pendingFixtureRef.current = null;
-    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap);
+    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
     const result = engine.predict(ctx);
     setPredictions(prev => new Map(prev).set(fixture.id, result));
     setExpandingId(null);
-  }, [engine, teamMap, ratingsList, contextMap]);
+  }, [engine, teamMap, ratingsList, contextMap, wcResults, fixtures]);
 
   const expand = useCallback(async (fixture: Fixture) => {
     const isSame = expandedId === fixture.id;
@@ -630,11 +630,11 @@ export function MatchesPage() {
     }
     // Yield to browser so the expanded row renders before the heavy compute
     await new Promise(r => setTimeout(r, 0));
-    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap);
+    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
     const result = engine.predict(ctx);
     setPredictions(prev => new Map(prev).set(fixture.id, result));
     setExpandingId(null);
-  }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap]);
+  }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap, wcResults, fixtures]);
 
   const handleContextSaved = useCallback(async (fixture: Fixture, ctx: FixtureContext) => {
     // Persist to Supabase
@@ -645,14 +645,14 @@ export function MatchesPage() {
       setExpandingId(fixture.id);
       await new Promise(r => setTimeout(r, 0));
       const tempCtxMap = new Map(contextMap).set(fixture.id, ctx);
-      const c = engine.buildContext(fixture, teamMap, ratingsList, tempCtxMap);
+      const c = engine.buildContext(fixture, teamMap, ratingsList, tempCtxMap, wcResults ?? [], fixtures);
       const result = engine.predict(c);
       setPredictions(prev => new Map(prev).set(fixture.id, result));
       setExpandingId(null);
     }
     // Refresh the persisted context map in the background
     qc.invalidateQueries({ queryKey: ['contexts'] });
-  }, [engine, contextMap, teamMap, ratingsList, qc]);
+  }, [engine, contextMap, teamMap, ratingsList, qc, wcResults, fixtures]);
 
   const saveSnapshot = async (fixture: Fixture) => {
     const pred = predictions.get(fixture.id);
