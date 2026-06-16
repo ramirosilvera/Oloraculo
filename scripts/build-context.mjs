@@ -283,8 +283,12 @@ async function main() {
     });
   }
 
-  writeFileSync(outContexts, JSON.stringify(contexts, null, 2));
-  console.log(`✓ Wrote ${contexts.length} fixture contexts → ${outContexts}`);
+  if (contexts.length === 0 && existsSync(outContexts)) {
+    console.log('⚠ No confirmed-out players found — preserving existing fixture-contexts.json to avoid wiping good data.');
+  } else {
+    writeFileSync(outContexts, JSON.stringify(contexts, null, 2));
+    console.log(`✓ Wrote ${contexts.length} fixture contexts → ${outContexts}`);
+  }
 }
 
 function writeEmptyIfMissing() {

@@ -30,13 +30,6 @@ jobs:
         working-directory: migration
         run: npm ci
 
-      - name: Obtener contexto de partidos (Serper + Gemini)
-        run: node scripts/build-context.mjs
-        continue-on-error: true
-        env:
-          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
       - name: Build
         working-directory: migration
         run: npm run build
