@@ -42,9 +42,8 @@ jobs:
           if git diff --cached --quiet; then
             echo "Sin cambios en contexto — nada que commitear."
           else
-            git commit -m "chore: actualizar contexto de partidos [$(date -u +%Y-%m-%d)]
-
-Lesiones/suspensiones y plantillas actualizadas automáticamente desde
-ESPN WC2026 injuries API + OpenFootball squads (CC0)."
+            git commit \
+              -m "chore: actualizar contexto de partidos [$(date -u +%Y-%m-%d)]" \
+              -m "Lesiones/suspensiones y plantillas actualizadas automáticamente desde ESPN WC2026 injuries API + OpenFootball squads (CC0)."
             git push origin main
           fi
