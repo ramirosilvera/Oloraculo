@@ -2,8 +2,9 @@
 // HomePage — Marketing + Dashboard — FIFA World Cup 2026
 // =============================================================================
 
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, Target, Cpu, Users, Database } from 'lucide-react';
+import { Trophy, Target, Cpu, Users, Database, ChevronRight } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import {
   Card,
@@ -32,8 +33,23 @@ const ladder: { level: string; model: string; signal: string; color: 'gray' | 'b
 // ---------------------------------------------------------------------------
 // HomePage
 // ---------------------------------------------------------------------------
+const FLAGS: Record<string, string> = {
+  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
+  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
+  'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽', 'united-states': '🇺🇸',
+  'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷', 'morocco': '🇲🇦',
+  'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺', 'croatia': '🇭🇷',
+  'switzerland': '🇨🇭', 'norway': '🇸🇪', 'sweden': '🇸🇪', 'austria': '🇦🇹',
+  'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬', 'saudi-arabia': '🇸🇦',
+  'ghana': '🇬🇭', 'tunisia': '🇹🇳', 'algeria': '🇩🇿', 'nigeria': '🇳🇬',
+  'cameroon': '🇨🇲', 'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
+  'paraguay': '🇵🇾', 'panama': '🇵🇦', 'jordan': '🇯🇴', 'iraq': '🇮🇶',
+  'new-zealand': '🇳🇿', 'uzbekistan': '🇺🇿', 'qatar': '🇶🇦', 'belgium': '🇧🇪',
+};
+function flag(id: string) { return FLAGS[id] ?? '🏳️'; }
+
 export function HomePage() {
-  const { teams, fixtures, results, isLoading } = useAppData();
+  const { teams, fixtures, results, teamMap, isLoading } = useAppData();
 
   return (
     <div className="space-y-10 animate-fade-in">
@@ -189,28 +205,55 @@ export function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* 4. CALL TO ACTION                                                    */}
+      {/* 4. PRÓXIMOS PARTIDOS                                                */}
       {/* ------------------------------------------------------------------ */}
-      <section className="animate-fade-in">
-        <Card className="bg-wc-navy text-white border-0 px-8 py-10 text-center space-y-4">
-          <p className="text-xs font-semibold tracking-widest text-white/50 uppercase">
-            Monte Carlo · Dixon-Coles
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-black leading-tight">
-            ¿Quién va a ganar el Mundial?
-          </h2>
-          <p className="text-white/70 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
-            Corremos 10.000 simulaciones del bracket completo. Monte Carlo. Dixon-Coles. Sin humo.
-          </p>
-          <div className="pt-2">
-            <Link to="/tournament">
-              <button className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-wc-gold text-wc-navy font-black text-base rounded-xl hover:brightness-110 active:scale-[0.96] active:brightness-90 transition-all shadow-lg">
-                Simular torneo completo →
-              </button>
-            </Link>
-          </div>
-        </Card>
-      </section>
+      {!isLoading && (() => {
+        const now = new Date().toISOString();
+        const upcoming = fixtures
+          .filter(f => f.kickoff_utc && f.kickoff_utc > now)
+          .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''))
+          .slice(0, 5);
+        if (upcoming.length === 0) return null;
+        return (
+          <section className="animate-fade-in">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <SectionTitle>Próximos partidos</SectionTitle>
+                  <Link to="/matches" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity">
+                    Ver todos →
+                  </Link>
+                </div>
+              </CardHeader>
+              <div className="divide-y divide-gray-50">
+                {upcoming.map(f => {
+                  const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
+                  const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                  const kickoffDate = f.kickoff_utc ? new Date(f.kickoff_utc).toLocaleDateString('es-AR', {
+                    weekday: 'short', day: 'numeric', month: 'short',
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                  }) : '';
+                  const kickoffTime = f.kickoff_utc ? new Date(f.kickoff_utc).toLocaleTimeString('es-AR', {
+                    hour: '2-digit', minute: '2-digit',
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                  }) : '';
+                  return (
+                    <Link key={f.id} to="/matches" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors">
+                      <span className="text-2xl leading-none">{flag(f.home_team_id)}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{homeName} <span className="text-gray-400 font-normal">vs</span> {awayName}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{kickoffDate} · {kickoffTime} ART · Grp {f.group_name}</p>
+                      </div>
+                      <span className="text-2xl leading-none">{flag(f.away_team_id)}</span>
+                      <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </Card>
+          </section>
+        );
+      })()}
 
     </div>
   );
