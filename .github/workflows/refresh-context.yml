@@ -1,13 +1,17 @@
 name: Refrescar contexto de partidos
 
-# Runs daily at 08:00 UTC (05:00 ART) during the World Cup window.
-# Fetches fresh injury/suspension data from ESPN + OpenFootball squads,
-# updates fixture-contexts.json and squads.json, and commits the changes.
+# Fetches fresh injury/suspension data from API-Football, updates
+# fixture-contexts.json and squads.json, and commits the changes.
 # If anything changed, the commit triggers the deploy workflow automatically.
+#
+# PAUSED: the daily cron is disabled because API-Football's free plan has no
+# access to the 2026 season. To re-enable automatic daily refresh once you
+# have a paid plan that includes the current season, uncomment the `schedule`
+# block below. Manual runs (workflow_dispatch) work any time.
 
 on:
-  schedule:
-    - cron: '0 8 * * *'   # 08:00 UTC = 05:00 ART, every day
+  # schedule:
+  #   - cron: '0 8 * * *'   # 08:00 UTC = 05:00 ART, every day
   workflow_dispatch:        # manual trigger any time
 
 jobs:
@@ -46,6 +50,6 @@ jobs:
           else
             git commit \
               -m "chore: actualizar contexto de partidos [$(date -u +%Y-%m-%d)]" \
-              -m "Lesiones/suspensiones y plantillas actualizadas automáticamente desde ESPN WC2026 injuries API + OpenFootball squads (CC0)."
+              -m "Lesiones/suspensiones y posiciones actualizadas automáticamente desde API-Football."
             git push origin main
           fi
