@@ -33,11 +33,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Obtener contexto (API-Football)
+      - name: Obtener contexto (Serper + OpenRouter)
         run: node scripts/build-context.mjs
         continue-on-error: true
         env:
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Commitear si hubo cambios
         run: |
@@ -50,6 +51,6 @@ jobs:
           else
             git commit \
               -m "chore: actualizar contexto de partidos [$(date -u +%Y-%m-%d)]" \
-              -m "Lesiones/suspensiones y posiciones actualizadas automáticamente desde API-Football."
+              -m "Lesiones/suspensiones y posiciones actualizadas automáticamente desde Serper + OpenRouter."
             git push origin main
           fi

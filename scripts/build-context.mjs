@@ -2,18 +2,19 @@
 /**
  * build-context.mjs — pre-builds fixture-contexts.json for the React app.
  *
- * Source: API-Football (api-sports.io) — has national-team injuries,
- * suspensions and squads with positions for the World Cup.
+ * Pipeline (mirrors the original AvailabilityNewsService.cs design):
+ *   1. Serper.dev (Google Search) → recent injury/suspension news per team
+ *   2. OpenRouter LLM             → extract structured availability claims
+ *      from the search snippets (player, position, status, reason)
+ *   3. Position-impact table      → per-fixture goal adjustments
  *
- * Requires an API key in the API_FOOTBALL_KEY env var (free tier is enough:
- * this script makes ~2 + N requests where N = teams with injuries).
- * Get a key at https://www.api-football.com/ (or via RapidAPI).
- *
- * Tunable via env:
- *   API_FOOTBALL_KEY        (required) your api-sports.io key
- *   API_FOOTBALL_LEAGUE_ID  (default 1 = FIFA World Cup)
- *   API_FOOTBALL_SEASON     (default 2026)
- *   API_FOOTBALL_HOST       (default v3.football.api-sports.io)
+ * Required env:
+ *   SERPER_API_KEY        Serper.dev key (https://serper.dev — 2500 free queries)
+ *   OPENROUTER_API_KEY    OpenRouter key (https://openrouter.ai)
+ * Optional env:
+ *   OPENROUTER_MODEL      default openai/gpt-4o-mini
+ *   OPENROUTER_BASE_URL   default https://openrouter.ai/api/v1/
+ *   CONTEXT_QUERY_DATE    e.g. "June 2026" — biases the search to recent news
  *
  * The position-impact table mirrors AvailabilityNewsService.cs:
  *   Attacker   → −3.5% goals scored
@@ -22,11 +23,10 @@
  *   Goalkeeper → −5.0% goals conceded
  *
  * Outputs:
- *   migration/public/data/fixture-contexts.json  (per-fixture impacts)
- *   migration/public/data/squads.json            (team → players with positions)
+ *   migration/public/data/fixture-contexts.json
  *
- * If no API key is set, or the API is unreachable, the script writes empty
- * files (preserving existing ones) and exits 0 so the deploy never breaks.
+ * Without the required keys, or on any failure, the script writes empty files
+ * (preserving existing ones) and exits 0 so the deploy never breaks.
  */
 
 import { writeFileSync, readFileSync, existsSync } from 'fs';
@@ -36,10 +36,11 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const API_KEY   = process.env.API_FOOTBALL_KEY ?? '';
-const API_HOST  = process.env.API_FOOTBALL_HOST ?? 'v3.football.api-sports.io';
-const LEAGUE_ID = process.env.API_FOOTBALL_LEAGUE_ID ?? '1';   // 1 = FIFA World Cup
-const SEASON    = process.env.API_FOOTBALL_SEASON ?? '2026';
+const SERPER_API_KEY    = process.env.SERPER_API_KEY ?? '';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? '';
+const OPENROUTER_MODEL   = process.env.OPENROUTER_MODEL ?? 'openai/gpt-4o-mini';
+const OPENROUTER_BASE    = (process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1/').replace(/\/?$/, '/');
+const QUERY_DATE         = process.env.CONTEXT_QUERY_DATE ?? new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 // ── Impact table ──────────────────────────────────────────────────────────────
 const IMPACT = {
@@ -62,65 +63,94 @@ function sumImpacts(positions) {
 }
 
 // ── Normalization helpers ─────────────────────────────────────────────────────
-function slugify(name) {
+function normalizePosition(pos) {
+  const p = (pos ?? '').trim().toLowerCase();
+  if (p.startsWith('goalkeeper') || p === 'gk')          return 'Goalkeeper';
+  if (p.startsWith('defen') || p === 'df' || p === 'cb') return 'Defender';
+  if (p.startsWith('midfield') || p === 'mf')            return 'Midfielder';
+  if (p.startsWith('attack') || p.startsWith('forward') || p.startsWith('strik') || p === 'fw') return 'Attacker';
+  return 'Unknown';
+}
+
+function normalizePlayerKey(name) {
   return (name ?? '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/[^a-z]/g, '');
 }
 
-// API-Football already returns positions as full words; this just guards typos.
-function normalizePosition(pos) {
-  const p = (pos ?? '').trim().toLowerCase();
-  if (p.startsWith('goalkeeper') || p === 'gk')   return 'Goalkeeper';
-  if (p.startsWith('defen'))                        return 'Defender';
-  if (p.startsWith('midfield'))                     return 'Midfielder';
-  if (p.startsWith('attack') || p.startsWith('forward')) return 'Attacker';
-  return 'Unknown';
+// A claim counts as "unavailable" only when confirmed out.
+function isConfirmedOut(status) {
+  return (status ?? '').toLowerCase().startsWith('confirmedout');
 }
 
-// API-Football team names → our fixture slugs, where slugify alone would differ.
-const TEAM_NAME_OVERRIDES = {
-  'usa':                'united-states',
-  'united-states':      'united-states',
-  'korea-republic':     'south-korea',
-  'republic-of-korea':  'south-korea',
-  'south-korea':        'south-korea',
-  'ir-iran':            'iran',
-  'iran':               'iran',
-  'china-pr':           'china',
-  'cote-divoire':       'ivory-coast',
-  'ivory-coast':        'ivory-coast',
-  'dr-congo':           'congo-dr',
-  'czech-republic':     'czechia',
-  'czechia':            'czechia',
-  'bosnia-and-herzegovina': 'bosnia-and-herzegovina',
-  'trinidad-and-tobago':    'trinidad-and-tobago',
-  'cape-verde':         'cape-verde',
-};
-
-function resolveTeamId(name) {
-  const slug = slugify(name);
-  return TEAM_NAME_OVERRIDES[slug] ?? slug;
-}
-
-// ── API-Football fetch helper ─────────────────────────────────────────────────
-async function apiFootball(path) {
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
+async function serperSearch(query) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
-    const res = await fetch(`https://${API_HOST}/${path}`, {
-      headers: { 'x-apisports-key': API_KEY },
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query, gl: 'us', hl: 'en', num: 10 }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Collapse Serper results into a compact text blob for the LLM.
+function snippetsFromSerper(data) {
+  const lines = [];
+  for (const r of (data.organic ?? [])) {
+    if (r.title || r.snippet) lines.push(`- ${r.title ?? ''}: ${r.snippet ?? ''} (${r.date ?? ''})`);
+  }
+  for (const r of (data.topStories ?? [])) {
+    if (r.title) lines.push(`- [news] ${r.title} (${r.date ?? ''})`);
+  }
+  if (data.answerBox?.snippet) lines.push(`- [answer] ${data.answerBox.snippet}`);
+  return lines.join('\n').slice(0, 6000);
+}
+
+const LLM_SYSTEM_PROMPT = `You extract football player availability claims from search snippets about a national team.
+Return JSON only, shape: {"claims":[{"player":"","position":"","status":"","reason":"","supportingText":""}]}
+- position: one of Goalkeeper, Defender, Midfielder, Attacker (best guess from your knowledge if not stated; else "Unknown").
+- status: one of ConfirmedOutInjury, ConfirmedOutIllness, ConfirmedOutSuspension, ConfirmedOutOther, Doubtful, Available, NotRelevant.
+- Use ConfirmedOut* only for clearly ruled out / withdrawn / will miss / suspended / unavailable players.
+- Use Doubtful for race-to-be-fit / major doubt / fitness concern. Use NotRelevant for anything not about availability.
+- Only include players for the team named by the user. Do not invent players. If nothing relevant, return {"claims":[]}.`;
+
+async function openRouterExtract(teamName, snippets) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(`${OPENROUTER_BASE}chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://oloraculo.pages.dev',
+        'X-Title': 'Oloraculo',
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: LLM_SYSTEM_PROMPT },
+          { role: 'user', content: `Team: ${teamName}\nSearch snippets (${QUERY_DATE}):\n${snippets}` },
+        ],
+      }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    if (json.errors && (Array.isArray(json.errors) ? json.errors.length : Object.keys(json.errors).length)) {
-      console.warn(`  ⚠ API-Football errors for ${path}: ${JSON.stringify(json.errors)}`);
-    }
-    return json.response ?? [];
+    const content = json.choices?.[0]?.message?.content ?? '{}';
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed : (parsed.claims ?? []);
   } finally {
     clearTimeout(timer);
   }
@@ -129,111 +159,71 @@ async function apiFootball(path) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const outContexts = resolve(__dirname, '../migration/public/data/fixture-contexts.json');
-  const outSquads   = resolve(__dirname, '../migration/public/data/squads.json');
 
-  if (!API_KEY) {
-    console.log('No API_FOOTBALL_KEY set — skipping fetch, leaving context files untouched.');
+  if (!SERPER_API_KEY || !OPENROUTER_API_KEY) {
+    console.log('Missing SERPER_API_KEY and/or OPENROUTER_API_KEY — skipping fetch, leaving files untouched.');
     writeEmptyIfMissing();
     return;
   }
 
-  // Load fixture list to know which team IDs we need
-  const fixturesPath = resolve(__dirname, '../migration/public/data/fixtures.json');
-  const fixtures = JSON.parse(readFileSync(fixturesPath, 'utf-8'));
-  const allTeamIds = [...new Set(fixtures.flatMap(f => [f.home_team_id, f.away_team_id]))];
-  console.log(`Working with ${fixtures.length} fixtures / ${allTeamIds.length} teams`);
-  console.log(`Using API-Football league=${LEAGUE_ID} season=${SEASON}`);
+  const dataDir = resolve(__dirname, '../migration/public/data');
+  const fixtures = JSON.parse(readFileSync(`${dataDir}/fixtures.json`, 'utf-8'));
+  const teams    = JSON.parse(readFileSync(`${dataDir}/teams.json`, 'utf-8'));
+  const nameById = new Map(teams.map(t => [t.id, t.name]));
 
-  // ── 1. Teams: API-Football team ID → our slug ──────────────────────────────
-  console.log('\n[1/3] Fetching tournament teams...');
-  const apiIdToSlug = new Map();   // API-Football numeric team id → our slug
-  try {
-    const teams = await apiFootball(`teams?league=${LEAGUE_ID}&season=${SEASON}`);
-    for (const entry of teams) {
-      const t = entry.team ?? entry;
-      if (t?.id) apiIdToSlug.set(t.id, resolveTeamId(t.name));
-    }
-    console.log(`  ✓ Mapped ${apiIdToSlug.size} teams`);
-  } catch (e) {
-    console.warn(`  ⚠ Teams fetch failed: ${e.message}`);
-  }
+  // Only teams that still have an unplayed fixture
+  const upcomingTeamIds = [...new Set(
+    fixtures.filter(f => !f.is_played).flatMap(f => [f.home_team_id, f.away_team_id]),
+  )];
+  console.log(`Working with ${fixtures.length} fixtures; ${upcomingTeamIds.length} teams with upcoming matches`);
+  console.log(`LLM model: ${OPENROUTER_MODEL}; query date bias: ${QUERY_DATE}`);
 
-  // ── 2. Injuries: one call for the whole tournament ─────────────────────────
-  console.log('\n[2/3] Fetching injuries + suspensions...');
-  // Map: our slug → Map<playerId, {name, reason, type, apiTeamId}>  (dedup per player)
-  const injuredByTeam = new Map();
-  try {
-    const injuries = await apiFootball(`injuries?league=${LEAGUE_ID}&season=${SEASON}`);
-    for (const inj of injuries) {
-      const apiTeamId = inj.team?.id;
-      const slug = apiIdToSlug.get(apiTeamId) ?? resolveTeamId(inj.team?.name);
-      if (!allTeamIds.includes(slug)) continue; // not a team we care about
-      const playerId = inj.player?.id;
-      if (!playerId) continue;
-      if (!injuredByTeam.has(slug)) injuredByTeam.set(slug, new Map());
-      // Keep the most "definitive" record per player ("Missing Fixture" > "Questionable")
-      const existing = injuredByTeam.get(slug).get(playerId);
-      const isDefinitive = (inj.type ?? '').toLowerCase().includes('missing');
-      if (!existing || isDefinitive) {
-        injuredByTeam.get(slug).set(playerId, {
-          name:      inj.player?.name ?? 'Desconocido',
-          reason:    inj.reason ?? inj.type ?? 'Unknown',
-          type:      inj.type ?? '',
-          apiTeamId,
+  // ── Per team: Serper search → LLM extraction → unavailable players ─────────
+  const unavailableByTeam = new Map(); // slug → [{playerName, pos, reason, status}]
+  for (const teamId of upcomingTeamIds) {
+    const teamName = nameById.get(teamId) ?? teamId;
+    try {
+      const serper = await serperSearch(
+        `${teamName} national football team injury suspension doubtful players ${QUERY_DATE} World Cup`,
+      );
+      const snippets = snippetsFromSerper(serper);
+      if (!snippets) { console.log(`    ${teamId}: no snippets`); continue; }
+
+      const claims = await openRouterExtract(teamName, snippets);
+      // Keep confirmed-out players, dedup by normalized name
+      const seen = new Map();
+      for (const c of claims) {
+        if (!c.player || !isConfirmedOut(c.status)) continue;
+        const key = normalizePlayerKey(c.player);
+        if (!key || seen.has(key)) continue;
+        seen.set(key, {
+          playerName: String(c.player).trim(),
+          pos:        normalizePosition(c.position),
+          reason:     (c.reason ?? c.status ?? '').toString().trim(),
+          status:     c.status,
         });
       }
-    }
-    const totalPlayers = [...injuredByTeam.values()].reduce((n, m) => n + m.size, 0);
-    console.log(`  ✓ ${totalPlayers} unavailable player(s) across ${injuredByTeam.size} team(s)`);
-  } catch (e) {
-    console.warn(`  ⚠ Injuries fetch failed: ${e.message}`);
-  }
-
-  // ── 3. Squads: only for teams that actually have injuries (saves quota) ─────
-  console.log('\n[3/3] Fetching squads for affected teams (for positions)...');
-  const squadsByTeamId = new Map();   // our slug → [{name, pos, playerId}]
-  const positionByPlayer = new Map(); // playerId → normalized position
-  for (const [slug, players] of injuredByTeam) {
-    const apiTeamId = [...players.values()][0]?.apiTeamId;
-    if (!apiTeamId) continue;
-    try {
-      const squads = await apiFootball(`players/squads?team=${apiTeamId}`);
-      const roster = squads?.[0]?.players ?? [];
-      const mapped = roster.map(p => ({
-        name:     p.name,
-        pos:      normalizePosition(p.position),
-        playerId: p.id,
-      }));
-      squadsByTeamId.set(slug, mapped);
-      for (const p of mapped) positionByPlayer.set(p.playerId, p.pos);
-      await new Promise(r => setTimeout(r, 150)); // be polite to the API
+      if (seen.size > 0) {
+        unavailableByTeam.set(teamId, [...seen.values()]);
+        console.log(`    ${teamId}: ${seen.size} out — ${[...seen.values()].map(p => p.playerName).join(', ')}`);
+      } else {
+        console.log(`    ${teamId}: none confirmed out`);
+      }
+      await new Promise(r => setTimeout(r, 200)); // be polite
     } catch (e) {
-      console.warn(`  ⚠ Squad fetch failed for ${slug}: ${e.message}`);
+      console.warn(`    ⚠ ${teamId}: ${e.message}`);
     }
   }
-  console.log(`  ✓ Loaded squads for ${squadsByTeamId.size} team(s)`);
 
-  // ── 4. Build fixture-contexts.json ────────────────────────────────────────
+  // ── Build fixture-contexts.json ────────────────────────────────────────────
   console.log('\nBuilding fixture contexts...');
   const now = new Date().toISOString();
   const contexts = [];
 
-  // Resolve a team's unavailable players into {name, pos, reason}
-  function resolveUnavailable(slug) {
-    const players = injuredByTeam.get(slug);
-    if (!players) return [];
-    return [...players.entries()].map(([playerId, info]) => ({
-      playerName: info.name,
-      pos:        positionByPlayer.get(playerId) ?? 'Unknown',
-      reason:     info.reason,
-    }));
-  }
-
   for (const fixture of fixtures) {
     if (fixture.is_played) continue;
-
-    const home = resolveUnavailable(fixture.home_team_id);
-    const away = resolveUnavailable(fixture.away_team_id);
+    const home = unavailableByTeam.get(fixture.home_team_id) ?? [];
+    const away = unavailableByTeam.get(fixture.away_team_id) ?? [];
     if (home.length === 0 && away.length === 0) continue;
 
     const homeImpact = sumImpacts(home.map(p => p.pos));
@@ -264,14 +254,6 @@ async function main() {
 
   writeFileSync(outContexts, JSON.stringify(contexts, null, 2));
   console.log(`✓ Wrote ${contexts.length} fixture contexts → ${outContexts}`);
-
-  // ── 5. Save squads.json (positions per player) for fetched teams ───────────
-  const squadsOut = {};
-  for (const [teamId, players] of squadsByTeamId) {
-    squadsOut[teamId] = players.map(p => ({ name: p.name, pos: p.pos }));
-  }
-  writeFileSync(outSquads, JSON.stringify(squadsOut, null, 2));
-  console.log(`✓ Wrote squads for ${Object.keys(squadsOut).length} team(s) → ${outSquads}`);
 }
 
 function writeEmptyIfMissing() {

@@ -30,11 +30,12 @@ jobs:
         working-directory: migration
         run: npm ci
 
-      - name: Obtener contexto de partidos (API-Football)
+      - name: Obtener contexto de partidos (Serper + OpenRouter)
         run: node scripts/build-context.mjs
         continue-on-error: true
         env:
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Build
         working-directory: migration
