@@ -69,6 +69,35 @@ function kickoffART(utc: string): string {
   });
 }
 
+function kickoffShortDate(utc: string): string {
+  return new Date(utc).toLocaleDateString('es-AR', {
+    day: 'numeric', month: 'short',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+}
+
+type StandingRow = { id: string; pj: number; w: number; d: number; l: number; gf: number; ga: number; gd: number; pts: number };
+
+function computeGroupStandings(teamIds: string[], groupFixtures: Fixture[], playedMap: Map<string, WcActualResult>): StandingRow[] {
+  const table = new Map<string, StandingRow>(
+    teamIds.map(id => [id, { id, pj: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }])
+  );
+  for (const f of groupFixtures) {
+    const r = playedMap.get(f.id);
+    if (!r) continue;
+    const h = table.get(f.home_team_id)!;
+    const a = table.get(f.away_team_id)!;
+    h.pj++; h.gf += r.home_goals; h.ga += r.away_goals;
+    a.pj++; a.gf += r.away_goals; a.ga += r.home_goals;
+    if (r.home_goals > r.away_goals)        { h.w++; h.pts += 3; a.l++; }
+    else if (r.home_goals === r.away_goals) { h.d++; h.pts++;    a.d++; a.pts++; }
+    else                                    { h.l++; a.w++;      a.pts += 3; }
+  }
+  return [...table.values()]
+    .map(r => ({ ...r, gd: r.gf - r.ga }))
+    .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+}
+
 // ---------------------------------------------------------------------------
 // FixtureRow — shared between "Hoy" and "Por grupo"
 // ---------------------------------------------------------------------------
@@ -599,31 +628,138 @@ export function MatchesPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* PARTIDOS POR GRUPO (solo cuando no busca)                           */}
+      {/* GRUPOS: mini-grid (Todos) o detalle con clasificación + partidos    */}
       {/* ------------------------------------------------------------------ */}
-      {!isSearching && groupsToShow.map(group => {
-        const groupFixtures = fixtures.filter(f => f.group_name === group.name);
-        const teamNames = group.team_ids.map(id => teamMap.get(id)?.name ?? id);
-        return (
-          <Card key={group.name}>
-            <CardHeader className="bg-wc-navy/5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-base font-black text-wc-navy">Grupo {group.name}</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {teamNames.map(name => (
-                    <Badge key={name} color="navy">{name}</Badge>
-                  ))}
+      {!isSearching && (
+        selectedGroup ? (() => {
+          const group = groups.find(g => g.name === selectedGroup);
+          if (!group) return null;
+          const groupFixtures = fixtures
+            .filter(f => f.group_name === selectedGroup)
+            .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''));
+          const standings = computeGroupStandings(group.team_ids, groupFixtures, playedMap);
+          const played = groupFixtures.filter(f => playedMap.has(f.id)).length;
+          return (
+            <Card key={selectedGroup}>
+              {/* — Clasificación — */}
+              <CardHeader className="bg-wc-navy/5 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Clasificación · Grupo {selectedGroup}</span>
+                  <span className="text-[10px] text-gray-400">{played}/{groupFixtures.length} partidos</span>
+                </div>
+              </CardHeader>
+              <div className="px-4 py-1">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-[10px] text-gray-400 uppercase tracking-wide">
+                      <th className="text-left py-2 font-semibold w-5"></th>
+                      <th className="text-left py-2 font-semibold">Equipo</th>
+                      <th className="text-center py-2 font-semibold w-7">PJ</th>
+                      <th className="text-center py-2 font-semibold w-7">G</th>
+                      <th className="text-center py-2 font-semibold w-7">E</th>
+                      <th className="text-center py-2 font-semibold w-7">P</th>
+                      <th className="text-center py-2 font-semibold w-10">GD</th>
+                      <th className="text-center py-2 font-semibold w-8 text-wc-navy">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standings.map((row, i) => (
+                      <tr key={row.id} className={`border-t border-gray-50 ${i < 2 ? 'bg-green-50/40' : ''}`}>
+                        <td className="py-2.5 text-[11px] text-gray-400 font-medium">{i + 1}</td>
+                        <td className="py-2.5">
+                          <span className="mr-1.5 text-base leading-none">{flag(row.id)}</span>
+                          <span className={`text-sm ${i < 2 ? 'font-bold text-gray-800' : 'font-medium text-gray-500'}`}>
+                            {teamMap.get(row.id)?.name ?? row.id}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-center text-xs text-gray-500">{row.pj}</td>
+                        <td className="py-2.5 text-center text-xs text-gray-500">{row.w}</td>
+                        <td className="py-2.5 text-center text-xs text-gray-500">{row.d}</td>
+                        <td className="py-2.5 text-center text-xs text-gray-500">{row.l}</td>
+                        <td className="py-2.5 text-center text-xs text-gray-500">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                        <td className="py-2.5 text-center text-sm font-black text-wc-navy">{row.pts}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* — Partidos — */}
+              <div className="border-t border-gray-100">
+                <div className="px-4 pt-3 pb-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Partidos</span>
+                </div>
+                <div className="divide-y divide-gray-50 pb-1">
+                  {groupFixtures.map(f => {
+                    const result = playedMap.get(f.id);
+                    const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
+                    const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                    return (
+                      <div key={f.id} className="px-4 py-2.5 flex items-center gap-2">
+                        {result ? (
+                          <>
+                            <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
+                            <span className="text-base leading-none">{flag(f.home_team_id)}</span>
+                            <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{homeName}</span>
+                            <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{result.home_goals}–{result.away_goals}</span>
+                            <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{awayName}</span>
+                            <span className="text-base leading-none">{flag(f.away_team_id)}</span>
+                            {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-gray-300 text-[10px] shrink-0">○</span>
+                            <span className="text-base leading-none">{flag(f.home_team_id)}</span>
+                            <span className="flex-1 text-xs font-medium text-gray-500 truncate">{homeName}</span>
+                            <span className="text-[11px] text-gray-400 shrink-0 font-medium tabular-nums">
+                              {f.kickoff_utc ? kickoffART(f.kickoff_utc) : 'vs'}
+                            </span>
+                            <span className="flex-1 text-xs font-medium text-gray-500 truncate text-right">{awayName}</span>
+                            <span className="text-base leading-none">{flag(f.away_team_id)}</span>
+                            {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </CardHeader>
-            <div className="divide-y divide-gray-100">
-              {groupFixtures.map(f => (
-                <FixtureRow key={f.id} {...fixtureRowProps(f, true)} />
-              ))}
-            </div>
-          </Card>
-        );
-      })}
+            </Card>
+          );
+        })() : (
+          /* Todos: mini-grid 2×col */
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {groups.map(group => {
+              const groupFixtures = fixtures.filter(f => f.group_name === group.name);
+              const standings = computeGroupStandings(group.team_ids, groupFixtures, playedMap);
+              const played = groupFixtures.filter(f => playedMap.has(f.id)).length;
+              return (
+                <button
+                  key={group.name}
+                  onClick={() => setSelectedGroup(group.name)}
+                  className="text-left bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:border-wc-navy/40 hover:shadow-md active:scale-[0.97] active:brightness-95 transition-all"
+                >
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-sm font-black text-wc-navy">Grupo {group.name}</span>
+                    <span className="text-[10px] text-gray-400 font-medium">{played}/{groupFixtures.length}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {standings.map((row, i) => (
+                      <div key={row.id} className="flex items-center gap-1.5">
+                        <span className={`text-base leading-none ${i >= 2 ? 'opacity-40' : ''}`}>{flag(row.id)}</span>
+                        <span className={`flex-1 text-xs truncate ${i < 2 ? 'font-semibold text-gray-800' : 'text-gray-400'}`}>
+                          {teamMap.get(row.id)?.name ?? row.id}
+                        </span>
+                        <span className={`text-xs font-black tabular-nums ${i < 2 ? 'text-wc-navy' : 'text-gray-300'}`}>{row.pts}</span>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )
+      )}
     </div>
   );
 }
