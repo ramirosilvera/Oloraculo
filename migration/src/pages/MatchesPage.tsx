@@ -6,6 +6,7 @@ import {
   saveEvaluation,
   saveWcActualResult,
   loadWcActualResults,
+  upsertFixtureContext,
 } from '../services/supabase-client';
 import {
   brierScore,
@@ -13,7 +14,7 @@ import {
   logLoss,
   topPick,
 } from '../engine/probability-helper';
-import type { Fixture, MatchPredictionResult, WcActualResult } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult } from '../types/domain';
 import {
   Button,
   Badge,
@@ -99,6 +100,175 @@ function computeGroupStandings(teamIds: string[], groupFixtures: Fixture[], play
 }
 
 // ---------------------------------------------------------------------------
+// ContextEditor — lets the user enter player availability context
+// to unlock L5 (GoalContextModel) predictions
+// ---------------------------------------------------------------------------
+interface ContextEditorProps {
+  fixture: Fixture;
+  homeName: string;
+  awayName: string;
+  existingContext: FixtureContext | null;
+  onSave: (ctx: FixtureContext) => Promise<void>;
+}
+
+function ContextEditor({ fixture, homeName, awayName, existingContext, onSave }: ContextEditorProps) {
+  const [open, setOpen] = useState(false);
+  const [homeUnavail,  setHomeUnavail]  = useState(existingContext?.unavailable_home_players ?? 0);
+  const [homeAttack,   setHomeAttack]   = useState(Math.round((existingContext?.unavailable_home_attack_impact   ?? 0) * 100));
+  const [homeDefense,  setHomeDefense]  = useState(Math.round((existingContext?.unavailable_home_defense_impact  ?? 0) * 100));
+  const [awayUnavail,  setAwayUnavail]  = useState(existingContext?.unavailable_away_players ?? 0);
+  const [awayAttack,   setAwayAttack]   = useState(Math.round((existingContext?.unavailable_away_attack_impact   ?? 0) * 100));
+  const [awayDefense,  setAwayDefense]  = useState(Math.round((existingContext?.unavailable_away_defense_impact  ?? 0) * 100));
+  const [hasLineups,   setHasLineups]   = useState(existingContext?.has_lineups ?? false);
+  const [hasOdds,      setHasOdds]      = useState(existingContext?.has_odds ?? false);
+  const [hasAvailNews, setHasAvailNews] = useState(existingContext?.has_availability_news ?? false);
+  const [notes,        setNotes]        = useState(existingContext?.notes ?? '');
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaved(false);
+    const ctx: FixtureContext = {
+      fixture_id:                      fixture.id,
+      unavailable_home_players:        homeUnavail,
+      unavailable_home_attack_impact:  homeAttack  / 100,
+      unavailable_home_defense_impact: homeDefense / 100,
+      unavailable_away_players:        awayUnavail,
+      unavailable_away_attack_impact:  awayAttack  / 100,
+      unavailable_away_defense_impact: awayDefense / 100,
+      has_lineups:         hasLineups,
+      has_odds:            hasOdds,
+      has_availability_news: hasAvailNews,
+      notes: notes.trim() || null,
+      updated_at: '',
+    };
+    try {
+      await onSave(ctx);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const hasAnyImpact = homeAttack > 0 || homeDefense > 0 || awayAttack > 0 || awayDefense > 0 ||
+    homeUnavail > 0 || awayUnavail > 0;
+
+  return (
+    <div className="border-t border-blue-100 pt-3 mt-1">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-xs font-semibold text-wc-navy hover:opacity-70 transition-opacity active:scale-95"
+      >
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        Agregar contexto del partido
+        {existingContext && hasAnyImpact && <Badge color="green">L5 activo</Badge>}
+        {existingContext && !hasAnyImpact && <Badge color="blue">guardado</Badge>}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-4 animate-fade-in">
+          <p className="text-[10px] text-gray-400">
+            Completá disponibilidad de jugadores para que el Oráculo use el modelo L5 (Goles + Contexto).
+            Impacto en ataque/defensa: % de reducción de los goles esperados (ej: 15 = 15% menos goles).
+          </p>
+
+          {/* Home team */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-700">{homeName} · Local</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">No disponibles</label>
+                <input type="number" min={0} max={11} value={homeUnavail}
+                  onChange={e => setHomeUnavail(Math.max(0, Math.min(11, +e.target.value)))}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy text-center" />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">Impacto ataque %</label>
+                <input type="number" min={0} max={30} value={homeAttack}
+                  onChange={e => setHomeAttack(Math.max(0, Math.min(30, +e.target.value)))}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy text-center" />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">Impacto defensa %</label>
+                <input type="number" min={0} max={30} value={homeDefense}
+                  onChange={e => setHomeDefense(Math.max(0, Math.min(30, +e.target.value)))}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy text-center" />
+              </div>
+            </div>
+          </div>
+
+          {/* Away team */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-700">{awayName} · Visitante</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">No disponibles</label>
+                <input type="number" min={0} max={11} value={awayUnavail}
+                  onChange={e => setAwayUnavail(Math.max(0, Math.min(11, +e.target.value)))}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy text-center" />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">Impacto ataque %</label>
+                <input type="number" min={0} max={30} value={awayAttack}
+                  onChange={e => setAwayAttack(Math.max(0, Math.min(30, +e.target.value)))}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy text-center" />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">Impacto defensa %</label>
+                <input type="number" min={0} max={30} value={awayDefense}
+                  onChange={e => setAwayDefense(Math.max(0, Math.min(30, +e.target.value)))}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy text-center" />
+              </div>
+            </div>
+          </div>
+
+          {/* Flags */}
+          <div className="flex flex-wrap gap-4">
+            {([
+              { label: 'Tengo alineaciones',            val: hasLineups,   set: setHasLineups   },
+              { label: 'Tengo cuotas de apuestas',      val: hasOdds,      set: setHasOdds      },
+              { label: 'Tengo noticias de disponibilidad', val: hasAvailNews, set: setHasAvailNews },
+            ] as const).map(({ label, val, set }) => (
+              <label key={label} className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={val} onChange={e => set(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-wc-navy" />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="text-[10px] text-gray-500 block mb-0.5">Notas adicionales</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Ej: Mbappé con molestias, no jugará el 9 titular…"
+              className="w-full px-2 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:border-wc-navy resize-none"
+            />
+          </div>
+
+          <Button
+            variant="primary"
+            size="sm"
+            loading={saving}
+            disabled={saving || saved}
+            onClick={handleSave}
+          >
+            {saved
+              ? <><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Predicción actualizada con L5</>
+              : 'Actualizar predicción con contexto'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FixtureRow — shared between "Hoy" and "Por grupo"
 // ---------------------------------------------------------------------------
 interface FixtureRowProps {
@@ -118,15 +288,17 @@ interface FixtureRowProps {
   onRecordResult: () => void;
   onResultHome: (v: string) => void;
   onResultAway: (v: string) => void;
+  onContextSaved: (ctx: FixtureContext) => Promise<void>;
   homeName: string;
   awayName: string;
+  context: FixtureContext | null;
   compact?: boolean;
 }
 
 function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
-  onResultHome, onResultAway, homeName, awayName, compact,
+  onResultHome, onResultAway, onContextSaved, homeName, awayName, context, compact,
 }: FixtureRowProps) {
   return (
     <div>
@@ -272,6 +444,17 @@ function FixtureRow({
               <p className="text-xs">{err}</p>
             </div>
           )}
+
+          {pred && (
+            <ContextEditor
+              key={context?.updated_at ?? 'new'}
+              fixture={fixture}
+              homeName={homeName}
+              awayName={awayName}
+              existingContext={context}
+              onSave={onContextSaved}
+            />
+          )}
         </div>
       )}
     </div>
@@ -353,6 +536,24 @@ export function MatchesPage() {
     setExpandingId(null);
   }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap]);
 
+  const handleContextSaved = useCallback(async (fixture: Fixture, ctx: FixtureContext) => {
+    // Persist to Supabase
+    await upsertFixtureContext(ctx);
+    // Optimistically re-predict with the new context so L5 can kick in immediately
+    if (engine) {
+      setPredictions(prev => { const n = new Map(prev); n.delete(fixture.id); return n; });
+      setExpandingId(fixture.id);
+      await new Promise(r => setTimeout(r, 0));
+      const tempCtxMap = new Map(contextMap).set(fixture.id, ctx);
+      const c = engine.buildContext(fixture, teamMap, ratingsList, tempCtxMap);
+      const result = engine.predict(c);
+      setPredictions(prev => new Map(prev).set(fixture.id, result));
+      setExpandingId(null);
+    }
+    // Refresh the persisted context map in the background
+    qc.invalidateQueries({ queryKey: ['contexts'] });
+  }, [engine, contextMap, teamMap, ratingsList, qc]);
+
   const saveSnapshot = async (fixture: Fixture) => {
     const pred = predictions.get(fixture.id);
     if (!pred) return;
@@ -415,8 +616,10 @@ export function MatchesPage() {
     onRecordResult: () => recordResult(fixture),
     onResultHome: setResultHome,
     onResultAway: setResultAway,
+    onContextSaved: (ctx: FixtureContext) => handleContextSaved(fixture, ctx),
     homeName: teamMap.get(fixture.home_team_id)?.name ?? fixture.home_team_id,
     awayName: teamMap.get(fixture.away_team_id)?.name ?? fixture.away_team_id,
+    context: contextMap.get(fixture.id) ?? null,
     compact,
   });
 
