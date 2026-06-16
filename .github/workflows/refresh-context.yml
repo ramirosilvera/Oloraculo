@@ -1,17 +1,14 @@
 name: Refrescar contexto de partidos
 
-# Fetches fresh injury/suspension data from API-Football, updates
-# fixture-contexts.json and squads.json, and commits the changes.
-# If anything changed, the commit triggers the deploy workflow automatically.
+# Fetches fresh injury/suspension data via Serper (Google Search) + Gemini,
+# updates fixture-contexts.json and commits the changes. If anything changed,
+# the commit triggers the deploy workflow automatically.
 #
-# PAUSED: the daily cron is disabled because API-Football's free plan has no
-# access to the 2026 season. To re-enable automatic daily refresh once you
-# have a paid plan that includes the current season, uncomment the `schedule`
-# block below. Manual runs (workflow_dispatch) work any time.
+# Runs daily at 08:00 UTC (05:00 ART), and on demand via workflow_dispatch.
 
 on:
-  # schedule:
-  #   - cron: '0 8 * * *'   # 08:00 UTC = 05:00 ART, every day
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC = 05:00 ART, every day
   workflow_dispatch:        # manual trigger any time
 
 jobs:
