@@ -10,78 +10,64 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "south-africa: Thapelo Morena (fitness concerns, excluded from the final squad)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "south-africa: Thapelo Morena (fitness concerns)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:A:mexico:south-korea",
     "unavailable_home_players": 0,
     "unavailable_home_attack_impact": 0,
     "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 1,
-    "unavailable_away_attack_impact": 0.004,
-    "unavailable_away_defense_impact": 0.025,
+    "unavailable_away_players": 3,
+    "unavailable_away_attack_impact": 0.023,
+    "unavailable_away_defense_impact": 0.06,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "south-korea: Cho Yu-min (ruled out with a foot injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "south-korea: Kim Ju-sung (Out of squad), Lee Myung-jae (Out of squad), Hong Hyun-seok (Out of squad)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:A:south-africa:south-korea",
     "unavailable_home_players": 1,
     "unavailable_home_attack_impact": 0.004,
     "unavailable_home_defense_impact": 0.025,
-    "unavailable_away_players": 1,
-    "unavailable_away_attack_impact": 0.004,
-    "unavailable_away_defense_impact": 0.025,
+    "unavailable_away_players": 3,
+    "unavailable_away_attack_impact": 0.023,
+    "unavailable_away_defense_impact": 0.06,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "south-africa: Thapelo Morena (fitness concerns, excluded from the final squad) | south-korea: Cho Yu-min (ruled out with a foot injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "south-africa: Thapelo Morena (fitness concerns) | south-korea: Kim Ju-sung (Out of squad), Lee Myung-jae (Out of squad), Hong Hyun-seok (Out of squad)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:B:bosnia-and-herzegovina:switzerland",
     "unavailable_home_players": 1,
-    "unavailable_home_attack_impact": 0.004,
-    "unavailable_home_defense_impact": 0.025,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
     "unavailable_away_players": 0,
     "unavailable_away_attack_impact": 0,
     "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "bosnia-and-herzegovina: Alphonso Davies (ruled out of his country's World Cup opening fixture against Bosnia & Herzegovina)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
-  },
-  {
-    "fixture_id": "grp:B:canada:qatar",
-    "unavailable_home_players": 0,
-    "unavailable_home_attack_impact": 0,
-    "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 6,
-    "unavailable_away_attack_impact": 0.098,
-    "unavailable_away_defense_impact": 0.063,
-    "has_lineups": false,
-    "has_odds": false,
-    "has_availability_news": true,
-    "notes": "qatar: Sebastian Soria (exclusion from squad), Tarek Salman (exclusion from squad), Fahad Younis (exclusion from squad), Bassam Al Rawi (exclusion from squad), Mohammed Waad (exclusion from squad), Mubarak Shanan (exclusion from squad)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "bosnia-and-herzegovina: Tabakovic (Broke a bone)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:B:bosnia-and-herzegovina:qatar",
     "unavailable_home_players": 1,
-    "unavailable_home_attack_impact": 0.004,
-    "unavailable_home_defense_impact": 0.025,
-    "unavailable_away_players": 6,
-    "unavailable_away_attack_impact": 0.098,
-    "unavailable_away_defense_impact": 0.063,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "bosnia-and-herzegovina: Alphonso Davies (ruled out of his country's World Cup opening fixture against Bosnia & Herzegovina) | qatar: Sebastian Soria (exclusion from squad), Tarek Salman (exclusion from squad), Fahad Younis (exclusion from squad), Bassam Al Rawi (exclusion from squad), Mohammed Waad (exclusion from squad), Mubarak Shanan (exclusion from squad)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "bosnia-and-herzegovina: Tabakovic (Broke a bone)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:C:morocco:scotland",
@@ -94,36 +80,36 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "morocco: Nayef Aguerd (injury; groin), Abde Ezzalzouli (injury; knee) | scotland: Billy Gilmour (knee injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "morocco: Abdessamad Ezzalzouli (injury), Nayef Aguerd (injury) | scotland: Billy Gilmour (knee injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:C:brazil:haiti",
-    "unavailable_home_players": 3,
-    "unavailable_home_attack_impact": 0.074,
-    "unavailable_home_defense_impact": 0.031,
+    "unavailable_home_players": 5,
+    "unavailable_home_attack_impact": 0.144,
+    "unavailable_home_defense_impact": 0.037,
     "unavailable_away_players": 1,
     "unavailable_away_attack_impact": 0.015,
     "unavailable_away_defense_impact": 0.01,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "brazil: Neymar (calf injury), Rodrygo (ACL and meniscus in the right knee), Militao (thigh surgery) | haiti: Leverton Pierre (adductor muscle injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "brazil: Neymar (calf injury), Estêvão (Torn Achilles), Rodrygo (ACL and meniscus in the right knee), Militao (thigh surgery), Vinícius (suspended for one match) | haiti: Leverton Pierre (adductor muscle injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:C:brazil:scotland",
-    "unavailable_home_players": 3,
-    "unavailable_home_attack_impact": 0.074,
-    "unavailable_home_defense_impact": 0.031,
+    "unavailable_home_players": 5,
+    "unavailable_home_attack_impact": 0.144,
+    "unavailable_home_defense_impact": 0.037,
     "unavailable_away_players": 1,
     "unavailable_away_attack_impact": 0.015,
     "unavailable_away_defense_impact": 0.01,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "brazil: Neymar (calf injury), Rodrygo (ACL and meniscus in the right knee), Militao (thigh surgery) | scotland: Billy Gilmour (knee injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "brazil: Neymar (calf injury), Estêvão (Torn Achilles), Rodrygo (ACL and meniscus in the right knee), Militao (thigh surgery), Vinícius (suspended for one match) | scotland: Billy Gilmour (knee injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:C:morocco:haiti",
@@ -136,8 +122,8 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "morocco: Nayef Aguerd (injury; groin), Abde Ezzalzouli (injury; knee) | haiti: Leverton Pierre (adductor muscle injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "morocco: Abdessamad Ezzalzouli (injury), Nayef Aguerd (injury) | haiti: Leverton Pierre (adductor muscle injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:D:united-states:australia",
@@ -151,7 +137,7 @@
     "has_odds": false,
     "has_availability_news": true,
     "notes": "united-states: Johnny Cardoso (ankle surgery)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:D:united-states:turkey",
@@ -165,49 +151,49 @@
     "has_odds": false,
     "has_availability_news": true,
     "notes": "united-states: Johnny Cardoso (ankle surgery)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:E:germany:ivory-coast",
-    "unavailable_home_players": 1,
+    "unavailable_home_players": 3,
     "unavailable_home_attack_impact": 0.035,
-    "unavailable_home_defense_impact": 0.003,
-    "unavailable_away_players": 2,
-    "unavailable_away_attack_impact": 0.07,
-    "unavailable_away_defense_impact": 0.006,
+    "unavailable_home_defense_impact": 0.06,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.035,
+    "unavailable_away_defense_impact": 0.003,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "germany: Serge Gnabry (injury sustained in training last week (muscle tear)) | ivory-coast: Wilfried Zaha (poor form), Jeremie Boga (omitted)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "germany: Assan Ouédraogo (thigh injury), Lennart Karl (injured in training), Marc-André ter Stegen (Left out of squad) | ivory-coast: Hugo Ekitike (ruptured Achilles tendon)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:E:germany:ecuador",
-    "unavailable_home_players": 1,
+    "unavailable_home_players": 3,
     "unavailable_home_attack_impact": 0.035,
-    "unavailable_home_defense_impact": 0.003,
+    "unavailable_home_defense_impact": 0.06,
     "unavailable_away_players": 0,
     "unavailable_away_attack_impact": 0,
     "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "germany: Serge Gnabry (injury sustained in training last week (muscle tear))",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "germany: Assan Ouédraogo (thigh injury), Lennart Karl (injured in training), Marc-André ter Stegen (Left out of squad)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:E:curacao:ivory-coast",
     "unavailable_home_players": 0,
     "unavailable_home_attack_impact": 0,
     "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 2,
-    "unavailable_away_attack_impact": 0.07,
-    "unavailable_away_defense_impact": 0.006,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.035,
+    "unavailable_away_defense_impact": 0.003,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "ivory-coast: Wilfried Zaha (poor form), Jeremie Boga (omitted)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "ivory-coast: Hugo Ekitike (ruptured Achilles tendon)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:F:netherlands:sweden",
@@ -220,8 +206,8 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "netherlands: Jurriën Timber (ongoing groin injury) | sweden: Dejan Kulusevski (knee injury), Emil Holm (muscle injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "netherlands: Jurriën Timber (ongoing groin injury) | sweden: Dejan Kulusevski (Knee injury), Emil Holm (Muscle injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:F:japan:tunisia",
@@ -235,7 +221,7 @@
     "has_odds": false,
     "has_availability_news": true,
     "notes": "japan: Endo Wataru (foot injury), Ayase Ueda (injury), Hidemasa Morita (injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:F:netherlands:tunisia",
@@ -249,7 +235,7 @@
     "has_odds": false,
     "has_availability_news": true,
     "notes": "netherlands: Jurriën Timber (ongoing groin injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:F:japan:sweden",
@@ -262,8 +248,8 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "japan: Endo Wataru (foot injury), Ayase Ueda (injury), Hidemasa Morita (injury) | sweden: Dejan Kulusevski (knee injury), Emil Holm (muscle injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "japan: Endo Wataru (foot injury), Ayase Ueda (injury), Hidemasa Morita (injury) | sweden: Dejan Kulusevski (Knee injury), Emil Holm (Muscle injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:G:belgium:egypt",
@@ -271,27 +257,27 @@
     "unavailable_home_attack_impact": 0.035,
     "unavailable_home_defense_impact": 0.003,
     "unavailable_away_players": 1,
-    "unavailable_away_attack_impact": 0.015,
-    "unavailable_away_defense_impact": 0.01,
+    "unavailable_away_attack_impact": 0.035,
+    "unavailable_away_defense_impact": 0.003,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "belgium: Malick Fofana (left out) | egypt: Islam Issa (ACL tear)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "belgium: Malick Fofana (left out of the squad) | egypt: Islam Issa (ACL tear)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:G:iran:new-zealand",
     "unavailable_home_players": 1,
     "unavailable_home_attack_impact": 0.035,
     "unavailable_home_defense_impact": 0.003,
-    "unavailable_away_players": 1,
+    "unavailable_away_players": 2,
     "unavailable_away_attack_impact": 0.015,
-    "unavailable_away_defense_impact": 0.01,
+    "unavailable_away_defense_impact": 0.06,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "iran: Ali Gholizadeh (season-ending knee injury) | new-zealand: Ryan Thomas (unspecified injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "iran: Ali Gholizadeh (season-ending knee injury) | new-zealand: Oli Sail (injury), Matt Garbett (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:G:belgium:iran",
@@ -304,28 +290,28 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "belgium: Malick Fofana (left out) | iran: Ali Gholizadeh (season-ending knee injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "belgium: Malick Fofana (left out of the squad) | iran: Ali Gholizadeh (season-ending knee injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:G:egypt:new-zealand",
     "unavailable_home_players": 1,
-    "unavailable_home_attack_impact": 0.015,
-    "unavailable_home_defense_impact": 0.01,
-    "unavailable_away_players": 1,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
+    "unavailable_away_players": 2,
     "unavailable_away_attack_impact": 0.015,
-    "unavailable_away_defense_impact": 0.01,
+    "unavailable_away_defense_impact": 0.06,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "egypt: Islam Issa (ACL tear) | new-zealand: Ryan Thomas (unspecified injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "egypt: Islam Issa (ACL tear) | new-zealand: Oli Sail (injury), Matt Garbett (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:G:egypt:iran",
     "unavailable_home_players": 1,
-    "unavailable_home_attack_impact": 0.015,
-    "unavailable_home_defense_impact": 0.01,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
     "unavailable_away_players": 1,
     "unavailable_away_attack_impact": 0.035,
     "unavailable_away_defense_impact": 0.003,
@@ -333,94 +319,24 @@
     "has_odds": false,
     "has_availability_news": true,
     "notes": "egypt: Islam Issa (ACL tear) | iran: Ali Gholizadeh (season-ending knee injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:G:belgium:new-zealand",
     "unavailable_home_players": 1,
     "unavailable_home_attack_impact": 0.035,
     "unavailable_home_defense_impact": 0.003,
-    "unavailable_away_players": 1,
+    "unavailable_away_players": 2,
     "unavailable_away_attack_impact": 0.015,
-    "unavailable_away_defense_impact": 0.01,
+    "unavailable_away_defense_impact": 0.06,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "belgium: Malick Fofana (left out) | new-zealand: Ryan Thomas (unspecified injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "belgium: Malick Fofana (left out of the squad) | new-zealand: Oli Sail (injury), Matt Garbett (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:H:spain:cape-verde",
-    "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.05,
-    "unavailable_home_defense_impact": 0.013,
-    "unavailable_away_players": 0,
-    "unavailable_away_attack_impact": 0,
-    "unavailable_away_defense_impact": 0,
-    "has_lineups": false,
-    "has_odds": false,
-    "has_availability_news": true,
-    "notes": "spain: Samu Aghehowa (Quad injury, will miss the World Cup.), Fermin López (Will miss the World Cup due to injury.)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
-  },
-  {
-    "fixture_id": "grp:H:saudi-arabia:uruguay",
-    "unavailable_home_players": 0,
-    "unavailable_home_attack_impact": 0,
-    "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 4,
-    "unavailable_away_attack_impact": 0.043,
-    "unavailable_away_defense_impact": 0.103,
-    "has_lineups": false,
-    "has_odds": false,
-    "has_availability_news": true,
-    "notes": "uruguay: Fernando Muslera (four-match ban by FIFA), Jose Maria Gimenez (four-match ban by FIFA), Diego Godin (four-match ban by FIFA), Edinson Cavani (four-match ban by FIFA)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
-  },
-  {
-    "fixture_id": "grp:H:spain:saudi-arabia",
-    "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.05,
-    "unavailable_home_defense_impact": 0.013,
-    "unavailable_away_players": 0,
-    "unavailable_away_attack_impact": 0,
-    "unavailable_away_defense_impact": 0,
-    "has_lineups": false,
-    "has_odds": false,
-    "has_availability_news": true,
-    "notes": "spain: Samu Aghehowa (Quad injury, will miss the World Cup.), Fermin López (Will miss the World Cup due to injury.)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
-  },
-  {
-    "fixture_id": "grp:H:cape-verde:uruguay",
-    "unavailable_home_players": 0,
-    "unavailable_home_attack_impact": 0,
-    "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 4,
-    "unavailable_away_attack_impact": 0.043,
-    "unavailable_away_defense_impact": 0.103,
-    "has_lineups": false,
-    "has_odds": false,
-    "has_availability_news": true,
-    "notes": "uruguay: Fernando Muslera (four-match ban by FIFA), Jose Maria Gimenez (four-match ban by FIFA), Diego Godin (four-match ban by FIFA), Edinson Cavani (four-match ban by FIFA)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
-  },
-  {
-    "fixture_id": "grp:H:spain:uruguay",
-    "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.05,
-    "unavailable_home_defense_impact": 0.013,
-    "unavailable_away_players": 4,
-    "unavailable_away_attack_impact": 0.043,
-    "unavailable_away_defense_impact": 0.103,
-    "has_lineups": false,
-    "has_odds": false,
-    "has_availability_news": true,
-    "notes": "spain: Samu Aghehowa (Quad injury, will miss the World Cup.), Fermin López (Will miss the World Cup due to injury.) | uruguay: Fernando Muslera (four-match ban by FIFA), Jose Maria Gimenez (four-match ban by FIFA), Diego Godin (four-match ban by FIFA), Edinson Cavani (four-match ban by FIFA)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
-  },
-  {
-    "fixture_id": "grp:I:iraq:norway",
     "unavailable_home_players": 1,
     "unavailable_home_attack_impact": 0.035,
     "unavailable_home_defense_impact": 0.003,
@@ -430,8 +346,50 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "iraq: Ahmed Yahya (hamstring injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "spain: Samu Aghehowa (Torn ACL)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:H:spain:saudi-arabia",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "spain: Samu Aghehowa (Torn ACL)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:H:spain:uruguay",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "spain: Samu Aghehowa (Torn ACL)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:I:iraq:norway",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.02,
+    "unavailable_home_defense_impact": 0,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.004,
+    "unavailable_away_defense_impact": 0.025,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "iraq: Ahmed Yahya (injury) | norway: Eivind Helland (Not selected for the squad)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:I:france:iraq",
@@ -439,13 +397,41 @@
     "unavailable_home_attack_impact": 0,
     "unavailable_home_defense_impact": 0,
     "unavailable_away_players": 1,
-    "unavailable_away_attack_impact": 0.035,
-    "unavailable_away_defense_impact": 0.003,
+    "unavailable_away_attack_impact": 0.02,
+    "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "iraq: Ahmed Yahya (hamstring injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "iraq: Ahmed Yahya (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:I:senegal:norway",
+    "unavailable_home_players": 0,
+    "unavailable_home_attack_impact": 0,
+    "unavailable_home_defense_impact": 0,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.004,
+    "unavailable_away_defense_impact": 0.025,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "norway: Eivind Helland (Not selected for the squad)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:I:france:norway",
+    "unavailable_home_players": 0,
+    "unavailable_home_attack_impact": 0,
+    "unavailable_home_defense_impact": 0,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.004,
+    "unavailable_away_defense_impact": 0.025,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "norway: Eivind Helland (Not selected for the squad)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:I:senegal:iraq",
@@ -453,27 +439,27 @@
     "unavailable_home_attack_impact": 0,
     "unavailable_home_defense_impact": 0,
     "unavailable_away_players": 1,
-    "unavailable_away_attack_impact": 0.035,
-    "unavailable_away_defense_impact": 0.003,
+    "unavailable_away_attack_impact": 0.02,
+    "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "iraq: Ahmed Yahya (hamstring injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "iraq: Ahmed Yahya (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:J:argentina:algeria",
     "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.039,
-    "unavailable_home_defense_impact": 0.028,
+    "unavailable_home_attack_impact": 0.03,
+    "unavailable_home_defense_impact": 0.02,
     "unavailable_away_players": 1,
     "unavailable_away_attack_impact": 0.015,
     "unavailable_away_defense_impact": 0.01,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "argentina: Paulo Dybala (out for June window), Lisandro Martinez (out for June window) | algeria: Ismael Bennacer (MISS out)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "argentina: Enzo (Suspension), Paredes (Suspension) | algeria: Ismael Bennacer",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:J:austria:jordan",
@@ -481,27 +467,27 @@
     "unavailable_home_attack_impact": 0.015,
     "unavailable_home_defense_impact": 0.01,
     "unavailable_away_players": 3,
-    "unavailable_away_attack_impact": 0.105,
-    "unavailable_away_defense_impact": 0.009,
+    "unavailable_away_attack_impact": 0.09,
+    "unavailable_away_defense_impact": 0.006,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
     "notes": "austria: Christoph Baumgartner (thigh muscle injury) | jordan: Yazan Alnemat (ACL injury), Ibrahim Sabra (ankle injury), Yazan Al Naimat (misses out)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:J:argentina:austria",
     "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.039,
-    "unavailable_home_defense_impact": 0.028,
+    "unavailable_home_attack_impact": 0.03,
+    "unavailable_home_defense_impact": 0.02,
     "unavailable_away_players": 1,
     "unavailable_away_attack_impact": 0.015,
     "unavailable_away_defense_impact": 0.01,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "argentina: Paulo Dybala (out for June window), Lisandro Martinez (out for June window) | austria: Christoph Baumgartner (thigh muscle injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "argentina: Enzo (Suspension), Paredes (Suspension) | austria: Christoph Baumgartner (thigh muscle injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:J:algeria:jordan",
@@ -509,27 +495,27 @@
     "unavailable_home_attack_impact": 0.015,
     "unavailable_home_defense_impact": 0.01,
     "unavailable_away_players": 3,
-    "unavailable_away_attack_impact": 0.105,
-    "unavailable_away_defense_impact": 0.009,
+    "unavailable_away_attack_impact": 0.09,
+    "unavailable_away_defense_impact": 0.006,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "algeria: Ismael Bennacer (MISS out) | jordan: Yazan Alnemat (ACL injury), Ibrahim Sabra (ankle injury), Yazan Al Naimat (misses out)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "algeria: Ismael Bennacer | jordan: Yazan Alnemat (ACL injury), Ibrahim Sabra (ankle injury), Yazan Al Naimat (misses out)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:J:argentina:jordan",
     "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.039,
-    "unavailable_home_defense_impact": 0.028,
+    "unavailable_home_attack_impact": 0.03,
+    "unavailable_home_defense_impact": 0.02,
     "unavailable_away_players": 3,
-    "unavailable_away_attack_impact": 0.105,
-    "unavailable_away_defense_impact": 0.009,
+    "unavailable_away_attack_impact": 0.09,
+    "unavailable_away_defense_impact": 0.006,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "argentina: Paulo Dybala (out for June window), Lisandro Martinez (out for June window) | jordan: Yazan Alnemat (ACL injury), Ibrahim Sabra (ankle injury), Yazan Al Naimat (misses out)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "argentina: Enzo (Suspension), Paredes (Suspension) | jordan: Yazan Alnemat (ACL injury), Ibrahim Sabra (ankle injury), Yazan Al Naimat (misses out)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:J:algeria:austria",
@@ -542,22 +528,22 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "algeria: Ismael Bennacer (MISS out) | austria: Christoph Baumgartner (thigh muscle injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "algeria: Ismael Bennacer | austria: Christoph Baumgartner (thigh muscle injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:K:portugal:congo-dr",
     "unavailable_home_players": 1,
     "unavailable_home_attack_impact": 0.035,
     "unavailable_home_defense_impact": 0.003,
-    "unavailable_away_players": 4,
-    "unavailable_away_attack_impact": 0.078,
-    "unavailable_away_defense_impact": 0.056,
+    "unavailable_away_players": 2,
+    "unavailable_away_attack_impact": 0.07,
+    "unavailable_away_defense_impact": 0.006,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "portugal: Cristiano Ronaldo (Hamstring injury) | congo-dr: Michel-Ange Balikwisha (ineligible), Mario Stroeykens (ineligible), Rocky Bushiri (suffered injury), Jorthy Mokio (omission)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "portugal: Cristiano Ronaldo (inflammation on his left knee) | congo-dr: Michel-Ange Balikwisha (ineligible), Mario Stroeykens (ineligible)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:K:portugal:uzbekistan",
@@ -570,22 +556,22 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "portugal: Cristiano Ronaldo (Hamstring injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "portugal: Cristiano Ronaldo (inflammation on his left knee)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:K:congo-dr:colombia",
-    "unavailable_home_players": 4,
-    "unavailable_home_attack_impact": 0.078,
-    "unavailable_home_defense_impact": 0.056,
+    "unavailable_home_players": 2,
+    "unavailable_home_attack_impact": 0.07,
+    "unavailable_home_defense_impact": 0.006,
     "unavailable_away_players": 0,
     "unavailable_away_attack_impact": 0,
     "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "congo-dr: Michel-Ange Balikwisha (ineligible), Mario Stroeykens (ineligible), Rocky Bushiri (suffered injury), Jorthy Mokio (omission)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "congo-dr: Michel-Ange Balikwisha (ineligible), Mario Stroeykens (ineligible)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:K:portugal:colombia",
@@ -598,63 +584,91 @@
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "portugal: Cristiano Ronaldo (Hamstring injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "portugal: Cristiano Ronaldo (inflammation on his left knee)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:K:congo-dr:uzbekistan",
-    "unavailable_home_players": 4,
-    "unavailable_home_attack_impact": 0.078,
-    "unavailable_home_defense_impact": 0.056,
+    "unavailable_home_players": 2,
+    "unavailable_home_attack_impact": 0.07,
+    "unavailable_home_defense_impact": 0.006,
     "unavailable_away_players": 0,
     "unavailable_away_attack_impact": 0,
     "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "congo-dr: Michel-Ange Balikwisha (ineligible), Mario Stroeykens (ineligible), Rocky Bushiri (suffered injury), Jorthy Mokio (omission)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "congo-dr: Michel-Ange Balikwisha (ineligible), Mario Stroeykens (ineligible)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:L:england:croatia",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.004,
+    "unavailable_home_defense_impact": 0.025,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "england: Tino Livramento (Calf injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:L:ghana:panama",
-    "unavailable_home_players": 2,
-    "unavailable_home_attack_impact": 0.008,
-    "unavailable_home_defense_impact": 0.05,
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.004,
+    "unavailable_home_defense_impact": 0.025,
     "unavailable_away_players": 0,
     "unavailable_away_attack_impact": 0,
     "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "ghana: Alexander Djiku (injury), Salisu (injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "ghana: Alexander Djiku (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:L:england:ghana",
-    "unavailable_home_players": 0,
-    "unavailable_home_attack_impact": 0,
-    "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 2,
-    "unavailable_away_attack_impact": 0.008,
-    "unavailable_away_defense_impact": 0.05,
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.004,
+    "unavailable_home_defense_impact": 0.025,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.004,
+    "unavailable_away_defense_impact": 0.025,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "ghana: Alexander Djiku (injury), Salisu (injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "england: Tino Livramento (Calf injury) | ghana: Alexander Djiku (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
+  },
+  {
+    "fixture_id": "grp:L:england:panama",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.004,
+    "unavailable_home_defense_impact": 0.025,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "england: Tino Livramento (Calf injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   },
   {
     "fixture_id": "grp:L:croatia:ghana",
     "unavailable_home_players": 0,
     "unavailable_home_attack_impact": 0,
     "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 2,
-    "unavailable_away_attack_impact": 0.008,
-    "unavailable_away_defense_impact": 0.05,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.004,
+    "unavailable_away_defense_impact": 0.025,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "ghana: Alexander Djiku (injury), Salisu (injury)",
-    "updated_at": "2026-06-16T15:52:52.705Z"
+    "notes": "ghana: Alexander Djiku (injury)",
+    "updated_at": "2026-06-16T16:00:43.269Z"
   }
 ]
