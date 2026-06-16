@@ -188,45 +188,67 @@ async function main() {
     console.warn(`  ⚠ ESPN teams fetch failed: ${e.message}`);
   }
 
-  // ── 3. ESPN: injuries per team ─────────────────────────────────────────────
-  // Map: our team ID → [{playerName, playerKey, pos}] (unavailable players)
+  // ── 3. ESPN: injuries + suspensions per team ─────────────────────────────
+  // ESPN /injuries endpoint includes both injured AND suspended players.
+  // The `type.text` field distinguishes them (e.g. "Injured", "Suspended",
+  // "Illness", "International Duty", "Other"). We include all statuses that
+  // make a player unavailable for the match.
+  const SKIP_TYPES = new Set(['probable', 'day-to-day', 'questionable']);
+
+  // Map: our team ID → [{playerName, playerKey, pos, reason}]
   const injuriesByTeam = new Map();
   if (espnTeamIdMap.size > 0) {
-    console.log('\n[3/3] Fetching ESPN injuries...');
+    console.log('\n[3/3] Fetching ESPN injuries + suspensions...');
+    const typeSummary = {}; // for logging what types we encounter
     for (const teamId of allTeamIds) {
       const espnId = espnTeamIdMap.get(teamId);
-      if (!espnId) {
-        // Try alternate slugs (ESPN might use different names)
-        continue;
-      }
+      if (!espnId) continue;
       try {
         const data = await fetchJson(
           `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/teams/${espnId}/injuries`
         );
         const raw = data.injuries ?? data.items ?? [];
-        const injuries = raw.map(inj => {
-          const athleteName = inj.athlete?.displayName ?? inj.athlete?.fullName ?? inj.displayName ?? '';
-          const espnPos     = inj.athlete?.position?.abbreviation ?? '';
-          // Try to get position from squad data first, fall back to ESPN position
-          const squad = squadsByTeamId.get(teamId) ?? [];
-          const pKey = normalizePlayerKey(athleteName);
-          const squadPlayer = squad.find(p => playerNamesMatch(p.key, pKey));
-          const pos = squadPlayer?.pos ?? normalizeESPNPos(espnPos) ?? 'Unknown';
-          return { playerName: athleteName, playerKey: pKey, pos };
-        }).filter(inj => inj.playerName);
+        const unavailable = raw
+          .map(inj => {
+            const athleteName = inj.athlete?.displayName ?? inj.athlete?.fullName ?? inj.displayName ?? '';
+            const espnPos     = inj.athlete?.position?.abbreviation ?? '';
+            const typeText    = (inj.type?.text ?? inj.status ?? '').toLowerCase();
+            const reason      = inj.type?.text ?? inj.status ?? 'Unknown';
 
-        if (injuries.length > 0) {
-          injuriesByTeam.set(teamId, injuries);
-          console.log(`    ${teamId}: ${injuries.length} injury record(s)`);
+            // Track all type values we see for diagnostics
+            typeSummary[reason] = (typeSummary[reason] ?? 0) + 1;
+
+            // Skip if only "probable" / "day-to-day" / "questionable" — likely to play
+            if (SKIP_TYPES.has(typeText)) return null;
+
+            // Try to get position from squad data first, fall back to ESPN position
+            const squad = squadsByTeamId.get(teamId) ?? [];
+            const pKey = normalizePlayerKey(athleteName);
+            const squadPlayer = squad.find(p => playerNamesMatch(p.key, pKey));
+            const pos = squadPlayer?.pos ?? normalizeESPNPos(espnPos) ?? 'Unknown';
+            return { playerName: athleteName, playerKey: pKey, pos, reason };
+          })
+          .filter(p => p && p.playerName);
+
+        if (unavailable.length > 0) {
+          injuriesByTeam.set(teamId, unavailable);
+          const byReason = unavailable.reduce((acc, p) => {
+            acc[p.reason] = (acc[p.reason] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log(`    ${teamId}: ${unavailable.length} unavailable — ${JSON.stringify(byReason)}`);
         }
-        await new Promise(r => setTimeout(r, 120)); // be polite
+        await new Promise(r => setTimeout(r, 120)); // be polite to ESPN
       } catch {
         // Per-team failure is OK — continue
       }
     }
-    console.log(`  Injury data for ${injuriesByTeam.size}/${allTeamIds.length} teams`);
+    console.log(`  Unavailability data for ${injuriesByTeam.size}/${allTeamIds.length} teams`);
+    if (Object.keys(typeSummary).length > 0) {
+      console.log(`  Types found across all teams: ${JSON.stringify(typeSummary)}`);
+    }
   } else {
-    console.log('\n[3/3] Skipping ESPN injuries (no team IDs)');
+    console.log('\n[3/3] Skipping ESPN injuries/suspensions (no team IDs)');
   }
 
   // ── 4. Build fixture-contexts.json ────────────────────────────────────────
@@ -244,9 +266,12 @@ async function main() {
     const homeImpact = sumImpacts(homeInjuries.map(i => i.pos));
     const awayImpact = sumImpacts(awayInjuries.map(i => i.pos));
 
+    const formatPlayers = (players) =>
+      players.map(p => `${p.playerName}${p.reason && p.reason !== 'Unknown' ? ` (${p.reason})` : ''}`).join(', ');
+
     const notesParts = [
-      homeInjuries.length > 0 ? `${fixture.home_team_id}: ${homeInjuries.map(i => i.playerName).join(', ')}` : null,
-      awayInjuries.length > 0 ? `${fixture.away_team_id}: ${awayInjuries.map(i => i.playerName).join(', ')}` : null,
+      homeInjuries.length > 0 ? `${fixture.home_team_id}: ${formatPlayers(homeInjuries)}` : null,
+      awayInjuries.length > 0 ? `${fixture.away_team_id}: ${formatPlayers(awayInjuries)}` : null,
     ].filter(Boolean);
 
     contexts.push({

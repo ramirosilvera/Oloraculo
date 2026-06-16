@@ -1,0 +1,50 @@
+name: Refrescar contexto de partidos
+
+# Runs daily at 08:00 UTC (05:00 ART) during the World Cup window.
+# Fetches fresh injury/suspension data from ESPN + OpenFootball squads,
+# updates fixture-contexts.json and squads.json, and commits the changes.
+# If anything changed, the commit triggers the deploy workflow automatically.
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC = 05:00 ART, every day
+  workflow_dispatch:        # manual trigger any time
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # needed to push the updated JSON files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Use a PAT so the commit can trigger the deploy workflow.
+          # Falls back to GITHUB_TOKEN (which won't re-trigger workflows).
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Obtener contexto (ESPN + OpenFootball)
+        run: node scripts/build-context.mjs
+        continue-on-error: true
+
+      - name: Commitear si hubo cambios
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add migration/public/data/fixture-contexts.json \
+                  migration/public/data/squads.json
+          if git diff --cached --quiet; then
+            echo "Sin cambios en contexto — nada que commitear."
+          else
+            git commit -m "chore: actualizar contexto de partidos [$(date -u +%Y-%m-%d)]
+
+Lesiones/suspensiones y plantillas actualizadas automáticamente desde
+ESPN WC2026 injuries API + OpenFootball squads (CC0)."
+            git push origin main
+          fi
