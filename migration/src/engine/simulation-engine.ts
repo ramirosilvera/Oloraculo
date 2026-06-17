@@ -137,10 +137,47 @@ function rankBestThirds(thirds: Standing[], fifaPoints: Map<string, number>): St
 interface Counter {
   qualify: number; r16: number; qf: number; sf: number; final: number; champion: number;
   winGroup: number; groupPoints: number;
+  // Group detail
+  groupGoalsFor: number; groupGoalsAgainst: number;
+  groupPos: [number, number, number, number]; // finish position 1st/2nd/3rd/4th counts
+  // Knockout opponent tracking: oppId → count
+  r32Opps: Record<string, number>; r32Wins: Record<string, number>;
+  r16Opps: Record<string, number>; r16Wins: Record<string, number>;
+  qfOpps:  Record<string, number>; qfWins:  Record<string, number>;
+  sfOpps:  Record<string, number>; sfWins:  Record<string, number>;
+  finOpps: Record<string, number>; finWins: Record<string, number>;
 }
 
 function newCounter(): Counter {
-  return { qualify: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0, winGroup: 0, groupPoints: 0 };
+  return {
+    qualify: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0, winGroup: 0, groupPoints: 0,
+    groupGoalsFor: 0, groupGoalsAgainst: 0, groupPos: [0, 0, 0, 0],
+    r32Opps: {}, r32Wins: {}, r16Opps: {}, r16Wins: {},
+    qfOpps:  {}, qfWins:  {}, sfOpps:  {}, sfWins:  {},
+    finOpps: {}, finWins: {},
+  };
+}
+
+function trackOpp(opps: Record<string, number>, wins: Record<string, number>, oppId: string, won: boolean) {
+  opps[oppId] = (opps[oppId] ?? 0) + 1;
+  if (won) wins[oppId] = (wins[oppId] ?? 0) + 1;
+}
+
+function computeJourney(
+  opps: Record<string, number>,
+  wins: Record<string, number>,
+  reached: number,
+): import('../types/domain').JourneyRound | undefined {
+  const entries = Object.entries(opps);
+  if (!entries.length || reached === 0) return undefined;
+  const [topId, facedCount] = entries.sort((a, b) => b[1] - a[1])[0];
+  return {
+    mostLikelyOpponentId: topId,
+    facedCount,
+    winsVsMostLikely: wins[topId] ?? 0,
+    totalReached: reached,
+    wins: Object.values(wins).reduce((s, v) => s + v, 0),
+  };
 }
 
 export interface SimulationInput {
@@ -283,7 +320,11 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
       const ranked = rankGroup([...standings.values()], fifaPoints);
       for (let pos = 0; pos < ranked.length; pos++) {
-        counters.get(ranked[pos].teamId)!.groupPoints += ranked[pos].points;
+        const tc = counters.get(ranked[pos].teamId)!;
+        tc.groupPoints      += ranked[pos].points;
+        tc.groupGoalsFor    += ranked[pos].goalsFor;
+        tc.groupGoalsAgainst += ranked[pos].goalsFor - ranked[pos].gd;
+        if (pos < 4) tc.groupPos[pos]++;
       }
 
       counters.get(ranked[0].teamId)!.winGroup++;
@@ -315,25 +356,48 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
       return winners.get(slot.tieId!)!;
     }
 
-    function playRound(ties: BracketTie[], onWin: (teamId: string) => void): void {
+    const playRound = (ties: BracketTie[], onResult: (winnerId: string, loserId: string) => void) => {
       for (const tie of ties) {
         const home = resolve(tie, tie.home);
         const away = resolve(tie, tie.away);
         const winner = knockoutWinner(home, away);
         winners.set(tie.id, winner);
-        onWin(winner);
+        onResult(winner, winner === home ? away : home);
       }
-    }
+    };
 
-    playRound(ROUND_OF_32, t => counters.get(t)!.r16++);
-    playRound(ROUND_OF_16, t => counters.get(t)!.qf++);
-    playRound(QUARTER_FINALS, t => counters.get(t)!.sf++);
-    playRound(SEMI_FINALS, t => counters.get(t)!.final++);
+    playRound(ROUND_OF_32, (w, l) => {
+      counters.get(w)!.r16++;
+      const wc = counters.get(w)!; const lc = counters.get(l)!;
+      trackOpp(wc.r32Opps, wc.r32Wins, l, true);
+      trackOpp(lc.r32Opps, lc.r32Wins, w, false);
+    });
+    playRound(ROUND_OF_16, (w, l) => {
+      counters.get(w)!.qf++;
+      const wc = counters.get(w)!; const lc = counters.get(l)!;
+      trackOpp(wc.r16Opps, wc.r16Wins, l, true);
+      trackOpp(lc.r16Opps, lc.r16Wins, w, false);
+    });
+    playRound(QUARTER_FINALS, (w, l) => {
+      counters.get(w)!.sf++;
+      const wc = counters.get(w)!; const lc = counters.get(l)!;
+      trackOpp(wc.qfOpps, wc.qfWins, l, true);
+      trackOpp(lc.qfOpps, lc.qfWins, w, false);
+    });
+    playRound(SEMI_FINALS, (w, l) => {
+      counters.get(w)!.final++;
+      const wc = counters.get(w)!; const lc = counters.get(l)!;
+      trackOpp(wc.sfOpps, wc.sfWins, l, true);
+      trackOpp(lc.sfOpps, lc.sfWins, w, false);
+    });
 
     const finalistHome = resolve(FINAL, FINAL.home);
     const finalistAway = resolve(FINAL, FINAL.away);
     const champion = knockoutWinner(finalistHome, finalistAway);
+    const runner = champion === finalistHome ? finalistAway : finalistHome;
     counters.get(champion)!.champion++;
+    trackOpp(counters.get(champion)!.finOpps, counters.get(champion)!.finWins, runner, true);
+    trackOpp(counters.get(runner)!.finOpps,   counters.get(runner)!.finWins,   champion, false);
   }
 
   const teams: TeamTournamentProbability[] = allTeams.map(teamId => {
@@ -342,14 +406,22 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
     return {
       teamId,
       group,
-      winGroup:           c.winGroup   / simulations,
-      qualify:            c.qualify    / simulations,
-      reachRoundOf16:     c.r16        / simulations,
-      reachQuarterFinal:  c.qf         / simulations,
-      reachSemiFinal:     c.sf         / simulations,
-      reachFinal:         c.final      / simulations,
-      winTournament:      c.champion   / simulations,
+      winGroup:            c.winGroup   / simulations,
+      qualify:             c.qualify    / simulations,
+      reachRoundOf16:      c.r16        / simulations,
+      reachQuarterFinal:   c.qf         / simulations,
+      reachSemiFinal:      c.sf         / simulations,
+      reachFinal:          c.final      / simulations,
+      winTournament:       c.champion   / simulations,
       expectedGroupPoints: Math.round((c.groupPoints / simulations) * 100) / 100,
+      avgGroupGoalsFor:     +(c.groupGoalsFor    / simulations).toFixed(2),
+      avgGroupGoalsAgainst: +(c.groupGoalsAgainst / simulations).toFixed(2),
+      groupPositions: c.groupPos.map(n => +(n / simulations).toFixed(4)) as [number, number, number, number],
+      r32Journey: computeJourney(c.r32Opps, c.r32Wins, c.qualify),
+      r16Journey: computeJourney(c.r16Opps, c.r16Wins, c.r16),
+      qfJourney:  computeJourney(c.qfOpps,  c.qfWins,  c.qf),
+      sfJourney:  computeJourney(c.sfOpps,  c.sfWins,  c.sf),
+      finJourney: computeJourney(c.finOpps, c.finWins, c.final),
     };
   });
 

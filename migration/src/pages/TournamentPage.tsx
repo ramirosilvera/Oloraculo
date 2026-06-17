@@ -2,9 +2,10 @@ import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../hooks/useAppData';
 import { saveTournamentSnapshot } from '../services/supabase-client';
-import type { TournamentProjection } from '../types/domain';
+import type { TournamentProjection, TeamTournamentProbability } from '../types/domain';
 import type { SimulationInput } from '../engine/simulation-engine';
 import { Button, Badge, Card, CardHeader, Skeleton, Tooltip, FlagImg } from '../components/ui';
+import { TeamJourneyPanel } from '../components/TeamJourneyPanel';
 import { Trophy, Play, Save, CheckCircle2, History, ChevronRight, Medal } from 'lucide-react';
 
 const SIMULATION_COUNT = 10_000;
@@ -16,9 +17,10 @@ function pct0(n: number) { return `${(n * 100).toFixed(0)}%`;  }
 interface ProbTableProps {
   teams: TournamentProjection['teams'];
   getTeamName: (id: string) => string;
+  onSelectTeam: (t: TeamTournamentProbability) => void;
 }
 
-function ProbTable({ teams, getTeamName }: ProbTableProps) {
+function ProbTable({ teams, getTeamName, onSelectTeam }: ProbTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -43,7 +45,8 @@ function ProbTable({ teams, getTeamName }: ProbTableProps) {
             return (
               <tr
                 key={t.teamId}
-                className={`transition-colors hover:bg-amber-50/60 ${isTop8 ? 'bg-amber-50/30' : 'bg-white'}`}
+                onClick={() => onSelectTeam(t)}
+                className={`cursor-pointer transition-colors hover:bg-amber-50/80 active:bg-amber-100 ${isTop8 ? 'bg-amber-50/30' : 'bg-white'}`}
               >
                 <td className="px-3 py-2.5 text-gray-400 text-xs font-medium">{i + 1}</td>
                 <td className="px-3 py-2.5">
@@ -66,18 +69,20 @@ function ProbTable({ teams, getTeamName }: ProbTableProps) {
           })}
         </tbody>
       </table>
+      <p className="text-center text-[10px] text-gray-300 py-2">Tocá una selección para ver su recorrido</p>
     </div>
   );
 }
 
 export function TournamentPage() {
   const { groups, fixtures, results, ratings, teams, teamMap, wcResults, isLoading } = useAppData();
-  const [projection, setProjection] = useState<TournamentProjection | null>(null);
-  const [busy, setBusy]         = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError]       = useState('');
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const [projection, setProjection]     = useState<TournamentProjection | null>(null);
+  const [busy, setBusy]                 = useState(false);
+  const [progress, setProgress]         = useState(0);
+  const [error, setError]               = useState('');
+  const [saving, setSaving]             = useState(false);
+  const [saved, setSaved]               = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<TeamTournamentProbability | null>(null);
 
   const getTeamName = (id: string) => teamMap.get(id)?.name ?? id;
 
@@ -264,7 +269,7 @@ export function TournamentPage() {
                 </span>
               </div>
             </CardHeader>
-            <ProbTable teams={projection.teams} getTeamName={getTeamName} />
+            <ProbTable teams={projection.teams} getTeamName={getTeamName} onSelectTeam={setSelectedTeam} />
           </Card>
         </>
       )}
@@ -289,6 +294,15 @@ export function TournamentPage() {
           Ver historial de simulaciones
         </Link>
       </div>
+
+      {selectedTeam && projection && (
+        <TeamJourneyPanel
+          team={selectedTeam}
+          teamMap={teamMap}
+          simulations={projection.simulations}
+          onClose={() => setSelectedTeam(null)}
+        />
+      )}
     </div>
   );
 }

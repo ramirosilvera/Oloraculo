@@ -4,25 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
 import { loadTournamentSnapshots } from '../services/supabase-client';
 import type { PredictionSnapshot, TournamentProjection } from '../types/domain';
-import { Button, Badge, Card, CardHeader, Skeleton, SectionTitle } from '../components/ui';
+import { Button, Badge, Card, CardHeader, Skeleton, SectionTitle, FlagImg } from '../components/ui';
+import { TeamJourneyPanel } from '../components/TeamJourneyPanel';
 import { History, Trophy, ChevronRight, Clock, Zap } from 'lucide-react';
-
-const FLAGS: Record<string, string> = {
-  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
-  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
-  'belgium': '🇧🇪', 'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽',
-  'united-states': '🇺🇸', 'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷',
-  'morocco': '🇲🇦', 'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺',
-  'croatia': '🇭🇷', 'switzerland': '🇨🇭', 'norway': '🇳🇴', 'sweden': '🇸🇪',
-  'austria': '🇦🇹', 'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬',
-  'saudi-arabia': '🇸🇦', 'south-africa': '🇿🇦', 'ghana': '🇬🇭', 'tunisia': '🇹🇳',
-  'algeria': '🇩🇿', 'ivory-coast': '🇨🇮', 'nigeria': '🇳🇬', 'cameroon': '🇨🇲',
-  'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'czechia': '🇨🇿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
-  'paraguay': '🇵🇾', 'haiti': '🇭🇹', 'panama': '🇵🇦', 'curacao': '🇨🇼',
-  'jordan': '🇯🇴', 'iraq': '🇮🇶', 'new-zealand': '🇳🇿', 'cape-verde': '🇨🇻',
-  'uzbekistan': '🇺🇿', 'congo-dr': '🇨🇩', 'bosnia-and-herzegovina': '🇧🇦',
-  'qatar': '🇶🇦',
-};
+import type { TeamTournamentProbability } from '../types/domain';
 
 function pct1(n: number) { return `${(n * 100).toFixed(1)}%`; }
 function pct0(n: number) { return `${(n * 100).toFixed(0)}%`;  }
@@ -45,9 +30,10 @@ function topChampion(projection: TournamentProjection): TournamentProjection['te
 interface ProbTableProps {
   teams: TournamentProjection['teams'];
   getTeamName: (id: string) => string;
+  onSelectTeam: (t: TeamTournamentProbability) => void;
 }
 
-function ProbTable({ teams, getTeamName }: ProbTableProps) {
+function ProbTable({ teams, getTeamName, onSelectTeam }: ProbTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -72,12 +58,13 @@ function ProbTable({ teams, getTeamName }: ProbTableProps) {
             return (
               <tr
                 key={t.teamId}
-                className={`transition-colors hover:bg-amber-50/60 ${isTop8 ? 'bg-amber-50/30' : 'bg-white'}`}
+                onClick={() => onSelectTeam(t)}
+                className={`cursor-pointer transition-colors hover:bg-amber-50/80 active:bg-amber-100 ${isTop8 ? 'bg-amber-50/30' : 'bg-white'}`}
               >
                 <td className="px-3 py-2.5 text-gray-400 text-xs font-medium">{i + 1}</td>
                 <td className="px-3 py-2.5">
                   <span className="flex items-center gap-2 font-semibold text-gray-800">
-                    <span className="text-base leading-none">{FLAGS[t.teamId] ?? '🏳️'}</span>
+                    <FlagImg id={t.teamId} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
                     <span>{getTeamName(t.teamId)}</span>
                   </span>
                 </td>
@@ -95,6 +82,7 @@ function ProbTable({ teams, getTeamName }: ProbTableProps) {
           })}
         </tbody>
       </table>
+      <p className="text-center text-[10px] text-gray-300 py-2">Tocá una selección para ver su recorrido</p>
     </div>
   );
 }
@@ -134,7 +122,7 @@ function SnapItem({ snap, isSelected, getTeamName, onClick }: SnapItemProps) {
 
         {champion && (
           <div className="shrink-0 flex flex-col items-end gap-1">
-            <span className="text-lg leading-none">{FLAGS[champion.teamId] ?? '🏳️'}</span>
+            <FlagImg id={champion.teamId} className="w-8 h-5 object-cover rounded-[2px]" />
             <span className="text-xs font-bold text-wc-navy leading-tight text-right">
               {getTeamName(champion.teamId)}
             </span>
@@ -148,8 +136,9 @@ function SnapItem({ snap, isSelected, getTeamName, onClick }: SnapItemProps) {
 
 export function TournamentSnapshotsPage() {
   const { teamMap, isLoading: appLoading } = useAppData();
-  const [selected, setSelected] = useState<PredictionSnapshot | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
+  const [selected, setSelected]             = useState<PredictionSnapshot | null>(null);
+  const [showDetail, setShowDetail]         = useState(false);
+  const [selectedTeam, setSelectedTeam]     = useState<TeamTournamentProbability | null>(null);
 
   const { data: snapshots, isLoading } = useQuery({
     queryKey: ['tournament-snapshots'],
@@ -219,6 +208,15 @@ export function TournamentSnapshotsPage() {
         </Card>
       )}
 
+      {selectedTeam && selected && (
+        <TeamJourneyPanel
+          team={selectedTeam}
+          teamMap={teamMap}
+          simulations={(selected.payload as TournamentProjection).simulations}
+          onClose={() => setSelectedTeam(null)}
+        />
+      )}
+
       {!empty && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
           <div className="space-y-2 md:col-span-1">
@@ -264,7 +262,7 @@ export function TournamentSnapshotsPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <ProbTable teams={projection.teams} getTeamName={getTeamName} />
+                <ProbTable teams={projection.teams} getTeamName={getTeamName} onSelectTeam={setSelectedTeam} />
               </Card>
             )}
           </div>
