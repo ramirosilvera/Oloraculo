@@ -1,6 +1,16 @@
 // =============================================================================
 // Oloráculo — L6 Tournament Momentum Model ("Momentum del Mundial")
 // Uses in-tournament form (WC actual results) to adjust goal expectations.
+//
+// Goal formula (v3):
+//   tournamentBase = base * inflation                (doubles goals when WC is high-scoring)
+//   momentumPush   = netDiff * inflation * BOOST     (additive push in actual goal units)
+//   homeGoals      = tournamentBase + momentumPush
+//   awayGoals      = tournamentBase - momentumPush
+//
+// The additive push crosses Poisson integer boundaries directly, so the
+// displayed "most likely score" changes: 1-1 → 2-2 (inflation) → 3-2 (momentum).
+// A multiplicative % adjustment cannot do this reliably (floor(2.53)=floor(2.88)=2).
 // =============================================================================
 
 import type { MatchContext, MatchPrediction } from '../../types/domain';
@@ -14,6 +24,11 @@ import type { GoalModel } from './goal-model';
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+// How many actual goals the momentum difference pushes toward the stronger team.
+// With inflation=1.84 and netDiff=0.5: push = 0.5 × 1.84 × 0.70 = 0.644 goals
+// → (3-1 instead of 2-2). With netDiff=1.0: push = 1.29 goals → (3-1 or 4-1).
+const MOMENTUM_GOAL_BOOST = 0.70;
 
 export function tournamentMomentumPredict(
   ctx: MatchContext,
@@ -32,16 +47,21 @@ export function tournamentMomentumPredict(
 
   const homeTMS = homeTF?.momentumScore ?? 0;
   const awayTMS = awayTF?.momentumScore ?? 0;
-
   const netDiff = clamp(homeTMS - awayTMS, -1, 1);
-  // Increased cap from ±12% to ±20% to give in-tournament form more weight
-  const adjustment = netDiff * 0.20;
   const inflation = clamp(ctx.tournamentGoalInflation ?? 1.0, 0.5, 3.0);
 
-  let homeGoals = baseHome * inflation * (1 + adjustment);
-  let awayGoals = baseAway * inflation * (1 - adjustment);
+  // Phase 1: apply tournament inflation to the base goal model
+  const tournamentHome = baseHome * inflation;
+  const tournamentAway = baseAway * inflation;
 
-  // Incorporate player context so "Buscar bajas" still feeds the top model
+  // Phase 2: additive momentum push in actual goal units
+  // Positive netDiff → home team has more in-tournament momentum → they get extra goals
+  const momentumPush = netDiff * inflation * MOMENTUM_GOAL_BOOST;
+
+  let homeGoals = tournamentHome + momentumPush;
+  let awayGoals = tournamentAway - momentumPush;
+
+  // Phase 3: player context (unavailability) applied after momentum
   const fc = ctx.fixtureContext;
   let appliedContext = false;
   if (fc) {
@@ -64,12 +84,14 @@ export function tournamentMomentumPredict(
   homeGoals = Math.max(0.3, homeGoals);
   awayGoals = Math.max(0.3, awayGoals);
 
-  const scoreline = poissonScoreline(homeGoals, awayGoals, 8, -0.03);
+  // Use maxGoals=10 to handle high-scoring predictions properly (WC2026 pace)
+  const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.03);
   const best = mostLikelyScore(scoreline);
 
+  const pushSign = momentumPush >= 0 ? '+' : '';
   const drivers: string[] = [
-    `Inflación goleadora del torneo: ×${inflation.toFixed(3)}`,
-    `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(3)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(3)} (diff ${netDiff.toFixed(3)}, ajuste ${(adjustment * 100).toFixed(1)}%)`,
+    `Inflación goleadora: ×${inflation.toFixed(2)} (base: ${baseHome.toFixed(2)}-${baseAway.toFixed(2)} → torneo: ${tournamentHome.toFixed(2)}-${tournamentAway.toFixed(2)})`,
+    `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(2)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(2)} → push ${pushSign}${momentumPush.toFixed(2)} goles → ${homeGoals.toFixed(2)}-${awayGoals.toFixed(2)}`,
   ];
 
   if (appliedContext && fc) {
@@ -104,11 +126,13 @@ export function tournamentMomentumPredict(
   if (appliedContext) featuresUsed.push('Disponibilidad de jugadores');
   if (goalDegraded) featuresMissing.push('datos requeridos por el modelo de goles');
 
-  const inflationNote = inflation !== 1.0 ? ` · ×${inflation.toFixed(2)} inflación goleadora` : '';
+  const pushNote = momentumPush !== 0
+    ? ` · ${ctx.homeTeam.name} ${pushSign}${momentumPush.toFixed(2)} goles por momentum`
+    : '';
   const contextNote = appliedContext ? ' · ajustado por bajas' : '';
   const explanation = bothNull && !hasInflation
     ? `Sin datos de torneo disponibles. Goles base: ${ctx.homeTeam.name} ${baseHome.toFixed(2)} - ${baseAway.toFixed(2)} ${ctx.awayTeam.name}.`
-    : `Goles base ajustados por momentum (${(adjustment * 100).toFixed(1)}%)${inflationNote}${contextNote}. ${ctx.homeTeam.name} ${homeGoals.toFixed(2)} - ${awayGoals.toFixed(2)} ${ctx.awayTeam.name}.`;
+    : `×${inflation.toFixed(2)} inflación goleadora${pushNote}${contextNote}. Goles finales: ${ctx.homeTeam.name} ${homeGoals.toFixed(2)} - ${awayGoals.toFixed(2)} ${ctx.awayTeam.name}.`;
 
   return {
     predictorName: 'Momentum del Mundial',
