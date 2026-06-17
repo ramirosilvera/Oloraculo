@@ -1,0 +1,84 @@
+name: Calibrar momentum (L6)
+
+# Compares actual WC2026 results vs L6 model predictions.
+# If draw bias exceeds the drift threshold, updates BASE_BOOST in
+# tournament-momentum.ts and commits — which auto-triggers the deploy workflow.
+#
+# Runs daily at 09:00 UTC (06:00 ART), after refresh-context.yml (08:00 UTC).
+# Deactivates itself after the World Cup final (2026-07-19).
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 09:00 UTC = 06:00 ART
+  workflow_dispatch:        # manual trigger
+
+env:
+  WC_FINAL_DATE: '2026-07-19'
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Verificar vigencia (hasta la final del Mundial)
+        id: vigencia
+        run: |
+          TODAY=$(date -u +%F)
+          if [[ "$TODAY" > "$WC_FINAL_DATE" ]]; then
+            echo "El Mundial terminó el $WC_FINAL_DATE (hoy $TODAY). Desactivando cron."
+            curl -sS -X PUT \
+              -H "Authorization: Bearer ${{ secrets.PAT_TOKEN || github.token }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/calibrate-momentum.yml/disable"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Vigente (hoy $TODAY ≤ $WC_FINAL_DATE). Continuando."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.vigencia.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Set up Node.js
+        if: steps.vigencia.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: migration/package-lock.json
+
+      - name: Instalar dependencias
+        if: steps.vigencia.outputs.skip != 'true'
+        working-directory: migration
+        run: npm ci
+
+      - name: Calibrar BASE_BOOST
+        if: steps.vigencia.outputs.skip != 'true'
+        working-directory: migration
+        run: node scripts/calibrate.mjs
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Commitear si BASE_BOOST cambió
+        if: steps.vigencia.outputs.skip != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add migration/src/engine/models/tournament-momentum.ts
+          if git diff --cached --quiet; then
+            echo "BASE_BOOST sin cambios — nada que commitear."
+          else
+            NEW_BOOST=$(grep '^const BASE_BOOST' migration/src/engine/models/tournament-momentum.ts | grep -o '[0-9.]*')
+            git commit \
+              -m "chore: calibrar momentum L6 → BASE_BOOST=${NEW_BOOST} [$(date -u +%Y-%m-%d)]" \
+              -m "Ajuste automático basado en resultados reales del WC2026 (draw bias)."
+            git push origin main
+            echo "BASE_BOOST actualizado a ${NEW_BOOST} y deploy activado."
+          fi

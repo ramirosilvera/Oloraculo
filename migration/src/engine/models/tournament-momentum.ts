@@ -28,13 +28,14 @@ function clamp(value: number, min: number, max: number): number {
 // BASE_BOOST: goal push per unit of netDiff × inflation at inflation=1.0
 // Scales with sqrt(inflation) so the effect grows with tournament pace
 // but doesn't compound quadratically.
+// Calibrated daily by scripts/calibrate.mjs against actual WC2026 results.
 //
-// Example at inflation=1.0:  dynamicBoost=0.48, push(0.5)=0.24  → score barely shifts
-// Example at inflation=1.4:  dynamicBoost=0.57, push(0.5)=0.40  → 2-1 likely
-// Example at inflation=1.84: dynamicBoost=0.65, push(0.5)=0.60  → 3-2 clear
-// Example at inflation=2.0:  dynamicBoost=0.68, push(0.5)=0.68  → 3-2 / 3-1
-// Example at inflation=2.5:  dynamicBoost=0.76, push(0.5)=0.95  → 4-2 / 4-1
-const BASE_BOOST = 0.48;
+// Example at inflation=1.0:  dynamicBoost=0.28, push(0.5)=0.14  → subtle shift
+// Example at inflation=1.22: dynamicBoost=0.31, push(0.5)=0.19  → 2-1 possible
+// Example at inflation=1.4:  dynamicBoost=0.33, push(0.5)=0.23  → 2-1 likely
+// Example at inflation=2.0:  dynamicBoost=0.40, push(0.5)=0.40  → 2-1 clear
+// Example at inflation=2.5:  dynamicBoost=0.44, push(0.5)=0.55  → 3-2 / 2-1
+const BASE_BOOST = 0.28;
 
 export function tournamentMomentumPredict(
   ctx: MatchContext,
