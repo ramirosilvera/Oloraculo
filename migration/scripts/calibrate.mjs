@@ -93,19 +93,48 @@ async function main() {
   console.log(`\nBaseline histórico (8 años): ${historicalAvg.toFixed(4)} goles/equipo`);
   console.log(`Predicción base match neutro: ${(historicalAvg * GOAL_SCALE * 2).toFixed(2)} goles`);
 
-  // ── 1. Load actual results from fixtures.json ──────────────────────────────
+  // ── 1. Load actual results — merge fixtures.json + Supabase wc_actual_results ─
+  // Same merge logic as useAppData.ts: static first, Supabase overrides.
+  // This ensures results entered via the app (→ Supabase) are always picked up.
   if (!existsSync(FIXTURES_FILE)) {
     console.error(`No se encontró ${FIXTURES_FILE}`);
     process.exit(1);
   }
 
   const fixtures = JSON.parse(readFileSync(FIXTURES_FILE, 'utf8'));
-  const played = fixtures.filter(
-    f => f.is_played === true && f.home_goals != null && f.away_goals != null,
-  );
 
+  // Create Supabase client once (reused for both wc_actual_results and snapshots)
+  const db = hasSupabase ? createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+
+  // Start with static results from fixtures.json
+  const playedMap = new Map();
+  for (const f of fixtures) {
+    if (f.is_played && f.home_goals != null && f.away_goals != null) {
+      playedMap.set(f.id, { fixture_id: f.id, home_goals: f.home_goals, away_goals: f.away_goals });
+    }
+  }
+  console.log(`\nPartidos en fixtures.json: ${playedMap.size}`);
+
+  // Merge Supabase wc_actual_results (overrides static)
+  if (db) {
+    try {
+      const { data: wcRows, error: wcErr } = await db
+        .from('wc_actual_results')
+        .select('fixture_id, home_goals, away_goals');
+      if (!wcErr && wcRows && wcRows.length > 0) {
+        for (const r of wcRows) playedMap.set(r.fixture_id, r);
+        console.log(`Partidos en Supabase wc_actual_results: ${wcRows.length}`);
+      } else if (wcErr) {
+        console.log(`Supabase wc_actual_results no disponible: ${wcErr.message}`);
+      }
+    } catch {
+      console.log('Supabase no accesible — usando solo fixtures.json.');
+    }
+  }
+
+  const played = [...playedMap.values()];
   const n = played.length;
-  console.log(`\nPartidos jugados en fixtures.json: ${n}`);
+  console.log(`Total partidos combinados: ${n}`);
 
   if (n < MIN_MATCHES) {
     console.log(`Mínimo ${MIN_MATCHES} resultados requeridos. Saliendo.`);
@@ -140,11 +169,10 @@ async function main() {
   let modelDrawProb = FALLBACK_DRAW_P;
   let snapshotCount = 0;
 
-  if (hasSupabase) {
+  if (db) {
     try {
-      const supabase    = createClient(SUPABASE_URL, SUPABASE_ANON);
-      const fixtureIds  = played.map(f => f.id);
-      const { data: snaps, error } = await supabase
+      const fixtureIds  = played.map(f => f.fixture_id);
+      const { data: snaps, error } = await db
         .from('prediction_snapshots')
         .select('fixture_id, draw')
         .eq('kind', 'match')
@@ -162,7 +190,7 @@ async function main() {
     } catch {
       console.log('Supabase no disponible — usando fallback P(draw).');
     }
-  } else {
+  } else if (!hasSupabase) {
     console.log('Sin credenciales Supabase — usando fallback P(draw).');
   }
 
