@@ -121,6 +121,30 @@ export interface PredictionEvaluation {
 }
 
 // ---------------------------------------------------------------------------
+// Daily scoring pattern detection
+// ---------------------------------------------------------------------------
+
+export type DailyPatternType = 'blowout' | 'decisive' | 'draw_heavy' | 'low_scoring' | 'contested';
+
+export interface DailyStats {
+  date: string;
+  matchCount: number;
+  avgGoals: number;
+  avgMargin: number;
+  drawRate: number;
+  patternType: DailyPatternType;
+}
+
+export interface DailyPatternSignal {
+  currentStreak: DailyPatternType;
+  streakDays: number;
+  isConfirmed: boolean;
+  goalModifier: number;
+  pushModifier: number;
+  recentDays: DailyStats[];
+}
+
+// ---------------------------------------------------------------------------
 // Prediction engine types
 // ---------------------------------------------------------------------------
 
@@ -199,6 +223,7 @@ export interface MatchContext {
   homeTournamentForm: TournamentFormStats | null;
   awayTournamentForm: TournamentFormStats | null;
   tournamentGoalInflation: number | null;
+  dailyPatternSignal: DailyPatternSignal | null;
 }
 
 // ---------------------------------------------------------------------------

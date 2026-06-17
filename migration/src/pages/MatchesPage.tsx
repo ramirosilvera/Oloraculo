@@ -13,7 +13,8 @@ import {
   logLoss,
   topPick,
 } from '../engine/probability-helper';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal } from '../types/domain';
+import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
   Button,
   Badge,
@@ -563,10 +564,19 @@ function FixtureRow({
 // ---------------------------------------------------------------------------
 // TournamentPace — "Racha del Mundial" journalistic widget
 // Compares WC2026 avg goals/match to the historical WC baseline (2.50)
+// Also shows the detected daily scoring streak (from daily-pattern.ts)
 // ---------------------------------------------------------------------------
 const WC_HISTORICAL_GOALS_PER_MATCH = 2.50;
 
-function TournamentPace({ wcResults }: { wcResults: WcActualResult[] }) {
+const PATTERN_LABELS: Record<string, { label: string; emoji: string }> = {
+  blowout:     { label: 'Días de palazo',    emoji: '💥' },
+  decisive:    { label: 'Días definidos',    emoji: '⚽' },
+  draw_heavy:  { label: 'Días de empates',   emoji: '🤝' },
+  low_scoring: { label: 'Días defensivos',   emoji: '🧱' },
+  contested:   { label: 'Días parejos',      emoji: '⚖️' },
+};
+
+function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[]; dailySignal: DailyPatternSignal | null }) {
   if (wcResults.length < 3) return null;
 
   const totalGoals = wcResults.reduce((s, r) => s + r.home_goals + r.away_goals, 0);
@@ -597,6 +607,7 @@ function TournamentPace({ wcResults }: { wcResults: WcActualResult[] }) {
   }
 
   const barWidth = Math.min(100, Math.round((factor / 2) * 100));
+  const streakInfo = dailySignal ? PATTERN_LABELS[dailySignal.currentStreak] : null;
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -615,7 +626,7 @@ function TournamentPace({ wcResults }: { wcResults: WcActualResult[] }) {
           <Info className="w-4 h-4 text-gray-300 shrink-0 mt-0.5" />
         </Tooltip>
       </div>
-      <div className="px-4 pb-1 flex items-center gap-2">
+      <div className="px-4 pb-2 flex items-center gap-2">
         <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
           <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${barWidth}%` }} />
         </div>
@@ -623,6 +634,31 @@ function TournamentPace({ wcResults }: { wcResults: WcActualResult[] }) {
           {avgPerMatch.toFixed(2)} vs {WC_HISTORICAL_GOALS_PER_MATCH.toFixed(2)} goles/pdo · {wcResults.length} partidos
         </span>
       </div>
+
+      {/* Daily scoring streak */}
+      {dailySignal && streakInfo && (
+        <div className={`px-4 py-2 border-t flex items-center gap-2 ${dailySignal.isConfirmed ? 'border-amber-100 bg-amber-50/60' : 'border-gray-100 bg-gray-50/40'}`}>
+          <span className="text-base leading-none shrink-0">{streakInfo.emoji}</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-bold text-gray-700">
+              {dailySignal.isConfirmed
+                ? `Racha: ${dailySignal.streakDays} días de ${streakInfo.label.toLowerCase()}`
+                : `Ayer: ${streakInfo.label.toLowerCase()}`}
+            </span>
+            {dailySignal.isConfirmed && (
+              <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
+                L6 activo · goles ×{dailySignal.goalModifier.toFixed(2)}
+              </span>
+            )}
+          </div>
+          <Tooltip text={dailySignal.isConfirmed
+            ? `El modelo L6 detectó una racha de ${dailySignal.streakDays} días seguidos con el mismo patrón goleador (${dailySignal.currentStreak}). Aplica un modificador de goles ×${dailySignal.goalModifier.toFixed(2)} y de dispersión ×${dailySignal.pushModifier.toFixed(2)} a las predicciones de hoy.`
+            : `Solo un día con patrón "${dailySignal.currentStreak}". Se necesitan 2 días consecutivos para que el modificador se active.`}
+          >
+            <Info className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 }
@@ -654,6 +690,11 @@ export function MatchesPage() {
   const [selectedDate, setSelectedDate] = useState(TODAY);
 
   const playedMap = wcPlayedMap;
+
+  const dailySignal = useMemo(
+    () => detectDailyPattern(wcResults ?? [], fixtures, TODAY),
+    [wcResults, fixtures],
+  );
 
   // Sorted unique dates that have fixtures (in ART timezone)
   const fixtureDates = useMemo(() =>
@@ -860,7 +901,7 @@ export function MatchesPage() {
       {/* RACHA DEL MUNDIAL                                                    */}
       {/* ------------------------------------------------------------------ */}
       {wcResults && wcResults.length >= 3 && (
-        <TournamentPace wcResults={wcResults} />
+        <TournamentPace wcResults={wcResults} dailySignal={dailySignal} />
       )}
 
       {/* ------------------------------------------------------------------ */}

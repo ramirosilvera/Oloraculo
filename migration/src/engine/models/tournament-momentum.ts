@@ -61,10 +61,16 @@ export function tournamentMomentumPredict(
   // Positive netDiff → home team has more in-tournament momentum → they get extra goals
   const momentumPush = netDiff * inflation * dynamicBoost;
 
-  let homeGoals = tournamentHome + momentumPush;
-  let awayGoals = tournamentAway - momentumPush;
+  // Phase 3 (pre-player): apply confirmed daily scoring streak modifiers.
+  // goalModifier scales overall goal volume; pushModifier amplifies directional spread.
+  const ps = ctx.dailyPatternSignal;
+  const goalMod = ps?.isConfirmed ? ps.goalModifier : 1.0;
+  const pushMod = ps?.isConfirmed ? ps.pushModifier : 1.0;
 
-  // Phase 3: player context (unavailability) applied after momentum
+  let homeGoals = tournamentHome * goalMod + momentumPush * pushMod;
+  let awayGoals = tournamentAway * goalMod - momentumPush * pushMod;
+
+  // Phase 4: player context (unavailability) applied after momentum + streak
   const fc = ctx.fixtureContext;
   let appliedContext = false;
   if (fc) {
@@ -101,6 +107,10 @@ export function tournamentMomentumPredict(
     `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(2)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(2)} (diff ${netDiff.toFixed(2)}) → push ${pushSign}${momentumPush.toFixed(2)} goles [boost ×${dynamicBoost.toFixed(2)}]`,
   ];
 
+  if (ps?.isConfirmed) {
+    drivers.push(`Racha diaria (${ps.streakDays}d): ${ps.currentStreak} → goles ×${goalMod.toFixed(2)}, push ×${pushMod.toFixed(2)}`);
+  }
+
   if (appliedContext && fc) {
     const hasRoleImpact = fc.unavailable_home_attack_impact > 0 || fc.unavailable_away_attack_impact > 0;
     if (hasRoleImpact) {
@@ -131,6 +141,11 @@ export function tournamentMomentumPredict(
     featuresMissing.push(`forma en torneo de ${ctx.awayTeam.name}`);
   }
   if (appliedContext) featuresUsed.push('Disponibilidad de jugadores');
+  if (ps?.isConfirmed) {
+    featuresUsed.push(`Racha diaria: ${ps.currentStreak} ×${ps.streakDays}d`);
+  } else {
+    featuresMissing.push('racha diaria confirmada (mínimo 2 días consecutivos)');
+  }
   if (goalDegraded) featuresMissing.push('datos requeridos por el modelo de goles');
 
   const pushNote = momentumPush !== 0

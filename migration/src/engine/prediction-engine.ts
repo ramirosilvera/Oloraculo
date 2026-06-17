@@ -24,6 +24,7 @@ import {
   GoalModel,
   tournamentMomentumPredict,
 } from './models';
+import { detectDailyPattern } from './models/daily-pattern';
 import { selectFinalPrediction } from './final-selector';
 
 const RECENT_RESULT_COUNT = 8;
@@ -186,6 +187,15 @@ export class PredictionEngine {
         ? this.computeTournamentForm(fixture.away_team_id, wcResults, allFixtures, ratings)
         : null,
       tournamentGoalInflation: wcResults ? this.computeGoalInflation(wcResults) : null,
+      dailyPatternSignal: (wcResults && allFixtures)
+        ? detectDailyPattern(
+            wcResults,
+            allFixtures,
+            fixture.kickoff_utc
+              ? new Date(new Date(fixture.kickoff_utc).getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
+              : null,
+          )
+        : null,
     };
   }
 
