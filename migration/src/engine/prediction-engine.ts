@@ -231,16 +231,34 @@ export class PredictionEngine {
   }
 }
 
-/** Convenience: predict a one-off pair (for OracleLab) */
+/** Convenience: predict a one-off pair (for OracleLab).
+ *
+ * When the chosen pairing corresponds to a real fixture, that fixture is
+ * reused so the result is identical to the Matches page (host-nation home
+ * advantage, kickoff-aware daily pattern, L5 availability context). For
+ * arbitrary pairings a synthetic neutral-venue fixture is used, but the
+ * full WC data is still threaded through so per-team tournament momentum,
+ * goal inflation and the daily scoring streak engage exactly as elsewhere.
+ */
 export function predictPair(
   homeId: string,
   awayId: string,
   teams: Map<string, Team>,
   ratings: Rating[],
   allResults: MatchResult[],
+  opts?: {
+    engine?: PredictionEngine;
+    wcResults?: WcActualResult[];
+    allFixtures?: Fixture[];
+    fixtureContexts?: Map<string, import('../types/domain').FixtureContext>;
+  },
 ): MatchPredictionResult {
-  const engine = new PredictionEngine(allResults);
-  const fixture: Fixture = {
+  const engine = opts?.engine ?? new PredictionEngine(allResults);
+  const allFixtures = opts?.allFixtures ?? [];
+  const real = allFixtures.find(
+    f => f.home_team_id === homeId && f.away_team_id === awayId,
+  );
+  const fixture: Fixture = real ?? {
     id: `pair:${homeId}:${awayId}`,
     group_name: '',
     home_team_id: homeId,
@@ -248,6 +266,13 @@ export function predictPair(
     neutral_venue: true,
     is_played: false,
   };
-  const ctx = engine.buildContext(fixture, teams, ratings, new Map());
+  const ctx = engine.buildContext(
+    fixture,
+    teams,
+    ratings,
+    opts?.fixtureContexts ?? new Map(),
+    opts?.wcResults,
+    opts?.allFixtures,
+  );
   return engine.predict(ctx);
 }

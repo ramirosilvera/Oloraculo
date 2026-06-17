@@ -22,10 +22,11 @@ const ladder = [
   { name: 'L3', label: 'Forma reciente', signal: 'resultados de corto plazo' },
   { name: 'L4', label: 'Goles',        signal: 'marcadores Poisson' },
   { name: 'L5', label: 'Contexto',     signal: 'ajuste con fuentes' },
+  { name: 'L6', label: 'Momentum',     signal: 'forma y racha en el torneo' },
 ];
 
 export function OracleLabPage() {
-  const { teams, teamMap, ratingsList, results, isLoading } = useAppData();
+  const { teams, teamMap, ratingsList, results, fixtures, contextMap, wcResults, engine, isLoading } = useAppData();
   const [homeId, setHomeId] = useState<string>('');
   const [awayId, setAwayId] = useState<string>('');
   const [result, setResult] = useState<MatchPredictionResult | null>(null);
@@ -39,7 +40,12 @@ export function OracleLabPage() {
     setBusy(true);
     setError('');
     try {
-      const r = predictPair(homeId, awayId, teamMap, ratingsList, results);
+      const r = predictPair(homeId, awayId, teamMap, ratingsList, results, {
+        engine: engine ?? undefined,
+        wcResults,
+        allFixtures: fixtures,
+        fixtureContexts: contextMap,
+      });
       setResult(r);
     } catch (e) {
       setError(String(e));
