@@ -6,15 +6,18 @@
 
 import type {
   Fixture,
+  FixtureContext,
   Group,
   MatchResult,
   Rating,
+  ScorelineDistribution,
   Team,
   TeamTournamentProbability,
   TournamentProjection,
+  WcActualResult,
 } from '../types/domain';
-import { GoalModel } from './models/goal-model';
-import { poissonScoreline, sampleScore, eloExpectation, outcomeFromExpectation } from './probability-helper';
+import { PredictionEngine } from './prediction-engine';
+import { poissonScoreline, sampleScore, eloExpectation } from './probability-helper';
 
 // ---------------------------------------------------------------------------
 // Bracket definition (WorldCup2026Bracket.cs)
@@ -145,6 +148,8 @@ export interface SimulationInput {
   fixtures: Fixture[];
   allResults: MatchResult[];
   ratings: Rating[];
+  teams: Team[];
+  wcResults: WcActualResult[];
   simulations: number;
   seed: number;
 }
@@ -155,9 +160,12 @@ export interface SimulationInput {
  * Migrated from SimulationService.RunAsync()
  */
 export function runSimulation(input: SimulationInput): TournamentProjection {
-  const { groups, fixtures, allResults, ratings, simulations, seed } = input;
+  const { groups, fixtures, allResults, ratings, teams: teamList, wcResults, simulations, seed } = input;
   const rng = createRng(seed);
-  const goalModel = new GoalModel(allResults, 8);
+  // Same engine as the Matches page — fit once, predict many.
+  const engine = new PredictionEngine(allResults);
+  const teamMap = new Map<string, Team>(teamList.map(t => [t.id, t]));
+  const emptyContexts = new Map<string, FixtureContext>();
 
   const fifaPoints = new Map<string, number>();
   for (const r of ratings) {
@@ -177,34 +185,46 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
   const allTeams = groups.flatMap(g => g.team_ids);
   const counters = new Map<string, Counter>(allTeams.map(t => [t, newCounter()]));
 
-  // Cache match predictions for (homeId, awayId) pairs
+  // Each ordered (home, away) pairing is predicted once with the FULL ladder —
+  // the same engine the Matches page uses. buildContext threads in Elo, recent
+  // form, FIFA, the goal model, tournament momentum (L6), goal inflation and the
+  // daily scoring streak, and predict() selects the highest usable level. We then
+  // sample scorelines from that selected level's grid.
+  //
+  // Simulated matches are played at neutral venues, so per-match availability
+  // context (L5, keyed to a specific scheduled fixture) is intentionally not
+  // applied to hypothetical bracket pairings.
   const predCache = new Map<string, { home: number; away: number }[]>();
+
+  function pairingDistribution(homeId: string, awayId: string): ScorelineDistribution {
+    const fixture: Fixture = {
+      id: `sim:${homeId}:${awayId}`,
+      group_name: '',
+      home_team_id: homeId,
+      away_team_id: awayId,
+      neutral_venue: true,
+      is_played: false,
+    };
+    const ctx = engine.buildContext(fixture, teamMap, ratings, emptyContexts, wcResults, fixtures);
+    const result = engine.predict(ctx);
+    // The selected level is goal-based (L4/L5/L6) for any team with history, so
+    // a scoreline grid is virtually always present; fall back defensively.
+    return (
+      result.bestPrediction.scoreline ??
+      result.predictions.find(p => p.scoreline)?.scoreline ??
+      poissonScoreline(1.3, 1.1, 8, -0.03)
+    );
+  }
 
   function sampleMatchScore(homeId: string, awayId: string): { home: number; away: number } {
     const key = `${homeId}|${awayId}`;
-    if (!predCache.has(key)) {
-      const ctx = {
-        fixture: { id: key, home_team_id: homeId, away_team_id: awayId, neutral_venue: true } as Fixture,
-        homeTeam: { id: homeId, name: homeId, source: '' } as Team,
-        awayTeam: { id: awayId, name: awayId, source: '' } as Team,
-        homeElo: eloMap.has(homeId) ? { id: 0, team_id: homeId, type: 'elo' as const, value: eloMap.get(homeId)!, as_of: '', source: '' } : null,
-        awayElo: eloMap.has(awayId) ? { id: 0, team_id: awayId, type: 'elo' as const, value: eloMap.get(awayId)!, as_of: '', source: '' } : null,
-        homeFifaRating: null,
-        awayFifaRating: null,
-        homeRecentResults: [],
-        awayRecentResults: [],
-        fixtureContext: null,
-        homeTournamentForm: null,
-        awayTournamentForm: null,
-        tournamentGoalInflation: null,
-        dailyPatternSignal: null,
-      };
-      const { home, away } = goalModel.expectedGoals(ctx);
-      const dist = poissonScoreline(home, away, 8, -0.03);
-      // Pre-generate 50 samples for cache
-      predCache.set(key, Array.from({ length: 50 }, () => sampleScore(dist, rng)));
+    let samples = predCache.get(key);
+    if (!samples) {
+      const dist = pairingDistribution(homeId, awayId);
+      // Pre-generate 50 samples per pairing for cheap reuse across iterations.
+      samples = Array.from({ length: 50 }, () => sampleScore(dist, rng));
+      predCache.set(key, samples);
     }
-    const samples = predCache.get(key)!;
     return samples[Math.floor(rng() * samples.length)];
   }
 

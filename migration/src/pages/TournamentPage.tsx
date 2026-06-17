@@ -71,7 +71,7 @@ function ProbTable({ teams, getTeamName }: ProbTableProps) {
 }
 
 export function TournamentPage() {
-  const { groups, fixtures, results, ratings, teamMap, isLoading } = useAppData();
+  const { groups, fixtures, results, ratings, teams, teamMap, wcResults, isLoading } = useAppData();
   const [projection, setProjection] = useState<TournamentProjection | null>(null);
   const [busy, setBusy]         = useState(false);
   const [progress, setProgress] = useState(0);
@@ -98,6 +98,8 @@ export function TournamentPage() {
         fixtures,
         allResults: results,
         ratings,
+        teams,
+        wcResults,
         simulations: SIMULATION_COUNT,
         seed: SIMULATION_SEED,
       };
@@ -126,7 +128,7 @@ export function TournamentPage() {
       clearInterval(ticker);
       setBusy(false);
     }
-  }, [groups, fixtures, results, ratings, busy]);
+  }, [groups, fixtures, results, ratings, teams, wcResults, busy]);
 
   const saveSnapshot = async () => {
     if (!projection) return;
