@@ -1,6 +1,6 @@
 // Componentes base reutilizables con estética WC2026
 
-import type { ReactNode, ButtonHTMLAttributes } from 'react';
+import { useState, useRef, useEffect, type ReactNode, type ButtonHTMLAttributes } from 'react';
 import { Loader2 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -164,16 +164,39 @@ export function SkeletonCard() {
 }
 
 // ---------------------------------------------------------------------------
-// Tooltip simple
+// Tooltip — tap/click to open on mobile, click-outside to close
+// Anchored to the right edge of the trigger so it never overflows on mobile
 // ---------------------------------------------------------------------------
 export function Tooltip({ text, children }: { text: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(e: MouseEvent | TouchEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('touchstart', close, true);
+    return () => {
+      document.removeEventListener('mousedown', close, true);
+      document.removeEventListener('touchstart', close, true);
+    };
+  }, [open]);
+
   return (
-    <span className="relative group inline-flex items-center">
+    <span
+      ref={ref}
+      className="relative inline-flex items-center cursor-pointer"
+      onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+    >
       {children}
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-52 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg text-center leading-relaxed">
-        {text}
-        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-      </span>
+      {open && (
+        <span className="absolute bottom-full right-0 mb-2 z-50 w-64 max-w-[calc(100vw-2rem)] px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl text-center leading-relaxed pointer-events-none">
+          {text}
+          <span className="absolute top-full right-3 border-4 border-transparent border-t-gray-900" />
+        </span>
+      )}
     </span>
   );
 }

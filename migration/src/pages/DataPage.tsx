@@ -139,7 +139,7 @@ export function DataPage() {
           <div className="flex items-center gap-2">
             <Star className="w-4 h-4 text-wc-navy" />
             <p className="font-semibold text-wc-navy">Ratings — Top 20</p>
-            <div className="ml-auto flex gap-2 text-xs text-gray-400">
+            <div className="ml-auto flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-400 text-right">
               {latestElo && <span>Elo: {new Date(latestElo).toLocaleDateString('es')}</span>}
               {latestFifa && <span>FIFA: {new Date(latestFifa).toLocaleDateString('es')}</span>}
             </div>

@@ -646,7 +646,7 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
                 : `Ayer: ${streakInfo.label.toLowerCase()}`}
             </span>
             {dailySignal.isConfirmed && (
-              <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
+              <span className="ml-1.5 text-xs font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
                 L6 activo · goles ×{dailySignal.goalModifier.toFixed(2)}
               </span>
             )}

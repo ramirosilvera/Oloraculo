@@ -120,9 +120,9 @@ function CalibrationCard({ evals, wcResults }: { evals: PredictionEvaluation[]; 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {rows.map(r => (
           <div key={r.label} className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold mb-1">{r.label}</p>
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">{r.label}</p>
             <p className={`text-xl font-black tabular-nums ${r.highlight}`}>{r.value}</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">{r.sub}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{r.sub}</p>
           </div>
         ))}
       </div>
@@ -287,10 +287,12 @@ export function PerformancePage() {
             <tbody className="divide-y divide-gray-100">
               {rows.map((row, i) => (
                 <tr key={row.modelName} className={`hover:bg-wc-cream/30 transition-colors ${i === 0 ? 'bg-green-50/40' : ''}`}>
-                  <td className="px-5 py-3 font-semibold text-gray-800 flex items-center gap-1.5">
-                    {i === 0 && <span className="text-amber-500">★</span>}
-                    {row.modelName}
-                    {i === 0 && <Badge color="green">mejor</Badge>}
+                  <td className="px-5 py-3">
+                    <span className="flex items-center gap-1.5 font-semibold text-gray-800">
+                      {i === 0 && <span className="text-amber-500">★</span>}
+                      {row.modelName}
+                      {i === 0 && <Badge color="green">mejor</Badge>}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{row.count}</td>
                   <td className="px-4 py-3 text-right"><ScoreCell value={row.topPickAccuracy} /></td>
@@ -309,7 +311,7 @@ export function PerformancePage() {
           <p className="font-semibold text-wc-navy">Detalle por partido</p>
         </CardHeader>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[480px] text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
               <tr>
                 <th className="text-left px-5 py-3 font-semibold">Partido</th>
@@ -341,7 +343,7 @@ export function PerformancePage() {
                 const winProb = e.actual === 'Home' ? e.home_win : e.actual === 'Away' ? e.away_win : e.draw;
                 return (
                   <tr key={e.id} className="hover:bg-wc-cream/30 transition-colors">
-                    <td className="px-5 py-2.5 text-gray-800 font-medium whitespace-nowrap">{home} vs {away}</td>
+                    <td className="px-5 py-2.5 text-gray-800 font-medium">{home} vs {away}</td>
                     <td className="px-4 py-2.5 text-gray-600 font-semibold tabular-nums">{e.home_goals}–{e.away_goals}</td>
                     <td className="px-4 py-2.5">
                       <Badge color="navy">{e.model_name}</Badge>

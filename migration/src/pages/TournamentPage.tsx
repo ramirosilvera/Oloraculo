@@ -298,7 +298,7 @@ export function TournamentPage() {
       <div className="flex justify-end">
         <Link
           to="/tournament/snapshots"
-          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-wc-navy transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-wc-navy transition-colors py-3 px-2"
         >
           <History className="w-3.5 h-3.5" />
           Ver historial de simulaciones

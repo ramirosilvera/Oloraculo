@@ -145,7 +145,7 @@ export function OracleLabPage() {
                   <Badge color={p.degraded ? 'gray' : 'navy'}>L{p.predictorPriority}</Badge>
                   <span className="text-xs font-semibold text-gray-700 truncate">{p.predictorName}</span>
                   {p.degraded && (
-                    <span className="ml-auto text-[10px] text-amber-600 font-medium shrink-0">↓ degradado</span>
+                    <span className="ml-auto text-xs text-amber-600 font-medium shrink-0">↓ degradado</span>
                   )}
                 </div>
                 {p.degraded ? (
@@ -156,11 +156,11 @@ export function OracleLabPage() {
                   </p>
                 )}
                 {p.mostLikelyScore && !p.degraded && (
-                  <p className="text-[10px] font-medium text-gray-500">
+                  <p className="text-xs font-medium text-gray-500">
                     {p.mostLikelyScore.home}-{p.mostLikelyScore.away}
                   </p>
                 )}
-                <p className="text-[10px] text-gray-400 leading-relaxed">{p.explanation}</p>
+                <p className="text-xs text-gray-400 leading-relaxed">{p.explanation}</p>
               </Card>
             ))}
           </div>

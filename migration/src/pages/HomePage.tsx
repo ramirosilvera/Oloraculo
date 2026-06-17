@@ -188,7 +188,7 @@ export function HomePage() {
                 <tr className="border-b border-gray-100 text-left">
                   <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20">Nivel</th>
                   <th className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Modelo</th>
-                  <th className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Señal</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Señal</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,7 +203,7 @@ export function HomePage() {
                       <Badge color={row.color}>{row.level}</Badge>
                     </td>
                     <td className="px-3 py-3 font-semibold text-gray-800">{row.model}</td>
-                    <td className="px-3 py-3 text-gray-500">{row.signal}</td>
+                    <td className="px-3 py-3 text-gray-500 hidden sm:table-cell">{row.signal}</td>
                   </tr>
                 ))}
               </tbody>
@@ -228,7 +228,7 @@ export function HomePage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <SectionTitle>Próximos partidos</SectionTitle>
-                  <Link to="/matches" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity">
+                  <Link to="/matches" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity py-2 px-1">
                     Ver todos →
                   </Link>
                 </div>

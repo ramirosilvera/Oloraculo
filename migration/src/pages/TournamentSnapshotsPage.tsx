@@ -135,7 +135,7 @@ function SnapItem({ snap, isSelected, getTeamName, onClick }: SnapItemProps) {
         {champion && (
           <div className="shrink-0 flex flex-col items-end gap-1">
             <span className="text-lg leading-none">{FLAGS[champion.teamId] ?? '🏳️'}</span>
-            <span className="text-[11px] font-bold text-wc-navy leading-tight text-right">
+            <span className="text-xs font-bold text-wc-navy leading-tight text-right">
               {getTeamName(champion.teamId)}
             </span>
             <Badge color="gold">{pct1(champion.winTournament)}</Badge>
@@ -202,7 +202,7 @@ export function TournamentSnapshotsPage() {
       </div>
 
       {empty && (
-        <Card className="p-12 text-center">
+        <Card className="p-8 sm:p-12 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-wc-navy/5 flex items-center justify-center">
             <History className="w-8 h-8 text-wc-navy/25" />
           </div>
@@ -256,7 +256,7 @@ export function TournamentSnapshotsPage() {
                       <span className="text-xs text-gray-400">{formatDate(selected.created_at)}</span>
                       <button
                         onClick={() => setShowDetail(false)}
-                        className="md:hidden ml-2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+                        className="md:hidden ml-1 -mr-1 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors text-lg leading-none"
                         aria-label="Cerrar detalle"
                       >
                         ×
