@@ -25,10 +25,16 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-// How many actual goals the momentum difference pushes toward the stronger team.
-// With inflation=1.84 and netDiff=0.5: push = 0.5 × 1.84 × 0.70 = 0.644 goals
-// → (3-1 instead of 2-2). With netDiff=1.0: push = 1.29 goals → (3-1 or 4-1).
-const MOMENTUM_GOAL_BOOST = 0.70;
+// BASE_BOOST: goal push per unit of netDiff × inflation at inflation=1.0
+// Scales with sqrt(inflation) so the effect grows with tournament pace
+// but doesn't compound quadratically.
+//
+// Example at inflation=1.0:  dynamicBoost=0.48, push(0.5)=0.24  → score barely shifts
+// Example at inflation=1.4:  dynamicBoost=0.57, push(0.5)=0.40  → 2-1 likely
+// Example at inflation=1.84: dynamicBoost=0.65, push(0.5)=0.60  → 3-2 clear
+// Example at inflation=2.0:  dynamicBoost=0.68, push(0.5)=0.68  → 3-2 / 3-1
+// Example at inflation=2.5:  dynamicBoost=0.76, push(0.5)=0.95  → 4-2 / 4-1
+const BASE_BOOST = 0.48;
 
 export function tournamentMomentumPredict(
   ctx: MatchContext,
@@ -55,8 +61,10 @@ export function tournamentMomentumPredict(
   const tournamentAway = baseAway * inflation;
 
   // Phase 2: additive momentum push in actual goal units
+  // dynamicBoost scales with sqrt(inflation) so stronger momentum push in high-scoring WCs
+  const dynamicBoost = clamp(BASE_BOOST * Math.sqrt(inflation), 0.28, 0.88);
   // Positive netDiff → home team has more in-tournament momentum → they get extra goals
-  const momentumPush = netDiff * inflation * MOMENTUM_GOAL_BOOST;
+  const momentumPush = netDiff * inflation * dynamicBoost;
 
   let homeGoals = tournamentHome + momentumPush;
   let awayGoals = tournamentAway - momentumPush;
@@ -91,7 +99,7 @@ export function tournamentMomentumPredict(
   const pushSign = momentumPush >= 0 ? '+' : '';
   const drivers: string[] = [
     `Inflación goleadora: ×${inflation.toFixed(2)} (base: ${baseHome.toFixed(2)}-${baseAway.toFixed(2)} → torneo: ${tournamentHome.toFixed(2)}-${tournamentAway.toFixed(2)})`,
-    `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(2)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(2)} → push ${pushSign}${momentumPush.toFixed(2)} goles → ${homeGoals.toFixed(2)}-${awayGoals.toFixed(2)}`,
+    `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(2)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(2)} (diff ${netDiff.toFixed(2)}) → push ${pushSign}${momentumPush.toFixed(2)} goles [boost ×${dynamicBoost.toFixed(2)}]`,
   ];
 
   if (appliedContext && fc) {
