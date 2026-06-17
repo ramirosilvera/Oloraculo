@@ -16,7 +16,8 @@
 
 import type { Fixture, WcActualResult, DailyPatternType, DailyStats, DailyPatternSignal } from '../../types/domain';
 
-const MIN_MATCHES_PER_DAY = 2;
+// Require ≥3 matches to classify a day (2 is statistically too noisy for a 5-category classifier).
+const MIN_MATCHES_PER_DAY = 3;
 
 function classifyDay(avgGoals: number, avgMargin: number, drawRate: number): DailyPatternType {
   if (avgMargin >= 2.5) return 'blowout';
@@ -107,7 +108,9 @@ export function detectDailyPattern(
     else break;
   }
 
-  const isConfirmed = streakDays >= 2;
+  // Require 3 consecutive days to confirm a streak — 2 days is not enough to distinguish
+  // a sustained tournament pattern from random day-to-day variation.
+  const isConfirmed = streakDays >= 3;
   const { goal: goalModifier, push: pushModifier } = isConfirmed
     ? PATTERN_MODIFIERS[currentType]
     : { goal: 1.0, push: 1.0 };

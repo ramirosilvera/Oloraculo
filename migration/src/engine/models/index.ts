@@ -14,7 +14,7 @@ import {
   scorelineToOutcome,
   mostLikelyScore,
 } from '../probability-helper';
-import { GoalModel } from './goal-model';
+import { GoalModel, matchTournamentWeight } from './goal-model';
 import type { MatchResult } from '../../types/domain';
 
 // ---------------------------------------------------------------------------
@@ -156,7 +156,10 @@ export function formDelta(recentMatches: MatchResult[], teamId: string): number 
     const goalsFor = match.home_team_id === teamId ? match.home_goals : match.away_goals;
     const goalsAgainst = match.home_team_id === teamId ? match.away_goals : match.home_goals;
     const points = goalsFor > goalsAgainst ? 3 : goalsFor === goalsAgainst ? 1 : 0;
-    delta += weight * ((points - 0.2) * 18 + Math.max(-3, Math.min(3, goalsFor - goalsAgainst)) * 8);
+    // Center at 1.0 so draws are neutral (0), wins positive (+36 base), losses negative (-18 base).
+    // Scale by competition type: WC/qualifier results carry more signal than friendlies.
+    const tWeight = matchTournamentWeight(match.tournament);
+    delta += weight * tWeight * ((points - 1.0) * 18 + Math.max(-3, Math.min(3, goalsFor - goalsAgainst)) * 8);
     weight *= 0.8;
   }
   return Math.max(-100, Math.min(100, delta));

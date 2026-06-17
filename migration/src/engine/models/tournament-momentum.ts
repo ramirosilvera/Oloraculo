@@ -46,8 +46,13 @@ export function tournamentMomentumPredict(
   // (either team form OR a computed inflation factor from WC actual results)
   const degraded = goalDegraded || (bothNull && !hasInflation);
 
-  const homeTMS = homeTF?.momentumScore ?? 0;
-  const awayTMS = awayTF?.momentumScore ?? 0;
+  // upsetBonus accumulates eloDiff/1000 for each upset win in the tournament.
+  // Scale by 0.5 so a single major upset (+0.4 bonus) adds ~0.2 to effective momentum.
+  // Capped at 0.35 to prevent multiple upsets from dominating the signal.
+  const homeBonus = clamp((homeTF?.upsetBonus ?? 0) * 0.5, 0, 0.35);
+  const awayBonus = clamp((awayTF?.upsetBonus ?? 0) * 0.5, 0, 0.35);
+  const homeTMS = clamp((homeTF?.momentumScore ?? 0) + homeBonus, -1, 1);
+  const awayTMS = clamp((awayTF?.momentumScore ?? 0) + awayBonus, -1, 1);
   const netDiff = clamp(homeTMS - awayTMS, -1, 1);
   const inflation = clamp(ctx.tournamentGoalInflation ?? 1.0, 0.5, 3.0);
 

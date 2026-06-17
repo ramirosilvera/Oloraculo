@@ -217,19 +217,21 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
   const teamMap = new Map<string, Team>(teamList.map(t => [t.id, t]));
   const emptyContexts = new Map<string, FixtureContext>();
 
+  // For each team keep only the most-recent rating (compare as_of strings — ISO dates sort lexicographically).
   const fifaPoints = new Map<string, number>();
+  const fifaDates  = new Map<string, string>();
   for (const r of ratings) {
     if (r.type !== 'fifa') continue;
-    const existing = fifaPoints.get(r.team_id);
-    if (!existing || new Date(r.as_of) > new Date()) {
-      fifaPoints.set(r.team_id, r.value);
-    }
+    const d = fifaDates.get(r.team_id) ?? '';
+    if (r.as_of > d) { fifaPoints.set(r.team_id, r.value); fifaDates.set(r.team_id, r.as_of); }
   }
 
-  const eloMap = new Map<string, number>();
+  const eloMap   = new Map<string, number>();
+  const eloDates = new Map<string, string>();
   for (const r of ratings) {
     if (r.type !== 'elo') continue;
-    eloMap.set(r.team_id, r.value);
+    const d = eloDates.get(r.team_id) ?? '';
+    if (r.as_of > d) { eloMap.set(r.team_id, r.value); eloDates.set(r.team_id, r.as_of); }
   }
 
   const allTeams = groups.flatMap(g => g.team_ids);
@@ -244,7 +246,10 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
   // Simulated matches are played at neutral venues, so per-match availability
   // context (L5, keyed to a specific scheduled fixture) is intentionally not
   // applied to hypothetical bracket pairings.
-  const predCache = new Map<string, { home: number; away: number }[]>();
+  // Cache the ScorelineDistribution (not pre-generated samples) so each simulation
+  // draws a fresh, unbiased score from the full distribution while still avoiding
+  // the expensive buildContext + predict call on repeated pairings.
+  const predCache = new Map<string, ScorelineDistribution>();
 
   function pairingDistribution(homeId: string, awayId: string): ScorelineDistribution {
     const fixture: Fixture = {
@@ -268,14 +273,9 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
   function sampleMatchScore(homeId: string, awayId: string): { home: number; away: number } {
     const key = `${homeId}|${awayId}`;
-    let samples = predCache.get(key);
-    if (!samples) {
-      const dist = pairingDistribution(homeId, awayId);
-      // Pre-generate 50 samples per pairing for cheap reuse across iterations.
-      samples = Array.from({ length: 50 }, () => sampleScore(dist, rng));
-      predCache.set(key, samples);
-    }
-    return samples[Math.floor(rng() * samples.length)];
+    let dist = predCache.get(key);
+    if (!dist) { dist = pairingDistribution(homeId, awayId); predCache.set(key, dist); }
+    return sampleScore(dist, rng);
   }
 
   function knockoutWinner(homeId: string, awayId: string): string {

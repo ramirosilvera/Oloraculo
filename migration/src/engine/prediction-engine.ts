@@ -60,20 +60,13 @@ export class PredictionEngine {
 
     if (teamResults.length === 0) return null;
 
-    // Build latestElo map: for each team_id, take the most recent elo rating value
-    const eloRatings = ratings.filter(r => r.type === 'elo');
+    // Build latestElo map in a single O(n) pass — ISO date strings sort lexicographically.
     const latestEloMap = new Map<string, number>();
-    for (const r of eloRatings) {
-      const existing = latestEloMap.get(r.team_id);
-      if (existing === undefined) {
-        latestEloMap.set(r.team_id, r.value);
-      } else {
-        // Keep the most recent
-        const currentBest = eloRatings
-          .filter(x => x.team_id === r.team_id)
-          .sort((a, b) => new Date(b.as_of).getTime() - new Date(a.as_of).getTime())[0];
-        if (currentBest) latestEloMap.set(r.team_id, currentBest.value);
-      }
+    const latestEloDates = new Map<string, string>();
+    for (const r of ratings) {
+      if (r.type !== 'elo') continue;
+      const d = latestEloDates.get(r.team_id) ?? '';
+      if (r.as_of > d) { latestEloMap.set(r.team_id, r.value); latestEloDates.set(r.team_id, r.as_of); }
     }
 
     // Compute average Elo across all teams that have a rating

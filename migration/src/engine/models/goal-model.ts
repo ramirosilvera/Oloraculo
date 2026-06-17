@@ -32,6 +32,24 @@ interface FitResult {
   matchesUsed: number;
 }
 
+/**
+ * Weight multiplier by competition type so that World Cup / qualifier results
+ * inform the model more than low-stakes friendlies.
+ * Friendly: 0.5 × | Qualifier: 1.2 × | Major tournament: 1.5 × | Default: 1.0 ×
+ */
+export function matchTournamentWeight(tournament: string): number {
+  const t = (tournament ?? '').toLowerCase();
+  if (t.includes('world cup') || t.includes('copa del mundo') || t.includes('fifa world')) return 1.5;
+  if (t.includes('qualifier') || t.includes('qualification') || t.includes('eliminat')) return 1.2;
+  if (
+    t.includes('euro') || t.includes('copa america') || t.includes('african cup') ||
+    t.includes('gold cup') || t.includes('asian cup') || t.includes('nations cup')
+  ) return 1.3;
+  if (t.includes('nations league') || t.includes('liga de naciones')) return 1.1;
+  if (t.includes('friendly') || t.includes('amistoso') || t.includes('test match')) return 0.5;
+  return 1.0;
+}
+
 function shrinkToNeutral(value: number, weight: number): number {
   return Math.max(0.45, Math.min(2.25, ((value * weight) + PRIOR_MATCHES) / (weight + PRIOR_MATCHES)));
 }
@@ -69,7 +87,7 @@ export function fitGoalModel(results: MatchResult[], yearsWindow = 8): FitResult
 
   const weighted = window.map(r => {
     const yearsAgo = Math.max(0, (latest.getTime() - new Date(r.date).getTime()) / (365.25 * 86400_000));
-    return { result: r, weight: Math.pow(0.75, yearsAgo) };
+    return { result: r, weight: Math.pow(0.75, yearsAgo) * matchTournamentWeight(r.tournament) };
   });
 
   const totalWeight = weighted.reduce((s, { weight }) => s + weight, 0);
