@@ -172,7 +172,7 @@ export function SkeletonCard() {
 // ---------------------------------------------------------------------------
 export function Tooltip({ text, children }: { text: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [popStyle, setPopStyle] = useState<CSSProperties>({});
+  const [pop, setPop] = useState<{ style: CSSProperties; arrow: number }>({ style: {}, arrow: 12 });
   const triggerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -192,20 +192,17 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
   function handleToggle(e: React.MouseEvent) {
     e.stopPropagation();
     if (!open && triggerRef.current) {
-      const r    = triggerRef.current.getBoundingClientRect();
-      const w    = Math.min(256, window.innerWidth - 16);
-      // Right-anchor: align tooltip's right edge with trigger's right edge,
-      // then clamp so the tooltip never overflows the left side of the screen.
-      const right = Math.max(8, Math.min(
-        window.innerWidth - r.right,           // ideal: flush with trigger right
-        window.innerWidth - w - 8,             // max: 8px from left edge
-      ));
-      setPopStyle({
-        position: 'fixed',
-        bottom:   window.innerHeight - r.top + 8,
-        right,
-        width:    w,
-        zIndex:   9999,
+      const r       = triggerRef.current.getBoundingClientRect();
+      const margin  = 12;
+      const w       = Math.min(256, window.innerWidth - margin * 2);
+      const centerX = r.left + r.width / 2;
+      // Center tooltip on trigger; clamp to keep 12 px clear of each edge
+      const left    = Math.max(margin, Math.min(centerX - w / 2, window.innerWidth - w - margin));
+      // Arrow points at trigger center regardless of clamping
+      const arrow   = Math.max(8, Math.min(centerX - left - 4, w - 16));
+      setPop({
+        style: { position: 'fixed', bottom: window.innerHeight - r.top + 8, left, width: w, zIndex: 9999 },
+        arrow,
       });
     }
     setOpen(o => !o);
@@ -213,20 +210,13 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
 
   return (
     <>
-      <span
-        ref={triggerRef}
-        className="inline-flex items-center cursor-pointer"
-        onClick={handleToggle}
-      >
+      <span ref={triggerRef} className="inline-flex items-center cursor-pointer" onClick={handleToggle}>
         {children}
       </span>
       {open && createPortal(
-        <div
-          style={popStyle}
-          className="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl text-center leading-relaxed pointer-events-none"
-        >
+        <div style={pop.style} className="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl text-center leading-relaxed pointer-events-none">
           {text}
-          <span className="absolute top-full right-3 border-4 border-transparent border-t-gray-900" />
+          <span style={{ left: pop.arrow }} className="absolute top-full border-4 border-transparent border-t-gray-900" />
         </div>,
         document.body,
       )}
