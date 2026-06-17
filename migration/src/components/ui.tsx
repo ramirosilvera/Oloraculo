@@ -5,6 +5,42 @@ import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
+// FlagImg — cross-platform flag images via flagcdn.com
+// ---------------------------------------------------------------------------
+export const FLAG_ISO: Record<string, string> = {
+  'argentina': 'ar', 'brazil': 'br', 'france': 'fr', 'england': 'gb-eng',
+  'spain': 'es', 'germany': 'de', 'portugal': 'pt', 'netherlands': 'nl',
+  'belgium': 'be', 'colombia': 'co', 'uruguay': 'uy', 'mexico': 'mx',
+  'united-states': 'us', 'canada': 'ca', 'japan': 'jp', 'south-korea': 'kr',
+  'morocco': 'ma', 'senegal': 'sn', 'ecuador': 'ec', 'australia': 'au',
+  'croatia': 'hr', 'switzerland': 'ch', 'norway': 'no', 'sweden': 'se',
+  'austria': 'at', 'turkey': 'tr', 'iran': 'ir', 'egypt': 'eg',
+  'saudi-arabia': 'sa', 'south-africa': 'za', 'ghana': 'gh', 'tunisia': 'tn',
+  'algeria': 'dz', 'ivory-coast': 'ci', 'nigeria': 'ng', 'cameroon': 'cm',
+  'scotland': 'gb-sct', 'czechia': 'cz', 'poland': 'pl', 'serbia': 'rs',
+  'paraguay': 'py', 'haiti': 'ht', 'panama': 'pa', 'curacao': 'cw',
+  'jordan': 'jo', 'iraq': 'iq', 'new-zealand': 'nz', 'cape-verde': 'cv',
+  'uzbekistan': 'uz', 'congo-dr': 'cd', 'bosnia-and-herzegovina': 'ba',
+  'qatar': 'qa',
+};
+
+interface FlagImgProps { id: string; className?: string; }
+export function FlagImg({ id, className = 'w-6 h-4 object-cover rounded-[2px] shrink-0' }: FlagImgProps) {
+  const iso = FLAG_ISO[id];
+  if (!iso) return <span className="text-xl leading-none shrink-0">🏳️</span>;
+  return (
+    <img
+      src={`https://flagcdn.com/32x24/${iso}.png`}
+      srcSet={`https://flagcdn.com/64x48/${iso}.png 2x`}
+      width={32}
+      height={24}
+      alt={id}
+      className={className}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Button
 // ---------------------------------------------------------------------------
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -174,6 +210,21 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
   const [open, setOpen] = useState(false);
   const [pop, setPop] = useState<{ style: CSSProperties; arrow: number }>({ style: {}, arrow: 12 });
   const triggerRef = useRef<HTMLSpanElement>(null);
+  const isHoverRef = useRef(false);
+
+  function computePosition() {
+    if (!triggerRef.current) return;
+    const r       = triggerRef.current.getBoundingClientRect();
+    const margin  = 12;
+    const w       = Math.min(256, window.innerWidth - margin * 2);
+    const centerX = r.left + r.width / 2;
+    const left    = Math.max(margin, Math.min(centerX - w / 2, window.innerWidth - w - margin));
+    const arrow   = Math.max(8, Math.min(centerX - left - 4, w - 16));
+    setPop({
+      style: { position: 'fixed', bottom: window.innerHeight - r.top + 8, left, width: w, zIndex: 9999 },
+      arrow,
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -189,28 +240,33 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
     };
   }, [open]);
 
-  function handleToggle(e: React.MouseEvent) {
+  function handleMouseEnter() {
+    isHoverRef.current = true;
+    computePosition();
+    setOpen(true);
+  }
+
+  function handleMouseLeave() {
+    isHoverRef.current = false;
+    setOpen(false);
+  }
+
+  function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!open && triggerRef.current) {
-      const r       = triggerRef.current.getBoundingClientRect();
-      const margin  = 12;
-      const w       = Math.min(256, window.innerWidth - margin * 2);
-      const centerX = r.left + r.width / 2;
-      // Center tooltip on trigger; clamp to keep 12 px clear of each edge
-      const left    = Math.max(margin, Math.min(centerX - w / 2, window.innerWidth - w - margin));
-      // Arrow points at trigger center regardless of clamping
-      const arrow   = Math.max(8, Math.min(centerX - left - 4, w - 16));
-      setPop({
-        style: { position: 'fixed', bottom: window.innerHeight - r.top + 8, left, width: w, zIndex: 9999 },
-        arrow,
-      });
-    }
+    if (isHoverRef.current) return; // desktop hover handles it
+    computePosition();
     setOpen(o => !o);
   }
 
   return (
     <>
-      <span ref={triggerRef} className="inline-flex items-center cursor-pointer" onClick={handleToggle}>
+      <span
+        ref={triggerRef}
+        className="inline-flex items-center cursor-pointer"
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
         {children}
       </span>
       {open && createPortal(

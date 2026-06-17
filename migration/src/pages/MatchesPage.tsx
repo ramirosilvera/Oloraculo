@@ -24,46 +24,14 @@ import {
   Tooltip,
   SectionTitle,
   SkeletonCard,
+  FlagImg,
 } from '../components/ui';
 import {
   ChevronDown, ChevronUp, Save, CheckCircle2, AlertCircle,
   Trophy, Info, Search, X, ChevronLeft, ChevronRight, Calendar, Loader2,
 } from 'lucide-react';
 
-// ISO 3166-1 alpha-2 codes for flagcdn.com (gb-eng / gb-sct for home nations)
-const FLAG_ISO: Record<string, string> = {
-  'argentina': 'ar', 'brazil': 'br', 'france': 'fr', 'england': 'gb-eng',
-  'spain': 'es', 'germany': 'de', 'portugal': 'pt', 'netherlands': 'nl',
-  'belgium': 'be', 'colombia': 'co', 'uruguay': 'uy', 'mexico': 'mx',
-  'united-states': 'us', 'canada': 'ca', 'japan': 'jp', 'south-korea': 'kr',
-  'morocco': 'ma', 'senegal': 'sn', 'ecuador': 'ec', 'australia': 'au',
-  'croatia': 'hr', 'switzerland': 'ch', 'norway': 'no', 'sweden': 'se',
-  'austria': 'at', 'turkey': 'tr', 'iran': 'ir', 'egypt': 'eg',
-  'saudi-arabia': 'sa', 'south-africa': 'za', 'ghana': 'gh', 'tunisia': 'tn',
-  'algeria': 'dz', 'ivory-coast': 'ci', 'nigeria': 'ng', 'cameroon': 'cm',
-  'scotland': 'gb-sct', 'czechia': 'cz', 'poland': 'pl', 'serbia': 'rs',
-  'paraguay': 'py', 'haiti': 'ht', 'panama': 'pa', 'curacao': 'cw',
-  'jordan': 'jo', 'iraq': 'iq', 'new-zealand': 'nz', 'cape-verde': 'cv',
-  'uzbekistan': 'uz', 'congo-dr': 'cd', 'bosnia-and-herzegovina': 'ba',
-  'qatar': 'qa',
-};
-
 const TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
-
-function FlagImg({ id, className = 'w-6 h-4 object-cover rounded-[2px] shrink-0' }: { id: string; className?: string }) {
-  const iso = FLAG_ISO[id];
-  if (!iso) return <span className="text-xl leading-none shrink-0">🏳️</span>;
-  return (
-    <img
-      src={`https://flagcdn.com/32x24/${iso}.png`}
-      srcSet={`https://flagcdn.com/64x48/${iso}.png 2x`}
-      width={32}
-      height={24}
-      alt={id}
-      className={className}
-    />
-  );
-}
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 

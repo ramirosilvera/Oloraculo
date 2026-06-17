@@ -13,8 +13,8 @@ import {
   Badge,
   SectionTitle,
   Button,
-  Skeleton,
   SkeletonCard,
+  FlagImg,
 } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -33,20 +33,6 @@ const ladder: { level: string; model: string; signal: string; color: 'gray' | 'b
 // ---------------------------------------------------------------------------
 // HomePage
 // ---------------------------------------------------------------------------
-const FLAGS: Record<string, string> = {
-  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
-  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
-  'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽', 'united-states': '🇺🇸',
-  'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷', 'morocco': '🇲🇦',
-  'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺', 'croatia': '🇭🇷',
-  'switzerland': '🇨🇭', 'norway': '🇸🇪', 'sweden': '🇸🇪', 'austria': '🇦🇹',
-  'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬', 'saudi-arabia': '🇸🇦',
-  'ghana': '🇬🇭', 'tunisia': '🇹🇳', 'algeria': '🇩🇿', 'nigeria': '🇳🇬',
-  'cameroon': '🇨🇲', 'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
-  'paraguay': '🇵🇾', 'panama': '🇵🇦', 'jordan': '🇯🇴', 'iraq': '🇮🇶',
-  'new-zealand': '🇳🇿', 'uzbekistan': '🇺🇿', 'qatar': '🇶🇦', 'belgium': '🇧🇪',
-};
-function flag(id: string) { return FLAGS[id] ?? '🏳️'; }
 
 export function HomePage() {
   const { teams, fixtures, results, teamMap, isLoading } = useAppData();
@@ -247,12 +233,12 @@ export function HomePage() {
                   }) : '';
                   return (
                     <Link key={f.id} to="/matches" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors">
-                      <span className="text-2xl leading-none">{flag(f.home_team_id)}</span>
+                      <FlagImg id={f.home_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{homeName} <span className="text-gray-400 font-normal">vs</span> {awayName}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{kickoffDate} · {kickoffTime} ART · Grp {f.group_name}</p>
                       </div>
-                      <span className="text-2xl leading-none">{flag(f.away_team_id)}</span>
+                      <FlagImg id={f.away_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0" />
                       <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                     </Link>
                   );
