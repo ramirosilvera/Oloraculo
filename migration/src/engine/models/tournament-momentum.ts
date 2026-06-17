@@ -17,7 +17,6 @@ import type { MatchContext, MatchPrediction } from '../../types/domain';
 import {
   poissonScoreline,
   scorelineToOutcome,
-  mostLikelyScore,
 } from '../probability-helper';
 import type { GoalModel } from './goal-model';
 
@@ -90,7 +89,11 @@ export function tournamentMomentumPredict(
 
   // Use maxGoals=10 to handle high-scoring predictions properly (WC2026 pace)
   const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.03);
-  const best = mostLikelyScore(scoreline);
+
+  // L6 uses round(expectedGoals) instead of the joint Poisson mode.
+  // The Poisson mode floors λ, so λ=0.97 → mode=0 (drops a predicted goal).
+  // Rounding: 0.97→1, 1.5→2, 2.09→2 — better represents the inflated expected result.
+  const best = { home: Math.round(homeGoals), away: Math.round(awayGoals) };
 
   const pushSign = momentumPush >= 0 ? '+' : '';
   const drivers: string[] = [
