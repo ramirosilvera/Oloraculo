@@ -4,25 +4,8 @@ import { useAppData } from '../hooks/useAppData';
 import { saveTournamentSnapshot } from '../services/supabase-client';
 import type { TournamentProjection } from '../types/domain';
 import type { SimulationInput } from '../engine/simulation-engine';
-import { Button, Badge, Card, CardHeader, Skeleton, Tooltip } from '../components/ui';
+import { Button, Badge, Card, CardHeader, Skeleton, Tooltip, FlagImg } from '../components/ui';
 import { Trophy, Play, Save, CheckCircle2, History, ChevronRight, Medal } from 'lucide-react';
-
-const FLAGS: Record<string, string> = {
-  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
-  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
-  'belgium': '🇧🇪', 'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽',
-  'united-states': '🇺🇸', 'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷',
-  'morocco': '🇲🇦', 'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺',
-  'croatia': '🇭🇷', 'switzerland': '🇨🇭', 'norway': '🇳🇴', 'sweden': '🇸🇪',
-  'austria': '🇦🇹', 'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬',
-  'saudi-arabia': '🇸🇦', 'south-africa': '🇿🇦', 'ghana': '🇬🇭', 'tunisia': '🇹🇳',
-  'algeria': '🇩🇿', 'ivory-coast': '🇨🇮', 'nigeria': '🇳🇬', 'cameroon': '🇨🇲',
-  'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'czechia': '🇨🇿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
-  'paraguay': '🇵🇾', 'haiti': '🇭🇹', 'panama': '🇵🇦', 'curacao': '🇨🇼',
-  'jordan': '🇯🇴', 'iraq': '🇮🇶', 'new-zealand': '🇳🇿', 'cape-verde': '🇨🇻',
-  'uzbekistan': '🇺🇿', 'congo-dr': '🇨🇩', 'bosnia-and-herzegovina': '🇧🇦',
-  'qatar': '🇶🇦',
-};
 
 const SIMULATION_COUNT = 10_000;
 const SIMULATION_SEED  = 2026;
@@ -65,7 +48,7 @@ function ProbTable({ teams, getTeamName }: ProbTableProps) {
                 <td className="px-3 py-2.5 text-gray-400 text-xs font-medium">{i + 1}</td>
                 <td className="px-3 py-2.5">
                   <span className="flex items-center gap-2 font-semibold text-gray-800">
-                    <span className="text-base leading-none">{FLAGS[t.teamId] ?? '🏳️'}</span>
+                    <FlagImg id={t.teamId} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
                     <span>{getTeamName(t.teamId)}</span>
                   </span>
                 </td>
