@@ -167,8 +167,9 @@ function computeJourney(
   opps: Record<string, number>,
   wins: Record<string, number>,
   reached: number,
+  exclude: Set<string> = new Set(),
 ): import('../types/domain').JourneyRound | undefined {
-  const entries = Object.entries(opps);
+  const entries = Object.entries(opps).filter(([id]) => !exclude.has(id));
   if (!entries.length || reached === 0) return undefined;
   const [topId, facedCount] = entries.sort((a, b) => b[1] - a[1])[0];
   return {
@@ -177,6 +178,18 @@ function computeJourney(
     winsVsMostLikely: wins[topId] ?? 0,
     totalReached: reached,
     wins: Object.values(wins).reduce((s, v) => s + v, 0),
+  };
+}
+
+function buildJourneys(c: Counter) {
+  const seen = new Set<string>();
+  const pick = (j: ReturnType<typeof computeJourney>) => { if (j) seen.add(j.mostLikelyOpponentId); return j; };
+  return {
+    r32Journey: pick(computeJourney(c.r32Opps, c.r32Wins, c.qualify, seen)),
+    r16Journey: pick(computeJourney(c.r16Opps, c.r16Wins, c.r16,     seen)),
+    qfJourney:  pick(computeJourney(c.qfOpps,  c.qfWins,  c.qf,      seen)),
+    sfJourney:  pick(computeJourney(c.sfOpps,  c.sfWins,  c.sf,      seen)),
+    finJourney: pick(computeJourney(c.finOpps, c.finWins, c.final,   seen)),
   };
 }
 
@@ -417,11 +430,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
       avgGroupGoalsFor:     +(c.groupGoalsFor    / simulations).toFixed(2),
       avgGroupGoalsAgainst: +(c.groupGoalsAgainst / simulations).toFixed(2),
       groupPositions: c.groupPos.map(n => +(n / simulations).toFixed(4)) as [number, number, number, number],
-      r32Journey: computeJourney(c.r32Opps, c.r32Wins, c.qualify),
-      r16Journey: computeJourney(c.r16Opps, c.r16Wins, c.r16),
-      qfJourney:  computeJourney(c.qfOpps,  c.qfWins,  c.qf),
-      sfJourney:  computeJourney(c.sfOpps,  c.sfWins,  c.sf),
-      finJourney: computeJourney(c.finOpps, c.finWins, c.final),
+      ...buildJourneys(c),
     };
   });
 
