@@ -1,6 +1,7 @@
 // Componentes base reutilizables con estética WC2026
 
-import { useState, useRef, useEffect, type ReactNode, type ButtonHTMLAttributes } from 'react';
+import { useState, useRef, useEffect, type ReactNode, type ButtonHTMLAttributes, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -164,40 +165,72 @@ export function SkeletonCard() {
 }
 
 // ---------------------------------------------------------------------------
-// Tooltip — tap/click to open on mobile, click-outside to close
-// Anchored to the right edge of the trigger so it never overflows on mobile
+// Tooltip — portal-based so overflow:hidden ancestors never clip it.
+// Tap/click to open, click-outside or scroll to close.
+// Computes fixed position from the trigger's bounding rect so it always
+// appears above the icon regardless of which card/table it lives in.
 // ---------------------------------------------------------------------------
 export function Tooltip({ text, children }: { text: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [popStyle, setPopStyle] = useState<CSSProperties>({});
+  const triggerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function close(e: MouseEvent | TouchEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener('mousedown', close, true);
     document.addEventListener('touchstart', close, true);
+    window.addEventListener('scroll', () => setOpen(false), { passive: true, once: true });
     return () => {
       document.removeEventListener('mousedown', close, true);
       document.removeEventListener('touchstart', close, true);
     };
   }, [open]);
 
+  function handleToggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && triggerRef.current) {
+      const r    = triggerRef.current.getBoundingClientRect();
+      const w    = Math.min(256, window.innerWidth - 16);
+      // Right-anchor: align tooltip's right edge with trigger's right edge,
+      // then clamp so the tooltip never overflows the left side of the screen.
+      const right = Math.max(8, Math.min(
+        window.innerWidth - r.right,           // ideal: flush with trigger right
+        window.innerWidth - w - 8,             // max: 8px from left edge
+      ));
+      setPopStyle({
+        position: 'fixed',
+        bottom:   window.innerHeight - r.top + 8,
+        right,
+        width:    w,
+        zIndex:   9999,
+      });
+    }
+    setOpen(o => !o);
+  }
+
   return (
-    <span
-      ref={ref}
-      className="relative inline-flex items-center cursor-pointer"
-      onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
-    >
-      {children}
-      {open && (
-        <span className="absolute bottom-full right-0 mb-2 z-50 w-64 max-w-[calc(100vw-2rem)] px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl text-center leading-relaxed pointer-events-none">
+    <>
+      <span
+        ref={triggerRef}
+        className="inline-flex items-center cursor-pointer"
+        onClick={handleToggle}
+      >
+        {children}
+      </span>
+      {open && createPortal(
+        <div
+          style={popStyle}
+          className="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl text-center leading-relaxed pointer-events-none"
+        >
           {text}
           <span className="absolute top-full right-3 border-4 border-transparent border-t-gray-900" />
-        </span>
+        </div>,
+        document.body,
       )}
-    </span>
+    </>
   );
 }
 
