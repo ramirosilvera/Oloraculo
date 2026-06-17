@@ -1,11 +1,10 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
 import {
   saveMatchSnapshot,
   saveEvaluation,
   saveWcActualResult,
-  loadWcActualResults,
   upsertFixtureContext,
 } from '../services/supabase-client';
 import {
@@ -632,7 +631,7 @@ function TournamentPace({ wcResults }: { wcResults: WcActualResult[] }) {
 // MatchesPage
 // ---------------------------------------------------------------------------
 export function MatchesPage() {
-  const { groups, fixtures, teamMap, contextMap, engine, ratingsList, isLoading, error } = useAppData();
+  const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, isLoading, error } = useAppData();
   const qc = useQueryClient();
 
   const [expandedId, setExpandedId]     = useState<string | null>(null);
@@ -654,11 +653,7 @@ export function MatchesPage() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(TODAY);
 
-  const { data: wcResults } = useQuery({ queryKey: ['wc-results'], queryFn: loadWcActualResults });
-  const playedMap = useMemo(() =>
-    new Map<string, WcActualResult>((wcResults ?? []).map(r => [r.fixture_id, r])),
-    [wcResults]
-  );
+  const playedMap = wcPlayedMap;
 
   // Sorted unique dates that have fixtures (in ART timezone)
   const fixtureDates = useMemo(() =>

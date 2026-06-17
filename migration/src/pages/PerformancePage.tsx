@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { BarChart2, TrendingDown, CheckCircle2, Zap, AlertTriangle, Info } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
-import { loadEvaluations, loadWcActualResults } from '../services/supabase-client';
+import { loadEvaluations } from '../services/supabase-client';
 import type { ModelPerformanceRow, PredictionEvaluation, WcActualResult } from '../types/domain';
 import {
   Card,
@@ -32,7 +32,7 @@ function groupEvaluations(evals: PredictionEvaluation[]): ModelPerformanceRow[] 
 }
 
 const WC_HISTORICAL_GOALS_PER_MATCH = 2.50;
-const BASE_BOOST = 0.48;  // keep in sync with tournament-momentum.ts
+const BASE_BOOST = 0.28;  // keep in sync with tournament-momentum.ts
 
 // ---------------------------------------------------------------------------
 // CalibrationCard — analyzes actual WC results vs model predictions
@@ -161,14 +161,10 @@ function ScoreCell({ value, low = false }: { value: number; low?: boolean }) {
 }
 
 export function PerformancePage() {
-  const { teamMap } = useAppData();
+  const { teamMap, wcResults } = useAppData();
   const { data: evals, isLoading } = useQuery({
     queryKey: ['evaluations'],
     queryFn: loadEvaluations,
-  });
-  const { data: wcResults = [] } = useQuery({
-    queryKey: ['wc-results'],
-    queryFn: loadWcActualResults,
   });
 
   if (isLoading) {

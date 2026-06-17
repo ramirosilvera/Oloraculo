@@ -10,9 +10,9 @@ import {
   loadStaticFixtureContexts,
   loadStaticSquads,
 } from '../services/static-data';
-import { loadAllFixtureContexts } from '../services/supabase-client';
+import { loadAllFixtureContexts, loadWcActualResults } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
-import type { FixtureContext, Rating, Team } from '../types/domain';
+import type { FixtureContext, Rating, Team, WcActualResult } from '../types/domain';
 import { useMemo } from 'react';
 
 const FOREVER = Infinity;
@@ -28,6 +28,8 @@ export function useAppData() {
   const squads         = useQuery({ queryKey: ['squads'],          queryFn: loadStaticSquads,           staleTime: FOREVER });
   // Supabase: user-entered manual overrides (re-fetched every 60 s)
   const contexts       = useQuery({ queryKey: ['contexts'],        queryFn: loadAllFixtureContexts,     staleTime: 60_000 });
+  // Supabase: manually-entered WC results (override for real-time corrections)
+  const supabaseWc     = useQuery({ queryKey: ['wc-results'],      queryFn: loadWcActualResults,        staleTime: 60_000 });
 
   const teamMap = useMemo(
     () => new Map<string, Team>((teams.data ?? []).map(t => [t.id, t])),
@@ -42,12 +44,39 @@ export function useAppData() {
     const map = new Map<string, FixtureContext>();
     for (const c of (staticContexts.data ?? [])) map.set(c.fixture_id, c);
     for (const c of (contexts.data ?? []))        map.set(c.fixture_id, c);
-    console.debug(
-      `[contextMap] total=${map.size} | estático=${staticContexts.data?.length ?? 0} | supabase=${contexts.data?.length ?? 0}`,
-      [...map.keys()].slice(0, 5),
-    );
     return map;
   }, [staticContexts.data, contexts.data]);
+
+  // Build wcResults from two sources, merged:
+  //   1. fixtures.json played matches (source of truth — updated at each deploy)
+  //   2. Supabase wc_actual_results (user-entered corrections, overrides static)
+  // This ensures momentum/inflation always work even when Supabase is empty.
+  const wcResults = useMemo<WcActualResult[]>(() => {
+    const map = new Map<string, WcActualResult>();
+
+    for (const f of (fixtures.data ?? [])) {
+      if (f.is_played && f.home_goals != null && f.away_goals != null) {
+        map.set(f.id, {
+          id: 0,
+          fixture_id: f.id,
+          home_goals: f.home_goals,
+          away_goals: f.away_goals,
+          played_at: f.kickoff_utc ?? new Date().toISOString(),
+        });
+      }
+    }
+
+    for (const r of (supabaseWc.data ?? [])) {
+      map.set(r.fixture_id, r);
+    }
+
+    return [...map.values()];
+  }, [fixtures.data, supabaseWc.data]);
+
+  const wcPlayedMap = useMemo(
+    () => new Map<string, WcActualResult>(wcResults.map(r => [r.fixture_id, r])),
+    [wcResults],
+  );
 
   // Cache the engine in React Query so it's built once per session, not on
   // every page navigation (each new component instance would re-run useMemo).
@@ -69,17 +98,19 @@ export function useAppData() {
     results.error ?? ratings.error;
 
   return {
-    teams:    teams.data    ?? [],
-    groups:   groups.data   ?? [],
-    fixtures: fixtures.data ?? [],
-    results:  results.data  ?? [],
-    ratings:  ratingsList,
-    contexts: contexts.data ?? [],
-    squads:   squads.data   ?? {},
+    teams:      teams.data    ?? [],
+    groups:     groups.data   ?? [],
+    fixtures:   fixtures.data ?? [],
+    results:    results.data  ?? [],
+    ratings:    ratingsList,
+    contexts:   contexts.data ?? [],
+    squads:     squads.data   ?? {},
     teamMap,
     ratingsList,
     contextMap,
     engine,
+    wcResults,
+    wcPlayedMap,
     isLoading,
     error,
   };
