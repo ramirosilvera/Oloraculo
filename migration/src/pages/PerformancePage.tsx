@@ -1,10 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
-import { Trophy, BarChart2, Target, CheckCircle2, HelpCircle } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Trophy, BarChart2, Target, CheckCircle2, HelpCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
-import { loadEvaluations } from '../services/supabase-client';
+import {
+  loadEvaluations,
+  saveEvaluations,
+  deleteEvaluationsForFixtures,
+} from '../services/supabase-client';
+import { recomputeEvaluations } from '../engine/recompute-evaluations';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import type { PredictionEvaluation } from '../types/domain';
 import {
+  Button,
   Card,
   CardHeader,
   Badge,
@@ -75,11 +82,46 @@ function WinnerBar({ correct, total }: { correct: number; total: number }) {
 }
 
 export function PerformancePage() {
-  const { teamMap, wcResults } = useAppData();
+  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap } = useAppData();
+  const qc = useQueryClient();
   const { data: evals, isLoading } = useQuery({
     queryKey: ['evaluations'],
     queryFn: loadEvaluations,
   });
+
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  async function handleRecompute() {
+    if (!engine) {
+      setRecomputeMsg({ kind: 'err', text: 'El motor todavía se está cargando. Probá de nuevo en unos segundos.' });
+      return;
+    }
+    setRecomputing(true);
+    setRecomputeMsg(null);
+    try {
+      const { rows, fixtureIds, matchesProcessed, matchesSkipped } = recomputeEvaluations({
+        engine, fixtures, teamMap, ratingsList, contextMap, wcResults,
+      });
+      if (matchesProcessed === 0) {
+        setRecomputeMsg({ kind: 'err', text: 'No hay partidos jugados para evaluar todavía.' });
+        return;
+      }
+      // Replace stale rows for the recomputed fixtures, then insert fresh ones.
+      await deleteEvaluationsForFixtures(fixtureIds);
+      await saveEvaluations(rows);
+      await qc.invalidateQueries({ queryKey: ['evaluations'] });
+      const skip = matchesSkipped > 0 ? ` · ${matchesSkipped} omitido${matchesSkipped !== 1 ? 's' : ''}` : '';
+      setRecomputeMsg({
+        kind: 'ok',
+        text: `Recalculado: ${matchesProcessed} partido${matchesProcessed !== 1 ? 's' : ''}, ${rows.length} evaluaciones${skip}.`,
+      });
+    } catch (e) {
+      setRecomputeMsg({ kind: 'err', text: `Error al recalcular: ${String(e)}` });
+    } finally {
+      setRecomputing(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -115,9 +157,40 @@ export function PerformancePage() {
 
   return (
     <div className="space-y-6">
-      <SectionTitle sub={`Comparación de modelos · ${totalMatches} partido${totalMatches !== 1 ? 's' : ''} jugado${totalMatches !== 1 ? 's' : ''}`}>
-        Rendimiento
-      </SectionTitle>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <SectionTitle sub={`Comparación de modelos · ${totalMatches} partido${totalMatches !== 1 ? 's' : ''} jugado${totalMatches !== 1 ? 's' : ''}`}>
+          Rendimiento
+        </SectionTitle>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleRecompute}
+          disabled={recomputing || !engine || totalMatches === 0}
+          className="shrink-0"
+        >
+          {recomputing
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Recalculando…</>
+            : <><RefreshCw className="w-4 h-4" /> Recalcular evaluaciones</>}
+        </Button>
+      </div>
+
+      {recomputeMsg && (
+        <div className={`flex items-start gap-2 p-3 rounded-xl text-sm border ${
+          recomputeMsg.kind === 'ok'
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          {recomputeMsg.kind === 'ok'
+            ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+            : <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+          <span>{recomputeMsg.text}</span>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 -mt-2">
+        Recalcular vuelve a evaluar todos los partidos jugados con los modelos actuales
+        (necesario tras cambiar un modelo, como el de plantel) y completa los aciertos de marcador exacto.
+      </p>
 
       {/* ------------------------------------------------------------------ */}
       {/* Summary chips                                                        */}

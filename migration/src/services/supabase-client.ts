@@ -147,3 +147,25 @@ export async function loadEvaluations(): Promise<PredictionEvaluation[]> {
   if (error) throw error;
   return data ?? [];
 }
+
+/** Bulk insert evaluation rows (used by the recompute / refresh flow). */
+export async function saveEvaluations(
+  evaluations: Omit<PredictionEvaluation, 'id' | 'predicted_at'>[],
+): Promise<void> {
+  if (evaluations.length === 0) return;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('prediction_evaluations')
+    .insert(evaluations.map(e => ({ ...e, predicted_at: now })));
+  if (error) throw error;
+}
+
+/** Delete all evaluation rows for the given fixtures (recompute clears stale rows first). */
+export async function deleteEvaluationsForFixtures(fixtureIds: string[]): Promise<void> {
+  if (fixtureIds.length === 0) return;
+  const { error } = await supabase
+    .from('prediction_evaluations')
+    .delete()
+    .in('fixture_id', fixtureIds);
+  if (error) throw error;
+}

@@ -3,18 +3,14 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
 import {
   saveMatchSnapshot,
-  saveEvaluation,
+  saveEvaluations,
+  deleteEvaluationsForFixtures,
   saveWcActualResult,
   upsertFixtureContext,
   loadEvaluations,
 } from '../services/supabase-client';
 import { computeModelWeights } from '../engine/final-selector';
-import {
-  brierScore,
-  rankedProbabilityScore,
-  logLoss,
-  topPick,
-} from '../engine/probability-helper';
+import { buildEvaluationRows } from '../engine/evaluation';
 import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction } from '../types/domain';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
@@ -744,25 +740,11 @@ export function MatchesPage() {
     setSaving(fixture.id);
     try {
       await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag });
-      const actual: 'Home' | 'Draw' | 'Away' = hg > ag ? 'Home' : hg === ag ? 'Draw' : 'Away';
       // Save evaluations for ALL non-degraded ladder models so PerformancePage
       // can compare L1–L6 and the ML ensemble can learn from each model's track record.
-      await Promise.all(
-        pred.predictions
-          .filter(p => !p.degraded)
-          .map(p => saveEvaluation({
-            model_name: p.predictorName,
-            fixture_id: fixture.id,
-            home_team_id: fixture.home_team_id,
-            away_team_id: fixture.away_team_id,
-            home_goals: hg, away_goals: ag,
-            home_win: p.outcome.homeWin, draw: p.outcome.draw, away_win: p.outcome.awayWin, actual,
-            brier_score: brierScore(p.outcome, actual),
-            ranked_probability_score: rankedProbabilityScore(p.outcome, actual),
-            log_loss: logLoss(p.outcome, actual),
-            top_pick_correct: topPick(p.outcome) === actual,
-          })),
-      );
+      // Clear any prior rows for this fixture first so re-recording stays idempotent.
+      await deleteEvaluationsForFixtures([fixture.id]);
+      await saveEvaluations(buildEvaluationRows(pred.predictions, fixture, hg, ag));
       setEvalDone(prev => new Set(prev).add(fixture.id));
       qc.invalidateQueries({ queryKey: ['wc-results'] });
       qc.invalidateQueries({ queryKey: ['evaluations'] });
