@@ -26,10 +26,10 @@ const ALL_MODELS = [
   'Ranking FIFA',
   'Elo',
   'Forma reciente',
-  'Goles',
+  'Modelo de goles (Poisson)',
   'Potencial del plantel',
-  'Contexto',
-  'Momentum',
+  'Goles + contexto reciente',
+  'Momentum del Mundial',
 ];
 
 interface ModelStats {
@@ -289,7 +289,9 @@ export function PerformancePage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {row.n > 0 ? (
+                      {row.name === 'Base' ? (
+                        <span className="text-xs text-gray-400 italic">Siempre degradado (uniforme)</span>
+                      ) : row.n > 0 ? (
                         <WinnerBar correct={row.winnerCorrect} total={row.n} />
                       ) : (
                         <span className="text-gray-300 text-sm">Sin datos</span>

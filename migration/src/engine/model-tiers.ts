@@ -57,7 +57,7 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     shortName: 'Plantel',
     color: 'text-purple-600',
     desc: 'L4 × valor de mercado, top-5, UCL',
-    how: 'Calcula un score de fortaleza por equipo: 50% valor de mercado + 35% jugadores en top-5 ligas + 15% jugadores con UCL. Ajusta los goles esperados de L4 hasta ±10% según la diferencia de scores.',
+    how: 'Calcula un score de fortaleza por equipo: 40% valor de mercado + 35% jugadores en top-5 ligas + 25% jugadores con UCL. Ajusta los goles esperados de L4 hasta ±25% según la diferencia de scores. Diferencias extremas (p.ej. England vs Haiti) saturan al máximo boost.',
   },
   'Goles + contexto reciente': {
     tier: 'L5',
