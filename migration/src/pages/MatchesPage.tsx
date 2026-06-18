@@ -11,7 +11,7 @@ import {
 } from '../services/supabase-client';
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team } from '../types/domain';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
@@ -517,6 +517,170 @@ function FixtureRow({
 }
 
 // ---------------------------------------------------------------------------
+// selectBestModel — picks the model with the lowest avg Brier score (n≥30),
+// falls back to highest accuracy (n≥5), then to the Poisson L4 model.
+// ---------------------------------------------------------------------------
+
+const FALLBACK_MODEL = 'Modelo de goles (Poisson)';
+
+function selectBestModel(evals: PredictionEvaluation[]): { modelName: string; accuracy: number; n: number } {
+  type Stats = { correct: number; total: number; brierSum: number };
+  const groups = new Map<string, Stats>();
+  for (const e of evals) {
+    if (!groups.has(e.model_name)) groups.set(e.model_name, { correct: 0, total: 0, brierSum: 0 });
+    const g = groups.get(e.model_name)!;
+    g.total++;
+    if (e.top_pick_correct) g.correct++;
+    g.brierSum += e.brier_score ?? 0;
+  }
+
+  const qualified = [...groups.entries()]
+    .filter(([, g]) => g.total >= 30)
+    .map(([name, g]) => ({ name, accuracy: g.correct / g.total, avgBrier: g.brierSum / g.total, n: g.total }))
+    .sort((a, b) => a.avgBrier - b.avgBrier || b.accuracy - a.accuracy);
+  if (qualified.length > 0) return { modelName: qualified[0].name, accuracy: qualified[0].accuracy, n: qualified[0].n };
+
+  const byAccuracy = [...groups.entries()]
+    .filter(([, g]) => g.total >= 5)
+    .map(([name, g]) => ({ name, accuracy: g.correct / g.total, n: g.total }))
+    .sort((a, b) => b.accuracy - a.accuracy);
+  if (byAccuracy.length > 0) return { modelName: byAccuracy[0].name, accuracy: byAccuracy[0].accuracy, n: byAccuracy[0].n };
+
+  return { modelName: FALLBACK_MODEL, accuracy: 0, n: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// DailyConsolidatedCard — "at a glance" view of today's fixtures using the
+// best-performing model from evaluation history.
+// ---------------------------------------------------------------------------
+
+interface DailyConsolidatedCardProps {
+  fixtures: Fixture[];
+  predictions: Map<string, MatchPredictionResult>;
+  evalsData: PredictionEvaluation[];
+  teamMap: Map<string, Team>;
+  date: string;
+}
+
+function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date }: DailyConsolidatedCardProps) {
+  if (fixtures.length === 0) return null;
+  const anyComputed = fixtures.some(f => predictions.has(f.id));
+  if (!anyComputed) return null;
+
+  const allComputed = fixtures.every(f => predictions.has(f.id));
+  const { modelName, accuracy, n } = selectBestModel(evalsData);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+
+      {/* Header */}
+      <div className="px-4 py-3 bg-wc-navy/5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-black text-wc-navy">Pronóstico consolidado</span>
+          {!allComputed && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+          {date !== TODAY && (
+            <span className="text-[10px] text-gray-400">· {formatDateLabel(date)}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-gray-400 hidden sm:block truncate max-w-[9rem]">{modelName}</span>
+          {n > 0 ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
+              ★ {(accuracy * 100).toFixed(0)}%{n < 30 ? ` (${n})` : ''}
+            </span>
+          ) : (
+            <span className="text-[10px] text-gray-400 shrink-0">L4 fallback</span>
+          )}
+        </div>
+      </div>
+
+      {/* Fixture rows */}
+      <div className="divide-y divide-gray-50">
+        {fixtures.map(f => {
+          const result = predictions.get(f.id);
+          const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
+          const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+
+          let homeWin = 0, draw = 0, awayWin = 0;
+          if (result) {
+            const modelPred = result.predictions.find(p => p.predictorName === modelName && !p.degraded);
+            const src = modelPred ?? result.bestPrediction;
+            homeWin = src.outcome.homeWin;
+            draw    = src.outcome.draw;
+            awayWin = src.outcome.awayWin;
+          }
+
+          const maxProb = Math.max(homeWin, draw, awayWin);
+          const isHighConf = result !== undefined && maxProb >= 0.65;
+          const favoredLabel = homeWin >= draw && homeWin >= awayWin
+            ? `L ${(homeWin * 100).toFixed(0)}%`
+            : awayWin >= draw
+              ? `V ${(awayWin * 100).toFixed(0)}%`
+              : `E ${(draw * 100).toFixed(0)}%`;
+
+          return (
+            <div key={f.id} className={`px-4 py-3 ${isHighConf ? 'bg-amber-50/40' : ''}`}>
+              <div className="flex items-center gap-2">
+                {/* Time */}
+                <span className="text-[10px] font-semibold text-gray-400 shrink-0 w-10 tabular-nums">
+                  {f.kickoff_utc ? kickoffART(f.kickoff_utc) : '—'}
+                </span>
+
+                {/* Home */}
+                <FlagImg id={f.home_team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
+                <span className="text-xs font-semibold text-gray-700 truncate w-20 sm:w-24">{homeName}</span>
+
+                {/* Mini 3-color prob bar */}
+                {result ? (
+                  <div className="flex-1 flex gap-px h-1.5 rounded-full overflow-hidden min-w-0">
+                    <div className="bg-wc-navy shrink-0" style={{ width: `${homeWin * 100}%` }} />
+                    <div className="bg-gray-300 shrink-0" style={{ width: `${draw * 100}%` }} />
+                    <div className="bg-wc-red shrink-0" style={{ width: `${awayWin * 100}%` }} />
+                  </div>
+                ) : (
+                  <div className="flex-1 h-1.5 rounded-full bg-gray-100 animate-pulse" />
+                )}
+
+                {/* Away */}
+                <span className="text-xs font-semibold text-gray-700 truncate w-20 sm:w-24 text-right">{awayName}</span>
+                <FlagImg id={f.away_team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
+
+                {/* Confidence chip */}
+                <div className="shrink-0 w-16 text-right">
+                  {result ? (
+                    isHighConf ? (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                        🔥 {(maxProb * 100).toFixed(0)}%
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-500 tabular-nums">{favoredLabel}</span>
+                    )
+                  ) : (
+                    <span className="text-[10px] text-gray-300">…</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-2 border-t border-gray-50 flex items-center gap-1.5">
+        <Info className="w-3 h-3 text-gray-300 shrink-0" />
+        <p className="text-[10px] text-gray-400">
+          {n >= 30
+            ? `Mejor Brier Score · ${modelName} · ${n} partidos evaluados`
+            : n >= 5
+              ? `Mejor porcentaje de aciertos · ${modelName} · ${n} partidos`
+              : `Modelo por defecto (pocos datos históricos aún)`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TournamentPace — "Racha del Mundial" journalistic widget
 // Compares WC2026 avg goals/match to the historical WC baseline (2.50)
 // Also shows the detected daily scoring streak (from daily-pattern.ts)
@@ -675,6 +839,26 @@ export function MatchesPage() {
     setPredictions(prev => new Map(prev).set(fixture.id, result));
     setExpandingId(null);
   }, [engine, teamMap, ratingsList, contextMap, wcResults, fixtures, modelWeights]);
+
+  // Pre-compute predictions for the selected day so DailyConsolidatedCard
+  // can render immediately without waiting for the user to expand each fixture.
+  useEffect(() => {
+    if (!engine || todayFixtures.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const f of todayFixtures) {
+        if (cancelled) break;
+        await new Promise(r => setTimeout(r, 0));
+        if (cancelled) break;
+        const ctx = engine.buildContext(f, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
+        const result = engine.predict(ctx, modelWeights.size >= 2 ? modelWeights : undefined);
+        setPredictions(prev => prev.has(f.id) ? prev : new Map(prev).set(f.id, result));
+      }
+    })();
+    return () => { cancelled = true; };
+  // Re-run only when the engine becomes ready, the day changes, or weights update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, selectedDate, modelWeights]);
 
   const expand = useCallback(async (fixture: Fixture) => {
     const isSame = expandedId === fixture.id;
@@ -877,6 +1061,19 @@ export function MatchesPage() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* PRONÓSTICO CONSOLIDADO DEL DÍA (solo cuando no busca)              */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && (
+        <DailyConsolidatedCard
+          fixtures={todayFixtures}
+          predictions={predictions}
+          evalsData={evalsData ?? []}
+          teamMap={teamMap}
+          date={selectedDate}
+        />
       )}
 
       {/* ------------------------------------------------------------------ */}
