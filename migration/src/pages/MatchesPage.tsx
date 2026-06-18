@@ -602,12 +602,24 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
           const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
 
           let homeWin = 0, draw = 0, awayWin = 0;
+          let scoreStr: string | null = null;
           if (result) {
             const modelPred = result.predictions.find(p => p.predictorName === modelName && !p.degraded);
             const src = modelPred ?? result.bestPrediction;
             homeWin = src.outcome.homeWin;
             draw    = src.outcome.draw;
             awayWin = src.outcome.awayWin;
+            // Pick the most likely score for the dominant outcome — ensures
+            // the score is always coherent with the winner/draw prediction.
+            if (src.scoreline) {
+              const perOutcome = mostLikelyScorePerOutcome(src.scoreline);
+              const domScore = homeWin >= draw && homeWin >= awayWin
+                ? perOutcome.homeWin
+                : awayWin >= draw
+                  ? perOutcome.awayWin
+                  : perOutcome.draw;
+              if (domScore) scoreStr = `${domScore.home}-${domScore.away}`;
+            }
           }
 
           const maxProb = Math.max(homeWin, draw, awayWin);
@@ -645,15 +657,17 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
                 <span className="text-xs font-semibold text-gray-700 truncate w-20 sm:w-24 text-right">{awayName}</span>
                 <FlagImg id={f.away_team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
 
-                {/* Confidence chip */}
-                <div className="shrink-0 w-16 text-right">
+                {/* Score + confidence chip */}
+                <div className="shrink-0 w-24 text-right">
                   {result ? (
                     isHighConf ? (
                       <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                        🔥 {(maxProb * 100).toFixed(0)}%
+                        🔥 {scoreStr ? `${scoreStr} · ` : ''}{(maxProb * 100).toFixed(0)}%
                       </span>
                     ) : (
-                      <span className="text-[10px] text-gray-500 tabular-nums">{favoredLabel}</span>
+                      <span className="text-[10px] text-gray-500 tabular-nums">
+                        {scoreStr ? `${scoreStr} · ` : ''}{favoredLabel}
+                      </span>
                     )
                   ) : (
                     <span className="text-[10px] text-gray-300">…</span>
