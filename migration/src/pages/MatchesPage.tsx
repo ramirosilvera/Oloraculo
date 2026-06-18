@@ -583,10 +583,10 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-gray-400 hidden sm:block truncate max-w-[9rem]">{modelName}</span>
+          <span className="text-[10px] text-gray-400 hidden sm:block">Plantel % · Momentum ⚽</span>
           {n > 0 ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
-              ★ {(accuracy * 100).toFixed(0)}%{n < 30 ? ` (${n})` : ''}
+              ★ {(accuracy * 100).toFixed(0)}%
             </span>
           ) : (
             <span className="text-[10px] text-gray-400 shrink-0">L4 fallback</span>
@@ -604,15 +604,20 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
           let homeWin = 0, draw = 0, awayWin = 0;
           let scoreStr: string | null = null;
           if (result) {
-            const modelPred = result.predictions.find(p => p.predictorName === modelName && !p.degraded);
-            const src = modelPred ?? result.bestPrediction;
-            homeWin = src.outcome.homeWin;
-            draw    = src.outcome.draw;
-            awayWin = src.outcome.awayWin;
-            // Pick the most likely score for the dominant outcome — ensures
-            // the score is always coherent with the winner/draw prediction.
-            if (src.scoreline) {
-              const perOutcome = mostLikelyScorePerOutcome(src.scoreline);
+            // Probabilities: Plantel has the best winner/draw accuracy
+            const plantelPred  = result.predictions.find(p => p.predictorName === 'Potencial del plantel'  && !p.degraded);
+            // Score: Momentum has the best exact-score accuracy
+            const momentumPred = result.predictions.find(p => p.predictorName === 'Momentum del Mundial' && !p.degraded);
+            // Cascade fallbacks so the card always shows something
+            const probSrc  = plantelPred  ?? momentumPred ?? result.bestPrediction;
+            const scoreSrc = momentumPred ?? plantelPred  ?? result.bestPrediction;
+            homeWin = probSrc.outcome.homeWin;
+            draw    = probSrc.outcome.draw;
+            awayWin = probSrc.outcome.awayWin;
+            // Score conditioned on the dominant outcome from probSrc — guarantees
+            // the displayed scoreline always agrees with the winner/draw percentages.
+            if (scoreSrc.scoreline) {
+              const perOutcome = mostLikelyScorePerOutcome(scoreSrc.scoreline);
               const domScore = homeWin >= draw && homeWin >= awayWin
                 ? perOutcome.homeWin
                 : awayWin >= draw
@@ -683,11 +688,8 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
       <div className="px-4 py-2 border-t border-gray-50 flex items-center gap-1.5">
         <Info className="w-3 h-3 text-gray-300 shrink-0" />
         <p className="text-[10px] text-gray-400">
-          {n >= 30
-            ? `Mejor Brier Score · ${modelName} · ${n} partidos evaluados`
-            : n >= 5
-              ? `Mejor porcentaje de aciertos · ${modelName} · ${n} partidos`
-              : `Modelo por defecto (pocos datos históricos aún)`}
+          % ganador/empate: Potencial del plantel · Marcador: Momentum del Mundial
+          {n >= 5 ? ` · ${(accuracy * 100).toFixed(0)}% aciertos (${n} partidos)` : ''}
         </p>
       </div>
     </div>

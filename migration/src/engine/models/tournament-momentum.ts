@@ -57,20 +57,30 @@ export function tournamentMomentumPredict(
   const inflation = clamp(ctx.tournamentGoalInflation ?? 1.0, 0.5, 3.0);
 
   // Phase 1: apply tournament inflation to the base goal model
+  // Cap inflation × goalMod compounding at 1.7× to avoid unrealistic λ
   const tournamentHome = baseHome * inflation;
   const tournamentAway = baseAway * inflation;
 
-  // Phase 2: additive momentum push in actual goal units
-  // dynamicBoost scales with sqrt(inflation) so stronger momentum push in high-scoring WCs
+  // Phase 2: additive momentum push in actual goal units.
+  // Blend form-based netDiff (50%) with in-tournament goals-per-game ratio (50%).
+  // The goals blend anchors the push to observed scoring pace — a team averaging
+  // 4 goals/game pushes significantly more than one averaging 1 goal/game, even
+  // if both won their matches.
+  const homeAvgGoals = homeTF && homeTF.played > 0 ? homeTF.goalsFor / homeTF.played : baseHome;
+  const awayAvgGoals = awayTF && awayTF.played > 0 ? awayTF.goalsFor / awayTF.played : baseAway;
+  const goalRatioPush = clamp((homeAvgGoals - awayAvgGoals) / 2.5, -1, 1);
+  const blendedDiff = clamp(netDiff * 0.5 + goalRatioPush * 0.5, -1, 1);
+
   const dynamicBoost = clamp(BASE_BOOST * Math.sqrt(inflation), BASE_BOOST, 0.88);
-  // Positive netDiff → home team has more in-tournament momentum → they get extra goals
-  const momentumPush = netDiff * inflation * dynamicBoost;
+  const momentumPush = blendedDiff * inflation * dynamicBoost;
 
   // Phase 3 (pre-player): apply confirmed daily scoring streak modifiers.
   // goalModifier scales overall goal volume; pushModifier amplifies directional spread.
   const ps = ctx.dailyPatternSignal;
-  const goalMod = ps?.isConfirmed ? ps.goalModifier : 1.0;
+  const rawGoalMod = ps?.isConfirmed ? ps.goalModifier : 1.0;
   const pushMod = ps?.isConfirmed ? ps.pushModifier : 1.0;
+  // Cap total compounding so inflation × goalMod never exceeds 1.7× base
+  const goalMod = inflation * rawGoalMod > 1.7 ? 1.7 / inflation : rawGoalMod;
 
   let homeGoals = tournamentHome * goalMod + momentumPush * pushMod;
   let awayGoals = tournamentAway * goalMod - momentumPush * pushMod;
@@ -98,8 +108,9 @@ export function tournamentMomentumPredict(
   homeGoals = Math.max(0.3, homeGoals);
   awayGoals = Math.max(0.3, awayGoals);
 
-  // Use maxGoals=10 to handle high-scoring predictions properly (WC2026 pace)
-  const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.03);
+  // Use maxGoals=10; rho=-0.08 (more aggressive than L4's -0.03) to reduce
+  // over-weighting of 0-0 and 1-1 and improve exact score calibration.
+  const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.08);
 
   // L6 uses round(expectedGoals) instead of the joint Poisson mode.
   // The Poisson mode floors λ, so λ=0.97 → mode=0 (drops a predicted goal).
@@ -109,7 +120,7 @@ export function tournamentMomentumPredict(
   const pushSign = momentumPush >= 0 ? '+' : '';
   const drivers: string[] = [
     `Inflación goleadora: ×${inflation.toFixed(2)} (base: ${baseHome.toFixed(2)}-${baseAway.toFixed(2)} → torneo: ${tournamentHome.toFixed(2)}-${tournamentAway.toFixed(2)})`,
-    `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(2)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(2)} (diff ${netDiff.toFixed(2)}) → push ${pushSign}${momentumPush.toFixed(2)} goles [boost ×${dynamicBoost.toFixed(2)}]`,
+    `Momentum: diff forma ${netDiff.toFixed(2)} · diff goles/partido ${goalRatioPush.toFixed(2)} → blend ${blendedDiff.toFixed(2)} → push ${pushSign}${momentumPush.toFixed(2)} goles [boost ×${dynamicBoost.toFixed(2)}]`,
   ];
 
   if (ps?.isConfirmed) {
