@@ -539,6 +539,67 @@ function modelStats(evals: PredictionEvaluation[], modelName: string): ModelStat
 }
 
 // ---------------------------------------------------------------------------
+// topScorelines — frequency table of canonical scorelines from WC results.
+// Canonicalized: larger score first (1-0 and 0-1 → "1-0") so draws stay
+// symmetric (0-0, 1-1) and one-goal wins all count together regardless of
+// which team scored first. Nulls filtered for safety.
+// ---------------------------------------------------------------------------
+function topScorelines(
+  results: WcActualResult[],
+  n: number,
+): Array<{ score: string; count: number }> {
+  const freq = new Map<string, number>();
+  for (const r of results) {
+    if (r.home_goals == null || r.away_goals == null) continue;
+    const hi = Math.max(r.home_goals, r.away_goals);
+    const lo = Math.min(r.home_goals, r.away_goals);
+    const key = `${hi}-${lo}`;
+    freq.set(key, (freq.get(key) ?? 0) + 1);
+  }
+  return [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([score, count]) => ({ score, count }));
+}
+
+const SCORELINE_MEDALS = ['🥇', '🥈', '🥉'] as const;
+
+function TopScorelines({ wcResults }: { wcResults: WcActualResult[] }) {
+  if (wcResults.length < 6) return null;
+  const top = topScorelines(wcResults, 3);
+  if (top.length === 0) return null;
+  const maxCount = top[0].count;
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+        <p className="font-black text-sm text-gray-800">Marcadores más repetidos</p>
+        <span className="text-[10px] text-gray-400 tabular-nums shrink-0">{wcResults.length} partidos</span>
+      </div>
+      <div className="px-4 pb-3 space-y-2.5">
+        {top.map((item, i) => (
+          <div key={item.score} className="flex items-center gap-2">
+            <span className="text-base leading-none shrink-0">{SCORELINE_MEDALS[i]}</span>
+            <span className="shrink-0 text-sm font-black text-wc-navy bg-wc-navy/10 px-2.5 py-0.5 rounded-full tabular-nums">
+              {item.score}
+            </span>
+            <div className="flex-1 bg-wc-gold/15 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-wc-gold transition-all"
+                style={{ width: `${(item.count / maxCount) * 100}%` }}
+              />
+            </div>
+            <span className="shrink-0 text-[10px] text-gray-500 tabular-nums">
+              ×{item.count} · {((item.count / wcResults.length) * 100).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TournamentPace — "Racha del Mundial" journalistic widget
 // Compares WC2026 avg goals/match to the historical WC baseline (2.50)
 // Also shows the detected daily scoring streak (from daily-pattern.ts)
@@ -700,8 +761,8 @@ export function MatchesPage() {
     setExpandingId(null);
   }, [engine, teamMap, ratingsList, contextMap, wcResults, fixtures, modelWeights]);
 
-  // Pre-compute predictions for the selected day so DailyConsolidatedCard
-  // can render immediately without waiting for the user to expand each fixture.
+  // Pre-compute predictions for the selected day so the prediction strip in
+  // each fixture row renders immediately without waiting for the user to expand.
   useEffect(() => {
     if (!engine || todayFixtures.length === 0) return;
     let cancelled = false;
@@ -897,6 +958,13 @@ export function MatchesPage() {
       {/* ------------------------------------------------------------------ */}
       {wcResults && wcResults.length >= 3 && (
         <TournamentPace wcResults={wcResults} dailySignal={dailySignal} />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* MARCADORES MÁS REPETIDOS (mínimo 6 partidos para significancia)     */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && wcResults && wcResults.length >= 6 && (
+        <TopScorelines wcResults={wcResults} />
       )}
 
       {/* ------------------------------------------------------------------ */}
