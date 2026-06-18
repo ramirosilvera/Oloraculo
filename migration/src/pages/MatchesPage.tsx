@@ -562,38 +562,102 @@ function topScorelines(
     .map(([score, count]) => ({ score, count }));
 }
 
+// All-time WC (1930-2022), 964 matches. Source: FIFA.com
+const WC_HISTORICAL_SCORELINES = [
+  { score: '1-0', count: 182, pct: 18.9 },
+  { score: '2-1', count: 152, pct: 15.8 },
+  { score: '2-0', count: 111, pct: 11.5 },
+  { score: '1-1', count: 92,  pct: 9.5  },
+  { score: '0-0', count: 78,  pct: 8.1  },
+] as const;
+const WC_HISTORICAL_MATCHES = 964;
+
 const SCORELINE_MEDALS = ['🥇', '🥈', '🥉'] as const;
 
 function TopScorelines({ wcResults }: { wcResults: WcActualResult[] }) {
-  if (wcResults.length < 6) return null;
-  const top = topScorelines(wcResults, 3);
-  if (top.length === 0) return null;
-  const maxCount = top[0].count;
+  const liveTop = wcResults.length >= 6 ? topScorelines(wcResults, 3) : [];
+  const liveMap = new Map(liveTop.map(x => [x.score, x.count]));
+
+  // Always show all 5 historical benchmarks; annotate with live count where available
+  const rows = WC_HISTORICAL_SCORELINES.map((h, i) => ({
+    score:      h.score,
+    histPct:    h.pct,
+    histCount:  h.count,
+    liveCount:  liveMap.get(h.score) ?? 0,
+    livePct:    liveMap.has(h.score)
+                  ? (liveMap.get(h.score)! / wcResults.length) * 100
+                  : null,
+    // medal only if it's a live top-3 result
+    medal:      liveTop.findIndex(x => x.score === h.score),
+  }));
+
+  // Bar scale: max of all live % vs all hist %, so bars are comparable
+  const maxPct = Math.max(...rows.map(r => Math.max(r.histPct, r.livePct ?? 0)));
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
         <p className="font-black text-sm text-gray-800">Marcadores más repetidos</p>
-        <span className="text-[10px] text-gray-400 tabular-nums shrink-0">{wcResults.length} partidos</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {wcResults.length >= 6 && (
+            <span className="text-[10px] text-wc-gold font-semibold tabular-nums">
+              WC2026 · {wcResults.length}p
+            </span>
+          )}
+          <span className="text-[10px] text-gray-400 tabular-nums">
+            hist. {WC_HISTORICAL_MATCHES}p
+          </span>
+        </div>
       </div>
-      <div className="px-4 pb-3 space-y-2.5">
-        {top.map((item, i) => (
-          <div key={item.score} className="flex items-center gap-2">
-            <span className="text-base leading-none shrink-0">{SCORELINE_MEDALS[i]}</span>
-            <span className="shrink-0 text-sm font-black text-wc-navy bg-wc-navy/10 px-2.5 py-0.5 rounded-full tabular-nums">
-              {item.score}
-            </span>
-            <div className="flex-1 bg-wc-gold/15 rounded-full h-1.5 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-wc-gold transition-all"
-                style={{ width: `${(item.count / maxCount) * 100}%` }}
-              />
+      <div className="px-4 pb-3 space-y-3">
+        {rows.map((row) => (
+          <div key={row.score}>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-sm leading-none shrink-0 w-5 text-center">
+                {row.medal >= 0 ? SCORELINE_MEDALS[row.medal] : ''}
+              </span>
+              <span className="shrink-0 text-sm font-black text-wc-navy bg-wc-navy/10 px-2.5 py-0.5 rounded-full tabular-nums">
+                {row.score}
+              </span>
+              <div className="flex-1 min-w-0 space-y-0.5">
+                {/* Live WC 2026 bar */}
+                {wcResults.length >= 6 && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex-1 bg-wc-gold/15 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-wc-gold transition-all"
+                        style={{ width: row.livePct != null ? `${(row.livePct / maxPct) * 100}%` : '0%' }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-wc-gold font-semibold tabular-nums w-8 text-right">
+                      {row.livePct != null ? `${row.livePct.toFixed(0)}%` : '—'}
+                    </span>
+                  </div>
+                )}
+                {/* Historical baseline bar */}
+                <div className="flex items-center gap-1.5">
+                  <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gray-300 transition-all"
+                      style={{ width: `${(row.histPct / maxPct) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 tabular-nums w-8 text-right">
+                    {row.histPct.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
             </div>
-            <span className="shrink-0 text-[10px] text-gray-500 tabular-nums">
-              ×{item.count} · {((item.count / wcResults.length) * 100).toFixed(0)}%
-            </span>
           </div>
         ))}
+        {wcResults.length > 0 && wcResults.length < 30 && (
+          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 flex items-center gap-1">
+            ⚠ Muestra pequeña ({wcResults.length} partidos) · porcentajes provisorios
+          </p>
+        )}
+        <p className="text-[9px] text-gray-300 text-right">
+          Histórico FIFA 1930–2022 · barras grises · {WC_HISTORICAL_MATCHES} partidos
+        </p>
       </div>
     </div>
   );
@@ -961,9 +1025,9 @@ export function MatchesPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* MARCADORES MÁS REPETIDOS (mínimo 6 partidos para significancia)     */}
+      {/* MARCADORES MÁS REPETIDOS — histórico siempre visible, live desde 6p  */}
       {/* ------------------------------------------------------------------ */}
-      {!isSearching && wcResults && wcResults.length >= 6 && (
+      {!isSearching && wcResults && (
         <TopScorelines wcResults={wcResults} />
       )}
 
