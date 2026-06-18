@@ -117,6 +117,7 @@ export interface PredictionEvaluation {
   ranked_probability_score: number;
   log_loss: number;
   top_pick_correct: boolean;
+  exact_score_correct?: boolean | null;
   predicted_at: string;
 }
 

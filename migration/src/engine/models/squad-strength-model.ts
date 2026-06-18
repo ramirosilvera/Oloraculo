@@ -3,19 +3,23 @@
 // Adjusts Goal Model expected goals using squad market value, top-5 league
 // presence and Champions League experience.
 //
-// Score formula:
+// Score formula (UCL raised to 25% — more predictive in WC knockout context):
 //   valuePct    = market_value_m / maxValueInTournament
 //   top5Pct     = top5_league_count / squad_size
 //   uclPct      = ucl_players / squad_size
-//   strength    = 0.50 * valuePct + 0.35 * top5Pct + 0.15 * uclPct
+//   strength    = 0.40 * valuePct + 0.35 * top5Pct + 0.25 * uclPct
 //
-// Adjustment:
+// Adjustment (higher SQUAD_BOOST = 0.25 → ±25% max impact on Poisson goals):
 //   avgStrength = mean(all strengths)
-//   homeAdj     = (homeStrength - avg) / avg
+//   homeAdj     = (homeStrength - avg) / avg   → saturates near ±1 for extremes
 //   awayAdj     = (awayStrength - avg) / avg
 //   netDiff     = clamp(homeAdj - awayAdj, -1, 1)
 //   homeGoals   = baseHome * (1 + netDiff * SQUAD_BOOST)
 //   awayGoals   = baseAway * (1 - netDiff * SQUAD_BOOST)
+//
+// Design intent: clear mismatches (e.g. England €1380M vs Haiti €12M) saturate
+// netDiff → 1.0 and receive the full 25% boost, while near-equal squads get
+// close to zero adjustment.
 // =============================================================================
 
 import type { MatchContext, MatchPrediction, SquadStrengthEntry } from '../../types/domain';
@@ -26,7 +30,7 @@ import {
 } from '../probability-helper';
 import type { GoalModel } from './goal-model';
 
-const SQUAD_BOOST = 0.10;
+const SQUAD_BOOST = 0.25;
 const LOW_SCORE_RHO = -0.03;
 
 function clamp(value: number, min: number, max: number): number {
@@ -72,7 +76,7 @@ function computeAllScores(
     const valuePct = entry.market_value_m / maxValue;
     const top5Pct  = entry.top5_league_count / size;
     const uclPct   = entry.ucl_players / size;
-    const score    = 0.50 * valuePct + 0.35 * top5Pct + 0.15 * uclPct;
+    const score    = 0.40 * valuePct + 0.35 * top5Pct + 0.25 * uclPct;
     scores.set(teamId, score);
   }
   return scores;
