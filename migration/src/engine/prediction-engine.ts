@@ -192,7 +192,7 @@ export class PredictionEngine {
     };
   }
 
-  predict(ctx: MatchContext): MatchPredictionResult {
+  predict(ctx: MatchContext, modelWeights?: Map<string, number>): MatchPredictionResult {
     const ladder: MatchPrediction[] = [
       nullModelPredict(ctx),
       fifaModelPredict(ctx),
@@ -208,7 +208,7 @@ export class PredictionEngine {
       homeTeamName: ctx.homeTeam.name,
       awayTeamName: ctx.awayTeam.name,
       predictions: ladder,
-      bestPrediction: selectFinalPrediction(ladder),
+      bestPrediction: selectFinalPrediction(ladder, modelWeights),
     };
   }
 
@@ -219,8 +219,9 @@ export class PredictionEngine {
     ratings: Rating[],
     fixtureContexts: Map<string, import('../types/domain').FixtureContext>,
     wcResults?: WcActualResult[],
+    modelWeights?: Map<string, number>,
   ): MatchPredictionResult[] {
-    return fixtures.map(f => this.predict(this.buildContext(f, teams, ratings, fixtureContexts, wcResults, fixtures)));
+    return fixtures.map(f => this.predict(this.buildContext(f, teams, ratings, fixtureContexts, wcResults, fixtures), modelWeights));
   }
 }
 
@@ -244,6 +245,7 @@ export function predictPair(
     wcResults?: WcActualResult[];
     allFixtures?: Fixture[];
     fixtureContexts?: Map<string, import('../types/domain').FixtureContext>;
+    modelWeights?: Map<string, number>;
   },
 ): MatchPredictionResult {
   const engine = opts?.engine ?? new PredictionEngine(allResults);
@@ -267,5 +269,5 @@ export function predictPair(
     opts?.wcResults,
     opts?.allFixtures,
   );
-  return engine.predict(ctx);
+  return engine.predict(ctx, opts?.modelWeights);
 }

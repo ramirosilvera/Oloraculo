@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart2, TrendingDown, CheckCircle2, Zap, AlertTriangle, Info } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { loadEvaluations } from '../services/supabase-client';
+import { computeModelWeights } from '../engine/final-selector';
 import type { ModelPerformanceRow, PredictionEvaluation, WcActualResult } from '../types/domain';
 import {
   Card,
@@ -13,6 +14,17 @@ import {
   SkeletonCard,
   Skeleton,
 } from '../components/ui';
+
+// Human-readable tier labels for each model in the prediction ladder
+const MODEL_TIERS: Record<string, { tier: string; desc: string }> = {
+  'Base':                    { tier: 'L0', desc: 'Probabilidad uniforme (baseline)' },
+  'Ranking FIFA':            { tier: 'L1', desc: 'Basado en puntos FIFA' },
+  'Elo':                     { tier: 'L2', desc: 'Rating Elo histórico' },
+  'Forma reciente':          { tier: 'L3', desc: 'Elo + últimas 8 fechas' },
+  'Modelo de goles (Poisson)': { tier: 'L4', desc: 'Dixon-Coles, histórico 8 años' },
+  'Goles + contexto reciente': { tier: 'L5', desc: 'L4 + disponibilidad de jugadores' },
+  'Momentum del Mundial':    { tier: 'L6', desc: 'L4 + inflación + momentum WC' },
+};
 
 function groupEvaluations(evals: PredictionEvaluation[]): ModelPerformanceRow[] {
   const byModel = new Map<string, PredictionEvaluation[]>();
@@ -202,6 +214,8 @@ export function PerformancePage() {
   }
 
   const rows = groupEvaluations(evals);
+  const modelWeights = computeModelWeights(evals);
+  const isEnsembleActive = modelWeights.size >= 2;
 
   const totalPreds = evals.length;
   const avgBrier = evals.reduce((s, e) => s + e.brier_score, 0) / evals.length;
@@ -255,10 +269,30 @@ export function PerformancePage() {
         </div>
       </Card>
 
+      <div className={`flex items-start gap-3 p-4 rounded-xl border ${
+        isEnsembleActive
+          ? 'bg-wc-navy/5 border-wc-navy/20'
+          : 'bg-gray-50 border-gray-200'
+      }`}>
+        <Info className={`w-5 h-5 shrink-0 mt-0.5 ${isEnsembleActive ? 'text-wc-navy' : 'text-gray-400'}`} />
+        <div>
+          <p className={`font-bold text-sm ${isEnsembleActive ? 'text-wc-navy' : 'text-gray-600'}`}>
+            {isEnsembleActive
+              ? `Ensemble adaptativo activo — ${modelWeights.size} modelos combinados`
+              : 'Ensemble adaptativo inactivo'}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {isEnsembleActive
+              ? 'Las predicciones combinan todos los modelos con pesos aprendidos de su Brier Score histórico. El porcentaje de cada modelo se muestra en la tabla.'
+              : `Se necesitan al menos 5 resultados por modelo para activar el ensemble. Actualmente el Oráculo selecciona el escalón más alto disponible.`}
+          </p>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <p className="font-semibold text-wc-navy">Métricas por modelo</p>
-          <p className="text-xs text-gray-400 mt-0.5">Brier Score y LogLoss: menor = mejor · Aciertos: mayor = mejor</p>
+          <p className="text-xs text-gray-400 mt-0.5">Brier Score y LogLoss: menor = mejor · Aciertos: mayor = mejor {isEnsembleActive ? '· % = peso en el ensemble' : ''}</p>
         </CardHeader>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -285,22 +319,35 @@ export function PerformancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((row, i) => (
-                <tr key={row.modelName} className={`hover:bg-wc-cream/30 transition-colors ${i === 0 ? 'bg-green-50/40' : ''}`}>
-                  <td className="px-5 py-3">
-                    <span className="flex items-center gap-1.5 font-semibold text-gray-800">
-                      {i === 0 && <span className="text-amber-500">★</span>}
-                      {row.modelName}
-                      {i === 0 && <Badge color="green">mejor</Badge>}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{row.count}</td>
-                  <td className="px-4 py-3 text-right"><ScoreCell value={row.topPickAccuracy} /></td>
-                  <td className="px-4 py-3 text-right"><ScoreCell value={row.avgBrierScore} low /></td>
-                  <td className="px-4 py-3 text-right hidden sm:table-cell"><ScoreCell value={row.avgRps} low /></td>
-                  <td className="px-5 py-3 text-right hidden sm:table-cell"><ScoreCell value={row.avgLogLoss} low /></td>
-                </tr>
-              ))}
+              {rows.map((row, i) => {
+                const tier = MODEL_TIERS[row.modelName];
+                const weight = modelWeights.get(row.modelName);
+                return (
+                  <tr key={row.modelName} className={`hover:bg-wc-cream/30 transition-colors ${i === 0 ? 'bg-green-50/40' : ''}`}>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {i === 0 && <span className="text-amber-500">★</span>}
+                        <div>
+                          <span className="font-semibold text-gray-800">{row.modelName}</span>
+                          {tier && <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>}
+                          {tier && <p className="text-xs text-gray-400">{tier.desc}</p>}
+                        </div>
+                        {i === 0 && <Badge color="green">mejor</Badge>}
+                        {weight !== undefined && (
+                          <span className="ml-auto text-xs text-wc-navy font-semibold tabular-nums">
+                            {(weight * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{row.count}</td>
+                    <td className="px-4 py-3 text-right"><ScoreCell value={row.topPickAccuracy} /></td>
+                    <td className="px-4 py-3 text-right"><ScoreCell value={row.avgBrierScore} low /></td>
+                    <td className="px-4 py-3 text-right hidden sm:table-cell"><ScoreCell value={row.avgRps} low /></td>
+                    <td className="px-5 py-3 text-right hidden sm:table-cell"><ScoreCell value={row.avgLogLoss} low /></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

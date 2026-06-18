@@ -1,12 +1,14 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
 import {
   saveMatchSnapshot,
   saveEvaluation,
   saveWcActualResult,
   upsertFixtureContext,
+  loadEvaluations,
 } from '../services/supabase-client';
+import { computeModelWeights } from '../engine/final-selector';
 import {
   brierScore,
   rankedProbabilityScore,
@@ -638,6 +640,10 @@ export function MatchesPage() {
   const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, isLoading, error } = useAppData();
   const qc = useQueryClient();
 
+  // Load evaluation history to power ML ensemble blending
+  const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
+  const modelWeights = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
+
   const [expandedId, setExpandedId]     = useState<string | null>(null);
   const [expandingId, setExpandingId]   = useState<string | null>(null);
   const [predictions, setPredictions]   = useState<Map<string, MatchPredictionResult>>(new Map());
@@ -680,10 +686,10 @@ export function MatchesPage() {
     if (!fixture) return;
     pendingFixtureRef.current = null;
     const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
-    const result = engine.predict(ctx);
+    const result = engine.predict(ctx, modelWeights.size >= 2 ? modelWeights : undefined);
     setPredictions(prev => new Map(prev).set(fixture.id, result));
     setExpandingId(null);
-  }, [engine, teamMap, ratingsList, contextMap, wcResults, fixtures]);
+  }, [engine, teamMap, ratingsList, contextMap, wcResults, fixtures, modelWeights]);
 
   const expand = useCallback(async (fixture: Fixture) => {
     const isSame = expandedId === fixture.id;
@@ -702,10 +708,10 @@ export function MatchesPage() {
     // Yield to browser so the expanded row renders before the heavy compute
     await new Promise(r => setTimeout(r, 0));
     const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
-    const result = engine.predict(ctx);
+    const result = engine.predict(ctx, modelWeights.size >= 2 ? modelWeights : undefined);
     setPredictions(prev => new Map(prev).set(fixture.id, result));
     setExpandingId(null);
-  }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap, wcResults, fixtures]);
+  }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap, wcResults, fixtures, modelWeights]);
 
   const handleContextSaved = useCallback(async (fixture: Fixture, ctx: FixtureContext) => {
     // Persist to Supabase
@@ -717,13 +723,13 @@ export function MatchesPage() {
       await new Promise(r => setTimeout(r, 0));
       const tempCtxMap = new Map(contextMap).set(fixture.id, ctx);
       const c = engine.buildContext(fixture, teamMap, ratingsList, tempCtxMap, wcResults ?? [], fixtures);
-      const result = engine.predict(c);
+      const result = engine.predict(c, modelWeights.size >= 2 ? modelWeights : undefined);
       setPredictions(prev => new Map(prev).set(fixture.id, result));
       setExpandingId(null);
     }
     // Refresh the persisted context map in the background
     qc.invalidateQueries({ queryKey: ['contexts'] });
-  }, [engine, contextMap, teamMap, ratingsList, qc, wcResults, fixtures]);
+  }, [engine, contextMap, teamMap, ratingsList, qc, wcResults, fixtures, modelWeights]);
 
   const saveSnapshot = async (fixture: Fixture) => {
     const pred = predictions.get(fixture.id);
@@ -753,22 +759,28 @@ export function MatchesPage() {
     setSaving(fixture.id);
     try {
       await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag });
-      const actual = hg > ag ? 'Home' : hg === ag ? 'Draw' : 'Away';
-      const p = pred.bestPrediction.outcome;
-      await saveEvaluation({
-        model_name: pred.bestPrediction.predictorName,
-        fixture_id: fixture.id,
-        home_team_id: fixture.home_team_id,
-        away_team_id: fixture.away_team_id,
-        home_goals: hg, away_goals: ag,
-        home_win: p.homeWin, draw: p.draw, away_win: p.awayWin, actual,
-        brier_score: brierScore(p, actual),
-        ranked_probability_score: rankedProbabilityScore(p, actual),
-        log_loss: logLoss(p, actual),
-        top_pick_correct: topPick(p) === actual,
-      });
+      const actual: 'Home' | 'Draw' | 'Away' = hg > ag ? 'Home' : hg === ag ? 'Draw' : 'Away';
+      // Save evaluations for ALL non-degraded ladder models so PerformancePage
+      // can compare L1–L6 and the ML ensemble can learn from each model's track record.
+      await Promise.all(
+        pred.predictions
+          .filter(p => !p.degraded)
+          .map(p => saveEvaluation({
+            model_name: p.predictorName,
+            fixture_id: fixture.id,
+            home_team_id: fixture.home_team_id,
+            away_team_id: fixture.away_team_id,
+            home_goals: hg, away_goals: ag,
+            home_win: p.outcome.homeWin, draw: p.outcome.draw, away_win: p.outcome.awayWin, actual,
+            brier_score: brierScore(p.outcome, actual),
+            ranked_probability_score: rankedProbabilityScore(p.outcome, actual),
+            log_loss: logLoss(p.outcome, actual),
+            top_pick_correct: topPick(p.outcome) === actual,
+          })),
+      );
       setEvalDone(prev => new Set(prev).add(fixture.id));
       qc.invalidateQueries({ queryKey: ['wc-results'] });
+      qc.invalidateQueries({ queryKey: ['evaluations'] });
     } catch (e) { setErr(String(e)); }
     finally { setSaving(null); }
   };
