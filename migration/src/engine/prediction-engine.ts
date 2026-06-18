@@ -14,6 +14,7 @@ import type {
   Team,
   WcActualResult,
   TournamentFormStats,
+  SquadStrengthEntry,
 } from '../types/domain';
 import {
   nullModelPredict,
@@ -23,6 +24,8 @@ import {
   goalContextModelPredict,
   GoalModel,
   tournamentMomentumPredict,
+  squadStrengthModelPredict,
+  buildSquadStrengthMap,
 } from './models';
 import { detectDailyPattern } from './models/daily-pattern';
 import { selectFinalPrediction } from './final-selector';
@@ -33,12 +36,15 @@ const GOAL_MODEL_YEARS_WINDOW = 8;
 /** Pre-built engine: fit once, predict many */
 export class PredictionEngine {
   private readonly goalModel: GoalModel;
+  private readonly squadStrengthMap: Map<string, SquadStrengthEntry>;
 
   constructor(
     private readonly allResults: MatchResult[],
     yearsWindow = GOAL_MODEL_YEARS_WINDOW,
+    squadStrengthData: Record<string, SquadStrengthEntry> = {},
   ) {
     this.goalModel = new GoalModel(allResults, yearsWindow);
+    this.squadStrengthMap = buildSquadStrengthMap(squadStrengthData);
   }
 
   private computeTournamentForm(
@@ -199,6 +205,7 @@ export class PredictionEngine {
       eloModelPredict(ctx),
       recentFormModelPredict(ctx),
       this.goalModel.predict(ctx),
+      squadStrengthModelPredict(ctx, this.goalModel, this.squadStrengthMap),
       goalContextModelPredict(ctx, this.goalModel),
       tournamentMomentumPredict(ctx, this.goalModel),
     ];

@@ -9,6 +9,7 @@ import {
   loadStaticResults,
   loadStaticFixtureContexts,
   loadStaticSquads,
+  loadStaticSquadStrength,
 } from '../services/static-data';
 import { loadAllFixtureContexts, loadWcActualResults } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
@@ -24,8 +25,9 @@ export function useAppData() {
   const results        = useQuery({ queryKey: ['results'],         queryFn: loadStaticResults,          staleTime: FOREVER });
   const ratings        = useQuery({ queryKey: ['ratings'],         queryFn: loadStaticRatings,          staleTime: FOREVER });
   // Auto-generated at build time from ESPN + OpenFootball (scripts/build-context.mjs)
-  const staticContexts = useQuery({ queryKey: ['static-contexts'], queryFn: loadStaticFixtureContexts, staleTime: FOREVER });
-  const squads         = useQuery({ queryKey: ['squads'],          queryFn: loadStaticSquads,           staleTime: FOREVER });
+  const staticContexts  = useQuery({ queryKey: ['static-contexts'],   queryFn: loadStaticFixtureContexts,  staleTime: FOREVER });
+  const squads          = useQuery({ queryKey: ['squads'],             queryFn: loadStaticSquads,            staleTime: FOREVER });
+  const squadStrength   = useQuery({ queryKey: ['squad-strength'],     queryFn: loadStaticSquadStrength,     staleTime: FOREVER });
   // Supabase: user-entered manual overrides (re-fetched every 60 s)
   const contexts       = useQuery({ queryKey: ['contexts'],        queryFn: loadAllFixtureContexts,     staleTime: 60_000 });
   // Supabase: manually-entered WC results (override for real-time corrections)
@@ -81,8 +83,8 @@ export function useAppData() {
   // Cache the engine in React Query so it's built once per session, not on
   // every page navigation (each new component instance would re-run useMemo).
   const engineQuery = useQuery({
-    queryKey: ['engine'],
-    queryFn: () => new PredictionEngine(results.data!),
+    queryKey: ['engine', !!squadStrength.data],
+    queryFn: () => new PredictionEngine(results.data!, 8, squadStrength.data ?? {}),
     staleTime: Infinity,
     gcTime: Infinity,
     enabled: !!results.data,

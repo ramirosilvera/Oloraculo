@@ -2,7 +2,7 @@
 // These files are committed to the repo and served by the CDN.
 // They never change at runtime — React Query caches them forever.
 
-import type { Fixture, FixtureContext, Group, MatchResult, Rating, Team } from '../types/domain';
+import type { Fixture, FixtureContext, Group, MatchResult, Rating, Team, SquadStrengthEntry } from '../types/domain';
 
 interface CompactResults {
   cols: string[];
@@ -34,6 +34,11 @@ export const loadStaticFixtureContexts = () =>
 // Squad rosters with player positions — generated at deploy time from OpenFootball CC0 data.
 export const loadStaticSquads = () =>
   fetchJson<Record<string, SquadPlayer[]>>('squads.json').catch(() => ({} as Record<string, SquadPlayer[]>));
+
+// Squad strength data: market value, top-5 league count, UCL players per national team.
+export const loadStaticSquadStrength = () =>
+  fetchJson<Record<string, SquadStrengthEntry>>('squad-strength.json')
+    .catch(() => ({} as Record<string, SquadStrengthEntry>));
 
 export async function loadStaticResults(): Promise<MatchResult[]> {
   const compact = await fetchJson<CompactResults>('historical_results.json');

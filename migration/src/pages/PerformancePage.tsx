@@ -21,8 +21,9 @@ const MODEL_TIERS: Record<string, { tier: string; desc: string }> = {
   'Ranking FIFA':            { tier: 'L1', desc: 'Basado en puntos FIFA' },
   'Elo':                     { tier: 'L2', desc: 'Rating Elo histórico' },
   'Forma reciente':          { tier: 'L3', desc: 'Elo + últimas 8 fechas' },
-  'Modelo de goles (Poisson)': { tier: 'L4', desc: 'Dixon-Coles, histórico 8 años' },
-  'Goles + contexto reciente': { tier: 'L5', desc: 'L4 + disponibilidad de jugadores' },
+  'Modelo de goles (Poisson)': { tier: 'L4',   desc: 'Dixon-Coles, histórico 8 años' },
+  'Potencial del plantel':     { tier: 'L4.5', desc: 'L4 × valor de mercado, top-5, UCL' },
+  'Goles + contexto reciente': { tier: 'L5',   desc: 'L4 + disponibilidad de jugadores' },
   'Momentum del Mundial':    { tier: 'L6', desc: 'L4 + inflación + momentum WC' },
 };
 

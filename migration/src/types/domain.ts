@@ -285,3 +285,11 @@ export interface ModelPerformanceRow {
   avgRps: number;
   avgLogLoss: number;
 }
+
+export interface SquadStrengthEntry {
+  market_value_m: number;
+  top5_league_count: number;
+  ucl_players: number;
+  squad_size: number;
+  estimated?: boolean;
+}
