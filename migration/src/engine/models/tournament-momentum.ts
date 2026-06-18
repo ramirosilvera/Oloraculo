@@ -17,6 +17,7 @@ import type { MatchContext, MatchPrediction } from '../../types/domain';
 import {
   poissonScoreline,
   scorelineToOutcome,
+  mostLikelyScore as getMostLikely,
 } from '../probability-helper';
 import type { GoalModel } from './goal-model';
 
@@ -79,8 +80,10 @@ export function tournamentMomentumPredict(
   const ps = ctx.dailyPatternSignal;
   const rawGoalMod = ps?.isConfirmed ? ps.goalModifier : 1.0;
   const pushMod = ps?.isConfirmed ? ps.pushModifier : 1.0;
-  // Cap total compounding so inflation × goalMod never exceeds 1.7× base
-  const goalMod = inflation * rawGoalMod > 1.7 ? 1.7 / inflation : rawGoalMod;
+  // Cap the daily-streak amplification so inflation × goalMod stays ≤ 1.7×,
+  // but never let goalMod drop below 1.0 — the streak only amplifies; it must
+  // not silently shrink the legitimate tournament inflation factor.
+  const goalMod = Math.min(rawGoalMod, Math.max(1.0, 1.7 / inflation));
 
   let homeGoals = tournamentHome * goalMod + momentumPush * pushMod;
   let awayGoals = tournamentAway * goalMod - momentumPush * pushMod;
@@ -112,10 +115,11 @@ export function tournamentMomentumPredict(
   // over-weighting of 0-0 and 1-1 and improve exact score calibration.
   const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.08);
 
-  // L6 uses round(expectedGoals) instead of the joint Poisson mode.
-  // The Poisson mode floors λ, so λ=0.97 → mode=0 (drops a predicted goal).
-  // Rounding: 0.97→1, 1.5→2, 2.09→2 — better represents the inflated expected result.
-  const best = { home: Math.round(homeGoals), away: Math.round(awayGoals) };
+  // Most-likely score = argmax of the joint Dixon-Coles matrix (the true MLE
+  // scoreline, maximizing exact-hit rate). This unifies the score shown in the
+  // consolidated card with the score measured by exact_score_correct — both now
+  // read from the same scoreline distribution rather than a Math.round heuristic.
+  const best = getMostLikely(scoreline);
 
   const pushSign = momentumPush >= 0 ? '+' : '';
   const drivers: string[] = [

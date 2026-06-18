@@ -517,36 +517,27 @@ function FixtureRow({
 }
 
 // ---------------------------------------------------------------------------
-// selectBestModel — picks the model with the lowest avg Brier score (n≥30),
-// falls back to highest accuracy (n≥5), then to the Poisson L4 model.
+// modelStats — winner + exact-score accuracy for a single model from history.
+// The consolidated card is a fixed hybrid (Plantel drives the %, Momentum drives
+// the score), so the badge reports each model's own track record rather than
+// picking a single "best" model.
 // ---------------------------------------------------------------------------
 
-const FALLBACK_MODEL = 'Modelo de goles (Poisson)';
+interface ModelStats { winnerAcc: number; exactAcc: number; n: number }
 
-function selectBestModel(evals: PredictionEvaluation[]): { modelName: string; accuracy: number; n: number } {
-  type Stats = { correct: number; total: number; brierSum: number };
-  const groups = new Map<string, Stats>();
+function modelStats(evals: PredictionEvaluation[], modelName: string): ModelStats {
+  let winnerCorrect = 0, exactCorrect = 0, total = 0;
   for (const e of evals) {
-    if (!groups.has(e.model_name)) groups.set(e.model_name, { correct: 0, total: 0, brierSum: 0 });
-    const g = groups.get(e.model_name)!;
-    g.total++;
-    if (e.top_pick_correct) g.correct++;
-    g.brierSum += e.brier_score ?? 0;
+    if (e.model_name !== modelName) continue;
+    total++;
+    if (e.top_pick_correct) winnerCorrect++;
+    if (e.exact_score_correct) exactCorrect++;
   }
-
-  const qualified = [...groups.entries()]
-    .filter(([, g]) => g.total >= 30)
-    .map(([name, g]) => ({ name, accuracy: g.correct / g.total, avgBrier: g.brierSum / g.total, n: g.total }))
-    .sort((a, b) => a.avgBrier - b.avgBrier || b.accuracy - a.accuracy);
-  if (qualified.length > 0) return { modelName: qualified[0].name, accuracy: qualified[0].accuracy, n: qualified[0].n };
-
-  const byAccuracy = [...groups.entries()]
-    .filter(([, g]) => g.total >= 5)
-    .map(([name, g]) => ({ name, accuracy: g.correct / g.total, n: g.total }))
-    .sort((a, b) => b.accuracy - a.accuracy);
-  if (byAccuracy.length > 0) return { modelName: byAccuracy[0].name, accuracy: byAccuracy[0].accuracy, n: byAccuracy[0].n };
-
-  return { modelName: FALLBACK_MODEL, accuracy: 0, n: 0 };
+  return {
+    winnerAcc: total > 0 ? winnerCorrect / total : 0,
+    exactAcc:  total > 0 ? exactCorrect  / total : 0,
+    n: total,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -568,7 +559,8 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
   if (!anyComputed) return null;
 
   const allComputed = fixtures.every(f => predictions.has(f.id));
-  const { modelName, accuracy, n } = selectBestModel(evalsData);
+  const plantelStats  = modelStats(evalsData, 'Potencial del plantel');
+  const momentumStats = modelStats(evalsData, 'Momentum del Mundial');
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -583,13 +575,15 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-gray-400 hidden sm:block">Plantel % · Momentum ⚽</span>
-          {n > 0 ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
-              ★ {(accuracy * 100).toFixed(0)}%
+          {plantelStats.n > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-wc-navy bg-wc-navy/10 px-1.5 py-0.5 rounded-full shrink-0">
+              % {(plantelStats.winnerAcc * 100).toFixed(0)}
             </span>
-          ) : (
-            <span className="text-[10px] text-gray-400 shrink-0">L4 fallback</span>
+          )}
+          {momentumStats.n > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
+              ⚽ {(momentumStats.exactAcc * 100).toFixed(0)}
+            </span>
           )}
         </div>
       </div>
@@ -688,8 +682,10 @@ function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date
       <div className="px-4 py-2 border-t border-gray-50 flex items-center gap-1.5">
         <Info className="w-3 h-3 text-gray-300 shrink-0" />
         <p className="text-[10px] text-gray-400">
-          % ganador/empate: Potencial del plantel · Marcador: Momentum del Mundial
-          {n >= 5 ? ` · ${(accuracy * 100).toFixed(0)}% aciertos (${n} partidos)` : ''}
+          % ganador/empate: Potencial del plantel
+          {plantelStats.n > 0 ? ` (${(plantelStats.winnerAcc * 100).toFixed(0)}% en ${plantelStats.n})` : ''}
+          {' · '}Marcador: Momentum del Mundial
+          {momentumStats.n > 0 ? ` (${(momentumStats.exactAcc * 100).toFixed(0)}% exacto en ${momentumStats.n})` : ''}
         </p>
       </div>
     </div>
