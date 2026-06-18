@@ -586,5 +586,33 @@
     "has_availability_news": true,
     "notes": "ghana: Alexander Djiku (injury), Salisu (injury)",
     "updated_at": "2026-06-16T17:08:11.781Z"
+  },
+  {
+    "fixture_id": "grp:A:south-africa:czechia",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.015,
+    "unavailable_home_defense_impact": 0.01,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "south-africa: Sphephelo Sithole (Red card)",
+    "updated_at": "2026-06-18T09:21:29.954Z"
+  },
+  {
+    "fixture_id": "grp:A:mexico:south-korea",
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.004,
+    "unavailable_home_defense_impact": 0.025,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "mexico: César Montes (Red card in Group A vs South Africa (matchday 1; June 11))",
+    "updated_at": "2026-06-18T09:21:29.954Z"
   }
 ]
