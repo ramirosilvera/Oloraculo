@@ -3,23 +3,26 @@
 // Adjusts Goal Model expected goals using squad market value, top-5 league
 // presence and Champions League experience.
 //
-// Score formula (UCL raised to 25% — more predictive in WC knockout context):
+// Score formula:
 //   valuePct    = market_value_m / maxValueInTournament
 //   top5Pct     = top5_league_count / squad_size
 //   uclPct      = ucl_players / squad_size
 //   strength    = 0.40 * valuePct + 0.35 * top5Pct + 0.25 * uclPct
 //
-// Adjustment (higher SQUAD_BOOST = 0.25 → ±25% max impact on Poisson goals):
-//   avgStrength = mean(all strengths)
-//   homeAdj     = (homeStrength - avg) / avg   → saturates near ±1 for extremes
-//   awayAdj     = (awayStrength - avg) / avg
-//   netDiff     = clamp(homeAdj - awayAdj, -1, 1)
-//   homeGoals   = baseHome * (1 + netDiff * SQUAD_BOOST)
-//   awayGoals   = baseAway * (1 - netDiff * SQUAD_BOOST)
+// Adjustment — INDEPENDENT log-ratio per team (avoids the saturation bug where
+// France-USA received the same max adjustment as England-Haiti under netDiff):
+//   homeFactor = log(homeStrength / avgStrength)   symmetric on log scale
+//   awayFactor = log(awayStrength / avgStrength)
+//   homeBoost  = clamp(homeFactor * SQUAD_BOOST, -0.55, +0.80)
+//   awayBoost  = clamp(awayFactor * SQUAD_BOOST, -0.55, +0.80)
+//   homeGoals  = baseHome * (1 + homeBoost)
+//   awayGoals  = baseAway * (1 + awayBoost)
 //
-// Design intent: clear mismatches (e.g. England €1380M vs Haiti €12M) saturate
-// netDiff → 1.0 and receive the full 25% boost, while near-equal squads get
-// close to zero adjustment.
+// SQUAD_BOOST = 0.50: England (log-ratio ≈ 1.35) → +67% on home goals;
+//               France → +61%; Germany → +52%; USA → +18%; Japan → ~0%;
+//               Haiti/Qatar → clamped at −55%.
+// LOW_SCORE_RHO = −0.08: more aggressive than L4's −0.03, reducing the
+//               over-weight on 0-0 and 1-1 draws to improve exact score accuracy.
 // =============================================================================
 
 import type { MatchContext, MatchPrediction, SquadStrengthEntry } from '../../types/domain';
@@ -30,8 +33,8 @@ import {
 } from '../probability-helper';
 import type { GoalModel } from './goal-model';
 
-const SQUAD_BOOST = 0.25;
-const LOW_SCORE_RHO = -0.03;
+const SQUAD_BOOST = 0.50;   // log-ratio scaling — England gets ~67% boost over base
+const LOW_SCORE_RHO = -0.08; // stronger than L4's -0.03 → less over-weight on 0-0/1-1
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -126,14 +129,19 @@ export function squadStrengthModelPredict(
     const homeScore = hasHome ? (allScores.get(homeId) ?? avg) : avg;
     const awayScore = hasAway ? (allScores.get(awayId) ?? avg) : avg;
 
-    const homeAdj = (homeScore - avg) / avg;
-    const awayAdj = (awayScore - avg) / avg;
-    const netDiff = clamp(homeAdj - awayAdj, -1, 1);
+    // Independent log-ratio adjustments: each team's goals scaled by their
+    // strength relative to the tournament average on a log scale.
+    // log(score/avg) is symmetric: a team 3× above avg gets +log(3)≈+1.10,
+    // a team 3× below avg gets −log(3)≈−1.10 — unlike the old (score−avg)/avg
+    // which gave +2.0 above but only −0.67 below, causing asymmetric saturation.
+    const homeFactor = homeScore > 0 ? Math.log(homeScore / avg) : 0;
+    const awayFactor = awayScore > 0 ? Math.log(awayScore / avg) : 0;
+    // Clamp per-team: max +80% boost for elites, max −55% for weakest teams
+    const homeBoost = clamp(homeFactor * SQUAD_BOOST, -0.55, 0.80);
+    const awayBoost = clamp(awayFactor * SQUAD_BOOST, -0.55, 0.80);
 
-    homeGoals = baseHome * (1 + netDiff * SQUAD_BOOST);
-    awayGoals = baseAway * (1 - netDiff * SQUAD_BOOST);
-    homeGoals = Math.max(0.3, homeGoals);
-    awayGoals = Math.max(0.3, awayGoals);
+    homeGoals = Math.max(0.3, baseHome * (1 + homeBoost));
+    awayGoals = Math.max(0.3, baseAway * (1 + awayBoost));
 
     featuresUsed.push('Valor de mercado del plantel', 'Jugadores en ligas top-5', 'Experiencia en UCL');
     appliedSquad = true;
