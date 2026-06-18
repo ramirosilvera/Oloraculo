@@ -170,6 +170,8 @@ export function squadStrengthModelPredict(
   const drivers: string[] = appliedSquad
     ? [
         `Valor de mercado: ${ctx.homeTeam.name} ${homeEntry ? `€${homeEntry.market_value_m.toFixed(0)}M` : 'n/d'} · ${ctx.awayTeam.name} ${awayEntry ? `€${awayEntry.market_value_m.toFixed(0)}M` : 'n/d'}`,
+        `Jugadores top-5 ligas: ${ctx.homeTeam.name} ${homeEntry ? `${homeEntry.top5_league_count}/${homeEntry.squad_size}` : 'n/d'} · ${ctx.awayTeam.name} ${awayEntry ? `${awayEntry.top5_league_count}/${awayEntry.squad_size}` : 'n/d'}`,
+        `Jugadores UCL: ${ctx.homeTeam.name} ${homeEntry ? homeEntry.ucl_players : 'n/d'} · ${ctx.awayTeam.name} ${awayEntry ? awayEntry.ucl_players : 'n/d'}`,
         `Marcador más probable: ${best.home}-${best.away}`,
       ]
     : ['Sin datos de plantel — usando modelo de goles sin ajuste'];
