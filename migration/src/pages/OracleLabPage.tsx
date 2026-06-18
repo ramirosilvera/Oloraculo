@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Loader2, Trophy, FlaskConical } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { predictPair } from '../engine/prediction-engine';
-import type { MatchPredictionResult, Team } from '../types/domain';
+import type { MatchPrediction, MatchPredictionResult, Team } from '../types/domain';
 import {
   Button,
   Badge,
@@ -12,17 +12,19 @@ import {
   SectionTitle,
   SkeletonCard,
 } from '../components/ui';
+import { ModelDetailPanel } from '../components/ModelDetailPanel';
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 
 const ladder = [
-  { name: 'L0', label: 'Base',         signal: 'probabilidad uniforme' },
-  { name: 'L1', label: 'Ranking FIFA', signal: 'puntos externos' },
-  { name: 'L2', label: 'Elo',          signal: 'fortaleza de largo plazo' },
-  { name: 'L3', label: 'Forma reciente', signal: 'resultados de corto plazo' },
-  { name: 'L4', label: 'Goles',        signal: 'marcadores Poisson' },
-  { name: 'L5', label: 'Contexto',     signal: 'ajuste con fuentes' },
-  { name: 'L6', label: 'Momentum',     signal: 'forma y racha en el torneo' },
+  { name: 'L0',   label: 'Base',              signal: 'probabilidad uniforme' },
+  { name: 'L1',   label: 'Ranking FIFA',      signal: 'puntos externos' },
+  { name: 'L2',   label: 'Elo',               signal: 'fortaleza de largo plazo' },
+  { name: 'L3',   label: 'Forma reciente',    signal: 'resultados de corto plazo' },
+  { name: 'L4',   label: 'Goles',             signal: 'marcadores Poisson' },
+  { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5, UCL' },
+  { name: 'L5',   label: 'Contexto',          signal: 'ajuste con fuentes' },
+  { name: 'L6',   label: 'Momentum',          signal: 'forma y racha en el torneo' },
 ];
 
 export function OracleLabPage() {
@@ -32,6 +34,7 @@ export function OracleLabPage() {
   const [result, setResult] = useState<MatchPredictionResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [selectedModel, setSelectedModel] = useState<MatchPrediction | null>(null);
 
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams]);
 
@@ -39,6 +42,7 @@ export function OracleLabPage() {
     if (!homeId || !awayId || homeId === awayId) return;
     setBusy(true);
     setError('');
+    setSelectedModel(null);
     try {
       const r = predictPair(homeId, awayId, teamMap, ratingsList, results, {
         engine: engine ?? undefined,
@@ -142,34 +146,53 @@ export function OracleLabPage() {
           </Card>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {result.predictions.map(p => (
-              <Card
-                key={p.predictorName}
-                className={`p-4 space-y-2 ${p.degraded ? 'opacity-60' : ''}`}
-              >
-                <div className="flex items-center gap-2">
-                  <Badge color={p.degraded ? 'gray' : 'navy'}>L{p.predictorPriority}</Badge>
-                  <span className="text-xs font-semibold text-gray-700 truncate">{p.predictorName}</span>
-                  {p.degraded && (
-                    <span className="ml-auto text-xs text-amber-600 font-medium shrink-0">↓ degradado</span>
+            {result.predictions.map(p => {
+              const isSelected = selectedModel?.predictorName === p.predictorName;
+              return (
+                <button
+                  key={p.predictorName}
+                  onClick={() => setSelectedModel(isSelected ? null : p)}
+                  className={`text-left p-4 rounded-2xl border transition-all space-y-2 ${
+                    isSelected
+                      ? 'border-wc-navy bg-wc-navy/5 ring-1 ring-wc-navy/20'
+                      : p.degraded
+                        ? 'border-gray-100 bg-white opacity-60 hover:opacity-80'
+                        : 'border-gray-200 bg-white hover:border-wc-navy/30 hover:bg-blue-50/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge color={p.degraded ? 'gray' : 'navy'}>L{p.predictorPriority}</Badge>
+                    <span className="text-xs font-semibold text-gray-700 truncate">{p.predictorName}</span>
+                    {p.degraded && (
+                      <span className="ml-auto text-xs text-amber-600 font-medium shrink-0">↓</span>
+                    )}
+                  </div>
+                  {p.degraded ? (
+                    <p className="text-xs text-gray-400">Sin datos suficientes</p>
+                  ) : (
+                    <p className="text-xs text-gray-500 tabular-nums">
+                      {pct(p.outcome.homeWin)} / {pct(p.outcome.draw)} / {pct(p.outcome.awayWin)}
+                    </p>
                   )}
-                </div>
-                {p.degraded ? (
-                  <p className="text-xs text-gray-400">Sin datos suficientes</p>
-                ) : (
-                  <p className="text-xs text-gray-500 tabular-nums">
-                    {pct(p.outcome.homeWin)} / {pct(p.outcome.draw)} / {pct(p.outcome.awayWin)}
-                  </p>
-                )}
-                {p.mostLikelyScore && !p.degraded && (
-                  <p className="text-xs font-medium text-gray-500">
-                    {p.mostLikelyScore.home}-{p.mostLikelyScore.away}
-                  </p>
-                )}
-                <p className="text-xs text-gray-400 leading-relaxed">{p.explanation}</p>
-              </Card>
-            ))}
+                  {p.mostLikelyScore && !p.degraded && (
+                    <p className="text-xs font-medium text-gray-500">
+                      {p.mostLikelyScore.home}-{p.mostLikelyScore.away}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-300">{isSelected ? '▲ cerrar' : '▼ detalle'}</p>
+                </button>
+              );
+            })}
           </div>
+
+          {selectedModel && (
+            <ModelDetailPanel
+              model={selectedModel}
+              homeName={result.homeTeamName}
+              awayName={result.awayTeamName}
+              onClose={() => setSelectedModel(null)}
+            />
+          )}
         </>
       )}
 
