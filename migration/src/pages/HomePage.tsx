@@ -21,13 +21,15 @@ import {
 // Escalera de predicción
 // ---------------------------------------------------------------------------
 const ladder: { level: string; model: string; signal: string; color: 'gray' | 'blue' | 'green' | 'gold' | 'red' | 'navy' }[] = [
-  { level: 'L0',    model: 'Base',           signal: 'probabilidad uniforme',      color: 'gray'  },
-  { level: 'L1',    model: 'Ranking FIFA',   signal: 'puntos externos',            color: 'blue'  },
-  { level: 'L2',    model: 'Elo',            signal: 'fortaleza de largo plazo',   color: 'blue'  },
-  { level: 'L3',    model: 'Forma reciente', signal: 'resultados de corto plazo',  color: 'green' },
-  { level: 'L4',    model: 'Goles (Poisson)',signal: 'marcadores Dixon-Coles',     color: 'gold'  },
-  { level: 'L5',    model: 'Contexto',       signal: 'ajuste con disponibilidad',  color: 'red'   },
-  { level: 'Final', model: 'Oráculo',        signal: 'escalón usable más alto',    color: 'navy'  },
+  { level: 'L0',    model: 'Base',                    signal: 'probabilidad uniforme',             color: 'gray'  },
+  { level: 'L1',    model: 'Ranking FIFA',             signal: 'puntos externos',                   color: 'blue'  },
+  { level: 'L2',    model: 'Elo',                     signal: 'fortaleza de largo plazo',           color: 'blue'  },
+  { level: 'L3',    model: 'Forma reciente',           signal: 'resultados de corto plazo',         color: 'green' },
+  { level: 'L4',    model: 'Goles (Poisson)',          signal: 'marcadores Dixon-Coles, 8 años',    color: 'gold'  },
+  { level: 'L4.5',  model: 'Potencial del plantel',   signal: 'valor de mercado, top-5, UCL',      color: 'gold'  },
+  { level: 'L5',    model: 'Goles + contexto',        signal: 'disponibilidad de jugadores',       color: 'red'   },
+  { level: 'L6',    model: 'Momentum del Mundial',    signal: 'inflación WC + racha + momentum',   color: 'navy'  },
+  { level: 'Final', model: 'Oráculo',                 signal: 'escalón usable más alto (ensemble)',color: 'navy'  },
 ];
 
 // ---------------------------------------------------------------------------
