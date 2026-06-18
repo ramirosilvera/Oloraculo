@@ -11,7 +11,7 @@ import {
 } from '../services/supabase-client';
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation } from '../types/domain';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
@@ -518,9 +518,7 @@ function FixtureRow({
 
 // ---------------------------------------------------------------------------
 // modelStats — winner + exact-score accuracy for a single model from history.
-// The consolidated card is a fixed hybrid (Plantel drives the %, Momentum drives
-// the score), so the badge reports each model's own track record rather than
-// picking a single "best" model.
+// Used to show track-record badges in the gradient card header.
 // ---------------------------------------------------------------------------
 
 interface ModelStats { winnerAcc: number; exactAcc: number; n: number }
@@ -538,158 +536,6 @@ function modelStats(evals: PredictionEvaluation[], modelName: string): ModelStat
     exactAcc:  total > 0 ? exactCorrect  / total : 0,
     n: total,
   };
-}
-
-// ---------------------------------------------------------------------------
-// DailyConsolidatedCard — "at a glance" view of today's fixtures using the
-// best-performing model from evaluation history.
-// ---------------------------------------------------------------------------
-
-interface DailyConsolidatedCardProps {
-  fixtures: Fixture[];
-  predictions: Map<string, MatchPredictionResult>;
-  evalsData: PredictionEvaluation[];
-  teamMap: Map<string, Team>;
-  date: string;
-}
-
-function DailyConsolidatedCard({ fixtures, predictions, evalsData, teamMap, date }: DailyConsolidatedCardProps) {
-  if (fixtures.length === 0) return null;
-  const anyComputed = fixtures.some(f => predictions.has(f.id));
-  if (!anyComputed) return null;
-
-  const allComputed = fixtures.every(f => predictions.has(f.id));
-  const plantelStats  = modelStats(evalsData, 'Potencial del plantel');
-  const momentumStats = modelStats(evalsData, 'Momentum del Mundial');
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-
-      {/* Header */}
-      <div className="px-4 py-3 bg-wc-navy/5 border-b border-gray-100 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-black text-wc-navy">Pronóstico consolidado</span>
-          {!allComputed && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
-          {date !== TODAY && (
-            <span className="text-[10px] text-gray-400">· {formatDateLabel(date)}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {plantelStats.n > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-wc-navy bg-wc-navy/10 px-1.5 py-0.5 rounded-full shrink-0">
-              % {(plantelStats.winnerAcc * 100).toFixed(0)}
-            </span>
-          )}
-          {momentumStats.n > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
-              ⚽ {(momentumStats.exactAcc * 100).toFixed(0)}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Fixture rows */}
-      <div className="divide-y divide-gray-50">
-        {fixtures.map(f => {
-          const result = predictions.get(f.id);
-          const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
-          const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
-
-          let homeWin = 0, draw = 0, awayWin = 0;
-          let scoreStr: string | null = null;
-          if (result) {
-            // Probabilities: Plantel has the best winner/draw accuracy
-            const plantelPred  = result.predictions.find(p => p.predictorName === 'Potencial del plantel'  && !p.degraded);
-            // Score: Momentum has the best exact-score accuracy
-            const momentumPred = result.predictions.find(p => p.predictorName === 'Momentum del Mundial' && !p.degraded);
-            // Cascade fallbacks so the card always shows something
-            const probSrc  = plantelPred  ?? momentumPred ?? result.bestPrediction;
-            const scoreSrc = momentumPred ?? plantelPred  ?? result.bestPrediction;
-            homeWin = probSrc.outcome.homeWin;
-            draw    = probSrc.outcome.draw;
-            awayWin = probSrc.outcome.awayWin;
-            // Score conditioned on the dominant outcome from probSrc — guarantees
-            // the displayed scoreline always agrees with the winner/draw percentages.
-            if (scoreSrc.scoreline) {
-              const perOutcome = mostLikelyScorePerOutcome(scoreSrc.scoreline);
-              const domScore = homeWin >= draw && homeWin >= awayWin
-                ? perOutcome.homeWin
-                : awayWin >= draw
-                  ? perOutcome.awayWin
-                  : perOutcome.draw;
-              if (domScore) scoreStr = `${domScore.home}-${domScore.away}`;
-            }
-          }
-
-          const maxProb = Math.max(homeWin, draw, awayWin);
-          const isHighConf = result !== undefined && maxProb >= 0.65;
-          const favoredLabel = homeWin >= draw && homeWin >= awayWin
-            ? `L ${(homeWin * 100).toFixed(0)}%`
-            : awayWin >= draw
-              ? `V ${(awayWin * 100).toFixed(0)}%`
-              : `E ${(draw * 100).toFixed(0)}%`;
-
-          return (
-            <div key={f.id} className={`px-4 py-3 ${isHighConf ? 'bg-amber-50/40' : ''}`}>
-              <div className="flex items-center gap-2">
-                {/* Time */}
-                <span className="text-[10px] font-semibold text-gray-400 shrink-0 w-10 tabular-nums">
-                  {f.kickoff_utc ? kickoffART(f.kickoff_utc) : '—'}
-                </span>
-
-                {/* Home */}
-                <FlagImg id={f.home_team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
-                <span className="text-xs font-semibold text-gray-700 truncate w-20 sm:w-24">{homeName}</span>
-
-                {/* Mini 3-color prob bar */}
-                {result ? (
-                  <div className="flex-1 flex gap-px h-1.5 rounded-full overflow-hidden min-w-0">
-                    <div className="bg-wc-navy shrink-0" style={{ width: `${homeWin * 100}%` }} />
-                    <div className="bg-gray-300 shrink-0" style={{ width: `${draw * 100}%` }} />
-                    <div className="bg-wc-red shrink-0" style={{ width: `${awayWin * 100}%` }} />
-                  </div>
-                ) : (
-                  <div className="flex-1 h-1.5 rounded-full bg-gray-100 animate-pulse" />
-                )}
-
-                {/* Away */}
-                <span className="text-xs font-semibold text-gray-700 truncate w-20 sm:w-24 text-right">{awayName}</span>
-                <FlagImg id={f.away_team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
-
-                {/* Score + confidence chip */}
-                <div className="shrink-0 w-24 text-right">
-                  {result ? (
-                    isHighConf ? (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                        🔥 {scoreStr ? `${scoreStr} · ` : ''}{(maxProb * 100).toFixed(0)}%
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-gray-500 tabular-nums">
-                        {scoreStr ? `${scoreStr} · ` : ''}{favoredLabel}
-                      </span>
-                    )
-                  ) : (
-                    <span className="text-[10px] text-gray-300">…</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-gray-50 flex items-center gap-1.5">
-        <Info className="w-3 h-3 text-gray-300 shrink-0" />
-        <p className="text-[10px] text-gray-400">
-          % ganador/empate: Potencial del plantel
-          {plantelStats.n > 0 ? ` (${(plantelStats.winnerAcc * 100).toFixed(0)}% en ${plantelStats.n})` : ''}
-          {' · '}Marcador: Momentum del Mundial
-          {momentumStats.n > 0 ? ` (${(momentumStats.exactAcc * 100).toFixed(0)}% exacto en ${momentumStats.n})` : ''}
-        </p>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -803,7 +649,9 @@ export function MatchesPage() {
 
   // Load evaluation history to power ML ensemble blending
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
-  const modelWeights = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
+  const modelWeights  = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
+  const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
+  const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
 
   const [expandedId, setExpandedId]     = useState<string | null>(null);
   const [expandingId, setExpandingId]   = useState<string | null>(null);
@@ -1076,19 +924,6 @@ export function MatchesPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* PRONÓSTICO CONSOLIDADO DEL DÍA (solo cuando no busca)              */}
-      {/* ------------------------------------------------------------------ */}
-      {!isSearching && (
-        <DailyConsolidatedCard
-          fixtures={todayFixtures}
-          predictions={predictions}
-          evalsData={evalsData ?? []}
-          teamMap={teamMap}
-          date={selectedDate}
-        />
-      )}
-
-      {/* ------------------------------------------------------------------ */}
       {/* SECCIÓN "PARTIDOS DE HOY" (solo cuando no busca)                    */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
@@ -1105,7 +940,17 @@ export function MatchesPage() {
                   <Badge color="gold">En vivo</Badge>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
+                {plantelStats.n > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white/80 bg-white/10 px-1.5 py-0.5 rounded-full shrink-0">
+                    % {(plantelStats.winnerAcc * 100).toFixed(0)}
+                  </span>
+                )}
+                {momentumStats.n > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-900/30 border border-amber-500/30 px-1.5 py-0.5 rounded-full shrink-0">
+                    ⚽ {(momentumStats.exactAcc * 100).toFixed(0)}
+                  </span>
+                )}
                 <button
                   onClick={() => prevDate && setSelectedDate(prevDate)}
                   disabled={!prevDate}
@@ -1183,6 +1028,46 @@ export function MatchesPage() {
                                 : <ChevronDown className="w-4 h-4" />}
                           </span>
                         </div>
+                        {/* Prediction strip — only for unplayed fixtures */}
+                        {!played && pred ? (() => {
+                          const plantelPred  = pred.predictions.find(p => p.predictorName === 'Potencial del plantel' && !p.degraded);
+                          const momentumPred = pred.predictions.find(p => p.predictorName === 'Momentum del Mundial'  && !p.degraded);
+                          const probSrc  = plantelPred  ?? momentumPred ?? pred.bestPrediction;
+                          const scoreSrc = momentumPred ?? plantelPred  ?? pred.bestPrediction;
+                          const { homeWin, draw, awayWin } = probSrc.outcome;
+                          let scoreStr: string | null = null;
+                          if (scoreSrc.scoreline) {
+                            const per = mostLikelyScorePerOutcome(scoreSrc.scoreline);
+                            const dom = homeWin >= draw && homeWin >= awayWin ? per.homeWin
+                                      : awayWin >= draw ? per.awayWin : per.draw;
+                            if (dom) scoreStr = `${dom.home}-${dom.away}`;
+                          }
+                          const maxP = Math.max(homeWin, draw, awayWin);
+                          const label = homeWin >= draw && homeWin >= awayWin
+                            ? `L ${(homeWin*100).toFixed(0)}%`
+                            : awayWin >= draw ? `V ${(awayWin*100).toFixed(0)}%`
+                            : `E ${(draw*100).toFixed(0)}%`;
+                          return (
+                            <div className="mt-2 flex items-center gap-2 w-full">
+                              <div className="flex flex-1 gap-px h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-blue-400/70 shrink-0" style={{ width: `${homeWin*100}%` }} />
+                                <div className="bg-white/25 shrink-0"   style={{ width: `${draw*100}%` }} />
+                                <div className="bg-red-400/70 shrink-0"  style={{ width: `${awayWin*100}%` }} />
+                              </div>
+                              {maxP >= 0.65 ? (
+                                <span className="shrink-0 text-[10px] font-bold text-amber-300">
+                                  🔥 {scoreStr ? `${scoreStr} · ` : ''}{(maxP*100).toFixed(0)}%
+                                </span>
+                              ) : (
+                                <span className="shrink-0 text-[10px] text-white/50 tabular-nums">
+                                  {scoreStr ? `${scoreStr} · ` : ''}{label}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })() : !played && engine ? (
+                          <div className="mt-2 h-1.5 rounded-full bg-white/20 animate-pulse" />
+                        ) : null}
                       </button>
                       {expandedId === f.id && (
                         <div className="bg-white">
