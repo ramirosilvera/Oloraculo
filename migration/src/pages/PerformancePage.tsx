@@ -3,6 +3,7 @@ import { BarChart2, TrendingDown, CheckCircle2, Zap, AlertTriangle, Info } from 
 import { useAppData } from '../hooks/useAppData';
 import { loadEvaluations } from '../services/supabase-client';
 import { computeModelWeights } from '../engine/final-selector';
+import { MODEL_TIERS } from '../engine/model-tiers';
 import type { ModelPerformanceRow, PredictionEvaluation, WcActualResult } from '../types/domain';
 import {
   Card,
@@ -14,18 +15,6 @@ import {
   SkeletonCard,
   Skeleton,
 } from '../components/ui';
-
-// Human-readable tier labels for each model in the prediction ladder
-const MODEL_TIERS: Record<string, { tier: string; desc: string }> = {
-  'Base':                    { tier: 'L0', desc: 'Probabilidad uniforme (baseline)' },
-  'Ranking FIFA':            { tier: 'L1', desc: 'Basado en puntos FIFA' },
-  'Elo':                     { tier: 'L2', desc: 'Rating Elo histórico' },
-  'Forma reciente':          { tier: 'L3', desc: 'Elo + últimas 8 fechas' },
-  'Modelo de goles (Poisson)': { tier: 'L4',   desc: 'Dixon-Coles, histórico 8 años' },
-  'Potencial del plantel':     { tier: 'L4.5', desc: 'L4 × valor de mercado, top-5, UCL' },
-  'Goles + contexto reciente': { tier: 'L5',   desc: 'L4 + disponibilidad de jugadores' },
-  'Momentum del Mundial':    { tier: 'L6', desc: 'L4 + inflación + momentum WC' },
-};
 
 function groupEvaluations(evals: PredictionEvaluation[]): ModelPerformanceRow[] {
   const byModel = new Map<string, PredictionEvaluation[]>();

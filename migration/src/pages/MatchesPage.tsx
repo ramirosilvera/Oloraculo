@@ -15,7 +15,8 @@ import {
   logLoss,
   topPick,
 } from '../engine/probability-helper';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction } from '../types/domain';
+import { ModelDetailPanel } from '../components/ModelDetailPanel';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
   Button,
@@ -333,6 +334,7 @@ function FixtureRow({
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, homeName, awayName, context, compact,
 }: FixtureRowProps) {
+  const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   return (
     <div>
       <button
@@ -392,59 +394,42 @@ function FixtureRow({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {pred.predictions.map(p => (
-                  <div
-                    key={p.predictorName}
-                    className={`text-xs p-2.5 rounded-lg border ${p.degraded ? 'border-gray-100 bg-white/50 opacity-60' : 'border-gray-200 bg-white'}`}
-                  >
-                    <p className="font-semibold text-gray-600 truncate">{p.predictorName}</p>
-                    {p.degraded ? (
-                      <p className="text-gray-400 mt-0.5">↓ degradado</p>
-                    ) : (
-                      <p className="text-gray-500 mt-0.5 tabular-nums">
-                        {pct(p.outcome.homeWin)} / {pct(p.outcome.draw)} / {pct(p.outcome.awayWin)}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                {pred.predictions.map(p => {
+                  const isSelected = selectedModelDetail?.predictorName === p.predictorName;
+                  return (
+                    <button
+                      key={p.predictorName}
+                      onClick={() => setSelectedModelDetail(isSelected ? null : p)}
+                      className={`text-xs p-2.5 rounded-lg border text-left transition-all ${
+                        isSelected
+                          ? 'border-wc-navy bg-wc-navy/5 ring-1 ring-wc-navy/20'
+                          : p.degraded
+                            ? 'border-gray-100 bg-white/50 opacity-60 hover:opacity-80'
+                            : 'border-gray-200 bg-white hover:border-wc-navy/30 hover:bg-blue-50/40'
+                      } cursor-pointer`}
+                    >
+                      <p className="font-semibold text-gray-600 truncate">{p.predictorName}</p>
+                      {p.degraded ? (
+                        <p className="text-gray-400 mt-0.5">↓ degradado</p>
+                      ) : (
+                        <p className="text-gray-500 mt-0.5 tabular-nums">
+                          {pct(p.outcome.homeWin)} / {pct(p.outcome.draw)} / {pct(p.outcome.awayWin)}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-gray-300 mt-1">{isSelected ? '▲ cerrar' : '▼ detalle'}</p>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* ── Debug de contexto ── */}
-              {(() => {
-                const l5 = pred.predictions.find(p => p.predictorName === 'Goles + contexto reciente');
-                const ctxLoaded = context !== null;
-                const l5Active  = l5 && !l5.degraded;
-                return (
-                  <div className="p-2 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-[10px] font-mono text-gray-500 space-y-0.5 leading-4">
-                    <p className="font-bold text-gray-600 text-[11px]">🔍 debug contexto</p>
-                    <p>
-                      fixture_id: <span className="text-gray-700">{fixture.id}</span>
-                    </p>
-                    <p>
-                      contexto cargado:{' '}
-                      {ctxLoaded
-                        ? <span className="text-green-700 font-bold">✓ sí ({context!.unavailable_home_players} local / {context!.unavailable_away_players} visita)</span>
-                        : <span className="text-red-600 font-bold">✗ no (fixture-contexts.json vacío o ID no encontrado)</span>
-                      }
-                    </p>
-                    {ctxLoaded && (
-                      <>
-                        <p>local — ataque: {(context!.unavailable_home_attack_impact * 100).toFixed(1)}% | defensa: {(context!.unavailable_home_defense_impact * 100).toFixed(1)}%</p>
-                        <p>visita — ataque: {(context!.unavailable_away_attack_impact * 100).toFixed(1)}% | defensa: {(context!.unavailable_away_defense_impact * 100).toFixed(1)}%</p>
-                        <p>notas: {context!.notes ?? '—'}</p>
-                      </>
-                    )}
-                    <p>
-                      L5:{' '}
-                      {l5Active
-                        ? <span className="text-green-700 font-bold">✓ activo — {l5!.explanation}</span>
-                        : <span className="text-orange-600">degradado — faltante: {l5?.featuresMissing?.join(', ') ?? '?'}</span>
-                      }
-                    </p>
-                    <p>modelo elegido: <span className="text-gray-700">{pred.bestPrediction.predictorName}</span></p>
-                  </div>
-                );
-              })()}
+              {selectedModelDetail && (
+                <ModelDetailPanel
+                  model={selectedModelDetail}
+                  homeName={homeName}
+                  awayName={awayName}
+                  onClose={() => setSelectedModelDetail(null)}
+                />
+              )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Tooltip text="Guardá antes del partido para medir tu accuracy después">
