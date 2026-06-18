@@ -562,101 +562,126 @@ function topScorelines(
     .map(([score, count]) => ({ score, count }));
 }
 
-// All-time WC (1930-2022), 964 matches. Source: FIFA.com
-const WC_HISTORICAL_SCORELINES = [
-  { score: '1-0', count: 182, pct: 18.9 },
-  { score: '2-1', count: 152, pct: 15.8 },
-  { score: '2-0', count: 111, pct: 11.5 },
-  { score: '1-1', count: 92,  pct: 9.5  },
-  { score: '0-0', count: 78,  pct: 8.1  },
+// Last 5 FIFA World Cups (2006–2022), 320 matches.
+// Compiled match-by-match from Wikipedia / RSSSF / ESPN. Scores at AET when applicable.
+const WC_5TOUR_SCORELINES = [
+  { score: '1-0', count: 67, pct: 20.9 },
+  { score: '2-1', count: 57, pct: 17.8 },
+  { score: '2-0', count: 45, pct: 14.1 },
+  { score: '0-0', count: 31, pct: 9.7  },
+  { score: '1-1', count: 26, pct: 8.1  },
+  { score: '3-0', count: 22, pct: 6.9  },
+  { score: '3-1', count: 16, pct: 5.0  },
 ] as const;
-const WC_HISTORICAL_MATCHES = 964;
-
-const SCORELINE_MEDALS = ['🥇', '🥈', '🥉'] as const;
+const WC_5TOUR_MATCHES = 320;
 
 function TopScorelines({ wcResults }: { wcResults: WcActualResult[] }) {
-  const liveTop = wcResults.length >= 6 ? topScorelines(wcResults, 3) : [];
-  const liveMap = new Map(liveTop.map(x => [x.score, x.count]));
+  const hasLive = wcResults.length >= 3;
 
-  // Always show all 5 historical benchmarks; annotate with live count where available
-  const rows = WC_HISTORICAL_SCORELINES.map((h, i) => ({
-    score:      h.score,
-    histPct:    h.pct,
-    histCount:  h.count,
-    liveCount:  liveMap.get(h.score) ?? 0,
-    livePct:    liveMap.has(h.score)
-                  ? (liveMap.get(h.score)! / wcResults.length) * 100
-                  : null,
-    // medal only if it's a live top-3 result
-    medal:      liveTop.findIndex(x => x.score === h.score),
-  }));
+  // Live frequency map
+  const liveFreq = new Map<string, number>();
+  for (const r of wcResults) {
+    if (r.home_goals == null || r.away_goals == null) continue;
+    const hi = Math.max(r.home_goals, r.away_goals);
+    const lo = Math.min(r.home_goals, r.away_goals);
+    const key = `${hi}-${lo}`;
+    liveFreq.set(key, (liveFreq.get(key) ?? 0) + 1);
+  }
 
-  // Bar scale: max of all live % vs all hist %, so bars are comparable
-  const maxPct = Math.max(...rows.map(r => Math.max(r.histPct, r.livePct ?? 0)));
+  const histMap = new Map<string, number>(WC_5TOUR_SCORELINES.map(h => [h.score, h.pct]));
+
+  // Union of live + historical scores, sorted by live % (or historical % when no live)
+  const allScores = new Set([
+    ...liveFreq.keys(),
+    ...WC_5TOUR_SCORELINES.map(h => h.score),
+  ]);
+  const rows = [...allScores]
+    .map(score => {
+      const liveCount = liveFreq.get(score) ?? 0;
+      const livePct   = wcResults.length > 0 ? (liveCount / wcResults.length) * 100 : 0;
+      return { score, liveCount, livePct, histPct: histMap.get(score) ?? null };
+    })
+    .sort((a, b) =>
+      hasLive ? b.livePct - a.livePct : (b.histPct ?? 0) - (a.histPct ?? 0),
+    )
+    .slice(0, 7);
+
+  const barMax = Math.max(
+    ...rows.map(r => Math.max(hasLive ? r.livePct : 0, r.histPct ?? 0)),
+  );
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
         <p className="font-black text-sm text-gray-800">Marcadores más repetidos</p>
-        <div className="flex items-center gap-2 shrink-0">
-          {wcResults.length >= 6 && (
-            <span className="text-[10px] text-wc-gold font-semibold tabular-nums">
-              WC2026 · {wcResults.length}p
-            </span>
-          )}
-          <span className="text-[10px] text-gray-400 tabular-nums">
-            hist. {WC_HISTORICAL_MATCHES}p
+        {hasLive && (
+          <span className="text-[10px] text-wc-gold font-semibold tabular-nums shrink-0">
+            WC2026 · {wcResults.length}p
           </span>
-        </div>
+        )}
       </div>
       <div className="px-4 pb-3 space-y-3">
         {rows.map((row) => (
-          <div key={row.score}>
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-sm leading-none shrink-0 w-5 text-center">
-                {row.medal >= 0 ? SCORELINE_MEDALS[row.medal] : ''}
-              </span>
-              <span className="shrink-0 text-sm font-black text-wc-navy bg-wc-navy/10 px-2.5 py-0.5 rounded-full tabular-nums">
-                {row.score}
-              </span>
-              <div className="flex-1 min-w-0 space-y-0.5">
-                {/* Live WC 2026 bar */}
-                {wcResults.length >= 6 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex-1 bg-wc-gold/15 rounded-full h-1.5 overflow-hidden">
+          <div key={row.score} className="flex items-center gap-3">
+            <span className="shrink-0 text-base font-semibold text-wc-navy bg-wc-navy/10 px-2.5 py-0.5 rounded-full tabular-nums min-w-[3.5rem] text-center">
+              {row.score}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {/* Bar track */}
+                <div className="flex-1 relative h-1.5">
+                  <div className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden">
+                    {hasLive && barMax > 0 && (
                       <div
                         className="h-full rounded-full bg-wc-gold transition-all"
-                        style={{ width: row.livePct != null ? `${(row.livePct / maxPct) * 100}%` : '0%' }}
+                        style={{ width: `${(row.livePct / barMax) * 100}%` }}
                       />
-                    </div>
-                    <span className="text-[10px] text-wc-gold font-semibold tabular-nums w-8 text-right">
-                      {row.livePct != null ? `${row.livePct.toFixed(0)}%` : '—'}
-                    </span>
+                    )}
+                    {!hasLive && row.histPct != null && barMax > 0 && (
+                      <div
+                        className="h-full rounded-full bg-gray-300 transition-all"
+                        style={{ width: `${(row.histPct / barMax) * 100}%` }}
+                      />
+                    )}
                   </div>
-                )}
-                {/* Historical baseline bar */}
-                <div className="flex items-center gap-1.5">
-                  <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                  {/* Historical reference tick (visible in live mode) */}
+                  {hasLive && row.histPct != null && barMax > 0 && (
                     <div
-                      className="h-full rounded-full bg-gray-300 transition-all"
-                      style={{ width: `${(row.histPct / maxPct) * 100}%` }}
+                      className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-gray-400 z-10"
+                      style={{ left: `${(row.histPct / barMax) * 100}%` }}
                     />
-                  </div>
-                  <span className="text-[10px] text-gray-400 tabular-nums w-8 text-right">
-                    {row.histPct.toFixed(1)}%
-                  </span>
+                  )}
+                </div>
+                {/* Label */}
+                <div className="shrink-0 min-w-[3rem] text-right">
+                  {hasLive ? (
+                    <>
+                      <div className="text-xs font-semibold text-wc-gold tabular-nums leading-tight">
+                        {row.livePct.toFixed(0)}%
+                      </div>
+                      {row.histPct != null && (
+                        <div className="text-[9px] text-gray-400 tabular-nums leading-tight">
+                          hist. {row.histPct.toFixed(1)}%
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400 tabular-nums">
+                      {row.histPct != null ? `${row.histPct.toFixed(1)}%` : '—'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         ))}
-        {wcResults.length > 0 && wcResults.length < 30 && (
+        {wcResults.length > 0 && wcResults.length < 16 && (
           <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 flex items-center gap-1">
             ⚠ Muestra pequeña ({wcResults.length} partidos) · porcentajes provisorios
           </p>
         )}
         <p className="text-[9px] text-gray-300 text-right">
-          Histórico FIFA 1930–2022 · barras grises · {WC_HISTORICAL_MATCHES} partidos
+          últimos 5 Mundiales (2006–2022) · {WC_5TOUR_MATCHES} partidos
         </p>
       </div>
     </div>
