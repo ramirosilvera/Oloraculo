@@ -125,6 +125,37 @@ export function mostLikelyScore(dist: ScorelineDistribution): { home: number; aw
   return { home: bestH, away: bestA };
 }
 
+export interface ScoreWithProb { home: number; away: number; prob: number }
+export interface ScorelinePerOutcome {
+  homeWin: ScoreWithProb | null;
+  draw:    ScoreWithProb | null;
+  awayWin: ScoreWithProb | null;
+}
+
+/**
+ * For each outcome (homeWin / draw / awayWin), find the single most probable
+ * scoreline within that outcome. Coherent with the outcome bar: if the model
+ * says awayWin=44%, the displayed score will be an actual away-win scoreline.
+ */
+export function mostLikelyScorePerOutcome(dist: ScorelineDistribution): ScorelinePerOutcome {
+  let hP = -1, hH = 0, hA = 1;
+  let dP = -1, dH = 0, dA = 0;
+  let aP = -1, aH = 0, aA = 1;
+  for (let h = 0; h <= dist.maxGoals; h++) {
+    for (let a = 0; a <= dist.maxGoals; a++) {
+      const p = dist.matrix[h][a];
+      if (h > a && p > hP) { hP = p; hH = h; hA = a; }
+      if (h === a && p > dP) { dP = p; dH = h; dA = a; }
+      if (h < a && p > aP) { aP = p; aH = h; aA = a; }
+    }
+  }
+  return {
+    homeWin: hP >= 0 ? { home: hH, away: hA, prob: hP } : null,
+    draw:    dP >= 0 ? { home: dH, away: dA, prob: dP } : null,
+    awayWin: aP >= 0 ? { home: aH, away: aA, prob: aP } : null,
+  };
+}
+
 /**
  * Sample a (home, away) score from the distribution using inverse CDF.
  * Migrated from ProbabilityHelper.SampleScore

@@ -20,14 +20,16 @@ import {
   Card,
   CardHeader,
   ProbBar,
+  ScoreTriple,
   Tooltip,
   SectionTitle,
   SkeletonCard,
   FlagImg,
 } from '../components/ui';
+import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
 import {
   ChevronDown, ChevronUp, Save, CheckCircle2, AlertCircle,
-  Trophy, Info, Search, X, ChevronLeft, ChevronRight, Calendar, Loader2,
+  Info, Search, X, ChevronLeft, ChevronRight, Calendar, Loader2,
 } from 'lucide-react';
 
 const TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -378,15 +380,17 @@ function FixtureRow({
                   homeLabel={homeName}
                   awayLabel={awayName}
                 />
-                {pred.bestPrediction.mostLikelyScore && (
-                  <div className="flex items-center gap-2">
-                    <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span className="text-xs text-gray-600">Marcador más probable:</span>
-                    <Badge color="gold">
-                      {pred.bestPrediction.mostLikelyScore.home} – {pred.bestPrediction.mostLikelyScore.away}
-                    </Badge>
-                  </div>
-                )}
+                {pred.bestPrediction.scoreline && (() => {
+                  const perOutcome = mostLikelyScorePerOutcome(pred.bestPrediction.scoreline);
+                  return (
+                    <ScoreTriple
+                      scores={perOutcome}
+                      homeLabel={homeName}
+                      awayLabel={awayName}
+                      size="sm"
+                    />
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

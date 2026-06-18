@@ -4,8 +4,9 @@
 // Not a modal — it appears/disappears in-flow with animate-fade-in.
 // =============================================================================
 
-import { Badge, ProbBar } from './ui';
+import { Badge, ProbBar, ScoreTriple } from './ui';
 import { MODEL_TIERS } from '../engine/model-tiers';
+import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
 import type { MatchPrediction } from '../types/domain';
 
 // ---------------------------------------------------------------------------
@@ -131,7 +132,7 @@ export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDe
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Goles esperados
             </p>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3 mb-3">
               <div className="flex items-center gap-2 bg-wc-navy/5 rounded-xl px-4 py-2.5">
                 <span className="text-sm font-semibold text-gray-600 truncate max-w-[7rem]">
                   {homeName}
@@ -148,15 +149,15 @@ export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDe
                   {model.expectedAwayGoals!.toFixed(2)}
                 </span>
               </div>
-              {model.mostLikelyScore !== null && (
-                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
-                  <span className="text-xs text-amber-600 font-semibold">Marcador probable</span>
-                  <span className="text-base font-black text-amber-700">
-                    {model.mostLikelyScore.home}–{model.mostLikelyScore.away}
-                  </span>
-                </div>
-              )}
             </div>
+            {model.scoreline && (
+              <ScoreTriple
+                scores={mostLikelyScorePerOutcome(model.scoreline)}
+                homeLabel={homeName}
+                awayLabel={awayName}
+                size="sm"
+              />
+            )}
           </div>
         )}
 

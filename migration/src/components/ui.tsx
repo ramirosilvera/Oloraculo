@@ -281,6 +281,82 @@ export function Tooltip({ text, children }: { text: string; children: ReactNode 
 }
 
 // ---------------------------------------------------------------------------
+// ScoreTriple — 3 marcadores coherentes con el outcome bar
+// ---------------------------------------------------------------------------
+import type { ScorelinePerOutcome } from '../engine/probability-helper';
+
+interface ScoreTripleProps {
+  scores: ScorelinePerOutcome;
+  homeLabel: string;
+  awayLabel: string;
+  /** "sm" para tarjetas de modelo; "md" para la predicción principal */
+  size?: 'sm' | 'md';
+}
+
+export function ScoreTriple({ scores, homeLabel, awayLabel, size = 'md' }: ScoreTripleProps) {
+  const cols = [
+    {
+      key: 'homeWin',
+      label: homeLabel,
+      score: scores.homeWin,
+      bg: 'bg-wc-navy/5',
+      textScore: 'text-wc-navy',
+      textLabel: 'text-wc-navy/70',
+      border: 'border-wc-navy/10',
+    },
+    {
+      key: 'draw',
+      label: 'Empate',
+      score: scores.draw,
+      bg: 'bg-gray-50',
+      textScore: 'text-gray-700',
+      textLabel: 'text-gray-400',
+      border: 'border-gray-100',
+    },
+    {
+      key: 'awayWin',
+      label: awayLabel,
+      score: scores.awayWin,
+      bg: 'bg-red-50/60',
+      textScore: 'text-wc-red',
+      textLabel: 'text-wc-red/60',
+      border: 'border-red-100',
+    },
+  ] as const;
+
+  const scoreText = size === 'sm' ? 'text-lg font-black' : 'text-2xl font-black';
+  const labelText = size === 'sm' ? 'text-[10px]' : 'text-xs';
+  const probText  = size === 'sm' ? 'text-[10px]' : 'text-xs';
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {cols.map(col => (
+        <div
+          key={col.key}
+          className={`${col.bg} border ${col.border} rounded-xl px-3 py-2.5 text-center`}
+        >
+          <p className={`${labelText} font-semibold ${col.textLabel} truncate mb-1`}>
+            {col.label}
+          </p>
+          {col.score ? (
+            <>
+              <p className={`${scoreText} ${col.textScore} leading-none`}>
+                {col.score.home}–{col.score.away}
+              </p>
+              <p className={`${probText} text-gray-400 mt-1`}>
+                {(col.score.prob * 100).toFixed(1)}%
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-300 text-sm font-bold">—</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SectionTitle
 // ---------------------------------------------------------------------------
 export function SectionTitle({ children, sub }: { children: ReactNode; sub?: string }) {

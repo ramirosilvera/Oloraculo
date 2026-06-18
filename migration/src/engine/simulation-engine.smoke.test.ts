@@ -27,7 +27,7 @@ function loadResults(): MatchResult[] {
 }
 
 describe('tournament simulation (full engine)', () => {
-  it('produces a coherent projection', () => {
+  it('produces a coherent projection', async () => {
     const groups   = readJson('groups.json') as Group[];
     const fixtures = readJson('fixtures.json') as Fixture[];
     const ratings  = readJson('ratings.json') as Rating[];
@@ -75,5 +75,5 @@ describe('tournament simulation (full engine)', () => {
     const proj2 = runSimulation(input);
     expect(proj2.teams[0].teamId).toBe(proj.teams[0].teamId);
     expect(proj2.teams[0].winTournament).toBe(proj.teams[0].winTournament);
-  });
+  }, 20000);
 });

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Loader2, Trophy, FlaskConical } from 'lucide-react';
+import { Loader2, FlaskConical } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { predictPair } from '../engine/prediction-engine';
 import type { MatchPrediction, MatchPredictionResult, Team } from '../types/domain';
@@ -9,9 +9,11 @@ import {
   Card,
   CardHeader,
   ProbBar,
+  ScoreTriple,
   SectionTitle,
   SkeletonCard,
 } from '../components/ui';
+import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
@@ -132,14 +134,12 @@ export function OracleLabPage() {
                 homeLabel={result.homeTeamName}
                 awayLabel={result.awayTeamName}
               />
-              {result.bestPrediction.mostLikelyScore && (
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="text-sm text-gray-600">Marcador más probable:</span>
-                  <Badge color="gold">
-                    {result.bestPrediction.mostLikelyScore.home} – {result.bestPrediction.mostLikelyScore.away}
-                  </Badge>
-                </div>
+              {result.bestPrediction.scoreline && (
+                <ScoreTriple
+                  scores={mostLikelyScorePerOutcome(result.bestPrediction.scoreline)}
+                  homeLabel={result.homeTeamName}
+                  awayLabel={result.awayTeamName}
+                />
               )}
               <p className="text-sm text-gray-500">{result.bestPrediction.explanation}</p>
             </div>
