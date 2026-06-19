@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trophy, BarChart2, Target, CheckCircle2, HelpCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Trophy, BarChart2, Target, CheckCircle2, HelpCircle, RefreshCw, Loader2, X } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import {
   loadEvaluations,
@@ -147,10 +147,10 @@ export function PerformancePage() {
   const totalEvals = evals?.length ?? 0;
   const hasExactData = stats.some(s => s.hasExactData);
 
-  // Best model by winner/draw accuracy (min 3 evals)
+  // Best model by winner/draw accuracy — ranked by raw count of correct picks (min 3 evals)
   const bestWinnerModel: string | null = stats
     .filter(s => s.n >= 3)
-    .sort((a, b) => (b.winnerCorrect / b.n) - (a.winnerCorrect / a.n))
+    .sort((a, b) => b.winnerCorrect - a.winnerCorrect)
     [0]?.name ?? null;
 
   // Best model by exact score accuracy (min 5 evals with exact data, at least 1 correct)
@@ -164,6 +164,24 @@ export function PerformancePage() {
   // Summary totals across all models
   const overallWinner = hasData ? evals!.filter(e => e.top_pick_correct).length : 0;
   const overallN = totalEvals;
+
+  // Model detail: selected model + filtered/sorted evaluations
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const handleModelClick = (name: string) =>
+    setSelectedModel(prev => (prev === name ? null : name));
+  const selectedModelStats = selectedModel ? stats.find(s => s.name === selectedModel) ?? null : null;
+  const selectedEvals = useMemo(() => {
+    if (!selectedModel || !evals) return [];
+    const hasExact = stats.find(s => s.name === selectedModel)?.hasExactData ?? false;
+    return evals
+      .filter(e => e.model_name === selectedModel)
+      .sort((a, b) => {
+        const winnerDiff = Number(b.top_pick_correct) - Number(a.top_pick_correct);
+        if (winnerDiff !== 0) return winnerDiff;
+        if (hasExact) return Number(b.exact_score_correct ?? false) - Number(a.exact_score_correct ?? false);
+        return 0;
+      });
+  }, [selectedModel, evals, stats]);
 
   return (
     <div className="space-y-6">
@@ -291,20 +309,22 @@ export function PerformancePage() {
                 const tier = MODEL_TIERS[row.name];
                 const isWinnerBest = row.name === bestWinnerModel;
                 const isExactBest  = row.name === bestExactModel;
-                const rowBg = isWinnerBest && isExactBest
-                  ? 'bg-amber-50/40'
+                const isSelected   = row.name === selectedModel;
+                const awardBg = isWinnerBest && isExactBest ? 'bg-amber-50/40'
                   : isWinnerBest ? 'bg-amber-50/60'
                   : isExactBest  ? 'bg-teal-50/60'
-                  : 'hover:bg-wc-cream/30';
-                const cellBg = isWinnerBest && isExactBest
-                  ? 'bg-amber-50/40'
-                  : isWinnerBest ? 'bg-amber-50/60'
-                  : isExactBest  ? 'bg-teal-50/60'
-                  : 'bg-white';
+                  : '';
+                const rowBg = isSelected
+                  ? `ring-2 ring-inset ring-wc-navy/25 ${awardBg || 'bg-wc-navy/5'}`
+                  : awardBg || 'hover:bg-wc-cream/30';
+                const cellBg = isSelected
+                  ? (awardBg || 'bg-wc-navy/5')
+                  : (awardBg || 'bg-white');
                 return (
                   <tr
                     key={row.name}
-                    className={`transition-colors ${rowBg}`}
+                    onClick={() => handleModelClick(row.name)}
+                    className={`transition-colors cursor-pointer ${rowBg}`}
                   >
                     <td className={`px-5 py-3 sticky left-0 ${cellBg}`}>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -371,59 +391,94 @@ export function PerformancePage() {
       </Card>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Match detail                                                         */}
+      {/* Match detail — collapsed until user taps a model row               */}
       {/* ------------------------------------------------------------------ */}
       {hasData && (
         <Card>
           <CardHeader>
-            <p className="font-semibold text-wc-navy text-sm">Detalle por partido</p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-wc-navy text-sm">
+                  {selectedModel ? `Detalle · ${selectedModel}` : 'Detalle por partido'}
+                </p>
+                {selectedModel && selectedModelStats && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {selectedModelStats.winnerCorrect}/{selectedModelStats.n} ganador
+                    {selectedModelStats.hasExactData
+                      ? ` · ${selectedModelStats.exactCorrect ?? 0}/${selectedModelStats.n} exacto`
+                      : ''}
+                  </p>
+                )}
+              </div>
+              {selectedModel && (
+                <button
+                  onClick={() => setSelectedModel(null)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-5 py-3 font-semibold">Partido</th>
-                  <th className="text-left px-4 py-3 font-semibold">Resultado</th>
-                  <th className="text-left px-4 py-3 font-semibold">Modelo</th>
-                  <th className="text-center px-4 py-3 font-semibold">Ganador ✓</th>
-                  {hasExactData && (
-                    <th className="text-center px-4 py-3 font-semibold">Exacto ✓</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {evals!.map(e => {
-                  const home = teamMap.get(e.home_team_id)?.name ?? e.home_team_id;
-                  const away = teamMap.get(e.away_team_id)?.name ?? e.away_team_id;
-                  return (
-                    <tr key={e.id} className="hover:bg-wc-cream/30 transition-colors">
-                      <td className="px-5 py-2.5 text-gray-800 font-medium">{home} vs {away}</td>
-                      <td className="px-4 py-2.5 text-gray-600 font-bold tabular-nums">
-                        {e.home_goals}–{e.away_goals}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge color="navy">{e.model_name}</Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        {e.top_pick_correct
-                          ? <span className="text-green-600 font-bold">✓</span>
-                          : <span className="text-red-400">✗</span>}
-                      </td>
-                      {hasExactData && (
-                        <td className="px-4 py-2.5 text-center">
-                          {e.exact_score_correct == null
-                            ? <span className="text-gray-300">—</span>
-                            : e.exact_score_correct
-                              ? <span className="text-green-600 font-bold">✓</span>
-                              : <span className="text-red-400">✗</span>}
+
+          {!selectedModel ? (
+            <div className="px-5 py-8 text-center">
+              <Target className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Tocá un modelo para ver el detalle</p>
+            </div>
+          ) : selectedEvals.length === 0 ? (
+            <div className="px-5 py-6 text-center">
+              <p className="text-sm text-gray-400">Sin evaluaciones para este modelo.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[360px] text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-5 py-3 font-semibold">Partido</th>
+                    <th className="text-left px-4 py-3 font-semibold">Resultado</th>
+                    <th className="text-center px-4 py-3 font-semibold">Ganador ✓</th>
+                    {selectedModelStats?.hasExactData && (
+                      <th className="text-center px-4 py-3 font-semibold">Exacto ✓</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {selectedEvals.map(e => {
+                    const home = teamMap.get(e.home_team_id)?.name ?? e.home_team_id;
+                    const away = teamMap.get(e.away_team_id)?.name ?? e.away_team_id;
+                    const rowColor = e.exact_score_correct
+                      ? 'hover:bg-green-50/50'
+                      : e.top_pick_correct
+                        ? 'hover:bg-green-50/20'
+                        : 'hover:bg-wc-cream/30';
+                    return (
+                      <tr key={e.id} className={`transition-colors ${rowColor}`}>
+                        <td className="px-5 py-2.5 text-gray-800 font-medium">{home} vs {away}</td>
+                        <td className="px-4 py-2.5 text-gray-600 font-bold tabular-nums">
+                          {e.home_goals}–{e.away_goals}
                         </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td className="px-4 py-2.5 text-center">
+                          {e.top_pick_correct
+                            ? <span className="text-green-600 font-bold">✓</span>
+                            : <span className="text-red-400">✗</span>}
+                        </td>
+                        {selectedModelStats?.hasExactData && (
+                          <td className="px-4 py-2.5 text-center">
+                            {e.exact_score_correct == null
+                              ? <span className="text-gray-300">—</span>
+                              : e.exact_score_correct
+                                ? <span className="text-green-600 font-bold">✓</span>
+                                : <span className="text-red-400">✗</span>}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
