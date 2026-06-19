@@ -772,7 +772,7 @@ export function MatchesPage() {
   const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
   const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
 
-  // Best model by winner-accuracy rate (min 5 evals) — feeds the primary card prediction label
+  // Best model by absolute count of correct winner picks (min 5 evals)
   const bestWinnerModelName = useMemo(() => {
     if (!evalsData || evalsData.length === 0) return null;
     const byModel = new Map<string, { wins: number; n: number }>();
@@ -782,11 +782,10 @@ export function MatchesPage() {
       if (e.top_pick_correct) acc.wins++;
       byModel.set(e.model_name, acc);
     }
-    let best: string | null = null, bestRate = -1;
+    let best: string | null = null, bestCount = -1;
     for (const [name, { wins, n }] of byModel) {
       if (n < 5) continue;
-      const rate = wins / n;
-      if (rate > bestRate) { bestRate = rate; best = name; }
+      if (wins > bestCount) { bestCount = wins; best = name; }
     }
     return best;
   }, [evalsData]);
