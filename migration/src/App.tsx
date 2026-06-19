@@ -9,6 +9,7 @@ import { TournamentSnapshotsPage } from './pages/TournamentSnapshotsPage';
 import { PerformancePage } from './pages/PerformancePage';
 import { DataPage } from './pages/DataPage';
 import { DebugPage } from './pages/DebugPage';
+import { CalibrationPage } from './pages/CalibrationPage';
 import { useAppData } from './hooks/useAppData';
 
 function SplashScreen({ message }: { message: string }) {
@@ -64,6 +65,7 @@ function AppRoutes() {
           <Route path="performance" element={<PerformancePage />} />
           <Route path="data" element={<DataPage />} />
           <Route path="debug" element={<DebugPage />} />
+          <Route path="calibration" element={<CalibrationPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
