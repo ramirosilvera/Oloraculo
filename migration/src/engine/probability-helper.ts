@@ -221,10 +221,18 @@ const WC_GROUP_PRIOR: OutcomeProbabilities = { homeWin: 0.40, draw: 0.34, awayWi
 const CALIBRATION_BLEND = 0.18;
 
 export function applyDrawCalibration(p: OutcomeProbabilities): OutcomeProbabilities {
-  const sw = 1 - CALIBRATION_BLEND;
+  // Scale blend down for lopsided matches: Brazil vs Haiti (homeWin≈0.90) should NOT
+  // get a 18% push toward the group-stage draw prior — it would artificially inflate
+  // Haiti's win/draw probability. Full blend only for near-balanced matchups.
+  const confidence = Math.max(p.homeWin, p.awayWin);
+  // confidence=0.50: blendFactor=1.0 (full). confidence≥0.85: blendFactor=0 (none).
+  const blendFactor = Math.max(0, 1 - (confidence - 0.50) / 0.35);
+  const blend = CALIBRATION_BLEND * blendFactor;
+  if (blend <= 0.001) return p;
+  const sw = 1 - blend;
   return normalizeOutcome({
-    homeWin: p.homeWin * sw + WC_GROUP_PRIOR.homeWin * CALIBRATION_BLEND,
-    draw:    p.draw    * sw + WC_GROUP_PRIOR.draw    * CALIBRATION_BLEND,
-    awayWin: p.awayWin * sw + WC_GROUP_PRIOR.awayWin * CALIBRATION_BLEND,
+    homeWin: p.homeWin * sw + WC_GROUP_PRIOR.homeWin * blend,
+    draw:    p.draw    * sw + WC_GROUP_PRIOR.draw    * blend,
+    awayWin: p.awayWin * sw + WC_GROUP_PRIOR.awayWin * blend,
   });
 }

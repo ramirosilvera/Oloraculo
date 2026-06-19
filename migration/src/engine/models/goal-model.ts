@@ -10,6 +10,7 @@ import {
   poissonScoreline,
   scorelineToOutcome,
   mostLikelyScore as getMostLikely,
+  eloExpectation,
 } from '../probability-helper';
 
 const DEFAULT_AVERAGE_GOALS = 1.25;
@@ -19,6 +20,9 @@ const LOW_SCORE_RHO = -0.03;
 const HOME_ADVANTAGE_MULTIPLIER = 1.08;
 const MIN_TEAM_MATCHES = 3;
 const ITERATIONS = 8;
+// Elo-gap multiplier for lambda: at P(home)=0.95 (≈500pt gap), home λ ×1.45 and away λ ×0.55.
+// This prevents weak-data teams (like Haiti) from being treated as average defensively.
+const ELO_GOAL_SENSITIVITY = 1.0;
 
 export interface GoalStrength {
   attack: number;
@@ -178,6 +182,18 @@ export class GoalModel {
     let homeGoals = this.avgGoals * h.attack * a.defenseVulnerability * GOAL_SCALE;
     let awayGoals = this.avgGoals * a.attack * h.defenseVulnerability * GOAL_SCALE;
     if (!ctx.fixture.neutral_venue) homeGoals *= HOME_ADVANTAGE_MULTIPLIER;
+
+    // Elo-gap adjustment: teams with large rating differences get proportionally
+    // more/fewer expected goals. This corrects for sparse-data teams (e.g. Haiti)
+    // that default to neutral attack/defense despite being heavily outclassed.
+    const homeEloVal = ctx.homeElo?.value ?? null;
+    const awayEloVal = ctx.awayElo?.value ?? null;
+    if (homeEloVal !== null && awayEloVal !== null) {
+      const eloP  = eloExpectation(homeEloVal, awayEloVal); // P(home wins) from Elo
+      const eloAdj = (eloP - 0.5) * ELO_GOAL_SENSITIVITY;  // 0 for equal, ±0.5 for max gap
+      homeGoals *= (1 + eloAdj);
+      awayGoals *= (1 - eloAdj);
+    }
 
     return {
       home: Math.max(0.1, Math.min(5.5, homeGoals)),
