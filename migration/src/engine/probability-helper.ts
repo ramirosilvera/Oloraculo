@@ -22,7 +22,9 @@ export function outcomeFromExpectation(
 ): OutcomeProbabilities {
   const closenessGap = Math.abs(strengthGap);
   let drawProbability = 0.3 * Math.exp(-closenessGap / 550.0) + 0.08;
-  drawProbability = Math.max(0.08, Math.min(0.34, drawProbability));
+  // Ceiling raised from 0.34→0.38: at 0 Elo gap draw=0.38 beats home/away (0.31 each).
+  // Previous 0.34 meant draw only beat home/away at exactly 0 gap — practically never.
+  drawProbability = Math.max(0.08, Math.min(0.38, drawProbability));
   const remaining = 1.0 - drawProbability;
 
   return normalizeOutcome({
@@ -199,7 +201,8 @@ export function logLoss(p: OutcomeProbabilities, actual: 'Home' | 'Draw' | 'Away
 
 // Argmax alone suppresses draws: e.g. home=0.32 draw=0.28 away=0.40 picks Away
 // even though draw is competitive. The margin closes that gap.
-export const DRAW_MARGIN_THRESHOLD = 0.06;
+// 0.04 (was 0.06): lower to avoid converting close win predictions into draw mistakes.
+export const DRAW_MARGIN_THRESHOLD = 0.04;
 
 export function topPick(
   p: OutcomeProbabilities,

@@ -40,7 +40,7 @@ export function buildEvaluationRows(
       brier_score: brierScore(p.outcome, actual),
       ranked_probability_score: rankedProbabilityScore(p.outcome, actual),
       log_loss: logLoss(p.outcome, actual),
-      top_pick_correct: topPick(p.outcome, 0) === actual,
+      top_pick_correct: topPick(p.outcome) === actual,
       exact_score_correct: p.mostLikelyScore != null
         ? p.mostLikelyScore.home === homeGoals && p.mostLikelyScore.away === awayGoals
         : null,
