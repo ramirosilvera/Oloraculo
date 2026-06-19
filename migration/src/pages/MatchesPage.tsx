@@ -578,7 +578,6 @@ const WC_5TOUR_MATCHES = 320;
 function TopScorelines({ wcResults }: { wcResults: WcActualResult[] }) {
   const hasLive = wcResults.length >= 3;
 
-  // Live frequency map
   const liveFreq = new Map<string, number>();
   for (const r of wcResults) {
     if (r.home_goals == null || r.away_goals == null) continue;
@@ -590,100 +589,60 @@ function TopScorelines({ wcResults }: { wcResults: WcActualResult[] }) {
 
   const histMap = new Map<string, number>(WC_5TOUR_SCORELINES.map(h => [h.score, h.pct]));
 
-  // Union of live + historical scores, sorted by live % (or historical % when no live)
   const allScores = new Set([
     ...liveFreq.keys(),
     ...WC_5TOUR_SCORELINES.map(h => h.score),
   ]);
-  const rows = [...allScores]
+  const chips = [...allScores]
     .map(score => {
       const liveCount = liveFreq.get(score) ?? 0;
       const livePct   = wcResults.length > 0 ? (liveCount / wcResults.length) * 100 : 0;
-      return { score, liveCount, livePct, histPct: histMap.get(score) ?? null };
+      return { score, livePct, histPct: histMap.get(score) ?? null };
     })
-    .sort((a, b) =>
-      hasLive ? b.livePct - a.livePct : (b.histPct ?? 0) - (a.histPct ?? 0),
-    )
-    .slice(0, 7);
-
-  const barMax = Math.max(
-    ...rows.map(r => Math.max(hasLive ? r.livePct : 0, r.histPct ?? 0)),
-  );
+    .sort((a, b) => hasLive ? b.livePct - a.livePct : (b.histPct ?? 0) - (a.histPct ?? 0))
+    .slice(0, 6);
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
-        <p className="font-black text-sm text-gray-800">Marcadores más repetidos</p>
+      <div className="px-4 pt-2.5 pb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-bold text-gray-700">Marcadores más repetidos</p>
         {hasLive && (
-          <span className="text-[10px] text-wc-gold font-semibold tabular-nums shrink-0">
+          <span className="text-[9px] text-wc-gold font-semibold tabular-nums shrink-0">
             WC2026 · {wcResults.length}p
           </span>
         )}
       </div>
-      <div className="px-4 pb-3 space-y-3">
-        {rows.map((row) => (
-          <div key={row.score} className="flex items-center gap-3">
-            <span className="shrink-0 text-base font-semibold text-wc-navy bg-wc-navy/10 px-2.5 py-0.5 rounded-full tabular-nums min-w-[3.5rem] text-center">
-              {row.score}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {/* Bar track */}
-                <div className="flex-1 relative h-1.5">
-                  <div className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden">
-                    {hasLive && barMax > 0 && (
-                      <div
-                        className="h-full rounded-full bg-wc-gold transition-all"
-                        style={{ width: `${(row.livePct / barMax) * 100}%` }}
-                      />
-                    )}
-                    {!hasLive && row.histPct != null && barMax > 0 && (
-                      <div
-                        className="h-full rounded-full bg-gray-300 transition-all"
-                        style={{ width: `${(row.histPct / barMax) * 100}%` }}
-                      />
-                    )}
+      <div className="px-3 pb-2 grid grid-cols-3 gap-1.5">
+        {chips.map((chip) => (
+          <div key={chip.score} className="bg-gray-50 rounded-xl px-2 py-1.5 text-center">
+            <div className="text-sm font-bold text-wc-navy tabular-nums">{chip.score}</div>
+            {hasLive ? (
+              <>
+                <div className="text-[10px] font-semibold text-wc-gold tabular-nums leading-tight">
+                  {chip.livePct.toFixed(0)}%
+                </div>
+                {chip.histPct != null && (
+                  <div className="text-[8px] text-gray-400 tabular-nums leading-tight">
+                    h.{chip.histPct.toFixed(1)}%
                   </div>
-                  {/* Historical reference tick (visible in live mode) */}
-                  {hasLive && row.histPct != null && barMax > 0 && (
-                    <div
-                      className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-gray-400 z-10"
-                      style={{ left: `${(row.histPct / barMax) * 100}%` }}
-                    />
-                  )}
-                </div>
-                {/* Label */}
-                <div className="shrink-0 min-w-[3rem] text-right">
-                  {hasLive ? (
-                    <>
-                      <div className="text-xs font-semibold text-wc-gold tabular-nums leading-tight">
-                        {row.livePct.toFixed(0)}%
-                      </div>
-                      {row.histPct != null && (
-                        <div className="text-[9px] text-gray-400 tabular-nums leading-tight">
-                          hist. {row.histPct.toFixed(1)}%
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-xs text-gray-400 tabular-nums">
-                      {row.histPct != null ? `${row.histPct.toFixed(1)}%` : '—'}
-                    </span>
-                  )}
-                </div>
+                )}
+              </>
+            ) : (
+              <div className="text-[10px] text-gray-400 tabular-nums leading-tight">
+                {chip.histPct != null ? `${chip.histPct.toFixed(1)}%` : '—'}
               </div>
-            </div>
+            )}
           </div>
         ))}
-        {wcResults.length > 0 && wcResults.length < 16 && (
-          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 flex items-center gap-1">
-            ⚠ Muestra pequeña ({wcResults.length} partidos) · porcentajes provisorios
-          </p>
-        )}
-        <p className="text-[9px] text-gray-300 text-right">
-          últimos 5 Mundiales (2006–2022) · {WC_5TOUR_MATCHES} partidos
-        </p>
       </div>
+      {wcResults.length > 0 && wcResults.length < 16 && (
+        <p className="text-[9px] text-amber-600 mx-3 mb-2 bg-amber-50 border border-amber-100 rounded px-2 py-0.5">
+          ⚠ Muestra pequeña ({wcResults.length}p) · provisorio
+        </p>
+      )}
+      <p className="text-[8px] text-gray-300 text-right px-3 pb-1.5">
+        últimos 5 Mundiales (2006–2022) · {WC_5TOUR_MATCHES}p
+      </p>
     </div>
   );
 }
@@ -738,51 +697,43 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 pt-3 pb-2 flex items-start gap-3">
-        <span className="text-2xl leading-none mt-0.5 shrink-0">{emoji}</span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-black text-sm text-gray-800">{label}</p>
-            <span className="text-[10px] font-bold text-wc-navy bg-wc-navy/10 px-1.5 py-0.5 rounded-md">
-              ×{factor.toFixed(2)}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
-        </div>
-        <Tooltip text="Factor de inflación goleadora del torneo: compara el promedio actual del Mundial 2026 contra el histórico de mundiales (2.50 goles/partido). El modelo L6 lo aplica automáticamente para amplificar las predicciones de goles cuando el torneo lo justifica.">
-          <Info className="w-4 h-4 text-gray-300 shrink-0 mt-0.5" />
-        </Tooltip>
-      </div>
-      <div className="px-4 pb-2 flex items-center gap-2">
-        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+      {/* Single compact row: emoji + label + factor + mini-bar + stats */}
+      <div className="px-4 py-2 flex items-center gap-2">
+        <span className="text-base leading-none shrink-0">{emoji}</span>
+        <span className="text-xs font-bold text-gray-800 truncate">{label}</span>
+        <span className="text-[9px] font-bold text-wc-navy bg-wc-navy/10 px-1 py-px rounded shrink-0">
+          ×{factor.toFixed(2)}
+        </span>
+        <div className="flex-1 bg-gray-100 rounded-full h-1 overflow-hidden">
           <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${barWidth}%` }} />
         </div>
-        <span className="text-[10px] text-gray-400 shrink-0 tabular-nums">
-          {avgPerMatch.toFixed(2)} vs {WC_HISTORICAL_GOALS_PER_MATCH.toFixed(2)} goles/pdo · {wcResults.length} partidos
+        <span className="text-[9px] text-gray-400 tabular-nums shrink-0 whitespace-nowrap">
+          {avgPerMatch.toFixed(2)} gol/p
         </span>
+        <Tooltip text="Factor de inflación goleadora del torneo: compara el promedio actual del Mundial 2026 contra el histórico de mundiales (2.50 goles/partido). El modelo L6 lo aplica automáticamente para amplificar las predicciones de goles cuando el torneo lo justifica.">
+          <Info className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+        </Tooltip>
       </div>
 
-      {/* Daily scoring streak */}
+      {/* Daily scoring streak — compact strip */}
       {dailySignal && streakInfo && (
-        <div className={`px-4 py-2 border-t flex items-center gap-2 ${dailySignal.isConfirmed ? 'border-amber-100 bg-amber-50/60' : 'border-gray-100 bg-gray-50/40'}`}>
-          <span className="text-base leading-none shrink-0">{streakInfo.emoji}</span>
-          <div className="flex-1 min-w-0">
-            <span className="text-xs font-bold text-gray-700">
-              {dailySignal.isConfirmed
-                ? `Racha: ${dailySignal.streakDays} días de ${streakInfo.label.toLowerCase()}`
-                : `Ayer: ${streakInfo.label.toLowerCase()}`}
+        <div className={`px-4 py-1.5 border-t flex items-center gap-1.5 ${dailySignal.isConfirmed ? 'border-amber-100 bg-amber-50/60' : 'border-gray-100 bg-gray-50/40'}`}>
+          <span className="text-sm leading-none shrink-0">{streakInfo.emoji}</span>
+          <span className="text-[10px] font-semibold text-gray-600 flex-1 min-w-0 truncate">
+            {dailySignal.isConfirmed
+              ? `Racha ${dailySignal.streakDays}d: ${streakInfo.label.toLowerCase()}`
+              : `Ayer: ${streakInfo.label.toLowerCase()}`}
+          </span>
+          {dailySignal.isConfirmed && (
+            <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1 py-px rounded shrink-0">
+              L6 ×{dailySignal.goalModifier.toFixed(2)}
             </span>
-            {dailySignal.isConfirmed && (
-              <span className="ml-1.5 text-xs font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
-                L6 activo · goles ×{dailySignal.goalModifier.toFixed(2)}
-              </span>
-            )}
-          </div>
+          )}
           <Tooltip text={dailySignal.isConfirmed
             ? `El modelo L6 detectó una racha de ${dailySignal.streakDays} días seguidos con el mismo patrón goleador (${dailySignal.currentStreak}). Aplica un modificador de goles ×${dailySignal.goalModifier.toFixed(2)} y de dispersión ×${dailySignal.pushModifier.toFixed(2)} a las predicciones de hoy.`
             : `Solo un día con patrón "${dailySignal.currentStreak}". Se necesitan 2 días consecutivos para que el modificador se active.`}
           >
-            <Info className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+            <Info className="w-3 h-3 text-gray-300 shrink-0" />
           </Tooltip>
         </div>
       )}
