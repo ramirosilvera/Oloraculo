@@ -95,7 +95,7 @@ export function CalibrationPage() {
 
   // Per-model at threshold=0.04 (current) and best
   const models = [...new Set(evals.map(e => e.model_name))];
-  const CURRENT_T = 0.04;
+  const CURRENT_T = 0.03;
 
   const modelRows: ModelRow[] = models.map(name => {
     const rows = evals.filter(e => e.model_name === name);
@@ -166,7 +166,7 @@ export function CalibrationPage() {
             <span className="font-semibold text-wc-navy text-sm">Grid Search · Umbral de Empate</span>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            Umbral actual en código: <strong>0.04</strong> · Mejor por {bestMetric === 'f1' ? 'Draw F1' : 'Global%'}:{' '}
+            Umbral actual en código: <strong>0.03</strong> · Mejor por {bestMetric === 'f1' ? 'Draw F1' : 'Global%'}:{' '}
             <strong className="text-wc-gold">{bestRow.t}</strong>
           </p>
         </CardHeader>
@@ -215,7 +215,7 @@ export function CalibrationPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <BarChart2 className="w-4 h-4 text-wc-navy" />
-            <span className="font-semibold text-wc-navy text-sm">Por modelo · umbral actual (0.04)</span>
+            <span className="font-semibold text-wc-navy text-sm">Por modelo · umbral actual (0.03)</span>
           </div>
         </CardHeader>
         <div className="overflow-x-auto">
