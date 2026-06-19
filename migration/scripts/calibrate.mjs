@@ -33,8 +33,11 @@ if (existsSync(envFile)) {
   }
 }
 
-const SUPABASE_URL  = process.env.VITE_SUPABASE_URL  ?? '';
-const SUPABASE_ANON = process.env.VITE_SUPABASE_ANON_KEY ?? '';
+const SUPABASE_URL     = process.env.VITE_SUPABASE_URL  ?? '';
+const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_KEY ?? '';
+const SUPABASE_ANON    = process.env.VITE_SUPABASE_ANON_KEY ?? '';
+// Use service role if available (bypasses RLS, needed for prediction_evaluations)
+const SUPABASE_KEY  = SUPABASE_SERVICE || SUPABASE_ANON;
 const hasSupabase   = SUPABASE_URL && !SUPABASE_URL.includes('placeholder');
 
 const MIN_MATCHES          = 5;    // minimum WC results before calibrating inflation
@@ -104,7 +107,11 @@ async function main() {
   const fixtures = JSON.parse(readFileSync(FIXTURES_FILE, 'utf8'));
 
   // Create Supabase client once (reused for both wc_actual_results and snapshots)
-  const db = hasSupabase ? createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+  if (hasSupabase) {
+    const keyType = SUPABASE_SERVICE ? 'service_role' : 'anon';
+    console.log(`Supabase: ${keyType} key`);
+  }
+  const db = hasSupabase ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
   // Start with static results from fixtures.json
   const playedMap = new Map();
