@@ -1087,46 +1087,46 @@ export function MatchesPage() {
         <div>
           {/* Header con navegación de fecha */}
           <div className="bg-wc-gradient rounded-2xl overflow-hidden">
-            <div className="px-5 py-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-white">
-                <Calendar className="w-4 h-4 text-wc-gold" />
-                <span className="font-black text-sm">
+            <div className="px-4 py-2 flex items-center justify-between gap-2 border-b border-white/10">
+              <div className="flex items-center gap-1.5 text-white">
+                <Calendar className="w-3.5 h-3.5 text-wc-gold/60" />
+                <span className="font-medium text-xs text-white/70">
                   {selectedDate === TODAY ? 'Hoy · ' : ''}{formatDateLabel(selectedDate)}
                 </span>
                 {selectedDate === TODAY && (
-                  <Badge color="gold">En vivo</Badge>
+                  <span className="w-1.5 h-1.5 rounded-full bg-wc-gold shrink-0 animate-pulse" />
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {plantelStats.n > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white/80 bg-white/10 px-1.5 py-0.5 rounded-full shrink-0">
+                  <span className="text-[9px] font-medium text-white/40 shrink-0">
                     % {(plantelStats.winnerAcc * 100).toFixed(0)}
                   </span>
                 )}
                 {momentumStats.n > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-900/30 border border-amber-500/30 px-1.5 py-0.5 rounded-full shrink-0">
+                  <span className="text-[9px] font-medium text-white/40 shrink-0">
                     ⚽ {(momentumStats.exactAcc * 100).toFixed(0)}
                   </span>
                 )}
                 <button
                   onClick={() => prevDate && setSelectedDate(prevDate)}
                   disabled={!prevDate}
-                  className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 active:bg-white/20 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  className="p-1 rounded text-white/50 hover:text-white/80 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => setSelectedDate(TODAY)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 active:brightness-90 ${selectedDate === TODAY ? 'bg-wc-gold text-wc-navy' : 'text-white/70 hover:bg-white/10 active:bg-white/20'}`}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all active:scale-95 ${selectedDate === TODAY ? 'bg-white/15 text-white/90 border border-white/20' : 'text-white/40 hover:text-white/70'}`}
                 >
                   Hoy
                 </button>
                 <button
                   onClick={() => nextDate && setSelectedDate(nextDate)}
                   disabled={!nextDate}
-                  className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 active:bg-white/20 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  className="p-1 rounded text-white/50 hover:text-white/80 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
