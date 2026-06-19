@@ -26,7 +26,7 @@ import {
   SkeletonCard,
   FlagImg,
 } from '../components/ui';
-import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
+import { mostLikelyScorePerOutcome, topPick, DRAW_MARGIN_THRESHOLD } from '../engine/probability-helper';
 import {
   ChevronDown, ChevronUp, Save, CheckCircle2, AlertCircle,
   Info, Search, X, ChevronLeft, ChevronRight, Calendar, Loader2,
@@ -1143,17 +1143,23 @@ export function MatchesPage() {
                           const probSrc  = plantelPred  ?? momentumPred ?? pred.bestPrediction;
                           const scoreSrc = momentumPred ?? plantelPred  ?? pred.bestPrediction;
                           const { homeWin, draw, awayWin } = probSrc.outcome;
+                          const topPickResult = topPick(probSrc.outcome);
+                          const isMarginDraw = topPickResult === 'Draw' && draw < Math.max(homeWin, awayWin);
                           let scoreStr: string | null = null;
                           if (scoreSrc.scoreline) {
                             const per = mostLikelyScorePerOutcome(scoreSrc.scoreline);
-                            const dom = homeWin >= draw && homeWin >= awayWin ? per.homeWin
-                                      : awayWin >= draw ? per.awayWin : per.draw;
+                            const dom = topPickResult === 'Home' ? per.homeWin
+                                      : topPickResult === 'Away' ? per.awayWin : per.draw;
                             if (dom) scoreStr = `${dom.home}-${dom.away}`;
                           }
-                          const maxP = Math.max(homeWin, draw, awayWin);
-                          const label = homeWin >= draw && homeWin >= awayWin
+                          const topPickProb = topPickResult === 'Home' ? homeWin
+                                           : topPickResult === 'Away' ? awayWin : draw;
+                          const label = topPickResult === 'Home'
                             ? `L ${(homeWin*100).toFixed(0)}%`
-                            : awayWin >= draw ? `V ${(awayWin*100).toFixed(0)}%`
+                            : topPickResult === 'Away'
+                            ? `V ${(awayWin*100).toFixed(0)}%`
+                            : isMarginDraw
+                            ? `~E ${(draw*100).toFixed(0)}%`
                             : `E ${(draw*100).toFixed(0)}%`;
                           return (
                             <div className="mt-2 flex items-center gap-2 w-full">
@@ -1162,9 +1168,13 @@ export function MatchesPage() {
                                 <div className="bg-white/25 shrink-0"   style={{ width: `${draw*100}%` }} />
                                 <div className="bg-red-400/70 shrink-0"  style={{ width: `${awayWin*100}%` }} />
                               </div>
-                              {maxP >= 0.65 ? (
+                              {topPickProb >= 0.65 ? (
                                 <span className="shrink-0 text-[10px] font-bold text-amber-300">
-                                  🔥 {scoreStr ? `${scoreStr} · ` : ''}{(maxP*100).toFixed(0)}%
+                                  🔥 {scoreStr ? `${scoreStr} · ` : ''}{(topPickProb*100).toFixed(0)}%
+                                </span>
+                              ) : isMarginDraw ? (
+                                <span className="shrink-0 text-[10px] font-semibold text-amber-300/70 tabular-nums">
+                                  {scoreStr ? `${scoreStr} · ` : ''}{label}
                                 </span>
                               ) : (
                                 <span className="shrink-0 text-[10px] text-white/50 tabular-nums">
