@@ -161,10 +161,11 @@ export function PerformancePage() {
   const totalEvals = evals?.length ?? 0;
   const hasExactData = stats.some(s => s.hasExactData);
 
-  // Best model by winner/draw accuracy — ranked by raw count of correct picks (min 3 evals)
+  // Best model by winner accuracy rate (min 3 evals). Uses rate not count so a model
+  // with 5/5 correct beats one with 16/28 even though the latter has more total wins.
   const bestWinnerModel: string | null = stats
     .filter(s => s.n >= 3)
-    .sort((a, b) => b.winnerCorrect - a.winnerCorrect)
+    .sort((a, b) => (b.winnerCorrect / b.n) - (a.winnerCorrect / a.n))
     [0]?.name ?? null;
 
   // Best model by exact score accuracy (min 5 evals with exact data, at least 1 correct)

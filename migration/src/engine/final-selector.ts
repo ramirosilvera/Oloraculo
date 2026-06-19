@@ -11,7 +11,10 @@ import { applyDrawCalibration, normalizeOutcome, topPick } from './probability-h
 const MIN_EVALS_FOR_WEIGHT = 5;
 
 /**
- * Compute inverse-Brier-score weights for each model from evaluation history.
+ * Compute ensemble weights for each model from evaluation history.
+ * Hybrid signal: winner-rate × inverse-Brier. This means a model needs both
+ * directional accuracy (picks the right winner) AND probability calibration
+ * (low Brier score) to earn high ensemble weight.
  * Models with fewer than MIN_EVALS_FOR_WEIGHT evaluations are excluded.
  * Returns an empty map when there's not enough data to form an ensemble.
  */
@@ -20,18 +23,21 @@ export function computeModelWeights(evals: PredictionEvaluation[]): Map<string, 
   const counts = new Map<string, number>();
   for (const e of evals) counts.set(e.model_name, (counts.get(e.model_name) ?? 0) + 1);
 
-  // Recency-weighted average Brier score per model
+  // Recency-weighted Brier score + winner rate per model.
+  // Decay 0.97 (was 0.92): with only ~28 matches in a single tournament phase
+  // there is no regime shift, so older matches should not be discounted heavily.
   const sorted = [...evals].sort(
     (a, b) => new Date(a.predicted_at).getTime() - new Date(b.predicted_at).getTime(),
   );
   const n = sorted.length;
-  const accum = new Map<string, { wBrierSum: number; wSum: number }>();
+  const accum = new Map<string, { wBrierSum: number; wWinSum: number; wSum: number }>();
   for (let i = 0; i < n; i++) {
     const e = sorted[i];
-    const rw = Math.pow(0.92, n - 1 - i); // most-recent match → weight 1.0
-    const acc = accum.get(e.model_name) ?? { wBrierSum: 0, wSum: 0 };
+    const rw = Math.pow(0.97, n - 1 - i); // most-recent match → weight 1.0
+    const acc = accum.get(e.model_name) ?? { wBrierSum: 0, wWinSum: 0, wSum: 0 };
     acc.wBrierSum += e.brier_score * rw;
-    acc.wSum += rw;
+    acc.wWinSum  += (e.top_pick_correct ? 1 : 0) * rw;
+    acc.wSum     += rw;
     accum.set(e.model_name, acc);
   }
 
@@ -39,7 +45,10 @@ export function computeModelWeights(evals: PredictionEvaluation[]): Map<string, 
   for (const [model, acc] of accum) {
     if ((counts.get(model) ?? 0) < MIN_EVALS_FOR_WEIGHT) continue;
     const avgBrier = acc.wBrierSum / acc.wSum;
-    raw.set(model, 1 / Math.max(0.05, avgBrier)); // lower Brier → higher weight
+    const winRate  = acc.wWinSum  / acc.wSum;
+    // winner-rate × inverse-Brier: both factors must be good for a high weight.
+    // Since weights are normalized, absolute scale doesn't matter.
+    raw.set(model, Math.max(0.001, winRate) * (1 / Math.max(0.05, avgBrier)));
   }
 
   if (raw.size < 2) return new Map(); // need at least 2 models for blending

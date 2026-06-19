@@ -216,8 +216,9 @@ export function topPick(
   return 'Away';
 }
 
-const WC_GROUP_PRIOR: OutcomeProbabilities = { homeWin: 0.44, draw: 0.27, awayWin: 0.29 };
-const CALIBRATION_BLEND = 0.12;
+// Updated from historical WC avg (27% draw) to WC 2026 group stage actuals (~35% draw).
+const WC_GROUP_PRIOR: OutcomeProbabilities = { homeWin: 0.40, draw: 0.34, awayWin: 0.26 };
+const CALIBRATION_BLEND = 0.18;
 
 export function applyDrawCalibration(p: OutcomeProbabilities): OutcomeProbabilities {
   const sw = 1 - CALIBRATION_BLEND;

@@ -325,12 +325,15 @@ interface FixtureRowProps {
   awayName: string;
   context: FixtureContext | null;
   compact?: boolean;
+  bestModelName: string | null;
+  bestModelWinnerAcc: number | null;
 }
 
 function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, homeName, awayName, context, compact,
+  bestModelName, bestModelWinnerAcc,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   return (
@@ -368,6 +371,11 @@ function FixtureRow({
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge color="blue">{pred.bestPrediction.predictorName}</Badge>
+                  {bestModelName && bestModelWinnerAcc !== null && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                      ★ {bestModelName} · {Math.round(bestModelWinnerAcc * 100)}% ganador
+                    </span>
+                  )}
                   <span className="text-xs text-gray-500 flex items-center gap-1">
                     <Info className="w-3 h-3 shrink-0" />
                     {pred.bestPrediction.explanation}
@@ -396,6 +404,7 @@ function FixtureRow({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {pred.predictions.map(p => {
                   const isSelected = selectedModelDetail?.predictorName === p.predictorName;
+                  const isBest = !p.degraded && p.predictorName === bestModelName;
                   return (
                     <button
                       key={p.predictorName}
@@ -403,17 +412,26 @@ function FixtureRow({
                       className={`text-xs p-2.5 rounded-lg border text-left transition-all ${
                         isSelected
                           ? 'border-wc-navy bg-wc-navy/5 ring-1 ring-wc-navy/20'
-                          : p.degraded
-                            ? 'border-gray-100 bg-white/50 opacity-60 hover:opacity-80'
-                            : 'border-gray-200 bg-white hover:border-wc-navy/30 hover:bg-blue-50/40'
+                          : isBest
+                            ? 'border-amber-300 bg-amber-50/60 ring-1 ring-amber-200'
+                            : p.degraded
+                              ? 'border-gray-100 bg-white/50 opacity-60 hover:opacity-80'
+                              : 'border-gray-200 bg-white hover:border-wc-navy/30 hover:bg-blue-50/40'
                       } cursor-pointer`}
                     >
-                      <p className="font-semibold text-gray-600 truncate">{p.predictorName}</p>
+                      <p className={`font-semibold truncate ${isBest ? 'text-amber-800' : 'text-gray-600'}`}>
+                        {isBest && <span className="mr-0.5">★</span>}{p.predictorName}
+                      </p>
                       {p.degraded ? (
                         <p className="text-gray-400 mt-0.5">↓ degradado</p>
                       ) : (
                         <p className="text-gray-500 mt-0.5 tabular-nums">
                           {pct(p.outcome.homeWin)} / {pct(p.outcome.draw)} / {pct(p.outcome.awayWin)}
+                        </p>
+                      )}
+                      {isBest && bestModelWinnerAcc !== null && (
+                        <p className="text-[9px] font-bold text-amber-600 mt-0.5">
+                          {Math.round(bestModelWinnerAcc * 100)}% ganador histórico
                         </p>
                       )}
                       <p className="text-[10px] text-gray-300 mt-1">{isSelected ? '▲ cerrar' : '▼ detalle'}</p>
@@ -754,6 +772,29 @@ export function MatchesPage() {
   const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
   const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
 
+  // Best model by winner-accuracy rate (min 5 evals) — feeds the primary card prediction label
+  const bestWinnerModelName = useMemo(() => {
+    if (!evalsData || evalsData.length === 0) return null;
+    const byModel = new Map<string, { wins: number; n: number }>();
+    for (const e of evalsData) {
+      const acc = byModel.get(e.model_name) ?? { wins: 0, n: 0 };
+      acc.n++;
+      if (e.top_pick_correct) acc.wins++;
+      byModel.set(e.model_name, acc);
+    }
+    let best: string | null = null, bestRate = -1;
+    for (const [name, { wins, n }] of byModel) {
+      if (n < 5) continue;
+      const rate = wins / n;
+      if (rate > bestRate) { bestRate = rate; best = name; }
+    }
+    return best;
+  }, [evalsData]);
+  const bestWinnerModelStats = useMemo(
+    () => bestWinnerModelName ? modelStats(evalsData ?? [], bestWinnerModelName) : null,
+    [bestWinnerModelName, evalsData],
+  );
+
   const [expandedId, setExpandedId]     = useState<string | null>(null);
   const [expandingId, setExpandingId]   = useState<string | null>(null);
   const [predictions, setPredictions]   = useState<Map<string, MatchPredictionResult>>(new Map());
@@ -920,6 +961,8 @@ export function MatchesPage() {
     awayName: teamMap.get(fixture.away_team_id)?.name ?? fixture.away_team_id,
     context: contextMap.get(fixture.id) ?? null,
     compact,
+    bestModelName: bestWinnerModelName,
+    bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
   });
 
   // ---- filtered fixtures ----
