@@ -4,8 +4,8 @@
 // Pure function — no server required
 // =============================================================================
 
-import type { MatchPrediction, OutcomeProbabilities, PredictionEvaluation } from '../types/domain';
-import { normalizeOutcome, topPick } from './probability-helper';
+import type { Fixture, MatchPrediction, OutcomeProbabilities, PredictionEvaluation } from '../types/domain';
+import { applyDrawCalibration, normalizeOutcome, topPick } from './probability-helper';
 
 // Minimum evaluations per model before its weight is trusted
 const MIN_EVALS_FOR_WEIGHT = 5;
@@ -108,9 +108,14 @@ function tryBuildRankingBias(
  *
  * Migrated from FinalPredictionSelector.Select()
  */
+function isGroupStageFixture(fixture: Pick<Fixture, 'group_name'>): boolean {
+  return fixture.group_name !== '' && fixture.group_name != null;
+}
+
 export function selectFinalPrediction(
   ladder: MatchPrediction[],
   modelWeights?: Map<string, number>,
+  fixture?: Pick<Fixture, 'group_name'>,
 ): MatchPrediction {
   if (ladder.length === 0) {
     return {
@@ -170,11 +175,18 @@ export function selectFinalPrediction(
     }
   }
 
+  let calibrationNote = '';
+  if (fixture && isGroupStageFixture(fixture)) {
+    finalOutcome = applyDrawCalibration(finalOutcome);
+    calibrationNote = ' Calibración de empate fase de grupos aplicada.';
+    drivers.push('Aplicó calibración bayesiana de empate (prior Copa del Mundo fase de grupos).');
+  }
+
   const skippedStr = skippedHigher.map(p => `${p.predictorName} ${reason(p)}`).join('; ');
   const explanation = (skippedHigher.length === 0
     ? `El Oráculo final seleccionó ${selected.predictorName}, el escalón usable más alto. ${selected.explanation}`
     : `El Oráculo final seleccionó ${selected.predictorName} porque ${skippedStr}. ${selected.explanation}`)
-    + ensembleNote;
+    + ensembleNote + calibrationNote;
 
   return {
     predictorName: 'Oráculo final',

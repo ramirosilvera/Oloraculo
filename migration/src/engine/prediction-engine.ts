@@ -215,7 +215,7 @@ export class PredictionEngine {
       homeTeamName: ctx.homeTeam.name,
       awayTeamName: ctx.awayTeam.name,
       predictions: ladder,
-      bestPrediction: selectFinalPrediction(ladder, modelWeights),
+      bestPrediction: selectFinalPrediction(ladder, modelWeights, ctx.fixture),
     };
   }
 

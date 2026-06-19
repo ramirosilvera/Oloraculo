@@ -197,8 +197,28 @@ export function logLoss(p: OutcomeProbabilities, actual: 'Home' | 'Draw' | 'Away
   return -Math.log(Math.max(0.001, Math.min(0.999, prob)));
 }
 
-export function topPick(p: OutcomeProbabilities): 'Home' | 'Draw' | 'Away' {
-  if (p.homeWin >= p.draw && p.homeWin >= p.awayWin) return 'Home';
-  if (p.draw >= p.homeWin && p.draw >= p.awayWin) return 'Draw';
+// Argmax alone suppresses draws: e.g. home=0.32 draw=0.28 away=0.40 picks Away
+// even though draw is competitive. The margin closes that gap.
+export const DRAW_MARGIN_THRESHOLD = 0.06;
+
+export function topPick(
+  p: OutcomeProbabilities,
+  drawMarginThreshold = DRAW_MARGIN_THRESHOLD,
+): 'Home' | 'Draw' | 'Away' {
+  const best = Math.max(p.homeWin, p.awayWin);
+  if (best - p.draw < drawMarginThreshold) return 'Draw';
+  if (p.homeWin >= p.awayWin) return 'Home';
   return 'Away';
+}
+
+const WC_GROUP_PRIOR: OutcomeProbabilities = { homeWin: 0.44, draw: 0.27, awayWin: 0.29 };
+const CALIBRATION_BLEND = 0.12;
+
+export function applyDrawCalibration(p: OutcomeProbabilities): OutcomeProbabilities {
+  const sw = 1 - CALIBRATION_BLEND;
+  return normalizeOutcome({
+    homeWin: p.homeWin * sw + WC_GROUP_PRIOR.homeWin * CALIBRATION_BLEND,
+    draw:    p.draw    * sw + WC_GROUP_PRIOR.draw    * CALIBRATION_BLEND,
+    awayWin: p.awayWin * sw + WC_GROUP_PRIOR.awayWin * CALIBRATION_BLEND,
+  });
 }
