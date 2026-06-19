@@ -147,11 +147,21 @@ export function PerformancePage() {
   const totalEvals = evals?.length ?? 0;
   const hasExactData = stats.some(s => s.hasExactData);
 
-  // Best model by winner accuracy (min 3 evals)
-  const ranked = stats.filter(s => s.n >= 3).sort((a, b) => (b.winnerCorrect / b.n) - (a.winnerCorrect / a.n));
-  const bestModel = ranked[0]?.name ?? null;
+  // Best model by winner/draw accuracy (min 3 evals)
+  const bestWinnerModel: string | null = stats
+    .filter(s => s.n >= 3)
+    .sort((a, b) => (b.winnerCorrect / b.n) - (a.winnerCorrect / a.n))
+    [0]?.name ?? null;
 
-  // Summary totals across all models (use best evaluated model per match → unique by fixture is hard, so use overall)
+  // Best model by exact score accuracy (min 5 evals with exact data, at least 1 correct)
+  const exactEligible = stats.filter(
+    s => s.hasExactData && s.exactCorrect !== null && s.n >= 5 && s.exactCorrect > 0
+  );
+  const bestExactModel: string | null = exactEligible.length === 0
+    ? null
+    : exactEligible.sort((a, b) => (b.exactCorrect! / b.n) - (a.exactCorrect! / a.n))[0].name;
+
+  // Summary totals across all models
   const overallWinner = hasData ? evals!.filter(e => e.top_pick_correct).length : 0;
   const overallN = totalEvals;
 
@@ -195,7 +205,7 @@ export function PerformancePage() {
       {/* ------------------------------------------------------------------ */}
       {/* Summary chips                                                        */}
       {/* ------------------------------------------------------------------ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-wc-navy/10 rounded-xl flex items-center justify-center shrink-0">
             <BarChart2 className="w-5 h-5 text-wc-navy" />
@@ -216,15 +226,32 @@ export function PerformancePage() {
             <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Ganador (prom.)</p>
           </div>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
-            <Trophy className="w-5 h-5 text-amber-500" />
+        {/* Award 1: best winner/draw accuracy */}
+        <div className="bg-white border border-amber-100 rounded-2xl p-3 flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+            <Trophy className="w-4 h-4 text-amber-500" />
           </div>
-          <div>
-            <p className="text-sm font-black text-amber-700 truncate">
-              {bestModel ?? (hasData ? '—' : '—')}
+          <div className="min-w-0">
+            <p className="text-xs font-black text-amber-700 truncate">
+              {bestWinnerModel ?? '—'}
             </p>
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Mejor modelo</p>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">
+              Mejor Ganador
+            </p>
+          </div>
+        </div>
+        {/* Award 2: best exact score accuracy */}
+        <div className="bg-white border border-teal-100 rounded-2xl p-3 flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center shrink-0">
+            <Target className="w-4 h-4 text-teal-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-teal-700 truncate">
+              {bestExactModel ?? (hasExactData ? '—' : 'Sin datos')}
+            </p>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">
+              Mejor Exacto
+            </p>
           </div>
         </div>
       </div>
@@ -262,23 +289,39 @@ export function PerformancePage() {
             <tbody className="divide-y divide-gray-100">
               {stats.map(row => {
                 const tier = MODEL_TIERS[row.name];
-                const isBest = row.name === bestModel;
-                const winPct = row.n > 0 ? row.winnerCorrect / row.n : null;
+                const isWinnerBest = row.name === bestWinnerModel;
+                const isExactBest  = row.name === bestExactModel;
+                const rowBg = isWinnerBest && isExactBest
+                  ? 'bg-amber-50/40'
+                  : isWinnerBest ? 'bg-amber-50/60'
+                  : isExactBest  ? 'bg-teal-50/60'
+                  : 'hover:bg-wc-cream/30';
+                const cellBg = isWinnerBest && isExactBest
+                  ? 'bg-amber-50/40'
+                  : isWinnerBest ? 'bg-amber-50/60'
+                  : isExactBest  ? 'bg-teal-50/60'
+                  : 'bg-white';
                 return (
                   <tr
                     key={row.name}
-                    className={`transition-colors ${isBest ? 'bg-amber-50/60' : 'hover:bg-wc-cream/30'}`}
+                    className={`transition-colors ${rowBg}`}
                   >
-                    <td className={`px-5 py-3 sticky left-0 ${isBest ? 'bg-amber-50/60' : 'bg-white'}`}>
+                    <td className={`px-5 py-3 sticky left-0 ${cellBg}`}>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {isBest && <span className="text-amber-500 text-base leading-none">★</span>}
+                        {isWinnerBest && <span className="text-amber-500 text-base leading-none">★</span>}
+                        {isExactBest  && <span className="text-teal-500 text-base leading-none">🎯</span>}
                         <div>
                           <span className="font-semibold text-gray-800">{row.name}</span>
                           {tier && (
                             <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>
                           )}
                         </div>
-                        {isBest && <Badge color="gold">Líder</Badge>}
+                        {isWinnerBest && <Badge color="gold">Líder</Badge>}
+                        {isExactBest  && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-700">
+                            Exacto
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
