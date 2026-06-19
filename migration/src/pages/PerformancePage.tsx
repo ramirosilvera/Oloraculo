@@ -91,6 +91,21 @@ export function PerformancePage() {
 
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeMsg, setRecomputeMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // Must be before any early return (React Rules of Hooks)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const stats = buildModelStats(evals ?? []);
+  const selectedEvals = useMemo(() => {
+    if (!selectedModel || !evals) return [];
+    const hasExact = stats.find(s => s.name === selectedModel)?.hasExactData ?? false;
+    return evals
+      .filter(e => e.model_name === selectedModel)
+      .sort((a, b) => {
+        const winnerDiff = Number(b.top_pick_correct) - Number(a.top_pick_correct);
+        if (winnerDiff !== 0) return winnerDiff;
+        if (hasExact) return Number(b.exact_score_correct ?? false) - Number(a.exact_score_correct ?? false);
+        return 0;
+      });
+  }, [selectedModel, evals, stats]);
 
   async function handleRecompute() {
     if (!engine) {
@@ -141,7 +156,6 @@ export function PerformancePage() {
   }
 
   const hasData = evals && evals.length > 0;
-  const stats = buildModelStats(evals ?? []);
 
   const totalMatches = wcResults.length;
   const totalEvals = evals?.length ?? 0;
@@ -165,23 +179,9 @@ export function PerformancePage() {
   const overallWinner = hasData ? evals!.filter(e => e.top_pick_correct).length : 0;
   const overallN = totalEvals;
 
-  // Model detail: selected model + filtered/sorted evaluations
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const handleModelClick = (name: string) =>
     setSelectedModel(prev => (prev === name ? null : name));
   const selectedModelStats = selectedModel ? stats.find(s => s.name === selectedModel) ?? null : null;
-  const selectedEvals = useMemo(() => {
-    if (!selectedModel || !evals) return [];
-    const hasExact = stats.find(s => s.name === selectedModel)?.hasExactData ?? false;
-    return evals
-      .filter(e => e.model_name === selectedModel)
-      .sort((a, b) => {
-        const winnerDiff = Number(b.top_pick_correct) - Number(a.top_pick_correct);
-        if (winnerDiff !== 0) return winnerDiff;
-        if (hasExact) return Number(b.exact_score_correct ?? false) - Number(a.exact_score_correct ?? false);
-        return 0;
-      });
-  }, [selectedModel, evals, stats]);
 
   return (
     <div className="space-y-6">
