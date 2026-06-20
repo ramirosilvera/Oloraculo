@@ -839,51 +839,107 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 }
 
 // ---------------------------------------------------------------------------
-// LiveNow — hero banner showing only currently playing matches (IN_PLAY / PAUSED)
-// Renders nothing when no match is live, so it never takes up empty space.
+// LiveNow — shows today's WC matches from ESPN (live, finished, or upcoming).
+// - IN_PLAY/PAUSED → hero dark card with large score
+// - FINISHED        → compact card with final score
+// - SCHEDULED/TIMED → compact card with kickoff time (ART)
+// Returns null only when ESPN returns no matches for today.
 // ---------------------------------------------------------------------------
 function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; teamMap: Map<string, Team> }) {
-  const live = [...liveByKey.values()].filter(
-    m => m.status === 'IN_PLAY' || m.status === 'PAUSED',
-  );
-  if (live.length === 0) return null;
+  const artToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 
-  return (
-    <div className="rounded-2xl overflow-hidden border border-red-800/40 shadow-lg shadow-red-950/30">
-      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-950 to-gray-900">
-        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-        <span className="text-[11px] font-black text-red-300 tracking-widest uppercase">En Vivo</span>
-        <span className="ml-auto text-[10px] text-red-800 font-medium">Mundial 2026</span>
+  const todayMatches = [...liveByKey.values()].filter(m => {
+    const mArt = new Date(m.utcDate).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+    return mArt === artToday;
+  });
+
+  if (todayMatches.length === 0) return null;
+
+  const live     = todayMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
+  const finished = todayMatches.filter(m => m.status === 'FINISHED');
+  const upcoming = todayMatches
+    .filter(m => m.status === 'SCHEDULED' || m.status === 'TIMED')
+    .sort((a, b) => a.utcDate.localeCompare(b.utcDate));
+
+  const toART = (utcDate: string) =>
+    new Date(utcDate).toLocaleTimeString('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+  // ── Hero card: matches currently playing ───────────────────────────────────
+  if (live.length > 0) {
+    return (
+      <div className="rounded-2xl overflow-hidden border border-red-800/40 shadow-lg shadow-red-950/30">
+        <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-950 to-gray-900">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+          <span className="text-[11px] font-black text-red-300 tracking-widest uppercase">En Vivo</span>
+          <span className="ml-auto text-[10px] text-red-800 font-medium">Mundial 2026</span>
+        </div>
+        <div className="bg-gradient-to-br from-red-950/80 to-gray-950 divide-y divide-red-900/30">
+          {live.map(m => {
+            const home = teamMap.get(m.homeLocalId ?? '');
+            const away = teamMap.get(m.awayLocalId ?? '');
+            return (
+              <div key={m.fdId} className="flex items-center gap-3 px-4 py-3.5">
+                <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                  <span className="text-sm font-bold text-white truncate text-right">{home?.name ?? m.homeTeamFdName}</span>
+                  <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+                </div>
+                <div className="flex flex-col items-center shrink-0 min-w-[68px]">
+                  <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
+                    {m.homeGoals ?? 0}–{m.awayGoals ?? 0}
+                  </span>
+                  <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
+                    {m.status === 'PAUSED' ? '½ tiempo' : m.minute ? `${m.minute}'` : '···'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+                  <span className="text-sm font-bold text-white truncate">{away?.name ?? m.awayTeamFdName}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <div className="bg-gradient-to-br from-red-950/80 to-gray-950 divide-y divide-red-900/30">
-        {live.map(m => {
+    );
+  }
+
+  // ── Compact card: finished + upcoming ─────────────────────────────────────
+  const rows = [...finished, ...upcoming];
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-3 py-2 flex items-center gap-1.5 border-b border-gray-50">
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+        <span className="text-[11px] font-bold text-gray-700">Resultados del día</span>
+        <span className="ml-auto text-[10px] text-gray-400 font-medium">ESPN · Mundial 2026</span>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {rows.map(m => {
           const home = teamMap.get(m.homeLocalId ?? '');
           const away = teamMap.get(m.awayLocalId ?? '');
+          const isFinished = m.status === 'FINISHED';
           return (
-            <div key={m.fdId} className="flex items-center gap-3 px-4 py-3.5">
-              {/* Home */}
-              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                <span className="text-sm font-bold text-white truncate text-right">
-                  {home?.name ?? m.homeTeamFdName}
-                </span>
-                <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-              </div>
-              {/* Score + clock */}
-              <div className="flex flex-col items-center shrink-0 min-w-[68px]">
-                <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
+            <div key={m.fdId} className="flex items-center gap-2 px-3 py-2">
+              <FlagImg id={m.homeLocalId ?? ''} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
+              <span className="flex-1 min-w-0 text-xs font-semibold text-gray-700 truncate text-right">
+                {home?.name ?? m.homeTeamFdName}
+              </span>
+              {isFinished ? (
+                <span className="shrink-0 text-xs font-black text-gray-900 tabular-nums px-2">
                   {m.homeGoals ?? 0}–{m.awayGoals ?? 0}
                 </span>
-                <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
-                  {m.status === 'PAUSED' ? '½ tiempo' : m.minute ? `${m.minute}'` : '···'}
+              ) : (
+                <span className="shrink-0 text-[11px] font-semibold text-wc-navy tabular-nums px-2">
+                  {toART(m.utcDate)}
                 </span>
-              </div>
-              {/* Away */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-                <span className="text-sm font-bold text-white truncate">
-                  {away?.name ?? m.awayTeamFdName}
-                </span>
-              </div>
+              )}
+              <span className="flex-1 min-w-0 text-xs font-semibold text-gray-700 truncate">
+                {away?.name ?? m.awayTeamFdName}
+              </span>
+              <FlagImg id={m.awayLocalId ?? ''} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
             </div>
           );
         })}
@@ -1220,7 +1276,14 @@ export function MatchesPage() {
       {/* TournamentPace hidden — preserved for later use */}
 
       {/* ------------------------------------------------------------------ */}
-      {/* EN VIVO — solo aparece cuando hay partidos en curso                 */}
+      {/* GOLEADORES — visible siempre, arriba del fold                       */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && matchGoals && matchGoals.length > 0 && (
+        <TopScorers goals={matchGoals} teamMap={teamMap} />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* RESULTADOS / EN VIVO — ESPN; muestra hoy (live, final o próximo)   */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
         <LiveNow liveByKey={liveByKey} teamMap={teamMap} />
@@ -1434,13 +1497,6 @@ export function MatchesPage() {
             )}
           </div>
         </div>
-      )}
-
-      {/* ------------------------------------------------------------------ */}
-      {/* GOLEADORES — justo debajo de la tarjeta de partidos                 */}
-      {/* ------------------------------------------------------------------ */}
-      {!isSearching && matchGoals && matchGoals.length > 0 && (
-        <TopScorers goals={matchGoals} teamMap={teamMap} />
       )}
 
       {/* ------------------------------------------------------------------ */}
