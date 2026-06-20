@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
+import { useLiveScores, getLiveForFixture } from '../hooks/useLiveScores';
+import type { LiveMatch } from '../hooks/useLiveScores';
 import {
   saveMatchSnapshot,
   saveEvaluations,
@@ -322,19 +324,21 @@ interface FixtureRowProps {
   onResultHome: (v: string) => void;
   onResultAway: (v: string) => void;
   onContextSaved: (ctx: FixtureContext) => Promise<void>;
+  onRecordLiveResult?: (homeGoals: number, awayGoals: number) => Promise<void>;
   homeName: string;
   awayName: string;
   context: FixtureContext | null;
   compact?: boolean;
   bestModelName: string | null;
   bestModelWinnerAcc: number | null;
+  liveMatch?: LiveMatch;
 }
 
 function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
-  onResultHome, onResultAway, onContextSaved, homeName, awayName, context, compact,
-  bestModelName, bestModelWinnerAcc,
+  onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
+  context, compact, bestModelName, bestModelWinnerAcc, liveMatch,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   return (
@@ -351,6 +355,14 @@ function FixtureRow({
         <FlagImg id={fixture.away_team_id} />
         {played ? (
           <Badge color="green">{played.home_goals} – {played.away_goals}</Badge>
+        ) : liveMatch?.status === 'IN_PLAY' || liveMatch?.status === 'PAUSED' ? (
+          <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+            {liveMatch.homeGoals ?? 0}–{liveMatch.awayGoals ?? 0}
+            {liveMatch.minute ? ` ${liveMatch.minute}'` : ' EN VIVO'}
+          </span>
+        ) : liveMatch?.status === 'FINISHED' ? (
+          <Badge color="green">{liveMatch.homeGoals ?? 0}–{liveMatch.awayGoals ?? 0}</Badge>
         ) : pred ? (
           <Badge color="blue">calculado</Badge>
         ) : null}
@@ -495,11 +507,35 @@ function FixtureRow({
               {!played && !evalDone.has(fixture.id) && (
                 <div className="space-y-2 pt-1">
                   <p className="text-xs font-semibold text-gray-600">Resultado real del partido</p>
+
+                  {/* Auto-fill from live API when match is finished */}
+                  {liveMatch?.status === 'FINISHED' && liveMatch.homeGoals != null && liveMatch.awayGoals != null && (
+                    <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-semibold text-emerald-700">Resultado oficial detectado</p>
+                        <p className="text-xs text-emerald-600 tabular-nums font-bold">
+                          {homeName} {liveMatch.homeGoals} – {liveMatch.awayGoals} {awayName}
+                        </p>
+                      </div>
+                      <Button
+                        variant="primary" size="sm" loading={isSavingThis}
+                        disabled={isSavingThis || !onRecordLiveResult}
+                        onClick={() => onRecordLiveResult?.(liveMatch.homeGoals!, liveMatch.awayGoals!)}
+                        className="shrink-0"
+                      >
+                        Guardar
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3">
                     <div className="flex flex-col items-center gap-1">
                       <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Local</label>
                       <input
-                        type="number" min="0" max="20" value={resultHome}
+                        type="number" min="0" max="20"
+                        value={liveMatch?.status === 'FINISHED' && liveMatch.homeGoals != null && !resultHome
+                          ? String(liveMatch.homeGoals) : resultHome}
                         onChange={e => onResultHome(e.target.value)}
                         className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-wc-navy/30 focus:border-wc-navy"
                       />
@@ -508,7 +544,9 @@ function FixtureRow({
                     <div className="flex flex-col items-center gap-1">
                       <label className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Visitante</label>
                       <input
-                        type="number" min="0" max="20" value={resultAway}
+                        type="number" min="0" max="20"
+                        value={liveMatch?.status === 'FINISHED' && liveMatch.awayGoals != null && !resultAway
+                          ? String(liveMatch.awayGoals) : resultAway}
                         onChange={e => onResultAway(e.target.value)}
                         className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-wc-navy/30 focus:border-wc-navy"
                       />
@@ -791,6 +829,9 @@ export function MatchesPage() {
   const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, isLoading, error } = useAppData();
   const qc = useQueryClient();
 
+  // Live scores from football-data.org (60s polling, no server needed)
+  const { liveByKey, hasActiveKey } = useLiveScores();
+
   // Load evaluation history to power ML ensemble blending
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
   const modelWeights  = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
@@ -945,6 +986,24 @@ export function MatchesPage() {
     finally { setSaving(null); }
   };
 
+  const recordLiveResult = async (fixture: Fixture, hg: number, ag: number) => {
+    const pred = predictions.get(fixture.id);
+    if (!pred) { setErr('Primero predecí el partido.'); return; }
+    setErr('');
+    setSaving(fixture.id);
+    try {
+      await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag });
+      await deleteEvaluationsForFixtures([fixture.id]);
+      await saveEvaluations(buildEvaluationRows(pred.predictions, fixture, hg, ag));
+      setEvalDone(prev => new Set(prev).add(fixture.id));
+      setResultHome(String(hg));
+      setResultAway(String(ag));
+      qc.invalidateQueries({ queryKey: ['wc-results'] });
+      qc.invalidateQueries({ queryKey: ['evaluations'] });
+    } catch (e) { setErr(String(e)); }
+    finally { setSaving(null); }
+  };
+
   const recordResult = async (fixture: Fixture) => {
     const hg = parseInt(resultHome), ag = parseInt(resultAway);
     if (isNaN(hg) || isNaN(ag) || hg < 0 || ag < 0) { setErr('Ingresá goles válidos (0 o más).'); return; }
@@ -981,12 +1040,14 @@ export function MatchesPage() {
     onResultHome: setResultHome,
     onResultAway: setResultAway,
     onContextSaved: (ctx: FixtureContext) => handleContextSaved(fixture, ctx),
+    onRecordLiveResult: (hg: number, ag: number) => recordLiveResult(fixture, hg, ag),
     homeName: teamMap.get(fixture.home_team_id)?.name ?? fixture.home_team_id,
     awayName: teamMap.get(fixture.away_team_id)?.name ?? fixture.away_team_id,
     context: contextMap.get(fixture.id) ?? null,
     compact,
     bestModelName: bestWinnerModelName,
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
+    liveMatch: getLiveForFixture(liveByKey, fixture.home_team_id, fixture.away_team_id),
   });
 
   // ---- filtered fixtures ----
@@ -1114,6 +1175,12 @@ export function MatchesPage() {
                 {selectedDate === TODAY && (
                   <span className="w-1.5 h-1.5 rounded-full bg-wc-gold shrink-0 animate-pulse" />
                 )}
+                {hasActiveKey && selectedDate === TODAY && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-red-300 bg-red-900/30 border border-red-500/30 px-1 py-px rounded ml-1">
+                    <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
+                    LIVE
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 {plantelStats.n > 0 && (
@@ -1160,6 +1227,7 @@ export function MatchesPage() {
                   const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
                   const played = playedMap.get(f.id);
                   const pred = predictions.get(f.id);
+                  const liveM = getLiveForFixture(liveByKey, f.home_team_id, f.away_team_id);
                   return (
                     <div key={f.id} className={i > 0 ? 'border-t border-white/10' : ''}>
                       <button
@@ -1189,6 +1257,14 @@ export function MatchesPage() {
                           <span className="ml-1 shrink-0">
                             {played ? (
                               <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
+                            ) : liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED' ? (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-300 bg-red-900/40 border border-red-500/40 px-1.5 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
+                                {liveM.homeGoals ?? 0}–{liveM.awayGoals ?? 0}
+                                {liveM.minute ? ` ${liveM.minute}'` : ''}
+                              </span>
+                            ) : liveM?.status === 'FINISHED' ? (
+                              <Badge color="green">{liveM.homeGoals ?? 0}–{liveM.awayGoals ?? 0}</Badge>
                             ) : (
                               <span className="text-xs font-semibold text-wc-gold bg-wc-navy/50 px-2 py-0.5 rounded-md">
                                 Grp {f.group_name}
