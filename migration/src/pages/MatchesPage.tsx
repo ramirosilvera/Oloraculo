@@ -839,11 +839,22 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 }
 
 // ---------------------------------------------------------------------------
-// LiveNow — hero card shown only while matches are IN_PLAY or PAUSED.
-// Returns null at all other times (before, after, or between matches).
+// LiveNow — hero card for matches currently in play.
+// Two-pronged detection so ESPN status lag doesn't hide a live match:
+//   1. ESPN says IN_PLAY or PAUSED                    → always shown
+//   2. Kickoff time is within [-5, +95] min of now   → shown even if ESPN
+//      hasn't flipped the status yet (catches the first few minutes)
+// FINISHED / POSTPONED / CANCELLED always excluded.
 // ---------------------------------------------------------------------------
 function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; teamMap: Map<string, Team> }) {
-  const live = [...liveByKey.values()].filter(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
+  const now = Date.now();
+
+  const live = [...liveByKey.values()].filter(m => {
+    if (m.status === 'IN_PLAY' || m.status === 'PAUSED') return true;
+    if (m.status === 'FINISHED' || m.status === 'POSTPONED' || m.status === 'CANCELLED') return false;
+    const minsFromKickoff = (now - new Date(m.utcDate).getTime()) / 60_000;
+    return minsFromKickoff >= -5 && minsFromKickoff <= 95;
+  });
 
   if (live.length === 0) return null;
 
@@ -858,23 +869,39 @@ function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; te
         {live.map(m => {
           const home = teamMap.get(m.homeLocalId ?? '');
           const away = teamMap.get(m.awayLocalId ?? '');
+          const hasScore = m.homeGoals != null && m.awayGoals != null;
+          const isExplicitlyLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
           return (
             <div key={m.fdId} className="flex items-center gap-3 px-4 py-3.5">
               <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                <span className="text-sm font-bold text-white truncate text-right">{home?.name ?? m.homeTeamFdName}</span>
+                <span className="text-sm font-bold text-white truncate text-right">
+                  {home?.name ?? m.homeTeamFdName}
+                </span>
                 <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
               </div>
               <div className="flex flex-col items-center shrink-0 min-w-[68px]">
-                <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
-                  {m.homeGoals ?? 0}–{m.awayGoals ?? 0}
-                </span>
+                {hasScore ? (
+                  <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
+                    {m.homeGoals}–{m.awayGoals}
+                  </span>
+                ) : (
+                  <span className="text-lg font-black text-white/50 leading-none">vs</span>
+                )}
                 <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
-                  {m.status === 'PAUSED' ? '½ tiempo' : m.minute ? `${m.minute}'` : '···'}
+                  {m.status === 'PAUSED'
+                    ? '½ tiempo'
+                    : m.minute
+                    ? `${m.minute}'`
+                    : isExplicitlyLive
+                    ? '···'
+                    : 'iniciando'}
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-                <span className="text-sm font-bold text-white truncate">{away?.name ?? m.awayTeamFdName}</span>
+                <span className="text-sm font-bold text-white truncate">
+                  {away?.name ?? m.awayTeamFdName}
+                </span>
               </div>
             </div>
           );
