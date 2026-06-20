@@ -40,7 +40,7 @@ jobs:
 
       - name: Configurar secretos de Pages Functions
         working-directory: migration
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        continue-on-error: true
         run: |
           if [ -n "$SERPER_API_KEY" ]; then
             printf '%s' "$SERPER_API_KEY" | npx wrangler@3 pages secret put SERPER_API_KEY --project-name=oloraculo
