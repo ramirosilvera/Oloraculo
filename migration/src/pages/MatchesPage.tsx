@@ -17,7 +17,7 @@ import { GoalList } from '../components/GoalList';
 import { TopScorers } from '../components/TopScorers';
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team } from '../types/domain';
 import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { MODEL_TIERS } from '../engine/model-tiers';
@@ -839,61 +839,55 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 }
 
 // ---------------------------------------------------------------------------
-// LiveScoresDebug — temporary diagnostic card
+// LiveNow — hero banner showing only currently playing matches (IN_PLAY / PAUSED)
+// Renders nothing when no match is live, so it never takes up empty space.
 // ---------------------------------------------------------------------------
-interface LiveScoresDebugProps {
-  isLoading: boolean;
-  lastUpdated: Date | null;
-  error: string | null;
-  liveByKey: Map<string, LiveMatch>;
-  onRefetch: () => void;
-}
+function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; teamMap: Map<string, Team> }) {
+  const live = [...liveByKey.values()].filter(
+    m => m.status === 'IN_PLAY' || m.status === 'PAUSED',
+  );
+  if (live.length === 0) return null;
 
-function LiveScoresDebug({ isLoading, lastUpdated, error, liveByKey, onRefetch }: LiveScoresDebugProps) {
-  const [open, setOpen] = useState(true);
-  const matches = [...liveByKey.values()];
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-950 text-green-400 font-mono text-[10px] overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-1.5 bg-gray-900 hover:bg-gray-800 transition-colors"
-      >
-        <span className="font-bold text-green-300 text-[11px]">
-          ⚡ DEBUG Live Scores (ESPN via Edge Fn) {isLoading ? '⏳' : `(${matches.length} matches)`}
-        </span>
-        <span className="text-gray-500">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="p-3 space-y-1">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div>SOURCE: <span className="text-green-300">ESPN site.api.espn.com/fifa.world</span></div>
-              <div>UPDATED: <span className="text-gray-400">{lastUpdated ? lastUpdated.toLocaleTimeString() : 'never'}</span></div>
-              {error && <div>ERR: <span className="text-red-400">{error}</span></div>}
+    <div className="rounded-2xl overflow-hidden border border-red-800/40 shadow-lg shadow-red-950/30">
+      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-950 to-gray-900">
+        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+        <span className="text-[11px] font-black text-red-300 tracking-widest uppercase">En Vivo</span>
+        <span className="ml-auto text-[10px] text-red-800 font-medium">Mundial 2026</span>
+      </div>
+      <div className="bg-gradient-to-br from-red-950/80 to-gray-950 divide-y divide-red-900/30">
+        {live.map(m => {
+          const home = teamMap.get(m.homeLocalId ?? '');
+          const away = teamMap.get(m.awayLocalId ?? '');
+          return (
+            <div key={m.fdId} className="flex items-center gap-3 px-4 py-3.5">
+              {/* Home */}
+              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                <span className="text-sm font-bold text-white truncate text-right">
+                  {home?.name ?? m.homeTeamFdName}
+                </span>
+                <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+              </div>
+              {/* Score + clock */}
+              <div className="flex flex-col items-center shrink-0 min-w-[68px]">
+                <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
+                  {m.homeGoals ?? 0}–{m.awayGoals ?? 0}
+                </span>
+                <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
+                  {m.status === 'PAUSED' ? '½ tiempo' : m.minute ? `${m.minute}'` : '···'}
+                </span>
+              </div>
+              {/* Away */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+                <span className="text-sm font-bold text-white truncate">
+                  {away?.name ?? m.awayTeamFdName}
+                </span>
+              </div>
             </div>
-            <button
-              onClick={onRefetch}
-              className="px-2 py-1 border border-green-800 text-green-400 hover:bg-green-900/30 rounded transition-colors"
-            >
-              ↺ refetch
-            </button>
-          </div>
-          {matches.length === 0 && !isLoading && !error && (
-            <div className="text-yellow-400 border-t border-gray-800 pt-1">
-              ⚠ 0 partidos devueltos — puede que hoy no haya partidos del Mundial
-            </div>
-          )}
-          {matches.map((m, i) => (
-            <div key={i} className="border-t border-gray-800 pt-1">
-              <span className="text-white">{m.homeTeamFdName}</span>
-              {' '}<span className="text-green-300 font-bold">{m.homeGoals ?? '?'}–{m.awayGoals ?? '?'}</span>{' '}
-              <span className="text-white">{m.awayTeamFdName}</span>
-              {' '}<span className="text-gray-500">[{m.status}{m.minute != null ? ` ${m.minute}'` : ''}]</span>
-              {' '}<span className="text-gray-600">{m.homeLocalId}:{m.awayLocalId}</span>
-            </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -906,7 +900,7 @@ export function MatchesPage() {
   const qc = useQueryClient();
 
   // Live scores from ESPN via Supabase Edge Function (60s polling)
-  const { liveByKey, isLoading: liveLoading, lastUpdated: liveUpdated, error: liveError } = useLiveScores();
+  const { liveByKey } = useLiveScores();
 
   // Load evaluation history to power ML ensemble blending
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
@@ -1226,16 +1220,10 @@ export function MatchesPage() {
       {/* TournamentPace hidden — preserved for later use */}
 
       {/* ------------------------------------------------------------------ */}
-      {/* DEBUG LIVE SCORES                                                    */}
+      {/* EN VIVO — solo aparece cuando hay partidos en curso                 */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
-        <LiveScoresDebug
-          isLoading={liveLoading}
-          lastUpdated={liveUpdated}
-          error={liveError}
-          liveByKey={liveByKey}
-          onRefetch={() => qc.invalidateQueries({ queryKey: ['live-scores'] })}
-        />
+        <LiveNow liveByKey={liveByKey} teamMap={teamMap} />
       )}
 
       {/* ------------------------------------------------------------------ */}
@@ -1331,12 +1319,13 @@ export function MatchesPage() {
                   const played = playedMap.get(f.id);
                   const pred = predictions.get(f.id);
                   const liveM = getLiveForFixture(liveByKey, f.home_team_id, f.away_team_id);
+                  const rowIsLive = liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED';
                   return (
-                    <div key={f.id} className={i > 0 ? 'border-t border-white/10' : ''}>
+                    <div key={f.id} className={`${i > 0 ? 'border-t border-white/10' : ''} ${rowIsLive ? 'border-l-2 border-l-red-500' : ''}`}>
                       <button
                         onClick={() => expand(f)}
                         disabled={expandingId === f.id}
-                        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 active:bg-white/20 transition-all text-left ${expandingId === f.id ? 'opacity-70' : ''}`}
+                        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 active:bg-white/20 transition-all text-left ${expandingId === f.id ? 'opacity-70' : ''} ${rowIsLive ? 'bg-red-950/30' : ''}`}
                       >
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <span className="text-[10px] font-bold text-wc-gold/80 uppercase tracking-wide">
