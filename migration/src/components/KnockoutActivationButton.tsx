@@ -16,7 +16,7 @@ interface Props {
   teamMap: Map<string, Team>;
 }
 
-const GROUP_TOTAL = 48;
+const GROUP_TOTAL = 72;
 
 export function KnockoutActivationButton({ fixtures, wcPlayedMap, teamMap }: Props) {
   const [open, setOpen]             = useState(false);

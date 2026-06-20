@@ -88,7 +88,7 @@ export type ThirdPlaceAssignments = [string, string, string, string, string, str
 /**
  * Generates the complete knockout fixture list ready to write to knockout-fixtures.json.
  *
- * @param groupFixtures  All 48 played group-stage Fixture objects (is_played: true).
+ * @param groupFixtures  All 72 played group-stage Fixture objects (is_played: true).
  * @param thirdPlaceAssignments  8 team IDs in FIFA-assigned R32 slot order [m85h,m85a,m86h,m86a,m87h,m87a,m88h,m88a].
  *                               Get this from FIFA's official post-group-stage bracket announcement.
  */
