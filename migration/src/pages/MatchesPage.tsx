@@ -1171,13 +1171,6 @@ export function MatchesPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* GOLEADORES — Bota de Oro                                            */}
-      {/* ------------------------------------------------------------------ */}
-      {!isSearching && matchGoals && matchGoals.length > 0 && (
-        <TopScorers goals={matchGoals} teamMap={teamMap} />
-      )}
-
-      {/* ------------------------------------------------------------------ */}
       {/* MARCADORES MÁS REPETIDOS — histórico siempre visible, live desde 6p  */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && wcResults && (
@@ -1551,6 +1544,14 @@ export function MatchesPage() {
           </div>
         )
       )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* GOLEADORES — Bota de Oro (compact, collapsible)                     */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && matchGoals && matchGoals.length > 0 && (
+        <TopScorers goals={matchGoals} teamMap={teamMap} />
+      )}
+
     </div>
   );
 }
