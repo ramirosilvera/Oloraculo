@@ -158,7 +158,13 @@ export function PerformancePage() {
 
   const hasData = evals && evals.length > 0;
 
-  const totalMatches = wcResults.length;
+  // Only count results that correspond to a real fixture (guards against orphaned
+  // Supabase entries saved with a wrong/reversed fixture_id).
+  const validFixtureIds = useMemo(() => new Set(fixtures.map(f => f.id)), [fixtures]);
+  const totalMatches = useMemo(
+    () => wcResults.filter(r => validFixtureIds.has(r.fixture_id)).length,
+    [wcResults, validFixtureIds],
+  );
   const totalEvals = evals?.length ?? 0;
   const hasExactData = stats.some(s => s.hasExactData);
 
