@@ -1450,6 +1450,13 @@ export function MatchesPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
+      {/* GOLEADORES — justo debajo de la tarjeta de partidos                 */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && matchGoals && matchGoals.length > 0 && (
+        <TopScorers goals={matchGoals} teamMap={teamMap} />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
       {/* TABS DE GRUPO (solo cuando no busca)                                */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
@@ -1639,12 +1646,6 @@ export function MatchesPage() {
         <TopScorelines wcResults={wcResults} />
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* GOLEADORES — Bota de Oro (compact, collapsible)                     */}
-      {/* ------------------------------------------------------------------ */}
-      {!isSearching && matchGoals && matchGoals.length > 0 && (
-        <TopScorers goals={matchGoals} teamMap={teamMap} />
-      )}
 
     </div>
   );
