@@ -842,7 +842,6 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 // LiveScoresDebug — temporary diagnostic card
 // ---------------------------------------------------------------------------
 interface LiveScoresDebugProps {
-  hasActiveKey: boolean;
   isLoading: boolean;
   lastUpdated: Date | null;
   error: string | null;
@@ -850,7 +849,7 @@ interface LiveScoresDebugProps {
   onRefetch: () => void;
 }
 
-function LiveScoresDebug({ hasActiveKey, isLoading, lastUpdated, error, liveByKey, onRefetch }: LiveScoresDebugProps) {
+function LiveScoresDebug({ isLoading, lastUpdated, error, liveByKey, onRefetch }: LiveScoresDebugProps) {
   const [open, setOpen] = useState(true);
   const matches = [...liveByKey.values()];
   return (
@@ -860,7 +859,7 @@ function LiveScoresDebug({ hasActiveKey, isLoading, lastUpdated, error, liveByKe
         className="w-full flex items-center justify-between px-3 py-1.5 bg-gray-900 hover:bg-gray-800 transition-colors"
       >
         <span className="font-bold text-green-300 text-[11px]">
-          ⚡ DEBUG Live Scores {isLoading ? '⏳' : `(${matches.length} matches)`}
+          ⚡ DEBUG Live Scores (ESPN via Edge Fn) {isLoading ? '⏳' : `(${matches.length} matches)`}
         </span>
         <span className="text-gray-500">{open ? '▲' : '▼'}</span>
       </button>
@@ -868,7 +867,7 @@ function LiveScoresDebug({ hasActiveKey, isLoading, lastUpdated, error, liveByKe
         <div className="p-3 space-y-1">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <div>KEY: <span className={hasActiveKey ? 'text-green-300' : 'text-red-400'}>{hasActiveKey ? '✓ SET' : '✗ MISSING — VITE_FD_API_KEY not in build'}</span></div>
+              <div>SOURCE: <span className="text-green-300">ESPN site.api.espn.com/fifa.world</span></div>
               <div>UPDATED: <span className="text-gray-400">{lastUpdated ? lastUpdated.toLocaleTimeString() : 'never'}</span></div>
               {error && <div>ERR: <span className="text-red-400">{error}</span></div>}
             </div>
@@ -879,9 +878,9 @@ function LiveScoresDebug({ hasActiveKey, isLoading, lastUpdated, error, liveByKe
               ↺ refetch
             </button>
           </div>
-          {matches.length === 0 && !isLoading && (
+          {matches.length === 0 && !isLoading && !error && (
             <div className="text-yellow-400 border-t border-gray-800 pt-1">
-              ⚠ API returned 0 matches — free tier may not include live data (requires €12/mo add-on)
+              ⚠ 0 partidos devueltos — puede que hoy no haya partidos del Mundial
             </div>
           )}
           {matches.map((m, i) => (
@@ -906,8 +905,8 @@ export function MatchesPage() {
   const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, isLoading, error } = useAppData();
   const qc = useQueryClient();
 
-  // Live scores from football-data.org (60s polling, no server needed)
-  const { liveByKey, hasActiveKey, isLoading: liveLoading, lastUpdated: liveUpdated, error: liveError } = useLiveScores();
+  // Live scores from ESPN via Supabase Edge Function (60s polling)
+  const { liveByKey, isLoading: liveLoading, lastUpdated: liveUpdated, error: liveError } = useLiveScores();
 
   // Load evaluation history to power ML ensemble blending
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
@@ -1231,7 +1230,6 @@ export function MatchesPage() {
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
         <LiveScoresDebug
-          hasActiveKey={hasActiveKey}
           isLoading={liveLoading}
           lastUpdated={liveUpdated}
           error={liveError}
@@ -1280,7 +1278,7 @@ export function MatchesPage() {
                 {selectedDate === TODAY && (
                   <span className="w-1.5 h-1.5 rounded-full bg-wc-gold shrink-0 animate-pulse" />
                 )}
-                {hasActiveKey && selectedDate === TODAY && (
+                {selectedDate === TODAY && (
                   <span className="flex items-center gap-1 text-[9px] font-bold text-red-300 bg-red-900/30 border border-red-500/30 px-1 py-px rounded ml-1">
                     <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
                     LIVE

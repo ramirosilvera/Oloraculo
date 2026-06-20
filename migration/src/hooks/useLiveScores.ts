@@ -1,5 +1,5 @@
 // =============================================================================
-// Oloráculo — useLiveScores: polling hook for football-data.org live scores
+// Oloráculo — useLiveScores: polling hook for ESPN live scores (via Edge Fn)
 // Polls every 60s. Keyed by "homeLocalId:awayLocalId" for fixture lookup.
 // =============================================================================
 
@@ -11,27 +11,18 @@ export type { LiveMatch };
 
 const POLL_INTERVAL_MS = 60_000;
 
-// Build a lookup key that matches how we identify fixtures locally
-function liveKey(homeId: string | null, awayId: string | null): string {
-  return `${homeId ?? ''}:${awayId ?? ''}`;
-}
-
 export interface UseLiveScoresResult {
   /** Map<"homeLocalId:awayLocalId", LiveMatch> */
   liveByKey: Map<string, LiveMatch>;
   isLoading: boolean;
   lastUpdated: Date | null;
   error: string | null;
-  hasActiveKey: boolean;
 }
 
 export function useLiveScores(): UseLiveScoresResult {
-  const apiKeySet = Boolean(import.meta.env.VITE_FD_API_KEY);
-
   const { data, isLoading, dataUpdatedAt, error } = useQuery<LiveMatch[], Error>({
     queryKey: ['live-scores'],
     queryFn: fetchLiveAndRecent,
-    enabled: apiKeySet,
     refetchInterval: POLL_INTERVAL_MS,
     refetchIntervalInBackground: false,
     staleTime: POLL_INTERVAL_MS - 5_000,
@@ -43,20 +34,14 @@ export function useLiveScores(): UseLiveScoresResult {
 
   const liveByKey = new Map<string, LiveMatch>();
   for (const m of data ?? []) {
-    const key = liveKey(m.homeLocalId, m.awayLocalId);
-    liveByKey.set(key, m);
+    liveByKey.set(`${m.homeLocalId ?? ''}:${m.awayLocalId ?? ''}`, m);
   }
-
-  const hasLiveNow = (data ?? []).some(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
 
   return {
     liveByKey,
     isLoading,
     lastUpdated: dataUpdatedAt ? new Date(dataUpdatedAt) : null,
     error: error ? error.message : null,
-    hasActiveKey: apiKeySet,
-    // expose whether any match is currently live (so callers can shorten poll)
-    ...(hasLiveNow ? {} : {}),
   };
 }
 
