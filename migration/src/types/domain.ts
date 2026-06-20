@@ -293,4 +293,7 @@ export interface SquadStrengthEntry {
   ucl_players: number;
   squad_size: number;
   estimated?: boolean;
+  avg_age?: number;
+  key_player?: string;
+  squad_depth?: number;
 }

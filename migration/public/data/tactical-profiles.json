@@ -6,9 +6,11 @@
     "buildupStyle": "possession",
     "setPieceQuality": 0.70,
     "tempo": 0.75,
-    "counterAttackThreat": 0.60,
+    "counterAttackThreat": 0.42,
     "aerialStrength": 0.50,
     "tacticalFlexibility": 0.90,
+    "pressResistance": 0.92,
+    "setPieceDefense": 0.78,
     "description": "Posesión dominante con presión altísima al perder. Combinaciones rápidas por dentro con desbordes por bandas."
   },
   "argentina": {
@@ -21,18 +23,22 @@
     "counterAttackThreat": 0.82,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.88,
+    "pressResistance": 0.78,
+    "setPieceDefense": 0.72,
     "description": "Bloque medio sólido con explosión en transición. Messi organiza, Di María desborda, Mac Allister controla."
   },
   "france": {
     "formation": "4-3-3",
     "pressIntensity": 0.72,
     "defensiveLine": 0.60,
-    "buildupStyle": "counter",
+    "buildupStyle": "hybrid",
     "setPieceQuality": 0.72,
     "tempo": 0.80,
     "counterAttackThreat": 0.92,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.82,
+    "pressResistance": 0.72,
+    "setPieceDefense": 0.76,
     "description": "Contraataque devastador con Mbappé. Sólido en defensa, letal en transición con calidad individual excepcional."
   },
   "england": {
@@ -45,18 +51,22 @@
     "counterAttackThreat": 0.72,
     "aerialStrength": 0.78,
     "tacticalFlexibility": 0.75,
+    "pressResistance": 0.70,
+    "setPieceDefense": 0.78,
     "description": "Alto pressing con calidad técnica mejorada. Fuerza en pelota parada y potencia física en todo el campo."
   },
   "brazil": {
     "formation": "4-2-3-1",
     "pressIntensity": 0.72,
     "defensiveLine": 0.68,
-    "buildupStyle": "possession",
+    "buildupStyle": "hybrid",
     "setPieceQuality": 0.65,
     "tempo": 0.72,
     "counterAttackThreat": 0.75,
     "aerialStrength": 0.55,
     "tacticalFlexibility": 0.80,
+    "pressResistance": 0.80,
+    "setPieceDefense": 0.68,
     "description": "Posesión combinativa con habilidad individual. Vinicius y Rodrygo son amenaza constante en bandas."
   },
   "portugal": {
@@ -69,6 +79,8 @@
     "counterAttackThreat": 0.78,
     "aerialStrength": 0.70,
     "tacticalFlexibility": 0.72,
+    "pressResistance": 0.78,
+    "setPieceDefense": 0.70,
     "description": "Posesión con calidad individual. Bruno Fernandes organiza, Leão desborda, Ronaldo finaliza con clase."
   },
   "colombia": {
@@ -81,6 +93,8 @@
     "counterAttackThreat": 0.75,
     "aerialStrength": 0.58,
     "tacticalFlexibility": 0.72,
+    "pressResistance": 0.70,
+    "setPieceDefense": 0.62,
     "description": "Juego combinado con James Rodríguez organizando. Transiciones rápidas con Díaz y Cuadrado por bandas."
   },
   "netherlands": {
@@ -93,6 +107,8 @@
     "counterAttackThreat": 0.80,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.70,
+    "pressResistance": 0.80,
+    "setPieceDefense": 0.74,
     "description": "Pressing agresivo y sistema ofensivo de Koeman. Tres centrales con carrileros que aportan amplitud y profundidad."
   },
   "ecuador": {
@@ -105,6 +121,8 @@
     "counterAttackThreat": 0.65,
     "aerialStrength": 0.72,
     "tacticalFlexibility": 0.50,
+    "pressResistance": 0.55,
+    "setPieceDefense": 0.65,
     "description": "Juego físico y directo. Valencia en ataque es amenaza aérea, bloque organizado y salida rápida."
   },
   "germany": {
@@ -117,6 +135,8 @@
     "counterAttackThreat": 0.78,
     "aerialStrength": 0.72,
     "tacticalFlexibility": 0.80,
+    "pressResistance": 0.82,
+    "setPieceDefense": 0.75,
     "description": "Alta intensidad y pressing estructurado de Nagelsmann. Musala y Wirtz en el corazón del juego de posición-presión."
   },
   "norway": {
@@ -129,6 +149,8 @@
     "counterAttackThreat": 0.82,
     "aerialStrength": 0.88,
     "tacticalFlexibility": 0.55,
+    "pressResistance": 0.50,
+    "setPieceDefense": 0.68,
     "description": "Fútbol directo hacia Haaland. Enorme peligro aéreo en pelota parada, potencia física dominante."
   },
   "croatia": {
@@ -141,6 +163,8 @@
     "counterAttackThreat": 0.62,
     "aerialStrength": 0.60,
     "tacticalFlexibility": 0.80,
+    "pressResistance": 0.83,
+    "setPieceDefense": 0.72,
     "description": "Posesión pausada con Modric como metrónomo. Control del tempo del partido con madurez táctica y experiencia."
   },
   "turkey": {
@@ -153,18 +177,22 @@
     "counterAttackThreat": 0.72,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.62,
+    "pressResistance": 0.65,
+    "setPieceDefense": 0.65,
     "description": "Contraataque rápido con Calhanoglu organizando. Físicamente fuerte y peligroso en transición."
   },
   "japan": {
     "formation": "3-4-2-1",
     "pressIntensity": 0.88,
     "defensiveLine": 0.78,
-    "buildupStyle": "hybrid",
+    "buildupStyle": "direct",
     "setPieceQuality": 0.65,
     "tempo": 0.85,
     "counterAttackThreat": 0.78,
     "aerialStrength": 0.48,
     "tacticalFlexibility": 0.85,
+    "pressResistance": 0.76,
+    "setPieceDefense": 0.62,
     "description": "Pressing ultra intenso y muy organizado tácticamente. Transición rápida con técnica individual y colectiva excelente."
   },
   "belgium": {
@@ -177,6 +205,8 @@
     "counterAttackThreat": 0.75,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.72,
+    "pressResistance": 0.72,
+    "setPieceDefense": 0.70,
     "description": "Generación de talento con calidad individual. De Bruyne como motor, Lukaku como referencia aérea y física."
   },
   "uruguay": {
@@ -189,6 +219,8 @@
     "counterAttackThreat": 0.70,
     "aerialStrength": 0.85,
     "tacticalFlexibility": 0.55,
+    "pressResistance": 0.55,
+    "setPieceDefense": 0.65,
     "description": "Bloque defensivo muy bajo con salida directa y aérea. Fortaleza en pelota parada y duelos físicos."
   },
   "switzerland": {
@@ -201,6 +233,8 @@
     "counterAttackThreat": 0.68,
     "aerialStrength": 0.60,
     "tacticalFlexibility": 0.70,
+    "pressResistance": 0.72,
+    "setPieceDefense": 0.68,
     "description": "Equipo sólido y organizado. Buena presión media con salida controlada y Shaqiri como detonador creativo."
   },
   "mexico": {
@@ -213,6 +247,8 @@
     "counterAttackThreat": 0.68,
     "aerialStrength": 0.55,
     "tacticalFlexibility": 0.70,
+    "pressResistance": 0.72,
+    "setPieceDefense": 0.60,
     "description": "Posesión inteligente con salida desde atrás. Mejor con el balón, defensivamente organizado en casa."
   },
   "senegal": {
@@ -225,6 +261,8 @@
     "counterAttackThreat": 0.78,
     "aerialStrength": 0.72,
     "tacticalFlexibility": 0.65,
+    "pressResistance": 0.62,
+    "setPieceDefense": 0.65,
     "description": "Físico y dinámico con Mané y Dia. Transición rápida y presión media-alta con recursos técnicos individuales."
   },
   "paraguay": {
@@ -237,6 +275,8 @@
     "counterAttackThreat": 0.60,
     "aerialStrength": 0.75,
     "tacticalFlexibility": 0.45,
+    "pressResistance": 0.42,
+    "setPieceDefense": 0.65,
     "description": "Bloque muy bajo y compacto. Apuesta por pelota parada y contraataque directo tras robo."
   },
   "austria": {
@@ -249,6 +289,8 @@
     "counterAttackThreat": 0.70,
     "aerialStrength": 0.60,
     "tacticalFlexibility": 0.75,
+    "pressResistance": 0.72,
+    "setPieceDefense": 0.68,
     "description": "Sistema de Rangnick con pressing muy intenso y estructura defensiva agresiva. Alto ritmo en todas las líneas."
   },
   "morocco": {
@@ -261,6 +303,8 @@
     "counterAttackThreat": 0.85,
     "aerialStrength": 0.70,
     "tacticalFlexibility": 0.75,
+    "pressResistance": 0.62,
+    "setPieceDefense": 0.76,
     "description": "Bloque defensivo muy compacto con contraataque fulminante. Ziyech y Boufal letales en transición."
   },
   "canada": {
@@ -273,6 +317,8 @@
     "counterAttackThreat": 0.75,
     "aerialStrength": 0.70,
     "tacticalFlexibility": 0.65,
+    "pressResistance": 0.62,
+    "setPieceDefense": 0.65,
     "description": "Generación dorada con Davies liderando el contraataque. Atlético y rápido con capacidad de sorprender."
   },
   "south-korea": {
@@ -285,6 +331,8 @@
     "counterAttackThreat": 0.75,
     "aerialStrength": 0.58,
     "tacticalFlexibility": 0.72,
+    "pressResistance": 0.70,
+    "setPieceDefense": 0.62,
     "description": "Pressing alto con Son Heung-min liderando las transiciones. Físico, técnico y muy organizado."
   },
   "scotland": {
@@ -297,6 +345,8 @@
     "counterAttackThreat": 0.60,
     "aerialStrength": 0.70,
     "tacticalFlexibility": 0.58,
+    "pressResistance": 0.58,
+    "setPieceDefense": 0.65,
     "description": "Tres centrales con intensidad alta. Juego físico y directo con Robertson en su mejor versión por la izquierda."
   },
   "australia": {
@@ -309,6 +359,8 @@
     "counterAttackThreat": 0.68,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.65,
+    "pressResistance": 0.60,
+    "setPieceDefense": 0.60,
     "description": "Generación de socceroos con Leckie y McGree. Alto pressing y transiciones rápidas con presencia física."
   },
   "iran": {
@@ -321,6 +373,8 @@
     "counterAttackThreat": 0.70,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.58,
+    "pressResistance": 0.42,
+    "setPieceDefense": 0.62,
     "description": "Bloque muy defensivo y contraataque directo. Taremi como referencia solitaria, solidez colectiva defensiva."
   },
   "algeria": {
@@ -333,6 +387,8 @@
     "counterAttackThreat": 0.72,
     "aerialStrength": 0.62,
     "tacticalFlexibility": 0.58,
+    "pressResistance": 0.58,
+    "setPieceDefense": 0.60,
     "description": "Contraataque rápido con Mahrez como detonador. Bloque medio organizado y salida rápida en transición."
   },
   "ghana": {
@@ -345,6 +401,8 @@
     "counterAttackThreat": 0.68,
     "aerialStrength": 0.62,
     "tacticalFlexibility": 0.55,
+    "pressResistance": 0.55,
+    "setPieceDefense": 0.62,
     "description": "Velocidad en ataque con Jordan Ayew. Contraataque como arma principal, irregularidad defensiva."
   },
   "united-states": {
@@ -357,6 +415,8 @@
     "counterAttackThreat": 0.70,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.72,
+    "pressResistance": 0.65,
+    "setPieceDefense": 0.66,
     "description": "Pressing alto de Berhalter con talento joven. Pulisic lidera una generación atlética con buen juego colectivo."
   },
   "panama": {
@@ -369,6 +429,8 @@
     "counterAttackThreat": 0.55,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.42,
+    "pressResistance": 0.40,
+    "setPieceDefense": 0.55,
     "description": "Muy defensivo y organizado. Cinco en el fondo y salida larga al delantero de referencia."
   },
   "ivory-coast": {
@@ -381,6 +443,8 @@
     "counterAttackThreat": 0.75,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.62,
+    "pressResistance": 0.60,
+    "setPieceDefense": 0.62,
     "description": "Generación renovada con Zaha y Pépé. Velocidad en banda y peligro en transición con calidad técnica."
   },
   "egypt": {
@@ -393,6 +457,8 @@
     "counterAttackThreat": 0.72,
     "aerialStrength": 0.60,
     "tacticalFlexibility": 0.60,
+    "pressResistance": 0.58,
+    "setPieceDefense": 0.62,
     "description": "Mo Salah como eje absoluto del juego. Posesión organizada con explosión individual del número 10."
   },
   "new-zealand": {
@@ -405,6 +471,8 @@
     "counterAttackThreat": 0.55,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.48,
+    "pressResistance": 0.45,
+    "setPieceDefense": 0.58,
     "description": "Físico y directo con Chris Wood como referencia aérea. Organización defensiva sólida, poco sofisticado."
   },
   "congo-dr": {
@@ -417,6 +485,8 @@
     "counterAttackThreat": 0.68,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.52,
+    "pressResistance": 0.48,
+    "setPieceDefense": 0.55,
     "description": "Talento individual notable pero irregular colectivamente. Transición rápida y físico como armas."
   },
   "tunisia": {
@@ -429,6 +499,8 @@
     "counterAttackThreat": 0.65,
     "aerialStrength": 0.62,
     "tacticalFlexibility": 0.55,
+    "pressResistance": 0.52,
+    "setPieceDefense": 0.58,
     "description": "Bloque defensivo con transición organizada. Más sólido que brillante, apuesta por la compactación."
   },
   "uzbekistan": {
@@ -441,6 +513,8 @@
     "counterAttackThreat": 0.65,
     "aerialStrength": 0.62,
     "tacticalFlexibility": 0.58,
+    "pressResistance": 0.52,
+    "setPieceDefense": 0.58,
     "description": "Revelación asiática con buena organización. Presión media y transiciones con calidad técnica en desarrollo."
   },
   "czechia": {
@@ -453,6 +527,8 @@
     "counterAttackThreat": 0.65,
     "aerialStrength": 0.65,
     "tacticalFlexibility": 0.60,
+    "pressResistance": 0.62,
+    "setPieceDefense": 0.65,
     "description": "Sólido bloque medio con transiciones ordenadas. Schick como referencia ofensiva con movilidad inteligente."
   },
   "sweden": {
@@ -465,6 +541,8 @@
     "counterAttackThreat": 0.60,
     "aerialStrength": 0.75,
     "tacticalFlexibility": 0.55,
+    "pressResistance": 0.55,
+    "setPieceDefense": 0.72,
     "description": "Fútbol directo y físico. Buena organización defensiva con potencia aérea en las dos áreas."
   },
   "vietnam": {
@@ -477,6 +555,8 @@
     "counterAttackThreat": 0.50,
     "aerialStrength": 0.45,
     "tacticalFlexibility": 0.42,
+    "pressResistance": 0.35,
+    "setPieceDefense": 0.40,
     "description": "Bloque defensivo muy profundo. Primer torneo de la historia, limitaciones técnicas ante rivales top."
   },
   "haiti": {
@@ -489,6 +569,8 @@
     "counterAttackThreat": 0.50,
     "aerialStrength": 0.58,
     "tacticalFlexibility": 0.38,
+    "pressResistance": 0.35,
+    "setPieceDefense": 0.42,
     "description": "Bloque defensivo muy bajo ante rivales superiores. Mínimos recursos tácticos, apuesta por la resistencia."
   },
   "south-africa": {
@@ -501,6 +583,8 @@
     "counterAttackThreat": 0.62,
     "aerialStrength": 0.68,
     "tacticalFlexibility": 0.50,
+    "pressResistance": 0.48,
+    "setPieceDefense": 0.55,
     "description": "Físico y directo. Buena organización defensiva con pelota parada como recurso habitual."
   },
   "jordan": {
@@ -513,6 +597,8 @@
     "counterAttackThreat": 0.60,
     "aerialStrength": 0.62,
     "tacticalFlexibility": 0.50,
+    "pressResistance": 0.40,
+    "setPieceDefense": 0.52,
     "description": "Sorpresa de Asia con orden defensivo. Bloque bajo y salida directa como propuesta principal."
   },
   "iraq": {
@@ -525,6 +611,8 @@
     "counterAttackThreat": 0.62,
     "aerialStrength": 0.62,
     "tacticalFlexibility": 0.52,
+    "pressResistance": 0.42,
+    "setPieceDefense": 0.55,
     "description": "Mejora continua del fútbol iraquí. Organización defensiva con individualidades en ataque."
   },
   "qatar": {
@@ -537,11 +625,13 @@
     "counterAttackThreat": 0.55,
     "aerialStrength": 0.52,
     "tacticalFlexibility": 0.58,
+    "pressResistance": 0.65,
+    "setPieceDefense": 0.60,
     "description": "Posesión organizada fruto del proyecto Aspire. Técnicamente correcto pero limitado ante élite mundial."
   },
   "saudi-arabia": {
     "formation": "4-3-3",
-    "pressIntensity": 0.58,
+    "pressIntensity": 0.65,
     "defensiveLine": 0.50,
     "buildupStyle": "hybrid",
     "setPieceQuality": 0.58,
@@ -549,6 +639,8 @@
     "counterAttackThreat": 0.65,
     "aerialStrength": 0.60,
     "tacticalFlexibility": 0.60,
+    "pressResistance": 0.58,
+    "setPieceDefense": 0.58,
     "description": "Mejora táctica notable. Pressing medio con salida organizada y talento individual en crecimiento."
   },
   "cape-verde": {
@@ -561,6 +653,8 @@
     "counterAttackThreat": 0.62,
     "aerialStrength": 0.60,
     "tacticalFlexibility": 0.50,
+    "pressResistance": 0.45,
+    "setPieceDefense": 0.50,
     "description": "Sorpresa africana con buen pressing y organización. Apuesta por el contraataque desde bloque medio."
   },
   "bosnia-and-herzegovina": {
@@ -573,6 +667,8 @@
     "counterAttackThreat": 0.68,
     "aerialStrength": 0.70,
     "tacticalFlexibility": 0.52,
+    "pressResistance": 0.52,
+    "setPieceDefense": 0.65,
     "description": "Bloque bajo con contraataque y pelota parada. Džeko como referencia y Pjanić organizando desde el medio."
   },
   "curacao": {
@@ -585,6 +681,8 @@
     "counterAttackThreat": 0.58,
     "aerialStrength": 0.55,
     "tacticalFlexibility": 0.45,
+    "pressResistance": 0.42,
+    "setPieceDefense": 0.48,
     "description": "Plantilla con varios jugadores de ligas europeas. Transición rápida y presión media como propuesta."
   }
 }

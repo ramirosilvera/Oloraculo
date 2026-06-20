@@ -20,6 +20,8 @@ export interface TacticalProfile {
   counterAttackThreat: number;
   aerialStrength: number;
   tacticalFlexibility: number;
+  pressResistance: number;    // 0-1, ability to play through opponent pressing
+  setPieceDefense: number;    // 0-1, quality of defending set pieces
   description: string;
 }
 
@@ -110,6 +112,34 @@ function computeMatchup(
       awayAdj += gain;
       notes.push(`Superioridad aérea visitante + pelota parada (+${(gain*100).toFixed(1)}% V)`);
     }
+  }
+
+  // Rule 7 — Press dominance vs resistance
+  const homePressDom = home.pressIntensity * (1 - away.pressResistance);
+  if (homePressDom > 0.40) {
+    const gain = (homePressDom - 0.40) / 0.60 * 0.06;
+    homeAdj += gain;
+    notes.push(`Presión del local domina resistencia visitante (índice ${homePressDom.toFixed(2)}) +${(gain * 100).toFixed(1)}% L`);
+  }
+  const awayPressDom = away.pressIntensity * (1 - home.pressResistance);
+  if (awayPressDom > 0.40) {
+    const gain = (awayPressDom - 0.40) / 0.60 * 0.05;
+    awayAdj += gain;
+    notes.push(`Presión visitante supera resistencia local (índice ${awayPressDom.toFixed(2)}) +${(gain * 100).toFixed(1)}% V`);
+  }
+
+  // Rule 8 — Set piece attack vs specific defense quality
+  const homeSPA = home.setPieceQuality - away.setPieceDefense;
+  if (homeSPA >= 0.18) {
+    const gain = 0.012 + (homeSPA - 0.18) / 0.82 * 0.025;
+    homeAdj += gain;
+    notes.push(`Pelota parada ofensiva local supera defensa estática visitante (+${(gain * 100).toFixed(1)}% L)`);
+  }
+  const awaySPA = away.setPieceQuality - home.setPieceDefense;
+  if (awaySPA >= 0.18) {
+    const gain = 0.012 + (awaySPA - 0.18) / 0.82 * 0.025;
+    awayAdj += gain;
+    notes.push(`Pelota parada ofensiva visitante supera defensa estática local (+${(gain * 100).toFixed(1)}% V)`);
   }
 
   // Clamp totals

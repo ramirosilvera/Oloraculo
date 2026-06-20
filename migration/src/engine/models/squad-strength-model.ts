@@ -161,30 +161,28 @@ export function squadStrengthModelPredict(
 
   // Build explanation
   let explanation: string;
+  const homeEntry = squadData.get(homeId);
+  const awayEntry = squadData.get(awayId);
+  const homeKP = homeEntry?.key_player ?? null;
+  const awayKP = awayEntry?.key_player ?? null;
+  const homeAge = homeEntry?.avg_age ?? null;
+  const awayAge = awayEntry?.avg_age ?? null;
   if (appliedSquad) {
-    const homeEntry = squadData.get(homeId);
-    const awayEntry = squadData.get(awayId);
     const homeMv   = homeEntry ? `€${homeEntry.market_value_m.toFixed(0)}M` : 'promedio';
     const awayMv   = awayEntry ? `€${awayEntry.market_value_m.toFixed(0)}M` : 'promedio';
-    const homeTop5 = homeEntry
-      ? `${homeEntry.top5_league_count}/${homeEntry.squad_size} top-5`
-      : 'promedio';
-    const awayTop5 = awayEntry
-      ? `${awayEntry.top5_league_count}/${awayEntry.squad_size} top-5`
-      : 'promedio';
-    explanation = `Potencial del plantel: ${ctx.homeTeam.name} ${homeMv}, ${homeTop5}; ${ctx.awayTeam.name} ${awayMv}, ${awayTop5}. Goles ajustados: ${homeGoals.toFixed(2)}-${awayGoals.toFixed(2)}.`;
+    explanation = `Potencial del plantel: ${ctx.homeTeam.name} ${homeMv}${homeKP ? `, referente ${homeKP}` : ''}; ${ctx.awayTeam.name} ${awayMv}${awayKP ? `, referente ${awayKP}` : ''}. Goles ajustados: ${homeGoals.toFixed(2)}-${awayGoals.toFixed(2)}.`;
   } else {
     explanation = `Sin datos de plantel disponibles. Goles base del modelo Poisson: ${ctx.homeTeam.name} ${baseHome.toFixed(2)} - ${baseAway.toFixed(2)} ${ctx.awayTeam.name}.`;
   }
 
-  const homeEntry = squadData.get(homeId);
-  const awayEntry = squadData.get(awayId);
   const drivers: string[] = appliedSquad
     ? [
         `Valor de mercado: ${ctx.homeTeam.name} ${homeEntry ? `€${homeEntry.market_value_m.toFixed(0)}M` : 'n/d'} · ${ctx.awayTeam.name} ${awayEntry ? `€${awayEntry.market_value_m.toFixed(0)}M` : 'n/d'}`,
         `Jugadores top-5 ligas: ${ctx.homeTeam.name} ${homeEntry ? `${homeEntry.top5_league_count}/${homeEntry.squad_size}` : 'n/d'} · ${ctx.awayTeam.name} ${awayEntry ? `${awayEntry.top5_league_count}/${awayEntry.squad_size}` : 'n/d'}`,
         `Jugadores UCL: ${ctx.homeTeam.name} ${homeEntry ? homeEntry.ucl_players : 'n/d'} · ${ctx.awayTeam.name} ${awayEntry ? awayEntry.ucl_players : 'n/d'}`,
         `Marcador más probable: ${best.home}-${best.away}`,
+        ...(homeKP || awayKP ? [`Jugador referente: ${ctx.homeTeam.name} ${homeKP ?? 'n/d'} · ${ctx.awayTeam.name} ${awayKP ?? 'n/d'}`] : []),
+        ...(homeAge || awayAge ? [`Edad media del plantel: ${ctx.homeTeam.name} ${homeAge ? `${homeAge} años` : 'n/d'} · ${ctx.awayTeam.name} ${awayAge ? `${awayAge} años` : 'n/d'}`] : []),
       ]
     : ['Sin datos de plantel — usando modelo de goles sin ajuste'];
 
