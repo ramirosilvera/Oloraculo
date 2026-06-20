@@ -29,6 +29,7 @@ const ladder: { level: string; model: string; signal: string; color: 'gray' | 'b
   { level: 'L4.5',  model: 'Potencial del plantel',   signal: 'valor de mercado, top-5, UCL',      color: 'gold'  },
   { level: 'L5',    model: 'Goles + contexto',        signal: 'disponibilidad de jugadores',       color: 'red'   },
   { level: 'L6',    model: 'Momentum del Mundial',    signal: 'inflación WC + racha + momentum',   color: 'navy'  },
+  { level: 'L7',    model: 'Estilo de Juego',         signal: 'perfil táctico + matchup de estilos', color: 'navy'},
   { level: 'Final', model: 'Oráculo',                 signal: 'escalón usable más alto (ensemble)',color: 'navy'  },
 ];
 
@@ -201,7 +202,37 @@ export function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* 4. PRÓXIMOS PARTIDOS                                                */}
+      {/* 4. MODELO ESTRELLA                                                  */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="animate-fade-in">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <SectionTitle sub="El modelo con mejor porcentaje de ganador correcto en partidos ya jugados.">
+                Modelo estrella
+              </SectionTitle>
+              <Link to="/performance" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity py-2 px-1">
+                Ver rendimiento →
+              </Link>
+            </div>
+          </CardHeader>
+          <div className="px-5 pb-5">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+              <span className="text-2xl">★</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-amber-900">Estilo de Juego (L7)</p>
+                <p className="text-xs text-amber-700 mt-0.5">Ajuste táctico por formación, estilo de pressing y perfil de matchup para los 48 equipos del Mundial.</p>
+              </div>
+              <Link to="/performance">
+                <Button variant="secondary" size="sm" className="shrink-0">Ver →</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 5. PRÓXIMOS PARTIDOS                                                */}
       {/* ------------------------------------------------------------------ */}
       {!isLoading && (() => {
         const now = new Date().toISOString();

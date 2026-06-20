@@ -30,6 +30,7 @@ const ALL_MODELS = [
   'Potencial del plantel',
   'Goles + contexto reciente',
   'Momentum del Mundial',
+  'Estilo de Juego',
 ];
 
 interface ModelStats {

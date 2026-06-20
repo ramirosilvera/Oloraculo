@@ -401,44 +401,49 @@ function FixtureRow({
                 })()}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {pred.predictions.map(p => {
-                  const isSelected = selectedModelDetail?.predictorName === p.predictorName;
-                  const isBest = !p.degraded && p.predictorName === bestModelName;
-                  return (
-                    <button
-                      key={p.predictorName}
-                      onClick={() => setSelectedModelDetail(isSelected ? null : p)}
-                      className={`text-xs p-2.5 rounded-lg border text-left transition-all ${
-                        isSelected
-                          ? 'border-wc-navy bg-wc-navy/5 ring-1 ring-wc-navy/20'
-                          : isBest
-                            ? 'border-amber-300 bg-amber-50/60 ring-1 ring-amber-200'
-                            : p.degraded
-                              ? 'border-gray-100 bg-white/50 opacity-60 hover:opacity-80'
-                              : 'border-gray-200 bg-white hover:border-wc-navy/30 hover:bg-blue-50/40'
-                      } cursor-pointer`}
-                    >
-                      <p className={`font-semibold truncate ${isBest ? 'text-amber-800' : 'text-gray-600'}`}>
-                        {isBest && <span className="mr-0.5">★</span>}{p.predictorName}
-                      </p>
-                      {p.degraded ? (
-                        <p className="text-gray-400 mt-0.5">↓ degradado</p>
-                      ) : (
-                        <p className="text-gray-500 mt-0.5 tabular-nums">
-                          {pct(p.outcome.homeWin)} / {pct(p.outcome.draw)} / {pct(p.outcome.awayWin)}
-                        </p>
-                      )}
-                      {isBest && bestModelWinnerAcc !== null && (
-                        <p className="text-[9px] font-bold text-amber-600 mt-0.5">
-                          {Math.round(bestModelWinnerAcc * 100)}% ganador histórico
-                        </p>
-                      )}
-                      <p className="text-[10px] text-gray-300 mt-1">{isSelected ? '▲ cerrar' : '▼ detalle'}</p>
-                    </button>
-                  );
-                })}
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                {pred.predictions
+                  .filter(p => !p.degraded)
+                  .sort((a, b) => b.predictorPriority - a.predictorPriority)
+                  .slice(0, 4)
+                  .map(p => {
+                    const pick = topPick(p.outcome);
+                    const isBest = p.predictorName === bestModelName;
+                    const prob = pick === 'Home' ? p.outcome.homeWin : pick === 'Away' ? p.outcome.awayWin : p.outcome.draw;
+                    const pickLabel = pick === 'Home' ? 'L' : pick === 'Away' ? 'V' : 'E';
+                    const pickColor = pick === 'Home' ? 'text-blue-600' : pick === 'Away' ? 'text-red-600' : 'text-gray-600';
+                    const isSelected = selectedModelDetail?.predictorName === p.predictorName;
+                    return (
+                      <button
+                        key={p.predictorName}
+                        onClick={() => setSelectedModelDetail(isSelected ? null : p)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left hover:bg-gray-50 transition-all ${isBest ? 'bg-amber-50/60' : ''}`}
+                      >
+                        {isBest && <span className="text-amber-500 shrink-0">★</span>}
+                        {!isBest && <span className="w-3 shrink-0" />}
+                        <span className="flex-1 font-medium text-gray-700 truncate">{p.predictorName}</span>
+                        <span className={`font-black tabular-nums text-sm ${pickColor}`}>{pickLabel}</span>
+                        <span className="text-gray-400 tabular-nums w-10 text-right">{Math.round(prob * 100)}%</span>
+                        {p.mostLikelyScore && (
+                          <span className="text-gray-300 tabular-nums text-[10px] w-8 text-right">{p.mostLikelyScore.home}-{p.mostLikelyScore.away}</span>
+                        )}
+                      </button>
+                    );
+                  })}
               </div>
+
+              {(() => {
+                const tactical = pred.predictions.find(p => p.predictorName === 'Estilo de Juego' && !p.degraded);
+                if (!tactical) return null;
+                const topNote = tactical.drivers.find(d => d.includes('%') || d.includes('→'));
+                if (!topNote) return null;
+                return (
+                  <div className="bg-blue-50/60 border border-blue-100 rounded-xl px-3 py-2 flex items-start gap-2">
+                    <span className="text-blue-400 shrink-0 mt-0.5">⚔</span>
+                    <p className="text-xs text-blue-700 leading-relaxed">{topNote}</p>
+                  </div>
+                );
+              })()}
 
               {selectedModelDetail && (
                 <ModelDetailPanel

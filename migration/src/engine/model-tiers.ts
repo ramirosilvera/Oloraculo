@@ -73,4 +73,11 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     desc: 'L4 + inflación WC + momentum en torneo + racha diaria',
     how: 'Fase 1: escala goles según el ritmo goleador del Mundial actual vs histórico. Fase 2: agrega push de momentum basado en forma dentro del torneo (con bonus por victorias sorpresa). Fase 3: aplica modificador si hay racha de 3+ días con el mismo patrón (muchas goleadas, muchos empates, etc.).',
   },
+  'Estilo de Juego': {
+    tier: 'L7',
+    shortName: 'Táctico',
+    color: 'text-teal-600',
+    desc: 'Ajuste por perfil táctico y matchup de estilos',
+    how: 'Aplica 6 reglas de matchup táctico: bypass de presión, vulnerabilidad de línea alta vs contraataque, posesión vs bloque bajo, ventaja en pelota parada, diferencia de tempo y superioridad aérea. Cada regla ajusta las probabilidades de resultado en ±1-7%.',
+  },
 };

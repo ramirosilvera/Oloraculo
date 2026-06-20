@@ -3,6 +3,7 @@
 // They never change at runtime — React Query caches them forever.
 
 import type { Fixture, FixtureContext, Group, MatchResult, Rating, Team, SquadStrengthEntry } from '../types/domain';
+import type { TacticalProfile } from '../engine/models/tactical-matchup-model';
 
 interface CompactResults {
   cols: string[];
@@ -39,6 +40,11 @@ export const loadStaticSquads = () =>
 export const loadStaticSquadStrength = () =>
   fetchJson<Record<string, SquadStrengthEntry>>('squad-strength.json')
     .catch(() => ({} as Record<string, SquadStrengthEntry>));
+
+// Tactical profiles: per-team formation, style, and matchup attributes.
+export const loadStaticTacticalProfiles = () =>
+  fetchJson<Record<string, TacticalProfile>>('tactical-profiles.json')
+    .catch(() => ({} as Record<string, TacticalProfile>));
 
 export async function loadStaticResults(): Promise<MatchResult[]> {
   const compact = await fetchJson<CompactResults>('historical_results.json');

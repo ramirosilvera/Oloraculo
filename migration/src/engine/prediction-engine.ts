@@ -26,7 +26,10 @@ import {
   tournamentMomentumPredict,
   squadStrengthModelPredict,
   buildSquadStrengthMap,
+  tacticalMatchupPredict,
+  buildTacticalMap,
 } from './models';
+import type { TacticalProfile } from './models';
 import { detectDailyPattern } from './models/daily-pattern';
 import { selectFinalPrediction } from './final-selector';
 
@@ -37,14 +40,17 @@ const GOAL_MODEL_YEARS_WINDOW = 8;
 export class PredictionEngine {
   private readonly goalModel: GoalModel;
   private readonly squadStrengthMap: Map<string, SquadStrengthEntry>;
+  private readonly tacticalProfiles: Map<string, TacticalProfile>;
 
   constructor(
     private readonly allResults: MatchResult[],
     yearsWindow = GOAL_MODEL_YEARS_WINDOW,
     squadStrengthData: Record<string, SquadStrengthEntry> = {},
+    tacticalProfilesData: Record<string, TacticalProfile> = {},
   ) {
     this.goalModel = new GoalModel(allResults, yearsWindow);
     this.squadStrengthMap = buildSquadStrengthMap(squadStrengthData);
+    this.tacticalProfiles = buildTacticalMap(tacticalProfilesData);
   }
 
   private computeTournamentForm(
@@ -199,15 +205,17 @@ export class PredictionEngine {
   }
 
   predict(ctx: MatchContext, modelWeights?: Map<string, number>): MatchPredictionResult {
+    const squadPred = squadStrengthModelPredict(ctx, this.goalModel, this.squadStrengthMap);
     const ladder: MatchPrediction[] = [
       nullModelPredict(ctx),
       fifaModelPredict(ctx),
       eloModelPredict(ctx),
       recentFormModelPredict(ctx),
       this.goalModel.predict(ctx),
-      squadStrengthModelPredict(ctx, this.goalModel, this.squadStrengthMap),
+      squadPred,
       goalContextModelPredict(ctx, this.goalModel),
       tournamentMomentumPredict(ctx, this.goalModel),
+      tacticalMatchupPredict(ctx, squadPred, this.tacticalProfiles),
     ];
 
     return {
