@@ -10,7 +10,11 @@ import {
   saveWcActualResult,
   upsertFixtureContext,
   loadEvaluations,
+  loadAllMatchGoals,
 } from '../services/supabase-client';
+import type { MatchGoal } from '../services/supabase-client';
+import { GoalList } from '../components/GoalList';
+import { TopScorers } from '../components/TopScorers';
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
 import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation } from '../types/domain';
@@ -333,13 +337,14 @@ interface FixtureRowProps {
   bestModelName: string | null;
   bestModelWinnerAcc: number | null;
   liveMatch?: LiveMatch;
+  goals?: MatchGoal[];
 }
 
 function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
-  context, compact, bestModelName, bestModelWinnerAcc, liveMatch,
+  context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   return (
@@ -375,6 +380,16 @@ function FixtureRow({
               : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
+
+      {/* Goal scorers strip — visible without expanding the card */}
+      {played && goals && goals.length > 0 && (
+        <GoalList
+          fixtureId={fixture.id}
+          homeTeamId={fixture.home_team_id}
+          awayTeamId={fixture.away_team_id}
+          goals={goals}
+        />
+      )}
 
       {isExpanded && (
         <div className="px-4 pb-5 pt-3 bg-blue-50/30 border-t border-blue-100 space-y-4">
@@ -835,6 +850,22 @@ export function MatchesPage() {
 
   // Load evaluation history to power ML ensemble blending
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
+
+  // Goal scorers — refreshed once per minute (Edge Fn updates once daily, this just stays fresh)
+  const { data: matchGoals } = useQuery<MatchGoal[]>({
+    queryKey: ['match-goals'],
+    queryFn:  loadAllMatchGoals,
+    staleTime: 60_000,
+  });
+  const goalsByFixture = useMemo(() => {
+    const map = new Map<string, MatchGoal[]>();
+    for (const g of matchGoals ?? []) {
+      const list = map.get(g.fixture_id) ?? [];
+      list.push(g);
+      map.set(g.fixture_id, list);
+    }
+    return map;
+  }, [matchGoals]);
   const modelWeights  = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
   const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
   const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
@@ -1049,6 +1080,7 @@ export function MatchesPage() {
     bestModelName: bestWinnerModelName,
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
     liveMatch: getLiveForFixture(liveByKey, fixture.home_team_id, fixture.away_team_id),
+    goals: goalsByFixture.get(fixture.id),
   });
 
   // ---- filtered fixtures ----
@@ -1136,6 +1168,13 @@ export function MatchesPage() {
       {/* ------------------------------------------------------------------ */}
       {wcResults && wcResults.length >= 3 && (
         <TournamentPace wcResults={wcResults} dailySignal={dailySignal} />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* GOLEADORES — Bota de Oro                                            */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && matchGoals && matchGoals.length > 0 && (
+        <TopScorers goals={matchGoals} teamMap={teamMap} />
       )}
 
       {/* ------------------------------------------------------------------ */}

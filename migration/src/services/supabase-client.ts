@@ -174,6 +174,33 @@ export async function deleteEvaluationsForFixtures(fixtureIds: string[]): Promis
 // App Events — generic signals (e.g. KNOCKOUT_ACTIVATION_REQUESTED)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Match Goals — goal scorer data populated by the update-goal-scorers Edge Fn
+// ---------------------------------------------------------------------------
+
+export interface MatchGoal {
+  id:          number;
+  fixture_id:  string;
+  team_id:     string;
+  player_name: string;
+  minute:      number | null;
+  goal_type:   'normal' | 'penalty' | 'own_goal';
+}
+
+export async function loadAllMatchGoals(): Promise<MatchGoal[]> {
+  const { data, error } = await supabase
+    .from('match_goals')
+    .select('*')
+    .order('fixture_id')
+    .order('minute', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// App Events — generic signals (e.g. KNOCKOUT_ACTIVATION_REQUESTED)
+// ---------------------------------------------------------------------------
+
 export async function writeAppEvent(eventType: string, payload: unknown = {}): Promise<void> {
   const { error } = await supabase
     .from('app_events')
