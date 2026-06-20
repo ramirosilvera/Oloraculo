@@ -839,6 +839,67 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 }
 
 // ---------------------------------------------------------------------------
+// LiveScoresDebug — temporary diagnostic card
+// ---------------------------------------------------------------------------
+interface LiveScoresDebugProps {
+  hasActiveKey: boolean;
+  isLoading: boolean;
+  lastUpdated: Date | null;
+  error: string | null;
+  liveByKey: Map<string, LiveMatch>;
+  onRefetch: () => void;
+}
+
+function LiveScoresDebug({ hasActiveKey, isLoading, lastUpdated, error, liveByKey, onRefetch }: LiveScoresDebugProps) {
+  const [open, setOpen] = useState(true);
+  const matches = [...liveByKey.values()];
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-950 text-green-400 font-mono text-[10px] overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 py-1.5 bg-gray-900 hover:bg-gray-800 transition-colors"
+      >
+        <span className="font-bold text-green-300 text-[11px]">
+          ⚡ DEBUG Live Scores {isLoading ? '⏳' : `(${matches.length} matches)`}
+        </span>
+        <span className="text-gray-500">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="p-3 space-y-1">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div>KEY: <span className={hasActiveKey ? 'text-green-300' : 'text-red-400'}>{hasActiveKey ? '✓ SET' : '✗ MISSING — VITE_FD_API_KEY not in build'}</span></div>
+              <div>UPDATED: <span className="text-gray-400">{lastUpdated ? lastUpdated.toLocaleTimeString() : 'never'}</span></div>
+              {error && <div>ERR: <span className="text-red-400">{error}</span></div>}
+            </div>
+            <button
+              onClick={onRefetch}
+              className="px-2 py-1 border border-green-800 text-green-400 hover:bg-green-900/30 rounded transition-colors"
+            >
+              ↺ refetch
+            </button>
+          </div>
+          {matches.length === 0 && !isLoading && (
+            <div className="text-yellow-400 border-t border-gray-800 pt-1">
+              ⚠ API returned 0 matches — free tier may not include live data (requires €12/mo add-on)
+            </div>
+          )}
+          {matches.map((m, i) => (
+            <div key={i} className="border-t border-gray-800 pt-1">
+              <span className="text-white">{m.homeTeamFdName}</span>
+              {' '}<span className="text-green-300 font-bold">{m.homeGoals ?? '?'}–{m.awayGoals ?? '?'}</span>{' '}
+              <span className="text-white">{m.awayTeamFdName}</span>
+              {' '}<span className="text-gray-500">[{m.status}{m.minute != null ? ` ${m.minute}'` : ''}]</span>
+              {' '}<span className="text-gray-600">{m.homeLocalId}:{m.awayLocalId}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MatchesPage
 // ---------------------------------------------------------------------------
 export function MatchesPage() {
@@ -846,7 +907,7 @@ export function MatchesPage() {
   const qc = useQueryClient();
 
   // Live scores from football-data.org (60s polling, no server needed)
-  const { liveByKey, hasActiveKey } = useLiveScores();
+  const { liveByKey, hasActiveKey, isLoading: liveLoading, lastUpdated: liveUpdated, error: liveError } = useLiveScores();
 
   // Load evaluation history to power ML ensemble blending
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
@@ -1163,18 +1224,20 @@ export function MatchesPage() {
         )}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* RACHA DEL MUNDIAL                                                    */}
-      {/* ------------------------------------------------------------------ */}
-      {wcResults && wcResults.length >= 3 && (
-        <TournamentPace wcResults={wcResults} dailySignal={dailySignal} />
-      )}
+      {/* TournamentPace hidden — preserved for later use */}
 
       {/* ------------------------------------------------------------------ */}
-      {/* MARCADORES MÁS REPETIDOS — histórico siempre visible, live desde 6p  */}
+      {/* DEBUG LIVE SCORES                                                    */}
       {/* ------------------------------------------------------------------ */}
-      {!isSearching && wcResults && (
-        <TopScorelines wcResults={wcResults} />
+      {!isSearching && (
+        <LiveScoresDebug
+          hasActiveKey={hasActiveKey}
+          isLoading={liveLoading}
+          lastUpdated={liveUpdated}
+          error={liveError}
+          liveByKey={liveByKey}
+          onRefetch={() => qc.invalidateQueries({ queryKey: ['live-scores'] })}
+        />
       )}
 
       {/* ------------------------------------------------------------------ */}
@@ -1567,6 +1630,13 @@ export function MatchesPage() {
             })}
           </div>
         )
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* MARCADORES MÁS REPETIDOS                                            */}
+      {/* ------------------------------------------------------------------ */}
+      {!isSearching && wcResults && (
+        <TopScorelines wcResults={wcResults} />
       )}
 
       {/* ------------------------------------------------------------------ */}
