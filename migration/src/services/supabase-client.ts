@@ -169,3 +169,28 @@ export async function deleteEvaluationsForFixtures(fixtureIds: string[]): Promis
     .in('fixture_id', fixtureIds);
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------------
+// App Events — generic signals (e.g. KNOCKOUT_ACTIVATION_REQUESTED)
+// ---------------------------------------------------------------------------
+
+export async function writeAppEvent(eventType: string, payload: unknown = {}): Promise<void> {
+  const { error } = await supabase
+    .from('app_events')
+    .insert({ event_type: eventType, payload });
+  if (error) throw error;
+}
+
+export async function checkPendingAppEvent(
+  eventType: string,
+): Promise<{ id: number; payload: unknown; created_at: string } | null> {
+  const { data, error } = await supabase
+    .from('app_events')
+    .select('id, payload, created_at')
+    .eq('event_type', eventType)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data as { id: number; payload: unknown; created_at: string } | null;
+}

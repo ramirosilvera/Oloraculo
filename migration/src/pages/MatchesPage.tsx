@@ -15,6 +15,7 @@ import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
 import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation } from '../types/domain';
 import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
+import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
@@ -1098,6 +1099,15 @@ export function MatchesPage() {
 
   return (
     <div className="space-y-5">
+
+      {/* ------------------------------------------------------------------ */}
+      {/* KNOCKOUT ACTIVATION                                                  */}
+      {/* ------------------------------------------------------------------ */}
+      <KnockoutActivationButton
+        fixtures={fixtures}
+        wcPlayedMap={wcPlayedMap}
+        teamMap={teamMap}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* BUSCADOR                                                             */}
