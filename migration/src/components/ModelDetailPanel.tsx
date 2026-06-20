@@ -37,6 +37,127 @@ function confidenceLabel(prob: number): { label: string; color: string; bg: stri
   return { label: 'Baja confianza', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
 }
 
+/**
+ * Generate a match-specific 2-line narrative explaining WHY this model
+ * made this prediction. Each model type uses its own structured data
+ * (outcome probabilities, expected goals, drivers) to produce a
+ * differential insight rather than a generic template.
+ */
+function generateSynthesis(
+  model: MatchPrediction,
+  homeName: string,
+  awayName: string,
+): string {
+  const { homeWin, draw, awayWin } = model.outcome;
+  const pick = topPick(model.outcome);
+
+  switch (model.predictorName) {
+
+    case 'Ranking FIFA':
+    case 'Elo': {
+      const raw = model.drivers[0] ?? '';
+      const m = raw.match(/([+-]?\d+\.?\d*)/);
+      const diff = m ? parseFloat(m[1]) : 0;
+      const abs = Math.abs(diff);
+      const leader = diff >= 0 ? homeName : awayName;
+      const winPct = Math.round((pick === 'Home' ? homeWin : pick === 'Away' ? awayWin : draw) * 100);
+
+      if (abs < 60)  return `Rating casi idéntico entre ambos equipos (diferencia ${abs.toFixed(0)} pts). Sin favorito claro: el ${Math.round(draw * 100)}% de empate refleja la paridad de jerarquía.`;
+      if (abs < 180) return `${leader} tiene leve ventaja (${abs.toFixed(0)} pts). El margen es pequeño; una actuación sólida del rival puede revertirlo fácilmente.`;
+      if (abs < 350) return `Superioridad consolidada de ${leader} (${abs.toFixed(0)} pts). El modelo le asigna ${winPct}% de chances; sorpresa posible pero no esperada.`;
+      return `${leader} supera ampliamente en el ranking (${abs.toFixed(0)} pts). A esta distancia, la jerarquía rara vez falla: ${winPct}% de probabilidad de victoria.`;
+    }
+
+    case 'Forma reciente': {
+      const matches = [...((model.explanation ?? '').matchAll(/delta ([+-]?[\d.]+)/g))];
+      const homeDelta = matches[0] ? parseFloat(matches[0][1]) : 0;
+      const awayDelta = matches[1] ? parseFloat(matches[1][1]) : 0;
+      const gap = homeDelta - awayDelta;
+
+      if (Math.abs(gap) < 15)  return `Ambos equipos llegan con nivel de forma similar. La forma reciente no añade ventaja diferencial a ninguno de los dos.`;
+      if (gap > 45)   return `${homeName} llega en un momento notablemente mejor (diferencia de forma +${gap.toFixed(0)}). La racha refuerza y amplifica la ventaja del local.`;
+      if (gap < -45)  return `${awayName} llega en mucho mejor forma (diferencia ${gap.toFixed(0)}). La racha visitante compensa parte de la brecha de ratings base.`;
+      if (gap > 0)    return `${homeName} llega algo mejor en forma (+${gap.toFixed(0)} puntos de delta). No es decisivo, pero suma un argumento extra al pronóstico local.`;
+      return `${awayName} llega algo mejor en forma (${Math.abs(gap).toFixed(0)} pts de delta). Reduce levemente la ventaja que el rating base le daría al local.`;
+    }
+
+    case 'Modelo de goles (Poisson)': {
+      const hg = model.expectedHomeGoals ?? 0;
+      const ag = model.expectedAwayGoals ?? 0;
+      if (!hg && !ag) return model.explanation ?? '';
+      const ratio = ag > 0.01 ? hg / ag : 10;
+
+      if (ratio > 2.8)  return `Brecha goleadora marcada: el modelo proyecta ${hg.toFixed(2)} goles para ${homeName} vs ${ag.toFixed(2)} para ${awayName}. La grilla Poisson concentra probabilidad en victorias locales con margen.`;
+      if (ratio > 1.5)  return `El local genera más peligro: ${hg.toFixed(2)} vs ${ag.toFixed(2)} goles esperados. La distribución Dixon-Coles favorece a ${homeName} en la mayoría de los marcadores posibles.`;
+      if (ratio < 0.36) return `Dominio goleador del visitante: ${hg.toFixed(2)} vs ${ag.toFixed(2)}. La fuerza ofensiva y vulnerabilidad defensiva local inclinan la grilla hacia ${awayName} de manera contundente.`;
+      if (ratio < 0.67) return `El visitante genera más: ${hg.toFixed(2)} vs ${ag.toFixed(2)} goles esperados. El modelo Poisson favorece a ${awayName} en la mayoría de los escenarios.`;
+      return `Partido equilibrado en goles esperados: ${hg.toFixed(2)} vs ${ag.toFixed(2)}. Diferencias pequeñas hacen del empate un resultado muy competitivo en la grilla de marcadores.`;
+    }
+
+    case 'Potencial del plantel': {
+      const hg = model.expectedHomeGoals ?? 0;
+      const ag = model.expectedAwayGoals ?? 0;
+      const mvDriver = model.drivers.find(d => d.includes('Valor de mercado')) ?? '';
+      const mvVals = [...mvDriver.matchAll(/€([\d.]+)M/g)];
+      const homeMv = mvVals[0] ? parseFloat(mvVals[0][1]) : null;
+      const awayMv = mvVals[1] ? parseFloat(mvVals[1][1]) : null;
+
+      if (homeMv !== null && awayMv !== null) {
+        const richer = homeMv >= awayMv ? homeName : awayName;
+        const cheaper = homeMv < awayMv ? homeName : awayName;
+        const safeMin = Math.max(Math.min(homeMv, awayMv), 1);
+        const ratio = Math.max(homeMv, awayMv) / safeMin;
+        if (ratio > 20) return `Brecha de plantel extrema: ${richer} tiene un valor de mercado ${ratio.toFixed(0)}× mayor que ${cheaper}. El score de potencial amplifica los goles a ${hg.toFixed(2)}-${ag.toFixed(2)}.`;
+        if (ratio > 4)  return `Gran diferencia de plantel: ${richer} (€${Math.max(homeMv, awayMv).toFixed(0)}M) vs ${cheaper} (€${Math.min(homeMv, awayMv).toFixed(0)}M). Ajusta los goles esperados a ${hg.toFixed(2)}-${ag.toFixed(2)}.`;
+        if (ratio > 1.5) return `${richer} tiene ventaja de plantel en valor de mercado y ligas top-5. El modelo ajusta los goles a ${hg.toFixed(2)}-${ag.toFixed(2)}.`;
+        return `Planteles de valor similar (€${homeMv.toFixed(0)}M vs €${awayMv.toFixed(0)}M). El ajuste de potencial no modifica sustancialmente los goles base (${hg.toFixed(2)}-${ag.toFixed(2)}).`;
+      }
+      return `Sin datos de plantel para uno o ambos equipos. Los goles reflejan el modelo base Poisson sin ajuste por valor de mercado.`;
+    }
+
+    case 'Goles + contexto reciente': {
+      const hg = model.expectedHomeGoals ?? 0;
+      const ag = model.expectedAwayGoals ?? 0;
+      const hasCtx = model.featuresUsed.includes('Disponibilidad de jugadores');
+      if (!hasCtx) return `No hay bajas registradas para este partido. Completá la disponibilidad en el panel de contexto para activar el ajuste de L5.`;
+      const d = model.drivers[0] ?? '';
+      const clean = d.replace('Impacto por rol. ', '').replace('Bajas: ', '');
+      return `Bajas activas modificaron los goles esperados a ${hg.toFixed(2)}-${ag.toFixed(2)}. ${clean}`;
+    }
+
+    case 'Momentum WC 2026': {
+      const hg = model.expectedHomeGoals ?? 0;
+      const ag = model.expectedAwayGoals ?? 0;
+      const inflDriver = model.drivers.find(d => d.startsWith('Inflación')) ?? '';
+      const inflM = inflDriver.match(/×([\d.]+)/);
+      const infl = inflM ? parseFloat(inflM[1]) : 1;
+      const inflNote = infl > 1.15
+        ? `el torneo está siendo muy goleador (×${infl.toFixed(2)}) — amplifica todos los pronósticos`
+        : infl < 0.88
+        ? `el torneo registra pocos goles (×${infl.toFixed(2)}) — frena las predicciones`
+        : `el ritmo goleador del torneo es normal (×${infl.toFixed(2)})`;
+      const momDriver = model.drivers.find(d => d.startsWith('Momentum')) ?? '';
+      const pushM = momDriver.match(/push ([+-][\d.]+)/);
+      const push = pushM ? parseFloat(pushM[1]) : 0;
+      const momNote = Math.abs(push) > 0.05
+        ? `El momentum ajusta +${push.toFixed(2)} goles a favor del ${push > 0 ? 'local' : 'visitante'}, llegando a ${hg.toFixed(2)}-${ag.toFixed(2)}.`
+        : `Sin diferencial de momentum significativo entre los equipos en el torneo.`;
+      return `Contexto del Mundial 2026: ${inflNote}. ${momNote}`;
+    }
+
+    case 'Estilo de Juego': {
+      const notes = model.drivers.filter(d => d.includes('%') || d.includes('→'));
+      if (notes.length === 0) return `Sin asimetría táctica marcada. Los estilos de ambos equipos no generan ventajas en presión, línea defensiva ni pelota parada.`;
+      if (notes.length === 1) return notes[0];
+      const second = notes[1].charAt(0).toLowerCase() + notes[1].slice(1);
+      return `${notes[0]} Además: ${second}`;
+    }
+
+    default:
+      return model.explanation ?? '';
+  }
+}
+
 export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDetailPanelProps) {
   const tierInfo = MODEL_TIERS[model.predictorName];
 
@@ -123,12 +244,10 @@ export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDe
                 </>
               )}
             </div>
-            {/* Explanation del modelo */}
-            {model.explanation && (
-              <p className="text-xs text-gray-600 leading-relaxed pt-0.5 border-t border-black/5">
-                {model.explanation}
-              </p>
-            )}
+            {/* Match-specific synthesis */}
+            <p className="text-xs text-gray-700 leading-relaxed pt-0.5 border-t border-black/5">
+              {generateSynthesis(model, homeName, awayName)}
+            </p>
           </div>
         )}
 
