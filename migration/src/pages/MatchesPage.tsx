@@ -1478,6 +1478,9 @@ export function MatchesPage() {
                     const result = playedMap.get(f.id);
                     const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
                     const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                    const liveG = getLiveForFixture(liveByKey, f.home_team_id, f.away_team_id);
+                    const isLive = liveG?.status === 'IN_PLAY' || liveG?.status === 'PAUSED';
+                    const isFinishedLive = !result && liveG?.status === 'FINISHED';
                     return (
                       <div key={f.id} className="px-4 py-2.5 flex items-center gap-2">
                         {result ? (
@@ -1489,6 +1492,27 @@ export function MatchesPage() {
                             <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{awayName}</span>
                             <FlagImg id={f.away_team_id} />
                             {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                          </>
+                        ) : isLive ? (
+                          <>
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                            <FlagImg id={f.home_team_id} />
+                            <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{homeName}</span>
+                            <span className="text-sm font-black text-red-600 shrink-0 tabular-nums">
+                              {liveG.homeGoals ?? 0}–{liveG.awayGoals ?? 0}
+                              {liveG.minute ? <span className="text-[10px] font-normal text-red-400 ml-0.5">{liveG.minute}'</span> : null}
+                            </span>
+                            <span className="flex-1 text-xs font-semibold text-gray-800 truncate text-right">{awayName}</span>
+                            <FlagImg id={f.away_team_id} />
+                          </>
+                        ) : isFinishedLive ? (
+                          <>
+                            <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
+                            <FlagImg id={f.home_team_id} />
+                            <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{homeName}</span>
+                            <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{liveG.homeGoals ?? 0}–{liveG.awayGoals ?? 0}</span>
+                            <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{awayName}</span>
+                            <FlagImg id={f.away_team_id} />
                           </>
                         ) : (
                           <>

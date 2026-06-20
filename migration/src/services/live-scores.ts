@@ -56,9 +56,12 @@ const FD_NAME_OVERRIDES: Record<string, string> = {
   'new-zealand':          'new-zealand',
   'new-caledonia':        'new-caledonia',
   'saudi-arabia':         'saudi-arabia',
-  'bosnia-Herzegovina':   'bosnia-and-herzegovina',
+  'bosnia-herzegovina':   'bosnia-and-herzegovina',
   'bosnia-and-herzegovina': 'bosnia-and-herzegovina',
   'cape-verde':           'cape-verde',
+  'cape-verde-islands':   'cape-verde',
+  'northern-ireland':     'northern-ireland',
+  'congo':                'congo-dr',
 };
 
 function resolveLocalId(fdName: string): string | null {
