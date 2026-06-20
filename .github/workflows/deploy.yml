@@ -40,15 +40,19 @@ jobs:
 
       - name: Configurar secretos de Pages Functions
         working-directory: migration
-        # Solo corre si los secrets están cargados en GitHub Actions.
-        # Si no están, el paso se saltea sin pisar los del dashboard de Cloudflare.
-        if: ${{ secrets.SERPER_API_KEY != '' && secrets.GEMINI_API_KEY != '' }}
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
         run: |
-          printf '%s' "${{ secrets.SERPER_API_KEY }}" | npx wrangler@3 pages secret put SERPER_API_KEY --project-name=oloraculo
-          printf '%s' "${{ secrets.GEMINI_API_KEY }}" | npx wrangler@3 pages secret put GEMINI_API_KEY --project-name=oloraculo
+          if [ -n "$SERPER_API_KEY" ]; then
+            printf '%s' "$SERPER_API_KEY" | npx wrangler@3 pages secret put SERPER_API_KEY --project-name=oloraculo
+          fi
+          if [ -n "$GEMINI_API_KEY" ]; then
+            printf '%s' "$GEMINI_API_KEY" | npx wrangler@3 pages secret put GEMINI_API_KEY --project-name=oloraculo
+          fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Deploy a Cloudflare Pages (producción)
         working-directory: migration
