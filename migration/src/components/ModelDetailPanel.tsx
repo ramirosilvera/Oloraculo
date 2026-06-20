@@ -6,7 +6,7 @@
 
 import { Badge, ProbBar, ScoreTriple } from './ui';
 import { MODEL_TIERS } from '../engine/model-tiers';
-import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
+import { mostLikelyScorePerOutcome, topPick } from '../engine/probability-helper';
 import type { MatchPrediction } from '../types/domain';
 
 // ---------------------------------------------------------------------------
@@ -28,8 +28,14 @@ function pct(n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// Executive summary helpers
 // ---------------------------------------------------------------------------
+
+function confidenceLabel(prob: number): { label: string; color: string; bg: string } {
+  if (prob >= 0.65) return { label: 'Alta confianza', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
+  if (prob >= 0.50) return { label: 'Confianza moderada', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' };
+  return { label: 'Baja confianza', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' };
+}
 
 export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDetailPanelProps) {
   const tierInfo = MODEL_TIERS[model.predictorName];
@@ -41,6 +47,14 @@ export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDe
   const hasFeatures =
     model.featuresUsed.length > 0 || model.featuresMissing.length > 0;
   const hasSources = model.sources.length > 0;
+
+  // Executive summary derived values
+  const pick = topPick(model.outcome);
+  const pickProb = pick === 'Home' ? homeWin : pick === 'Away' ? awayWin : draw;
+  const pickTeam = pick === 'Home' ? homeName : pick === 'Away' ? awayName : 'Empate';
+  const pickColor = pick === 'Home' ? 'text-wc-navy' : pick === 'Away' ? 'text-wc-red' : 'text-gray-600';
+  const pickBg   = pick === 'Home' ? 'bg-wc-navy/10' : pick === 'Away' ? 'bg-red-50' : 'bg-gray-100';
+  const conf = confidenceLabel(pickProb);
 
   // Drivers — show at most 5
   const visibleDrivers = model.drivers.slice(0, 5);
@@ -78,6 +92,45 @@ export function ModelDetailPanel({ model, homeName, awayName, onClose }: ModelDe
       {/* Body                                                                 */}
       {/* ------------------------------------------------------------------ */}
       <div className="px-5 py-4 space-y-5">
+
+        {/* ---- Resumen ejecutivo ---- */}
+        {!model.degraded && (
+          <div className={`rounded-xl border px-4 py-3.5 space-y-2 ${conf.bg}`}>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Resumen ejecutivo</p>
+            {/* Veredicto: pick + prob + confianza */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-base font-black ${pickColor} ${pickBg} rounded-lg px-3 py-0.5`}>
+                {pickTeam}
+              </span>
+              <span className="text-2xl font-black text-gray-800 tabular-nums">
+                {Math.round(pickProb * 100)}%
+              </span>
+              <span className={`text-xs font-semibold ${conf.color} ml-1`}>{conf.label}</span>
+            </div>
+            {/* Probabilidades compactas en línea */}
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span className="text-wc-navy font-semibold">L {Math.round(homeWin * 100)}%</span>
+              <span className="text-gray-400">·</span>
+              <span className="font-semibold">E {Math.round(draw * 100)}%</span>
+              <span className="text-gray-400">·</span>
+              <span className="text-wc-red font-semibold">V {Math.round(awayWin * 100)}%</span>
+              {model.mostLikelyScore && (
+                <>
+                  <span className="text-gray-300 ml-1">|</span>
+                  <span className="font-mono font-bold text-gray-600">
+                    {model.mostLikelyScore.home}-{model.mostLikelyScore.away}
+                  </span>
+                </>
+              )}
+            </div>
+            {/* Explanation del modelo */}
+            {model.explanation && (
+              <p className="text-xs text-gray-600 leading-relaxed pt-0.5 border-t border-black/5">
+                {model.explanation}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ---- Cómo calcula ---- */}
         {tierInfo?.how ? (
