@@ -12,7 +12,8 @@ import {
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
 import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation } from '../types/domain';
-import { ModelDetailPanel } from '../components/ModelDetailPanel';
+import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
+import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
   Button,
@@ -401,36 +402,55 @@ function FixtureRow({
                 })()}
               </div>
 
-              <div className="rounded-xl border border-gray-100 overflow-hidden">
-                {pred.predictions
+              {(() => {
+                const topModels = pred.predictions
                   .filter(p => !p.degraded)
                   .sort((a, b) => b.predictorPriority - a.predictorPriority)
-                  .slice(0, 4)
-                  .map(p => {
-                    const pick = topPick(p.outcome);
-                    const isBest = p.predictorName === bestModelName;
-                    const prob = pick === 'Home' ? p.outcome.homeWin : pick === 'Away' ? p.outcome.awayWin : p.outcome.draw;
-                    const pickLabel = pick === 'Home' ? 'L' : pick === 'Away' ? 'V' : 'E';
-                    const pickColor = pick === 'Home' ? 'text-blue-600' : pick === 'Away' ? 'text-red-600' : 'text-gray-600';
-                    const isSelected = selectedModelDetail?.predictorName === p.predictorName;
-                    return (
-                      <button
-                        key={p.predictorName}
-                        onClick={() => setSelectedModelDetail(isSelected ? null : p)}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left hover:bg-gray-50 transition-all ${isBest ? 'bg-amber-50/60' : ''}`}
-                      >
-                        {isBest && <span className="text-amber-500 shrink-0">★</span>}
-                        {!isBest && <span className="w-3 shrink-0" />}
-                        <span className="flex-1 font-medium text-gray-700 truncate">{p.predictorName}</span>
-                        <span className={`font-black tabular-nums text-sm ${pickColor}`}>{pickLabel}</span>
-                        <span className="text-gray-400 tabular-nums w-10 text-right">{Math.round(prob * 100)}%</span>
-                        {p.mostLikelyScore && (
-                          <span className="text-gray-300 tabular-nums text-[10px] w-8 text-right">{p.mostLikelyScore.home}-{p.mostLikelyScore.away}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-              </div>
+                  .slice(0, 4);
+                const picks = topModels.map(p => topPick(p.outcome));
+                const allAgree = picks.length >= 2 && picks.every(pk => pk === picks[0]);
+                return (
+                  <div className="rounded-xl border border-gray-100 overflow-hidden">
+                    {allAgree && (
+                      <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-100 flex items-center gap-1.5">
+                        <span className="text-emerald-600 text-[10px]">●</span>
+                        <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">
+                          Consenso · todos coinciden en {picks[0] === 'Home' ? homeName : picks[0] === 'Away' ? awayName : 'Empate'}
+                        </span>
+                      </div>
+                    )}
+                    {topModels.map(p => {
+                      const pick = topPick(p.outcome);
+                      const isBest = p.predictorName === bestModelName;
+                      const prob = pick === 'Home' ? p.outcome.homeWin : pick === 'Away' ? p.outcome.awayWin : p.outcome.draw;
+                      const pickLabel = pick === 'Home' ? 'L' : pick === 'Away' ? 'V' : 'E';
+                      const pickColor = pick === 'Home' ? 'text-wc-navy' : pick === 'Away' ? 'text-wc-red' : 'text-gray-600';
+                      const isSelected = selectedModelDetail?.predictorName === p.predictorName;
+                      const tierInfo = MODEL_TIERS[p.predictorName];
+                      const shortName = tierInfo?.shortName ?? p.predictorName;
+                      return (
+                        <button
+                          key={p.predictorName}
+                          onClick={() => setSelectedModelDetail(isSelected ? null : p)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left transition-all ${isBest ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-gray-50'} ${isSelected ? 'bg-blue-50/60' : ''}`}
+                        >
+                          {isBest
+                            ? <span className="text-amber-400 shrink-0 text-[10px]">★</span>
+                            : <span className="w-3 shrink-0" />}
+                          <span className="w-16 font-semibold text-gray-700 truncate shrink-0">{shortName}</span>
+                          <MiniBar home={p.outcome.homeWin} draw={p.outcome.draw} away={p.outcome.awayWin} />
+                          <span className={`font-black tabular-nums text-sm ${pickColor} w-5 text-center shrink-0`}>{pickLabel}</span>
+                          <span className="text-gray-400 tabular-nums w-9 text-right shrink-0">{Math.round(prob * 100)}%</span>
+                          {p.mostLikelyScore
+                            ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{p.mostLikelyScore.home}-{p.mostLikelyScore.away}</span>
+                            : <span className="w-7 shrink-0" />}
+                          <span className="text-gray-300 text-[10px] shrink-0">›</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {(() => {
                 const tactical = pred.predictions.find(p => p.predictorName === 'Estilo de Juego' && !p.degraded);
