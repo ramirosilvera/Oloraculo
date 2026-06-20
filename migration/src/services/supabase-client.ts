@@ -119,7 +119,10 @@ export async function saveWcActualResult(
 ): Promise<WcActualResult> {
   const { data, error } = await supabase
     .from('wc_actual_results')
-    .upsert({ ...result, played_at: new Date().toISOString() })
+    .upsert(
+      { ...result, played_at: new Date().toISOString() },
+      { onConflict: 'fixture_id' },
+    )
     .select()
     .single();
   if (error) throw error;
