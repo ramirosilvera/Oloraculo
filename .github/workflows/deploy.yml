@@ -34,8 +34,6 @@ jobs:
         working-directory: migration
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_FD_API_KEY: ${{ secrets.VITE_FD_API_KEY }}
 
       - name: Configurar secretos de Pages Functions
