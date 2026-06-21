@@ -180,7 +180,6 @@ function GeminiAnalysis({
             variant="primary"
             size="sm"
             onClick={() => analyze()}
-            loading={status === 'loading'}
           >
             <Sparkles className="w-3.5 h-3.5" />
             Analizar
