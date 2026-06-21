@@ -846,24 +846,16 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
         </Tooltip>
       </div>
 
-      {/* Daily scoring streak — compact strip */}
+      {/* Daily scoring streak — informational only (not used in predictions) */}
       {dailySignal && streakInfo && (
-        <div className={`px-4 py-1.5 border-t flex items-center gap-1.5 ${dailySignal.isConfirmed ? 'border-amber-100 bg-amber-50/60' : 'border-gray-100 bg-gray-50/40'}`}>
+        <div className="px-4 py-1.5 border-t border-gray-100 bg-gray-50/40 flex items-center gap-1.5">
           <span className="text-sm leading-none shrink-0">{streakInfo.emoji}</span>
           <span className="text-[10px] font-semibold text-gray-600 flex-1 min-w-0 truncate">
-            {dailySignal.isConfirmed
+            {dailySignal.streakDays >= 2
               ? `Racha ${dailySignal.streakDays}d: ${streakInfo.label.toLowerCase()}`
               : `Ayer: ${streakInfo.label.toLowerCase()}`}
           </span>
-          {dailySignal.isConfirmed && (
-            <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1 py-px rounded shrink-0">
-              L6 ×{dailySignal.goalModifier.toFixed(2)}
-            </span>
-          )}
-          <Tooltip text={dailySignal.isConfirmed
-            ? `El modelo L6 detectó una racha de ${dailySignal.streakDays} días seguidos con el mismo patrón goleador (${dailySignal.currentStreak}). Aplica un modificador de goles ×${dailySignal.goalModifier.toFixed(2)} y de dispersión ×${dailySignal.pushModifier.toFixed(2)} a las predicciones de hoy.`
-            : `Solo un día con patrón "${dailySignal.currentStreak}". Se necesitan 2 días consecutivos para que el modificador se active.`}
-          >
+          <Tooltip text={`Patrón goleador del torneo (informativo). Se necesitan ${3 - dailySignal.streakDays > 0 ? 3 - dailySignal.streakDays : 0} días más para activar en predicciones.`}>
             <Info className="w-3 h-3 text-gray-300 shrink-0" />
           </Tooltip>
         </div>

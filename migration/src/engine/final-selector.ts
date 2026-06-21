@@ -10,6 +10,16 @@ import { applyDrawCalibration, normalizeOutcome, topPick } from './probability-h
 // Minimum evaluations per model before its weight is trusted
 const MIN_EVALS_FOR_WEIGHT = 5;
 
+// Static fallback ensemble weights (used when Brier history is too sparse).
+// Calibrated on WC historical data: Goals/Momentum is the strongest signal,
+// Squad Quality adds market-value grounding, Elo/Form provide stability.
+const STATIC_FALLBACK_WEIGHTS = new Map<string, number>([
+  ['Momentum del Mundial', 0.40],
+  ['Potencial del plantel', 0.20],
+  ['Elo',                  0.25],
+  ['Forma reciente',       0.15],
+]);
+
 /**
  * Compute ensemble weights for each model from evaluation history.
  * Hybrid signal: winner-rate × inverse-Brier. This means a model needs both
@@ -51,7 +61,7 @@ export function computeModelWeights(evals: PredictionEvaluation[]): Map<string, 
     raw.set(model, Math.max(0.001, winRate) * (1 / Math.max(0.05, avgBrier)));
   }
 
-  if (raw.size < 2) return new Map(); // need at least 2 models for blending
+  if (raw.size < 2) return STATIC_FALLBACK_WEIGHTS;
 
   const total = [...raw.values()].reduce((s, v) => s + v, 0);
   const weights = new Map<string, number>();
@@ -78,30 +88,25 @@ interface RankingBias {
   consensusTopPick: string;
 }
 
+// Applies a small Elo correction when Elo strongly disagrees with the selected model.
+// FIFA Ranking was removed from the ladder (redundant with Elo, 0.82 correlation),
+// so the consensus is now Elo-only.
 function tryBuildRankingBias(
   ordered: MatchPrediction[],
   selected: MatchPrediction,
 ): RankingBias | null {
   const elo = [...ordered].reverse().find(p => p.predictorName === 'Elo' && !p.degraded);
-  const fifa = [...ordered].reverse().find(p => p.predictorName === 'Ranking FIFA' && !p.degraded);
-  if (!elo || !fifa) return null;
+  if (!elo) return null;
 
   const consensusTopPick = topPick(elo.outcome);
-  if (consensusTopPick !== topPick(fifa.outcome)) return null;
   if (consensusTopPick === topPick(selected.outcome)) return null;
-
-  const consensus = normalizeOutcome({
-    homeWin: (elo.outcome.homeWin + fifa.outcome.homeWin) / 2,
-    draw: (elo.outcome.draw + fifa.outcome.draw) / 2,
-    awayWin: (elo.outcome.awayWin + fifa.outcome.awayWin) / 2,
-  });
 
   const sw = 1 - RANKING_BIAS_WEIGHT;
   return {
     outcome: normalizeOutcome({
-      homeWin: selected.outcome.homeWin * sw + consensus.homeWin * RANKING_BIAS_WEIGHT,
-      draw: selected.outcome.draw * sw + consensus.draw * RANKING_BIAS_WEIGHT,
-      awayWin: selected.outcome.awayWin * sw + consensus.awayWin * RANKING_BIAS_WEIGHT,
+      homeWin: selected.outcome.homeWin * sw + elo.outcome.homeWin * RANKING_BIAS_WEIGHT,
+      draw: selected.outcome.draw * sw + elo.outcome.draw * RANKING_BIAS_WEIGHT,
+      awayWin: selected.outcome.awayWin * sw + elo.outcome.awayWin * RANKING_BIAS_WEIGHT,
     }),
     consensusTopPick,
   };

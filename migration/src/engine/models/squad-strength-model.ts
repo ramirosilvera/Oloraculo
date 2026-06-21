@@ -6,8 +6,8 @@
 // Score formula:
 //   valuePct    = market_value_m / maxValueInTournament
 //   top5Pct     = top5_league_count / squad_size
-//   uclPct      = ucl_players / squad_size
-//   strength    = 0.40 * valuePct + 0.35 * top5Pct + 0.25 * uclPct
+//   strength    = 0.60 * valuePct + 0.40 * top5Pct
+// (UCL players removed — they correlate too strongly with top5 and market value)
 //
 // Adjustment — INDEPENDENT log-ratio per team (avoids the saturation bug where
 // France-USA received the same max adjustment as England-Haiti under netDiff):
@@ -78,8 +78,7 @@ function computeAllScores(
     const size = entry.squad_size > 0 ? entry.squad_size : 26;
     const valuePct = entry.market_value_m / maxValue;
     const top5Pct  = entry.top5_league_count / size;
-    const uclPct   = entry.ucl_players / size;
-    const score    = 0.40 * valuePct + 0.35 * top5Pct + 0.25 * uclPct;
+    const score    = 0.60 * valuePct + 0.40 * top5Pct;
     scores.set(teamId, score);
   }
   return scores;
@@ -143,7 +142,7 @@ export function squadStrengthModelPredict(
     homeGoals = Math.max(0.3, baseHome * (1 + homeBoost));
     awayGoals = Math.max(0.3, baseAway * (1 + awayBoost));
 
-    featuresUsed.push('Valor de mercado del plantel', 'Jugadores en ligas top-5', 'Experiencia en UCL');
+    featuresUsed.push('Valor de mercado del plantel', 'Jugadores en ligas top-5');
     appliedSquad = true;
 
     if (!hasHome) missingFeatures.push(`datos de plantel de ${ctx.homeTeam.name}`);

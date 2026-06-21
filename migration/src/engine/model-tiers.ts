@@ -27,9 +27,9 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
   'Ranking FIFA': {
     tier: 'L1',
     shortName: 'FIFA',
-    color: 'text-blue-500',
-    desc: 'Puntos FIFA como proxy de calidad',
-    how: 'Aplica la fórmula Elo a los puntos FIFA de ambos equipos. La diferencia de puntos determina la probabilidad de victoria.',
+    color: 'text-gray-400',
+    desc: '[Archivado] Puntos FIFA como proxy de calidad',
+    how: 'Removido del ensemble activo (correlación 0.82 con Elo — señal redundante). Los datos históricos se conservan para referencia.',
   },
   'Elo': {
     tier: 'L2',
@@ -56,8 +56,8 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     tier: 'L4.5',
     shortName: 'Plantel',
     color: 'text-purple-600',
-    desc: 'L4 × valor de mercado, top-5, UCL',
-    how: 'Calcula un score de fortaleza por equipo: 40% valor de mercado + 35% jugadores en top-5 ligas + 25% jugadores con UCL. Ajusta los goles esperados de L4 hasta ±25% según la diferencia de scores. Diferencias extremas (p.ej. England vs Haiti) saturan al máximo boost.',
+    desc: 'L4 × valor de mercado + top-5 ligas',
+    how: 'Calcula un score de fortaleza por equipo: 60% valor de mercado de transfermarkt + 40% jugadores en top-5 ligas europeas. Ajusta los goles esperados de L4 en escala logarítmica. Diferencias extremas (p.ej. England vs Haiti) saturan al máximo boost.',
   },
   'Goles + contexto reciente': {
     tier: 'L5',
@@ -70,14 +70,14 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     tier: 'L6',
     shortName: 'Momentum',
     color: 'text-wc-gold',
-    desc: 'L4 + inflación WC + momentum en torneo + racha diaria',
-    how: 'Fase 1: escala goles según el ritmo goleador del Mundial actual vs histórico. Fase 2: agrega push de momentum basado en forma dentro del torneo (con bonus por victorias sorpresa). Fase 3: aplica modificador si hay racha de 3+ días con el mismo patrón (muchas goleadas, muchos empates, etc.).',
+    desc: 'L4 + inflación WC + momentum en torneo',
+    how: 'Fase 1: escala goles según el ritmo goleador del Mundial actual vs histórico. Fase 2: agrega push de momentum basado en forma dentro del torneo (victorias, goles, bonus por sorpresas). La racha diaria fue desactivada — con la cantidad de partidos por día en grupos, el umbral de 3 días consecutivos raramente confirma.',
   },
   'Estilo de Juego': {
     tier: 'L7',
     shortName: 'Táctico',
-    color: 'text-teal-600',
-    desc: 'Ajuste por perfil táctico y matchup de estilos',
-    how: 'Aplica 6 reglas de matchup táctico: bypass de presión, vulnerabilidad de línea alta vs contraataque, posesión vs bloque bajo, ventaja en pelota parada, diferencia de tempo y superioridad aérea. Cada regla ajusta las probabilidades de resultado en ±1-7%.',
+    color: 'text-gray-400',
+    desc: '[Archivado] Ajuste por perfil táctico y matchup de estilos',
+    how: 'Removido del ensemble activo: perfiles estáticos sin validación empírica. Los deltas tácticos fijos no mejoraron la calibración en datos históricos de Copa del Mundo.',
   },
 };

@@ -18,7 +18,6 @@ import type {
 } from '../types/domain';
 import {
   nullModelPredict,
-  fifaModelPredict,
   eloModelPredict,
   recentFormModelPredict,
   goalContextModelPredict,
@@ -26,11 +25,9 @@ import {
   tournamentMomentumPredict,
   squadStrengthModelPredict,
   buildSquadStrengthMap,
-  tacticalMatchupPredict,
   buildTacticalMap,
 } from './models';
 import type { TacticalProfile } from './models';
-import { detectDailyPattern } from './models/daily-pattern';
 import { selectFinalPrediction } from './final-selector';
 
 const RECENT_RESULT_COUNT = 8;
@@ -203,30 +200,26 @@ export class PredictionEngine {
         ? this.computeTournamentForm(fixture.away_team_id, wcResults, allFixtures, ratings)
         : null,
       tournamentGoalInflation: wcResults ? this.computeGoalInflation(wcResults) : null,
-      dailyPatternSignal: (wcResults && allFixtures)
-        ? detectDailyPattern(
-            wcResults,
-            allFixtures,
-            fixture.kickoff_utc
-              ? new Date(new Date(fixture.kickoff_utc).getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
-              : null,
-          )
-        : null,
+      // Daily pattern disabled: WC group stage has too few matches/day for the
+      // 3-consecutive-day streak threshold to fire reliably. The pattern is still
+      // computed in MatchesPage for display (TournamentPace widget) but does not
+      // influence L6 predictions.
+      dailyPatternSignal: null,
     };
   }
 
   predict(ctx: MatchContext, modelWeights?: Map<string, number>): MatchPredictionResult {
     const squadPred = squadStrengthModelPredict(ctx, this.goalModel, this.squadStrengthMap);
+    // L1 (FIFA Ranking) removed: 0.82 correlation with Elo — redundant signal.
+    // L7 (Tactical Matchup) removed: static profiles, no empirical validation.
     const ladder: MatchPrediction[] = [
       nullModelPredict(ctx),
-      fifaModelPredict(ctx),
       eloModelPredict(ctx),
       recentFormModelPredict(ctx),
       this.goalModel.predict(ctx),
       squadPred,
       goalContextModelPredict(ctx, this.goalModel),
       tournamentMomentumPredict(ctx, this.goalModel),
-      tacticalMatchupPredict(ctx, squadPred, this.tacticalProfiles),
     ];
 
     return {
