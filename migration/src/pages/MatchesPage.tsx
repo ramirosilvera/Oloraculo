@@ -17,8 +17,10 @@ import { GoalList } from '../components/GoalList';
 import { TopScorers } from '../components/TopScorers';
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team, Rating, SquadStrengthEntry } from '../types/domain';
 import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
+import { SCFCard } from '../components/SCFCard';
+import { useSCFForFixture } from '../hooks/useSCF';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
@@ -367,6 +369,30 @@ function ContextEditor({ fixture, homeName, awayName, existingContext, onSave }:
 }
 
 // ---------------------------------------------------------------------------
+// SCFSection — standalone component so the hook is always at top level
+// ---------------------------------------------------------------------------
+interface SCFSectionProps {
+  fixture: Fixture;
+  homeTeam: Team | undefined;
+  awayTeam: Team | undefined;
+  ratings: Rating[];
+  allFixtures: Fixture[];
+  wcResults: WcActualResult[];
+  squadStrengthData: Record<string, SquadStrengthEntry>;
+  homeName: string;
+  awayName: string;
+}
+
+function SCFSection({ fixture, homeTeam, awayTeam, ratings, allFixtures, wcResults, squadStrengthData, homeName, awayName }: SCFSectionProps) {
+  const { result } = useSCFForFixture({
+    fixture, homeTeam, awayTeam, ratings, allFixtures, wcResults, squadStrengthData,
+    enabled: !!homeTeam && !!awayTeam,
+  });
+  if (!result) return null;
+  return <SCFCard result={result} homeName={homeName} awayName={awayName} />;
+}
+
+// ---------------------------------------------------------------------------
 // FixtureRow — shared between "Hoy" and "Por grupo"
 // ---------------------------------------------------------------------------
 interface FixtureRowProps {
@@ -396,6 +422,12 @@ interface FixtureRowProps {
   bestModelWinnerAcc: number | null;
   liveMatch?: LiveMatch;
   goals?: MatchGoal[];
+  // SCF data
+  teamMap: Map<string, Team>;
+  ratings: Rating[];
+  allFixtures: Fixture[];
+  wcResultsForSCF: WcActualResult[];
+  squadStrengthData: Record<string, SquadStrengthEntry>;
 }
 
 function FixtureRow({
@@ -403,6 +435,7 @@ function FixtureRow({
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
+  teamMap, ratings, allFixtures, wcResultsForSCF, squadStrengthData,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   return (
@@ -546,6 +579,18 @@ function FixtureRow({
                   onClose={() => setSelectedModelDetail(null)}
                 />
               )}
+
+              <SCFSection
+                fixture={fixture}
+                homeTeam={teamMap.get(fixture.home_team_id)}
+                awayTeam={teamMap.get(fixture.away_team_id)}
+                ratings={ratings}
+                allFixtures={allFixtures}
+                wcResults={wcResultsForSCF}
+                squadStrengthData={squadStrengthData}
+                homeName={homeName}
+                awayName={awayName}
+              />
 
               <div className="flex flex-wrap items-center gap-2">
                 <Tooltip text="Guardá antes del partido para medir tu accuracy después">
@@ -1105,7 +1150,7 @@ function LiveNow({ liveByKey, teamMap, fixtures }: {
 // MatchesPage
 // ---------------------------------------------------------------------------
 export function MatchesPage() {
-  const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, isLoading, error } = useAppData();
+  const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, squadStrengthData, isLoading, error } = useAppData();
   const qc = useQueryClient();
 
   // Live scores from ESPN via Supabase Edge Function (60s polling)
@@ -1402,6 +1447,11 @@ export function MatchesPage() {
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
     liveMatch: getLiveForFixture(resolvedLiveByKey, fixture.home_team_id, fixture.away_team_id),
     goals: goalsByFixture.get(fixture.id),
+    teamMap,
+    ratings: ratingsList,
+    allFixtures: fixtures,
+    wcResultsForSCF: wcResults ?? [],
+    squadStrengthData,
   });
 
   // ---- filtered fixtures ----
