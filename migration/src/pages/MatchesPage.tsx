@@ -839,6 +839,33 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 }
 
 // ---------------------------------------------------------------------------
+// Resolve an ESPN team name → local slug so FlagImg and teamMap work.
+// ESPN sends numeric team IDs which don't match our local slugs.
+// We match by display name first, then by slugified name, then overrides.
+// ---------------------------------------------------------------------------
+const ESPN_NAME_OVERRIDES: Record<string, string> = {
+  'usa':                         'united-states',
+  'korea republic':              'south-korea',
+  'côte d\'ivoire':              'ivory-coast',
+  "cote d'ivoire":               'ivory-coast',
+  'dr congo':                    'congo-dr',
+  'democratic republic of congo':'congo-dr',
+  'bosnia-herzegovina':          'bosnia-and-herzegovina',
+};
+
+function resolveLocalId(espnName: string, espnId: string | null, teamMap: Map<string, Team>): string {
+  if (espnId && teamMap.has(espnId)) return espnId;
+  const nameLower = espnName.toLowerCase().trim();
+  for (const [id, team] of teamMap) {
+    if (team.name.toLowerCase().trim() === nameLower) return id;
+  }
+  const slugified = nameLower.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (teamMap.has(slugified)) return slugified;
+  if (ESPN_NAME_OVERRIDES[nameLower]) return ESPN_NAME_OVERRIDES[nameLower];
+  return espnId ?? '';
+}
+
+// ---------------------------------------------------------------------------
 // EventChip — compact goal / card indicator for the live match card
 // ---------------------------------------------------------------------------
 const EVENT_ICON: Record<string, string> = {
@@ -891,8 +918,10 @@ function LiveMatchRow({ m, teamMap }: { m: LiveMatch; teamMap: Map<string, Team>
     return () => clearInterval(id);
   }, [m.fdId, m.status, m.minute]);
 
-  const home = teamMap.get(m.homeLocalId ?? '');
-  const away = teamMap.get(m.awayLocalId ?? '');
+  const homeSlug = resolveLocalId(m.homeTeamFdName, m.homeLocalId, teamMap);
+  const awaySlug = resolveLocalId(m.awayTeamFdName, m.awayLocalId, teamMap);
+  const home = teamMap.get(homeSlug);
+  const away = teamMap.get(awaySlug);
   const hasScore = m.homeGoals != null && m.awayGoals != null;
   const isExplicitlyLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
   const homeEvents = (m.events ?? []).filter(e => e.side === 'home');
@@ -907,7 +936,7 @@ function LiveMatchRow({ m, teamMap }: { m: LiveMatch; teamMap: Map<string, Team>
           <span className="text-sm font-bold text-white truncate text-right">
             {home?.name ?? m.homeTeamFdName}
           </span>
-          <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+          <FlagImg id={homeSlug} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
         </div>
         <div className="flex flex-col items-center shrink-0 min-w-[68px]">
           {hasScore ? (
@@ -928,7 +957,7 @@ function LiveMatchRow({ m, teamMap }: { m: LiveMatch; teamMap: Map<string, Team>
           </span>
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+          <FlagImg id={awaySlug} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
           <span className="text-sm font-bold text-white truncate">
             {away?.name ?? m.awayTeamFdName}
           </span>
