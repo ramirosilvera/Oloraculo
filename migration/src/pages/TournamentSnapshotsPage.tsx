@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
-import { loadTournamentSnapshots } from '../services/supabase-client';
+import { loadTournamentSnapshots, callGeminiAnalysis } from '../services/supabase-client';
 import type { PredictionSnapshot, TournamentProjection } from '../types/domain';
 import { Button, Badge, Card, CardHeader, Skeleton, SectionTitle, FlagImg } from '../components/ui';
 import { TeamJourneyPanel } from '../components/TeamJourneyPanel';
-import { History, Trophy, ChevronRight, Clock, Zap } from 'lucide-react';
+import { History, Trophy, ChevronRight, Clock, Zap, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import type { TeamTournamentProbability } from '../types/domain';
 
 function pct1(n: number) { return `${(n * 100).toFixed(1)}%`; }
@@ -25,6 +25,240 @@ function formatDate(iso: string): string {
 function topChampion(projection: TournamentProjection): TournamentProjection['teams'][number] | null {
   if (!projection.teams.length) return null;
   return [...projection.teams].sort((a, b) => b.winTournament - a.winTournament)[0];
+}
+
+// ---------------------------------------------------------------------------
+// SimpleMarkdown — renders Gemini markdown without external libs
+// ---------------------------------------------------------------------------
+function BoldLine({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.startsWith('**') && p.endsWith('**')
+          ? <strong key={i} className="font-semibold text-gray-900">{p.slice(2, -2)}</strong>
+          : <span key={i}>{p}</span>,
+      )}
+    </>
+  );
+}
+
+function SimpleMarkdown({ text }: { text: string }) {
+  return (
+    <div className="space-y-0.5">
+      {text.split('\n').map((line, i) => {
+        if (!line.trim()) return <div key={i} className="h-2" />;
+        if (line.startsWith('## ')) {
+          return (
+            <h3 key={i} className="flex items-center gap-2 font-bold text-wc-navy text-sm mt-4 mb-1 first:mt-0">
+              <span className="w-[3px] h-4 bg-wc-gold rounded-full shrink-0" />
+              {line.slice(3)}
+            </h3>
+          );
+        }
+        if (line.startsWith('- ') || line.startsWith('• ')) {
+          return (
+            <div key={i} className="flex gap-2 text-sm text-gray-700 leading-relaxed pl-1">
+              <span className="text-wc-gold shrink-0 mt-0.5 select-none">•</span>
+              <span><BoldLine text={line.replace(/^[-•]\s/, '')} /></span>
+            </div>
+          );
+        }
+        return (
+          <p key={i} className="text-sm text-gray-700 leading-relaxed">
+            <BoldLine text={line} />
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GeminiAnalysis — AI analysis of all saved snapshots
+// ---------------------------------------------------------------------------
+const GEMINI_CACHE_KEY = 'oloraculo-gemini-analysis-v1';
+const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 h
+
+interface AnalysisCache {
+  analysis:      string;
+  generatedAt:   string;
+  snapshotCount: number;
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 2)  return 'hace un momento';
+  if (mins < 60) return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `hace ${hrs} h`;
+  return `hace ${Math.floor(hrs / 24)} d`;
+}
+
+function GeminiAnalysis({
+  snapshots,
+  getTeamName,
+}: {
+  snapshots: PredictionSnapshot[];
+  getTeamName: (id: string) => string;
+}) {
+  const [status,   setStatus]   = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [cache,    setCache]    = useState<AnalysisCache | null>(null);
+  const [errMsg,   setErrMsg]   = useState<string | null>(null);
+
+  // Load cached analysis on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(GEMINI_CACHE_KEY);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as AnalysisCache;
+      const age = Date.now() - new Date(cached.generatedAt).getTime();
+      if (age < GEMINI_CACHE_TTL) {
+        setCache(cached);
+        setStatus('done');
+      }
+    } catch { /* ignore corrupt cache */ }
+  }, []);
+
+  const analyze = useCallback(async (force = false) => {
+    if (status === 'loading') return;
+    if (!force && status === 'done' && cache) return;
+    setStatus('loading');
+    setErrMsg(null);
+
+    try {
+      const condensed = snapshots.map(snap => {
+        const proj = snap.payload as TournamentProjection;
+        return {
+          fecha: new Date(snap.created_at).toLocaleString('es-AR', {
+            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+          }),
+          simulaciones: proj.simulations ?? 0,
+          top15: [...(proj.teams ?? [])]
+            .sort((a, b) => b.winTournament - a.winTournament)
+            .slice(0, 15)
+            .map(t => ({
+              equipo:    getTeamName(t.teamId),
+              grupo:     t.group,
+              clasifica: Math.round(t.qualify * 100),
+              semis:     Math.round(t.reachSemiFinal * 100),
+              final:     Math.round(t.reachFinal * 100),
+              campeon:   Math.round(t.winTournament * 1000) / 10,
+            })),
+        };
+      });
+
+      const analysis = await callGeminiAnalysis(condensed);
+      const newCache: AnalysisCache = {
+        analysis,
+        generatedAt:   new Date().toISOString(),
+        snapshotCount: snapshots.length,
+      };
+      localStorage.setItem(GEMINI_CACHE_KEY, JSON.stringify(newCache));
+      setCache(newCache);
+      setStatus('done');
+    } catch (err) {
+      setErrMsg(err instanceof Error ? err.message : 'Error desconocido');
+      setStatus('error');
+    }
+  }, [snapshots, getTeamName, status, cache]);
+
+  // ── Idle / no cache ───────────────────────────────────────────────────────
+  if (status === 'idle' || (status === 'error' && !cache)) {
+    return (
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-wc-navy to-[#1a3a6e] px-5 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-wc-gold/20 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5 text-wc-gold" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-white text-sm">Análisis IA de la evolución</p>
+            <p className="text-white/50 text-xs">Gemini analiza las {snapshots.length} simulaciones guardadas</p>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => analyze()}
+            loading={status === 'loading'}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Analizar
+          </Button>
+        </div>
+        {status === 'error' && errMsg && (
+          <div className="flex items-center gap-2 px-5 py-3 bg-red-50 border-t border-red-100">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <p className="text-xs text-red-600 flex-1">{errMsg}</p>
+            <button onClick={() => analyze(true)} className="text-xs text-red-500 underline">Reintentar</button>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  // ── Loading ───────────────────────────────────────────────────────────────
+  if (status === 'loading') {
+    return (
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-wc-navy to-[#1a3a6e] px-5 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-wc-gold/20 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5 text-wc-gold animate-pulse" />
+          </div>
+          <div>
+            <p className="font-bold text-white text-sm">Analizando simulaciones…</p>
+            <p className="text-white/50 text-xs">Gemini está procesando {snapshots.length} snapshots</p>
+          </div>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+          <Skeleton className="h-3 w-4/6" />
+          <Skeleton className="h-3 w-full mt-4" />
+          <Skeleton className="h-3 w-3/4" />
+        </div>
+      </Card>
+    );
+  }
+
+  // ── Done ─────────────────────────────────────────────────────────────────
+  return (
+    <Card className="overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-wc-navy to-[#1a3a6e] px-5 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl bg-wc-gold/20 flex items-center justify-center shrink-0">
+          <Sparkles className="w-4 h-4 text-wc-gold" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-white text-sm">Análisis IA · Evolución de simulaciones</p>
+          <p className="text-white/40 text-[11px]">
+            Gemini 1.5 Flash · {cache?.snapshotCount} snapshots · {cache ? relativeTime(cache.generatedAt) : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => analyze(true)}
+          className="text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20"
+          title="Regenerar análisis"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Analysis content */}
+      <div className="px-5 py-4">
+        {cache?.analysis && <SimpleMarkdown text={cache.analysis} />}
+      </div>
+
+      {/* Error overlay for regeneration failures */}
+      {status === 'error' && errMsg && (
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-red-50 border-t border-red-100">
+          <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+          <p className="text-xs text-red-600 flex-1">{errMsg}</p>
+          <button onClick={() => analyze(true)} className="text-xs text-red-500 underline">Reintentar</button>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 interface ProbTableProps {
@@ -218,7 +452,10 @@ export function TournamentSnapshotsPage() {
       )}
 
       {!empty && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+        <>
+          <GeminiAnalysis snapshots={snapshots!} getTeamName={getTeamName} />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
           <div className="space-y-2 md:col-span-1">
             {snapshots!.map(snap => (
               <SnapItem
@@ -267,6 +504,7 @@ export function TournamentSnapshotsPage() {
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

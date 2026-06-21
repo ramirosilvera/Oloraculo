@@ -201,8 +201,34 @@ export async function loadAllMatchGoals(): Promise<MatchGoal[]> {
 }
 
 // ---------------------------------------------------------------------------
-// App Events — generic signals (e.g. KNOCKOUT_ACTIVATION_REQUESTED)
+// Gemini Analysis — calls the gemini-analysis Edge Function with condensed
+// snapshot data and returns a markdown string.
 // ---------------------------------------------------------------------------
+export interface GeminiCondensedSnapshot {
+  fecha:        string;
+  simulaciones: number;
+  top15: {
+    equipo:    string;
+    grupo:     string;
+    clasifica: number;
+    semis:     number;
+    final:     number;
+    campeon:   number;
+  }[];
+}
+
+export async function callGeminiAnalysis(
+  snapshots: GeminiCondensedSnapshot[],
+): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('gemini-analysis', {
+    body: { snapshots },
+  });
+  if (error) throw error;
+  if (typeof (data as Record<string, unknown>)?.analysis !== 'string') {
+    throw new Error('empty-response');
+  }
+  return (data as { analysis: string }).analysis;
+}
 
 export async function writeAppEvent(eventType: string, payload: unknown = {}): Promise<void> {
   const { error } = await supabase
