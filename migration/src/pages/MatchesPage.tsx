@@ -635,30 +635,6 @@ function modelStats(evals: PredictionEvaluation[], modelName: string): ModelStat
   };
 }
 
-// ---------------------------------------------------------------------------
-// topScorelines — frequency table of canonical scorelines from WC results.
-// Canonicalized: larger score first (1-0 and 0-1 → "1-0") so draws stay
-// symmetric (0-0, 1-1) and one-goal wins all count together regardless of
-// which team scored first. Nulls filtered for safety.
-// ---------------------------------------------------------------------------
-function topScorelines(
-  results: WcActualResult[],
-  n: number,
-): Array<{ score: string; count: number }> {
-  const freq = new Map<string, number>();
-  for (const r of results) {
-    if (r.home_goals == null || r.away_goals == null) continue;
-    const hi = Math.max(r.home_goals, r.away_goals);
-    const lo = Math.min(r.home_goals, r.away_goals);
-    const key = `${hi}-${lo}`;
-    freq.set(key, (freq.get(key) ?? 0) + 1);
-  }
-  return [...freq.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n)
-    .map(([score, count]) => ({ score, count }));
-}
-
 // Last 5 FIFA World Cups (2006–2022), 320 matches.
 // Compiled match-by-match from Wikipedia / RSSSF / ESPN. Scores at AET when applicable.
 const WC_5TOUR_SCORELINES = [
@@ -1413,8 +1389,6 @@ export function MatchesPage() {
         )}
       </div>
 
-      {/* TournamentPace hidden — preserved for later use */}
-
       {/* ------------------------------------------------------------------ */}
       {/* EN VIVO — ESPN; solo aparece cuando hay partidos en curso           */}
       {/* ------------------------------------------------------------------ */}
@@ -1471,14 +1445,18 @@ export function MatchesPage() {
               </div>
               <div className="flex items-center gap-1">
                 {plantelStats.n > 0 && (
-                  <span className="text-[9px] font-medium text-white/40 shrink-0">
-                    % {(plantelStats.winnerAcc * 100).toFixed(0)}
-                  </span>
+                  <Tooltip text={`L4.5 Plantel — acierto de ganador en ${plantelStats.n} partidos`}>
+                    <span className="text-[9px] font-medium text-white/40 shrink-0 cursor-default">
+                      L4.5 {(plantelStats.winnerAcc * 100).toFixed(0)}%
+                    </span>
+                  </Tooltip>
                 )}
                 {momentumStats.n > 0 && (
-                  <span className="text-[9px] font-medium text-white/40 shrink-0">
-                    ⚽ {(momentumStats.exactAcc * 100).toFixed(0)}
-                  </span>
+                  <Tooltip text={`L6 Momentum — acierto de resultado exacto en ${momentumStats.n} partidos`}>
+                    <span className="text-[9px] font-medium text-white/40 shrink-0 cursor-default">
+                      L6 {(momentumStats.exactAcc * 100).toFixed(0)}%
+                    </span>
+                  </Tooltip>
                 )}
                 <button
                   onClick={() => prevDate && setSelectedDate(prevDate)}

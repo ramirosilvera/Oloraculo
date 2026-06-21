@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2, FlaskConical } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { predictPair } from '../engine/prediction-engine';
+import { computeModelWeights } from '../engine/final-selector';
+import { loadEvaluations } from '../services/supabase-client';
 import type { MatchPrediction, MatchPredictionResult, Team } from '../types/domain';
 import {
   Button,
@@ -27,6 +30,7 @@ const ladder = [
   { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5, UCL' },
   { name: 'L5',   label: 'Contexto',          signal: 'ajuste con fuentes' },
   { name: 'L6',   label: 'Momentum',          signal: 'forma y racha en el torneo' },
+  { name: 'L7',   label: 'Estilo de Juego',   signal: 'perfil táctico + matchup' },
 ];
 
 export function OracleLabPage() {
@@ -37,6 +41,9 @@ export function OracleLabPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [selectedModel, setSelectedModel] = useState<MatchPrediction | null>(null);
+
+  const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
+  const modelWeights = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
 
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams]);
 
@@ -51,6 +58,7 @@ export function OracleLabPage() {
         wcResults,
         allFixtures: fixtures,
         fixtureContexts: contextMap,
+        modelWeights: modelWeights.size >= 2 ? modelWeights : undefined,
       });
       setResult(r);
     } catch (e) {
