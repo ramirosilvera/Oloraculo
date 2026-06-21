@@ -113,6 +113,8 @@ export function useAppData() {
     ratings:    ratingsList,
     contexts:   contexts.data ?? [],
     squads:     squads.data   ?? {},
+    squadStrengthData:    squadStrength.data   ?? {},
+    tacticalProfilesData: tacticalProfiles.data ?? {},
     teamMap,
     ratingsList,
     contextMap,

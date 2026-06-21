@@ -68,7 +68,7 @@ function outcomeLabelEs(outcome: string): string {
 }
 
 function reason(p: MatchPrediction): string {
-  if (p.featuresMissing.length === 0) return 'no era usable';
+  if (p.featuresMissing.length === 0) return 'degradado sin detalle';
   const verb = p.featuresMissing.length === 1 ? 'faltaba' : 'faltaban';
   return `no era usable: ${verb} ${p.featuresMissing.join(', ')}`;
 }

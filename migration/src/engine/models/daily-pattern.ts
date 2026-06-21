@@ -10,8 +10,8 @@
 //   low_scoring— avg goals < 1.8  (defensive day)
 //   contested  — default (balanced, close matches)
 //
-// A streak requires ≥ 2 consecutive days with the same pattern type.
-// Modifiers only apply when the streak is confirmed (streakDays ≥ 2).
+// A streak requires ≥ 3 consecutive days with the same pattern type.
+// Modifiers only apply when the streak is confirmed (streakDays ≥ 3).
 // =============================================================================
 
 import type { Fixture, WcActualResult, DailyPatternType, DailyStats, DailyPatternSignal } from '../../types/domain';

@@ -41,6 +41,7 @@ export class PredictionEngine {
   private readonly goalModel: GoalModel;
   private readonly squadStrengthMap: Map<string, SquadStrengthEntry>;
   private readonly tacticalProfiles: Map<string, TacticalProfile>;
+  private readonly teamResultsMap: Map<string, MatchResult[]>;
 
   constructor(
     private readonly allResults: MatchResult[],
@@ -51,6 +52,19 @@ export class PredictionEngine {
     this.goalModel = new GoalModel(allResults, yearsWindow);
     this.squadStrengthMap = buildSquadStrengthMap(squadStrengthData);
     this.tacticalProfiles = buildTacticalMap(tacticalProfilesData);
+    // Pre-index results by team so buildContext lookups are O(1) instead of O(n).
+    const tmpMap = new Map<string, MatchResult[]>();
+    for (const r of allResults) {
+      if (!tmpMap.has(r.home_team_id)) tmpMap.set(r.home_team_id, []);
+      if (!tmpMap.has(r.away_team_id)) tmpMap.set(r.away_team_id, []);
+      tmpMap.get(r.home_team_id)!.push(r);
+      tmpMap.get(r.away_team_id)!.push(r);
+    }
+    // Sort each team's list descending by date once — slicing is then O(1).
+    for (const arr of tmpMap.values()) {
+      arr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    this.teamResultsMap = tmpMap;
   }
 
   private computeTournamentForm(
@@ -169,10 +183,7 @@ export class PredictionEngine {
         .sort((a, b) => new Date(b.as_of).getTime() - new Date(a.as_of).getTime())[0] ?? null;
 
     const recentResults = (teamId: string): MatchResult[] =>
-      this.allResults
-        .filter(r => r.home_team_id === teamId || r.away_team_id === teamId)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, RECENT_RESULT_COUNT);
+      (this.teamResultsMap.get(teamId) ?? []).slice(0, RECENT_RESULT_COUNT);
 
     return {
       fixture,

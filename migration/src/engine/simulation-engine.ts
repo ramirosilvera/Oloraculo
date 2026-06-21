@@ -11,11 +11,13 @@ import type {
   MatchResult,
   Rating,
   ScorelineDistribution,
+  SquadStrengthEntry,
   Team,
   TeamTournamentProbability,
   TournamentProjection,
   WcActualResult,
 } from '../types/domain';
+import type { TacticalProfile } from './models';
 import { PredictionEngine } from './prediction-engine';
 import { poissonScoreline, sampleScore, eloExpectation } from './probability-helper';
 
@@ -202,6 +204,8 @@ export interface SimulationInput {
   wcResults: WcActualResult[];
   simulations: number;
   seed: number;
+  squadStrengthData?: Record<string, SquadStrengthEntry>;
+  tacticalProfilesData?: Record<string, TacticalProfile>;
 }
 
 /**
@@ -210,10 +214,11 @@ export interface SimulationInput {
  * Migrated from SimulationService.RunAsync()
  */
 export function runSimulation(input: SimulationInput): TournamentProjection {
-  const { groups, fixtures, allResults, ratings, teams: teamList, wcResults, simulations, seed } = input;
+  const { groups, fixtures, allResults, ratings, teams: teamList, wcResults, simulations, seed,
+          squadStrengthData, tacticalProfilesData } = input;
   const rng = createRng(seed);
-  // Same engine as the Matches page — fit once, predict many.
-  const engine = new PredictionEngine(allResults);
+  // Same engine as the Matches page — squad/tactical data included so L4.5 and L7 are active.
+  const engine = new PredictionEngine(allResults, 8, squadStrengthData ?? {}, tacticalProfilesData ?? {});
   const teamMap = new Map<string, Team>(teamList.map(t => [t.id, t]));
   const emptyContexts = new Map<string, FixtureContext>();
 

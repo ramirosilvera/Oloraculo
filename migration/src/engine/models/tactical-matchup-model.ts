@@ -187,14 +187,11 @@ export function tacticalMatchupPredict(
   };
   const outcome = normalizeOutcome(raw);
 
-  const tacticalNote = notes.length > 0 ? notes[0] : 'Sin ventaja táctica marcada entre los estilos.';
   const adjSummary = [
     homeAdj !== 0 ? `L ${homeAdj > 0 ? '+' : ''}${(homeAdj * 100).toFixed(1)}%` : '',
     drawAdj !== 0 ? `E ${drawAdj > 0 ? '+' : ''}${(drawAdj * 100).toFixed(1)}%` : '',
     awayAdj !== 0 ? `V ${awayAdj > 0 ? '+' : ''}${(awayAdj * 100).toFixed(1)}%` : '',
   ].filter(Boolean).join(' · ');
-
-  void tacticalNote; // suppress unused warning — kept for future use
 
   return {
     ...basePrediction,
