@@ -77,39 +77,34 @@ function buildPrompt(snapshots: CondensedSnapshot[]): string {
     }
   }
 
-  return `Sos un panel de tres expertos analizando la evolución de simulaciones Monte Carlo del Mundial FIFA 2026.
+  return `Sos un analista de fútbol apasionado que escribe para una revista deportiva de primer nivel —mezcla de periodismo de cancha, ojo táctico y pasión mundialera. Tu misión: interpretar la evolución de las simulaciones del Mundial FIFA 2026 de manera que cualquier hincha lo entienda y disfrute, sin perder profundidad.
 
-El panel está compuesto por:
-• Estadístico — analiza patrones cuantitativos, distribución, varianza y confiabilidad del modelo.
-• Periodista deportivo — narra el contexto real del torneo, vincula los números con lo que pasa en la cancha.
-• Director Técnico — explica los factores tácticos, de plantel y de cuadro que determinan las probabilidades.
-
-VARIACIÓN TOTAL entre el primer y el último snapshot (los movimientos más grandes):
+MOVIMIENTOS MÁS IMPORTANTES entre el primer y el último snapshot:
 ${deltaTable}
 
-EVOLUCIÓN COMPLETA (${n} snapshots, ${firstDate} → ${lastDate}):
+EVOLUCIÓN COMPLETA (${n} simulaciones, ${firstDate} → ${lastDate}):
 ${data}
 
-Usá tu conocimiento del Mundial FIFA 2026 —resultados reales, fases jugadas, rendimiento de los equipos— para enriquecer el análisis. No te limites a repetir los números: explicá el PORQUÉ detrás de cada movimiento.
+Usá tu conocimiento real del Mundial FIFA 2026 —partidos jugados, resultados, goleadores, lesiones, polémicas— para explicar POR QUÉ se mueven las probabilidades, no solo QUÉ se movió. Hablá de los equipos como lo haría un fanático inteligente: con nombres de jugadores clave, estilos de juego, momentos del torneo.
 
-Respondé ÚNICAMENTE con el siguiente formato markdown en español:
+Respondé ÚNICAMENTE con el siguiente formato. Sin etiquetas de roles, sin lenguaje técnico estadístico, con tono futbolero y pasión:
 
-## Panorama estadístico
-[Estadístico] Describí la distribución y concentración de probabilidades. ¿Hay consenso claro entre snapshots o hay mucha volatilidad? ¿Qué tan determinístico se muestra el modelo? Incluí cifras concretas.
+## Así está el mapa del Mundial
+El estado actual del torneo según el modelo: quiénes mandan, por cuánto, y si eso tiene sentido con lo que se vio en la cancha. Explicá si hay un claro candidato o si está apretado. 3-4 oraciones con sustancia y color futbolero.
 
-## Lo que cuentan los números
-[Periodista] Narrá la evolución como una historia: qué selecciones emergieron y cuáles perdieron terreno, los movimientos más llamativos. Contextualizá con lo que realmente pasó en el torneo: ¿los números reflejan la cancha o hay sorpresas?
+## Los que subieron, los que cayeron
+Los movimientos más llamativos entre la primera y la última simulación. Para cada uno: cuánto subió o bajó en probabilidad de ser campeón, y lo más importante —¿POR QUÉ? ¿Qué pasó en la cancha que lo explica? ¿Un resultado clave, una actuación que convenció o decepcionó, un rival que se cruzó en el camino?
 
-## Por qué el modelo favorece a estos equipos
-[DT] Explicá los factores que probablemente explican las probabilidades de los equipos top: estilo de juego, profundidad del plantel, fase del torneo en que son más fuertes, ventajas de cuadro, desempeño en eliminación directa. Analizá al menos 3 equipos en detalle.
+## Por qué el modelo los pone arriba
+Para los 2-3 equipos más favoritos: explicá con criterio táctico y mundialero qué los hace tan difíciles de derrotar. Hablá del estilo de juego, los jugadores que hacen la diferencia, cómo rinden en partidos de eliminación directa, qué tan complicado es el camino que les toca. Nada de porcentajes solos —explicá la razón futbolística detrás.
 
-## Sorpresas y anomalías
-¿Hay equipos sobreestimados o subestimados por el modelo? ¿Inconsistencias entre lo estadístico y la realidad? ¿Posibles "dark horses" que el modelo no está captando bien y por qué?
+## El ojo clínico: lo que sorprende
+¿Hay algún equipo que el modelo sobrevalora o subvalora respecto a lo que se ve en la cancha? ¿Algún "dark horse" que está más cerca de explotar de lo que dicen los números? ¿Algo que no cierra entre la simulación y la realidad del torneo?
 
-## Claves para la próxima simulación
-Los 3 puntos de inflexión más importantes: partidos decisivos pendientes, equipos en zona de cambio brusco, grupos o llaves que pueden redistribuir las probabilidades significativamente.
+## Lo que viene: partidos que pueden cambiar todo
+Los 2-3 partidos o situaciones concretas de los próximos días que pueden mover el mapa de probabilidades significativamente. Explicá qué resultado cambiaría más las cosas y por qué.
 
-Sé específico y profundo. Citá cifras exactas de los snapshots. Cada sección debe tener al menos 3-4 oraciones con sustancia real, no generalidades.`;
+Escribí con pasión mundialera. Usá datos exactos de los snapshots pero explicalos en lenguaje de cancha. Que se lea como una nota de ESPN o una columna de Olé, no como un paper académico.`;
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
