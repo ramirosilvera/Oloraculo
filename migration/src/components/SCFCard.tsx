@@ -9,6 +9,7 @@ interface SCFCardProps {
   result: SCFResult;
   homeName: string;
   awayName: string;
+  onClose?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,13 +72,18 @@ function generateSCFSynthesis(result: SCFResult, homeName: string, awayName: str
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-export function SCFCard({ result, homeName, awayName }: SCFCardProps) {
+export function SCFCard({ result, homeName, awayName, onClose }: SCFCardProps) {
   if (result.degraded) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
-          <span className="text-[10px] font-black uppercase tracking-widest text-wc-navy shrink-0">SCF</span>
-          <span className="text-xs font-bold text-gray-800">Sentido Común Futbolero</span>
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-wc-navy shrink-0">SCF</span>
+            <span className="text-xs font-bold text-gray-800">Sentido Común Futbolero</span>
+          </div>
+          {onClose && (
+            <button onClick={onClose} className="shrink-0 ml-2 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-sm leading-none">✕</button>
+          )}
         </div>
         <div className="px-3 py-3">
           <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
@@ -105,15 +111,18 @@ export function SCFCard({ result, homeName, awayName }: SCFCardProps) {
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 
       {/* ── Header ── */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
-        <span className="text-[10px] font-black uppercase tracking-widest text-wc-navy shrink-0">SCF</span>
-        <span className="text-xs font-bold text-gray-800 truncate">Sentido Común Futbolero</span>
-        <span className="text-[10px] text-gray-400 truncate hidden sm:block">
-          · heurísticas de comunidades reales
-        </span>
-        <span className="ml-auto text-[9px] text-gray-300 tabular-nums shrink-0">
-          {result.scf_score.toFixed(0)}/100
-        </span>
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <span className="text-[10px] font-black uppercase tracking-widest text-wc-navy shrink-0">SCF</span>
+          <span className="text-xs font-bold text-gray-800 truncate">Sentido Común Futbolero</span>
+          <span className="text-[10px] text-gray-400 truncate hidden sm:block">· heurísticas colectivas</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[9px] text-gray-300 tabular-nums">{result.scf_score.toFixed(0)}/100</span>
+          {onClose && (
+            <button onClick={onClose} aria-label="Cerrar" className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-sm leading-none">✕</button>
+          )}
+        </div>
       </div>
 
       {/* ── Body ── */}
@@ -133,7 +142,7 @@ export function SCFCard({ result, homeName, awayName }: SCFCardProps) {
             </span>
           </div>
 
-          {/* Spread L / E / V */}
+          {/* Spread L / E / V + marcador más probable */}
           <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
             <MiniBar home={homeWin} draw={draw} away={awayWin} />
             <span className="font-bold text-wc-navy">L {Math.round(homeWin * 100)}%</span>
@@ -141,6 +150,14 @@ export function SCFCard({ result, homeName, awayName }: SCFCardProps) {
             <span className="font-bold">E {Math.round(draw * 100)}%</span>
             <span className="text-gray-300">·</span>
             <span className="font-bold text-wc-red">V {Math.round(awayWin * 100)}%</span>
+            {result.mostLikelyScore && (
+              <>
+                <span className="text-gray-300">|</span>
+                <span className="font-mono font-bold text-gray-600 tracking-tight">
+                  {result.mostLikelyScore.home}-{result.mostLikelyScore.away}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Síntesis ejecutiva */}

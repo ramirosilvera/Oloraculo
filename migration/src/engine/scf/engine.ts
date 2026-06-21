@@ -74,6 +74,28 @@ const CLASS_MULTIPLIER: Record<string, number> = {
 const BIAS_FACTOR = 0.3;
 
 // ---------------------------------------------------------------------------
+// Score → most likely scoreline (representative based on WC historical freq)
+// ---------------------------------------------------------------------------
+
+function scfMostLikelyScore(
+  outcome: { homeWin: number; draw: number; awayWin: number },
+): { home: number; away: number } | null {
+  const { homeWin, draw, awayWin } = outcome;
+  const max = Math.max(homeWin, draw, awayWin);
+  if (max < 0.36) return null;
+
+  if (homeWin === max) {
+    // Strong home dominance → 2-0; moderate → 1-0
+    return homeWin > 0.58 ? { home: 2, away: 0 } : { home: 1, away: 0 };
+  }
+  if (awayWin === max) {
+    return awayWin > 0.58 ? { home: 0, away: 2 } : { home: 0, away: 1 };
+  }
+  // Draw
+  return draw >= 0.30 ? { home: 1, away: 1 } : null;
+}
+
+// ---------------------------------------------------------------------------
 // Score → outcome probabilities
 // ---------------------------------------------------------------------------
 
@@ -186,6 +208,7 @@ export function computeSCFScore(
     away_team_id: ctx.fixture.away_team_id,
     scf_score: Math.round(scfScore * 10) / 10,
     outcome: scfScoreToOutcome(scfScore),
+    mostLikelyScore: scfMostLikelyScore(scfScoreToOutcome(scfScore)),
     historical_weight:        catHasActive('HISTORIA')   ? CATEGORY_WEIGHTS.HISTORIA   : 0,
     squad_weight:             catHasActive('PLANTEL')    ? CATEGORY_WEIGHTS.PLANTEL     : 0,
     momentum_weight:          catHasActive('FORMA')      ? CATEGORY_WEIGHTS.FORMA       : 0,

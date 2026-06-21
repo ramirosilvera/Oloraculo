@@ -369,30 +369,6 @@ function ContextEditor({ fixture, homeName, awayName, existingContext, onSave }:
 }
 
 // ---------------------------------------------------------------------------
-// SCFSection — standalone component so the hook is always at top level
-// ---------------------------------------------------------------------------
-interface SCFSectionProps {
-  fixture: Fixture;
-  homeTeam: Team | undefined;
-  awayTeam: Team | undefined;
-  ratings: Rating[];
-  allFixtures: Fixture[];
-  wcResults: WcActualResult[];
-  squadStrengthData: Record<string, SquadStrengthEntry>;
-  homeName: string;
-  awayName: string;
-}
-
-function SCFSection({ fixture, homeTeam, awayTeam, ratings, allFixtures, wcResults, squadStrengthData, homeName, awayName }: SCFSectionProps) {
-  const { result } = useSCFForFixture({
-    fixture, homeTeam, awayTeam, ratings, allFixtures, wcResults, squadStrengthData,
-    enabled: !!homeTeam && !!awayTeam,
-  });
-  if (!result) return null;
-  return <SCFCard result={result} homeName={homeName} awayName={awayName} />;
-}
-
-// ---------------------------------------------------------------------------
 // FixtureRow — shared between "Hoy" and "Por grupo"
 // ---------------------------------------------------------------------------
 interface FixtureRowProps {
@@ -438,6 +414,17 @@ function FixtureRow({
   teamMap, ratings, allFixtures, wcResultsForSCF, squadStrengthData,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
+  const [showSCFDetail, setShowSCFDetail] = useState(false);
+  const { result: scfResult } = useSCFForFixture({
+    fixture,
+    homeTeam: teamMap.get(fixture.home_team_id),
+    awayTeam: teamMap.get(fixture.away_team_id),
+    ratings,
+    allFixtures,
+    wcResults: wcResultsForSCF,
+    squadStrengthData,
+    enabled: isExpanded,
+  });
   return (
     <div>
       <button
@@ -550,7 +537,7 @@ function FixtureRow({
                       return (
                         <button
                           key={p.predictorName}
-                          onClick={() => setSelectedModelDetail(isSelected ? null : p)}
+                          onClick={() => { setShowSCFDetail(false); setSelectedModelDetail(isSelected ? null : p); }}
                           className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left transition-all ${isBest ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-gray-50'} ${isSelected ? 'bg-blue-50/60' : ''}`}
                         >
                           {isBest
@@ -567,6 +554,33 @@ function FixtureRow({
                         </button>
                       );
                     })}
+                    {/* SCF row — same layout as model rows, at the bottom of the table */}
+                    {scfResult && !scfResult.degraded && (() => {
+                      const scfPick = scfResult.outcome.homeWin > scfResult.outcome.awayWin && scfResult.outcome.homeWin > scfResult.outcome.draw ? 'Home'
+                                    : scfResult.outcome.awayWin > scfResult.outcome.homeWin && scfResult.outcome.awayWin > scfResult.outcome.draw ? 'Away' : 'Draw';
+                      const scfProb = scfPick === 'Home' ? scfResult.outcome.homeWin : scfPick === 'Away' ? scfResult.outcome.awayWin : scfResult.outcome.draw;
+                      const scfPickLabel = scfPick === 'Home' ? 'L' : scfPick === 'Away' ? 'V' : 'E';
+                      const scfPickColor = scfPick === 'Home' ? 'text-wc-navy' : scfPick === 'Away' ? 'text-wc-red' : 'text-gray-600';
+                      return (
+                        <>
+                          <div className="border-t border-dashed border-gray-100" />
+                          <button
+                            onClick={() => { setSelectedModelDetail(null); setShowSCFDetail(prev => !prev); }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-all hover:bg-gray-50 ${showSCFDetail ? 'bg-blue-50/60' : ''}`}
+                          >
+                            <span className="w-3 shrink-0" />
+                            <span className="w-16 font-semibold text-wc-navy truncate shrink-0">S. Común</span>
+                            <MiniBar home={scfResult.outcome.homeWin} draw={scfResult.outcome.draw} away={scfResult.outcome.awayWin} />
+                            <span className={`font-black tabular-nums text-sm ${scfPickColor} w-5 text-center shrink-0`}>{scfPickLabel}</span>
+                            <span className="text-gray-400 tabular-nums w-9 text-right shrink-0">{Math.round(scfProb * 100)}%</span>
+                            {scfResult.mostLikelyScore
+                              ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{scfResult.mostLikelyScore.home}-{scfResult.mostLikelyScore.away}</span>
+                              : <span className="w-7 shrink-0" />}
+                            <span className="text-gray-300 text-[10px] shrink-0">›</span>
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -580,17 +594,14 @@ function FixtureRow({
                 />
               )}
 
-              <SCFSection
-                fixture={fixture}
-                homeTeam={teamMap.get(fixture.home_team_id)}
-                awayTeam={teamMap.get(fixture.away_team_id)}
-                ratings={ratings}
-                allFixtures={allFixtures}
-                wcResults={wcResultsForSCF}
-                squadStrengthData={squadStrengthData}
-                homeName={homeName}
-                awayName={awayName}
-              />
+              {showSCFDetail && scfResult && (
+                <SCFCard
+                  result={scfResult}
+                  homeName={homeName}
+                  awayName={awayName}
+                  onClose={() => setShowSCFDetail(false)}
+                />
+              )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Tooltip text="Guardá antes del partido para medir tu accuracy después">

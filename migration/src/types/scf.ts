@@ -46,6 +46,7 @@ export interface SCFResult {
   away_team_id: string;
   scf_score: number;        // 0-100, home-directed (50 = neutral)
   outcome: { homeWin: number; draw: number; awayWin: number };
+  mostLikelyScore: { home: number; away: number } | null;
   // Category weight contributions (each 0-1)
   historical_weight: number;
   squad_weight: number;
