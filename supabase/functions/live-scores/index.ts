@@ -1,13 +1,21 @@
 // =============================================================================
-// Oloráculo — live-scores Edge Function  (v6)
-// Primary source:  ESPN unofficial scoreboard (no auth, geo-blocked → proxied)
-// Fallback source: football-data.org v4 (FD_API_KEY secret) for matches that
-//                  ESPN hasn't reported yet or returned as SCHEDULED.
+// Oloráculo — live-scores Edge Function  (v7)
+// Primary source:  ESPN unofficial scoreboard (geo-blocked → proxied here)
+// Fallback source: SofaScore unofficial API (no key, server-side only)
+//   SofaScore fills gaps when ESPN hasn't reported a match yet.
+//   It provides: score, match minute, goals (scorer + minute) AND cards.
 // =============================================================================
 
-const ESPN_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard';
-const FD_BASE  = 'https://api.football-data.org/v4';
-const FD_KEY   = Deno.env.get('FD_API_KEY') ?? '';
+const ESPN_URL  = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard';
+const SOFA_BASE = 'https://api.sofascore.com/api/v1';
+
+// SofaScore requires browser-like headers to avoid 403
+const SOFA_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  'Referer':    'https://www.sofascore.com/',
+  'Accept':     'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -42,7 +50,7 @@ interface LiveMatch {
   homeLocalId:     string | null;
   awayLocalId:     string | null;
   events:          LiveEvent[];
-  source:          'espn' | 'fd';
+  source:          'espn' | 'sofascore';
 }
 
 // ---------------------------------------------------------------------------
@@ -51,34 +59,33 @@ interface LiveMatch {
 function mapEspnStatus(name: string, period: number): LiveStatus {
   switch (name) {
     case 'STATUS_SCHEDULED':
-    case 'STATUS_PREGAME':
-      return 'SCHEDULED';
-    case 'STATUS_RAIN_DELAY':  return 'SUSPENDED';
-    case 'STATUS_DELAYED':     return 'POSTPONED';
+    case 'STATUS_PREGAME':      return 'SCHEDULED';
+    case 'STATUS_RAIN_DELAY':   return 'SUSPENDED';
+    case 'STATUS_DELAYED':      return 'POSTPONED';
     case 'STATUS_CANCELED':
-    case 'STATUS_ABANDONED':   return 'CANCELLED';
+    case 'STATUS_ABANDONED':    return 'CANCELLED';
     case 'STATUS_IN_PROGRESS':
     case 'STATUS_FIRST_HALF':
     case 'STATUS_SECOND_HALF':
     case 'STATUS_EXTRA_TIME':
     case 'STATUS_ET_FIRST_HALF':
     case 'STATUS_ET_SECOND_HALF':
-    case 'STATUS_SHOOTOUT':    return 'IN_PLAY';
+    case 'STATUS_SHOOTOUT':     return 'IN_PLAY';
     case 'STATUS_HALFTIME':
     case 'STATUS_BREAK':
-    case 'STATUS_ET_BREAK':    return 'PAUSED';
+    case 'STATUS_ET_BREAK':     return 'PAUSED';
     case 'STATUS_FINAL':
     case 'STATUS_FULL_TIME':
     case 'STATUS_FINAL_AET':
     case 'STATUS_FINAL_PEN':
-    case 'STATUS_POST_GAME':   return 'FINISHED';
+    case 'STATUS_POST_GAME':    return 'FINISHED';
     default: return period > 0 ? 'IN_PLAY' : 'SCHEDULED';
   }
 }
 
-function parseMinuteFromShortDetail(shortDetail: string | undefined): number | null {
-  if (!shortDetail) return null;
-  const m = shortDetail.match(/^(\d+)(?:\+(\d+))?'/);
+function parseMinuteFromShortDetail(sd: string | undefined): number | null {
+  if (!sd) return null;
+  const m = sd.match(/^(\d+)(?:\+(\d+))?'/);
   if (!m) return null;
   return parseInt(m[1], 10) + (m[2] ? parseInt(m[2], 10) : 0);
 }
@@ -106,26 +113,24 @@ function espnEventMinute(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseEspnDetail(d: any, homeTeamId: string): LiveEvent | null {
-  const typeText: string     = (d.type?.text ?? '').toLowerCase();
-  const athleteName: string  = d.athletesInvolved?.[0]?.displayName ?? '';
+  const typeText: string    = (d.type?.text ?? '').toLowerCase();
+  const playerName: string  = d.athletesInvolved?.[0]?.displayName ?? '';
   const clock = d.clock as { value: number; displayValue?: string } | undefined;
   const period: number = d.period?.number ?? 0;
 
-  let eventType: LiveEventType;
-  if      (/own\s*goal/.test(typeText))                     eventType = 'own_goal';
-  else if (/penalty\s+goal|penalty/.test(typeText))         eventType = 'penalty';
-  else if (/goal/.test(typeText))                           eventType = 'goal';
-  else if (/yellow[-\s]red|second\s+yellow/.test(typeText)) eventType = 'yellow_red';
-  else if (/red\s*card/.test(typeText))                     eventType = 'red_card';
-  else if (/yellow\s*card/.test(typeText))                  eventType = 'yellow_card';
+  let type: LiveEventType;
+  if      (/own\s*goal/.test(typeText))                     type = 'own_goal';
+  else if (/penalty\s+goal|penalty/.test(typeText))         type = 'penalty';
+  else if (/goal/.test(typeText))                           type = 'goal';
+  else if (/yellow[-\s]red|second\s+yellow/.test(typeText)) type = 'yellow_red';
+  else if (/red\s*card/.test(typeText))                     type = 'red_card';
+  else if (/yellow\s*card/.test(typeText))                  type = 'yellow_card';
   else return null;
 
   const teamId: string = d.team?.id ?? '';
-  const side: 'home' | 'away' | null = teamId
-    ? (teamId === homeTeamId ? 'home' : 'away')
-    : null;
+  const side: 'home' | 'away' | null = teamId ? (teamId === homeTeamId ? 'home' : 'away') : null;
 
-  return { type: eventType, minute: espnEventMinute(clock, period), playerName: athleteName, side };
+  return { type, minute: espnEventMinute(clock, period), playerName, side };
 }
 
 async function fetchEspnMatches(): Promise<LiveMatch[]> {
@@ -142,17 +147,16 @@ async function fetchEspnMatches(): Promise<LiveMatch[]> {
 
   return events.map((ev) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const comp: any = ev.competitions?.[0] ?? {};
+    const comp: any   = ev.competitions?.[0] ?? {};
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const status: any = ev.status ?? {};
     const period: number = status.period ?? 0;
     const clock: number  = status.clock  ?? 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const shortDetail: string | undefined = (status.type as any)?.shortDetail;
-    const espnName: string = status.type?.name ?? '';
-    const liveStatus = mapEspnStatus(espnName, period);
+    const liveStatus = mapEspnStatus(status.type?.name ?? '', period);
 
-    console.log(`[espn] id=${ev.id} status=${espnName} period=${period} clock=${clock} shortDetail=${shortDetail ?? 'n/a'}`);
+    console.log(`[espn] id=${ev.id} status=${status.type?.name} period=${period} clock=${clock} sd=${shortDetail ?? 'n/a'}`);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const competitors: any[] = comp.competitors ?? [];
@@ -160,12 +164,11 @@ async function fetchEspnMatches(): Promise<LiveMatch[]> {
     const home: any = competitors.find((c: any) => c.homeAway === 'home') ?? competitors[0] ?? {};
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const away: any = competitors.find((c: any) => c.homeAway === 'away') ?? competitors[1] ?? {};
-    const homeTeamEspnId: string = home.team?.id ?? '';
+    const homeId: string = home.team?.id ?? '';
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const details: any[] = comp.details ?? [];
-    const liveEvents = details
-      .map((d) => parseEspnDetail(d, homeTeamEspnId))
+    const liveEvents = (comp.details ?? [] as any[])
+      .map((d: any) => parseEspnDetail(d, homeId))
       .filter((e): e is LiveEvent => e !== null);
 
     return {
@@ -179,8 +182,8 @@ async function fetchEspnMatches(): Promise<LiveMatch[]> {
       homeGoals:      home.score != null ? parseInt(home.score, 10) : null,
       awayGoals:      away.score != null ? parseInt(away.score, 10) : null,
       utcDate:        ev.date ?? '',
-      homeLocalId:    homeTeamEspnId || null,
-      awayLocalId:    away.team?.id  || null,
+      homeLocalId:    homeId || null,
+      awayLocalId:    away.team?.id || null,
       events:         liveEvents,
       source:         'espn' as const,
     } satisfies LiveMatch;
@@ -188,123 +191,151 @@ async function fetchEspnMatches(): Promise<LiveMatch[]> {
 }
 
 // ---------------------------------------------------------------------------
-// ─── football-data.org ──────────────────────────────────────────────────────
+// ─── SofaScore ──────────────────────────────────────────────────────────────
 // ---------------------------------------------------------------------------
-function mapFdStatus(s: string): LiveStatus {
-  switch (s) {
-    case 'IN_PLAY':   return 'IN_PLAY';
-    case 'PAUSED':    return 'PAUSED';
-    case 'FINISHED':  return 'FINISHED';
-    case 'POSTPONED': return 'POSTPONED';
-    case 'CANCELLED': return 'CANCELLED';
-    case 'SUSPENDED': return 'SUSPENDED';
-    case 'AWARDED':   return 'AWARDED';
-    case 'TIMED':     return 'TIMED';
-    default:          return 'SCHEDULED';
+function mapSofaStatus(type: string, desc: string): LiveStatus {
+  const d = desc.toLowerCase();
+  if (d.includes('halftime') || d.includes('half time') || type === 'halftime') return 'PAUSED';
+  switch (type) {
+    case 'inprogress': return 'IN_PLAY';
+    case 'finished':   return 'FINISHED';
+    case 'postponed':  return 'POSTPONED';
+    case 'cancelled':  return 'CANCELLED';
+    case 'suspended':  return 'SUSPENDED';
+    default:           return 'SCHEDULED';
   }
 }
 
-function mapFdGoalType(t: string): LiveEventType {
-  if (t === 'PENALTY')  return 'penalty';
-  if (t === 'OWN_GOAL') return 'own_goal';
-  return 'goal';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sofaMinute(ev: any): number | null {
+  if ((ev.status?.type ?? '') !== 'inprogress') return null;
+  const periodStart: number | undefined = ev.time?.currentPeriodStart;
+  if (!periodStart) return null;
+
+  const elapsed = Math.max(0, Math.floor((Date.now() / 1000 - periodStart) / 60));
+  const desc    = (ev.status?.description ?? '').toLowerCase();
+  const base    = desc.includes('2nd extra') || desc.includes('et2') ? 105
+                : desc.includes('extra')  || desc.includes('overtime') ? 90
+                : desc.includes('2nd')   || desc.includes('second') ? 45
+                : 0;
+  const cap = base + (base >= 90 ? 15 : 45);
+  return Math.min(base + elapsed, cap);
 }
 
-interface FdGoal {
-  minute:      number;
-  injuryTime?: number | null;
-  type:        string;
-  team:        { id: number; name: string };
-  scorer:      { id: number; name: string };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sofaIncidentToEvent(inc: any): LiveEvent | null {
+  const iType: string  = (inc.incidentType ?? '').toLowerCase();
+  const iClass: string = (inc.incidentClass ?? '').toLowerCase();
+  const isHome: boolean = inc.isHome ?? true;
+  const playerName: string = inc.player?.name ?? inc.playerName ?? '';
+  const addedTime: number | null = inc.addedTime ?? null;
+  const minute = `${inc.time ?? '?'}${addedTime ? '+' + addedTime : ''}'`;
+
+  let type: LiveEventType;
+  if (iType === 'goal') {
+    if (iClass === 'owngoal' || iClass === 'own_goal' || iClass === 'ownGoal') type = 'own_goal';
+    else if (iClass === 'penalty')                                              type = 'penalty';
+    else                                                                        type = 'goal';
+  } else if (iType === 'card') {
+    if (iClass === 'yellow')                                                    type = 'yellow_card';
+    else if (iClass === 'red')                                                  type = 'red_card';
+    else if (iClass === 'yellowred' || iClass === 'yellow_red')                 type = 'yellow_red';
+    else return null;
+  } else {
+    return null; // substitution, period markers, etc.
+  }
+
+  return { type, minute, playerName, side: isHome ? 'home' : 'away' };
 }
 
-interface FdRawMatch {
-  id:       number;
-  utcDate:  string;
-  status:   string;
-  minute?:  number | null;
-  homeTeam: { id: number; name: string; shortName: string };
-  awayTeam: { id: number; name: string; shortName: string };
-  score: {
-    fullTime: { home: number | null; away: number | null };
-  };
-  goals?: FdGoal[];
-}
-
-async function fetchFdMatches(): Promise<LiveMatch[]> {
-  if (!FD_KEY) {
-    console.warn('[fd] FD_API_KEY secret not set — skipping football-data.org fallback');
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchSofaIncidents(eventId: number): Promise<any[]> {
+  try {
+    const r = await fetch(`${SOFA_BASE}/event/${eventId}/incidents`, { headers: SOFA_HEADERS });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.incidents ?? [];
+  } catch {
     return [];
   }
+}
+
+async function fetchSofaMatches(): Promise<LiveMatch[]> {
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    const r = await fetch(
-      `${FD_BASE}/competitions/WC/matches?dateFrom=${today}&dateTo=${today}`,
-      { headers: { 'X-Auth-Token': FD_KEY } },
-    );
+    // Get all live football events from SofaScore
+    const r = await fetch(`${SOFA_BASE}/sport/football/events/live`, { headers: SOFA_HEADERS });
     if (!r.ok) {
-      console.warn(`[fd] HTTP ${r.status}`);
+      console.warn(`[sofa] live events HTTP ${r.status}`);
       return [];
     }
     const data = await r.json();
-    const raw: FdRawMatch[] = data.matches ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const events: any[] = data.events ?? [];
 
-    return raw.map((m) => {
-      const status = mapFdStatus(m.status);
-      const goals  = m.goals ?? [];
-
-      const events: LiveEvent[] = goals.map((g) => {
-        const min = g.injuryTime ? `${g.minute}+${g.injuryTime}'` : `${g.minute}'`;
-        const isHome = g.team.id === m.homeTeam.id;
-        return {
-          type:       mapFdGoalType(g.type),
-          minute:     min,
-          playerName: g.scorer?.name ?? '',
-          side:       isHome ? 'home' : 'away',
-        };
-      });
-
-      console.log(`[fd] id=${m.id} status=${m.status} home=${m.homeTeam.name} away=${m.awayTeam.name} goals=${goals.length}`);
-
-      return {
-        fdId:           m.id,
-        status,
-        minute:         status === 'IN_PLAY' ? (m.minute ?? null) : null,
-        homeTeamFdName: m.homeTeam.name,
-        awayTeamFdName: m.awayTeam.name,
-        homeGoals:      m.score.fullTime.home,
-        awayGoals:      m.score.fullTime.away,
-        utcDate:        m.utcDate,
-        homeLocalId:    null, // resolved client-side by name via resolveLocalId()
-        awayLocalId:    null,
-        events,
-        source:         'fd' as const,
-      } satisfies LiveMatch;
+    // Filter for FIFA World Cup matches
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const wcEvents = events.filter((ev: any) => {
+      const tName = (
+        ev.tournament?.uniqueTournament?.name ??
+        ev.tournament?.name ??
+        ev.season?.name ?? ''
+      ).toLowerCase();
+      return tName.includes('world cup') || tName.includes('mundial') || tName.includes('fifa wc');
     });
+
+    if (wcEvents.length === 0) return [];
+
+    // Fetch incidents for each WC match concurrently
+    const results = await Promise.all(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      wcEvents.map(async (ev: any) => {
+        const incidents = await fetchSofaIncidents(ev.id);
+        const status = mapSofaStatus(ev.status?.type ?? '', ev.status?.description ?? '');
+        const events: LiveEvent[] = incidents
+          .map(sofaIncidentToEvent)
+          .filter((e): e is LiveEvent => e !== null);
+
+        console.log(`[sofa] id=${ev.id} home=${ev.homeTeam?.name} away=${ev.awayTeam?.name} status=${ev.status?.type} events=${events.length}`);
+
+        return {
+          fdId:           ev.id,
+          status,
+          minute:         sofaMinute(ev),
+          homeTeamFdName: ev.homeTeam?.name ?? '',
+          awayTeamFdName: ev.awayTeam?.name ?? '',
+          homeGoals:      ev.homeScore?.current ?? null,
+          awayGoals:      ev.awayScore?.current ?? null,
+          utcDate:        ev.startTimestamp
+            ? new Date(ev.startTimestamp * 1000).toISOString()
+            : '',
+          homeLocalId:    null, // resolved client-side by name via resolveLocalId()
+          awayLocalId:    null,
+          events,
+          source:         'sofascore' as const,
+        } satisfies LiveMatch;
+      }),
+    );
+
+    return results;
   } catch (e) {
-    console.warn('[fd] fetch error:', e);
+    console.warn('[sofa] fetch error:', e);
     return [];
   }
 }
 
 // ---------------------------------------------------------------------------
-// Merge ESPN (primary) + FD (fallback for missing matches).
-// A match is "covered by ESPN" if the home+away names match case-insensitively.
-// FD matches whose status is SCHEDULED or FINISHED are excluded from fallback.
+// Merge ESPN (primary) + SofaScore (fallback for matches ESPN doesn't cover).
+// Dedup by lowercased home:away name pair. SofaScore SCHEDULED/FINISHED excluded.
 // ---------------------------------------------------------------------------
-function mergeMatches(espn: LiveMatch[], fd: LiveMatch[]): LiveMatch[] {
+function mergeMatches(espn: LiveMatch[], sofa: LiveMatch[]): LiveMatch[] {
   const espnNames = new Set(
     espn.map(m => `${m.homeTeamFdName.toLowerCase()}:${m.awayTeamFdName.toLowerCase()}`),
   );
-
-  const fdFallback = fd.filter(m => {
+  const sofaFallback = sofa.filter(m => {
     const key = `${m.homeTeamFdName.toLowerCase()}:${m.awayTeamFdName.toLowerCase()}`;
-    if (espnNames.has(key)) return false; // already have ESPN data
-    // Only include if live or paused (not scheduled/finished)
-    return m.status === 'IN_PLAY' || m.status === 'PAUSED';
+    return !espnNames.has(key) && (m.status === 'IN_PLAY' || m.status === 'PAUSED');
   });
-
-  return [...espn, ...fdFallback];
+  return [...espn, ...sofaFallback];
 }
 
 // ---------------------------------------------------------------------------
@@ -316,13 +347,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Fetch both sources concurrently; FD failure never breaks ESPN response.
-    const [espnMatches, fdMatches] = await Promise.all([
+    // Fetch both sources concurrently; SofaScore failure never breaks ESPN.
+    const [espnMatches, sofaMatches] = await Promise.all([
       fetchEspnMatches(),
-      fetchFdMatches(),
+      fetchSofaMatches(),
     ]);
 
-    const merged = mergeMatches(espnMatches, fdMatches);
+    const merged = mergeMatches(espnMatches, sofaMatches);
 
     return new Response(JSON.stringify(merged), {
       headers: { ...CORS, 'Content-Type': 'application/json' },
