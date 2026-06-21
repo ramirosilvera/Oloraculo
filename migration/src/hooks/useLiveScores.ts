@@ -5,9 +5,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { fetchLiveAndRecent } from '../services/live-scores';
-import type { LiveMatch } from '../services/live-scores';
+import type { LiveMatch, LiveEvent } from '../services/live-scores';
 
-export type { LiveMatch };
+export type { LiveMatch, LiveEvent };
 
 const POLL_INTERVAL_MS = 60_000;
 

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAppData } from '../hooks/useAppData';
 import { useLiveScores, getLiveForFixture } from '../hooks/useLiveScores';
-import type { LiveMatch } from '../hooks/useLiveScores';
+import type { LiveMatch, LiveEvent } from '../hooks/useLiveScores';
 import {
   saveMatchSnapshot,
   saveEvaluations,
@@ -839,6 +839,36 @@ function TournamentPace({ wcResults, dailySignal }: { wcResults: WcActualResult[
 }
 
 // ---------------------------------------------------------------------------
+// EventChip — compact goal / card indicator for the live match card
+// ---------------------------------------------------------------------------
+const EVENT_ICON: Record<string, string> = {
+  goal:       '⚽',
+  own_goal:   '⚽',
+  penalty:    '⚽',
+  yellow_card:'🟨',
+  red_card:   '🟥',
+  yellow_red: '🟨🟥',
+};
+const EVENT_LABEL: Record<string, string> = {
+  own_goal: 'en propia',
+  penalty:  'p.',
+};
+
+function EventChip({ event, align }: { event: LiveEvent; align: 'left' | 'right' }) {
+  const icon  = EVENT_ICON[event.type] ?? '•';
+  const extra = EVENT_LABEL[event.type] ?? '';
+  const isRight = align === 'right';
+  return (
+    <span className={`flex items-center gap-1 text-[10px] text-red-200/80 ${isRight ? 'flex-row-reverse' : ''}`}>
+      <span className="text-[11px] leading-none">{icon}</span>
+      <span className="font-semibold truncate max-w-[90px]">{event.playerName}</span>
+      {extra && <span className="text-red-400/70">{extra}</span>}
+      <span className="text-red-800/80 tabular-nums shrink-0">{event.minute}</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // LiveNow — hero card for matches currently in play.
 // Two-pronged detection so ESPN status lag doesn't hide a live match:
 //   1. ESPN says IN_PLAY or PAUSED                    → always shown
@@ -871,38 +901,62 @@ function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; te
           const away = teamMap.get(m.awayLocalId ?? '');
           const hasScore = m.homeGoals != null && m.awayGoals != null;
           const isExplicitlyLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+          const homeEvents = (m.events ?? []).filter(e => e.side === 'home');
+          const awayEvents = (m.events ?? []).filter(e => e.side === 'away');
+          const hasEvents  = homeEvents.length > 0 || awayEvents.length > 0;
           return (
-            <div key={m.fdId} className="flex items-center gap-3 px-4 py-3.5">
-              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                <span className="text-sm font-bold text-white truncate text-right">
-                  {home?.name ?? m.homeTeamFdName}
-                </span>
-                <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-              </div>
-              <div className="flex flex-col items-center shrink-0 min-w-[68px]">
-                {hasScore ? (
-                  <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
-                    {m.homeGoals}–{m.awayGoals}
+            <div key={m.fdId}>
+              {/* Score row */}
+              <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                  <span className="text-sm font-bold text-white truncate text-right">
+                    {home?.name ?? m.homeTeamFdName}
                   </span>
-                ) : (
-                  <span className="text-lg font-black text-white/50 leading-none">vs</span>
-                )}
-                <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
-                  {m.status === 'PAUSED'
-                    ? '½ tiempo'
-                    : m.minute
-                    ? `${m.minute}'`
-                    : isExplicitlyLive
-                    ? '···'
-                    : 'iniciando'}
-                </span>
+                  <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+                </div>
+                <div className="flex flex-col items-center shrink-0 min-w-[68px]">
+                  {hasScore ? (
+                    <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
+                      {m.homeGoals}–{m.awayGoals}
+                    </span>
+                  ) : (
+                    <span className="text-lg font-black text-white/50 leading-none">vs</span>
+                  )}
+                  <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
+                    {m.status === 'PAUSED'
+                      ? '½ tiempo'
+                      : m.minute
+                      ? `${m.minute}'`
+                      : isExplicitlyLive
+                      ? '···'
+                      : 'iniciando'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+                  <span className="text-sm font-bold text-white truncate">
+                    {away?.name ?? m.awayTeamFdName}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-                <span className="text-sm font-bold text-white truncate">
-                  {away?.name ?? m.awayTeamFdName}
-                </span>
-              </div>
+
+              {/* Events row — goals and cards in two columns */}
+              {hasEvents && (
+                <div className="grid grid-cols-2 gap-x-2 px-4 pb-3 -mt-1">
+                  {/* Home events (left, right-aligned) */}
+                  <div className="flex flex-col items-end gap-0.5">
+                    {homeEvents.map((e, i) => (
+                      <EventChip key={i} event={e} align="right" />
+                    ))}
+                  </div>
+                  {/* Away events (right, left-aligned) */}
+                  <div className="flex flex-col items-start gap-0.5">
+                    {awayEvents.map((e, i) => (
+                      <EventChip key={i} event={e} align="left" />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

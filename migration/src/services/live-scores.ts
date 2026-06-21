@@ -9,6 +9,15 @@ const EDGE_FN_URL  = `${SUPABASE_URL}/functions/v1/live-scores`;
 
 export type LiveStatus = 'SCHEDULED' | 'IN_PLAY' | 'PAUSED' | 'FINISHED' | 'SUSPENDED' | 'POSTPONED' | 'CANCELLED' | 'AWARDED' | 'TIMED';
 
+export type LiveEventType = 'goal' | 'own_goal' | 'penalty' | 'yellow_card' | 'red_card' | 'yellow_red';
+
+export interface LiveEvent {
+  type: LiveEventType;
+  minute: string;
+  playerName: string;
+  side: 'home' | 'away' | null;
+}
+
 export interface LiveMatch {
   fdId: number;
   status: LiveStatus;
@@ -20,6 +29,7 @@ export interface LiveMatch {
   utcDate: string;
   homeLocalId: string | null;
   awayLocalId: string | null;
+  events: LiveEvent[];
 }
 
 export async function fetchLiveAndRecent(): Promise<LiveMatch[]> {
