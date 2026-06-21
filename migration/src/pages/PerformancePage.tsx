@@ -85,10 +85,12 @@ function WinnerBar({ correct, total }: { correct: number; total: number }) {
 export function PerformancePage() {
   const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap } = useAppData();
   const qc = useQueryClient();
-  const { data: evals, isLoading } = useQuery({
+  const { data: evals, isLoading, status: evalStatus, fetchStatus: evalFetchStatus, error: evalError } = useQuery({
     queryKey: ['evaluations'],
     queryFn: loadEvaluations,
   });
+  // DEBUG — remove once loading issue is diagnosed
+  console.log('[Rendimientos DEBUG]', { evalStatus, evalFetchStatus, evalError, isLoading });
 
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeMsg, setRecomputeMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);

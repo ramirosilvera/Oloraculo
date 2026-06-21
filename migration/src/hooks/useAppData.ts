@@ -101,6 +101,17 @@ export function useAppData() {
   const isLoading =
     teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
 
+  // DEBUG — remove once loading issue is diagnosed
+  console.log('[useAppData DEBUG]', {
+    appLoading: isLoading,
+    teams:    { isLoading: teams.isLoading,    status: teams.status,    fetchStatus: teams.fetchStatus    },
+    groups:   { isLoading: groups.isLoading,   status: groups.status,   fetchStatus: groups.fetchStatus   },
+    fixtures: { isLoading: fixtures.isLoading, status: fixtures.status, fetchStatus: fixtures.fetchStatus },
+    ratings:  { isLoading: ratings.isLoading,  status: ratings.status,  fetchStatus: ratings.fetchStatus  },
+    contexts: { isLoading: contexts.isLoading, status: contexts.status, fetchStatus: contexts.fetchStatus },
+    supabaseWc: { isLoading: supabaseWc.isLoading, status: supabaseWc.status, fetchStatus: supabaseWc.fetchStatus },
+  });
+
   const error =
     teams.error ?? groups.error ?? fixtures.error ??
     results.error ?? ratings.error;

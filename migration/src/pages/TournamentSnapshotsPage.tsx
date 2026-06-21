@@ -373,10 +373,12 @@ export function TournamentSnapshotsPage() {
   const [showDetail, setShowDetail]         = useState(false);
   const [selectedTeam, setSelectedTeam]     = useState<TeamTournamentProbability | null>(null);
 
-  const { data: snapshots, isLoading } = useQuery({
+  const { data: snapshots, isLoading, status: snapStatus, fetchStatus: snapFetchStatus, error: snapError } = useQuery({
     queryKey: ['tournament-snapshots'],
     queryFn: loadTournamentSnapshots,
   });
+  // DEBUG — remove once loading issue is diagnosed
+  console.log('[Historial DEBUG]', { snapStatus, snapFetchStatus, snapError, isLoading, appLoading });
 
   const getTeamName = (id: string) => teamMap.get(id)?.name ?? id;
 
