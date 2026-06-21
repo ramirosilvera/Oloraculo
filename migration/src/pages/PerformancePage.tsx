@@ -20,17 +20,21 @@ import {
   Skeleton,
 } from '../components/ui';
 
-// All models in ladder order — shown even if they have no evaluations yet
+// Active ladder models — shown even if they have no evaluations yet
 const ALL_MODELS = [
   'Base',
-  'Ranking FIFA',
   'Elo',
   'Forma reciente',
   'Modelo de goles (Poisson)',
   'Potencial del plantel',
   'Goles + contexto reciente',
   'Momentum del Mundial',
-  'Estilo de Juego',
+];
+
+// Archived models: removed from active ensemble but historical evaluations preserved
+const ARCHIVED_MODELS = [
+  'Ranking FIFA',   // L1 — removed: 0.82 correlation with Elo (redundant)
+  'Estilo de Juego', // L7 — removed: static profiles, no empirical validation
 ];
 
 interface ModelStats {
@@ -41,7 +45,7 @@ interface ModelStats {
   hasExactData: boolean;
 }
 
-function buildModelStats(evals: PredictionEvaluation[]): ModelStats[] {
+function buildModelStats(evals: PredictionEvaluation[], includeArchived = false): ModelStats[] {
   const byModel = new Map<string, PredictionEvaluation[]>();
   for (const e of evals) {
     const arr = byModel.get(e.model_name) ?? [];
@@ -49,7 +53,11 @@ function buildModelStats(evals: PredictionEvaluation[]): ModelStats[] {
     byModel.set(e.model_name, arr);
   }
 
-  return ALL_MODELS.map(name => {
+  const models = includeArchived
+    ? [...ALL_MODELS, ...ARCHIVED_MODELS.filter(a => byModel.has(a))]
+    : ALL_MODELS;
+
+  return models.map(name => {
     const rows = byModel.get(name) ?? [];
     if (rows.length === 0) return { name, n: 0, winnerCorrect: 0, exactCorrect: null, hasExactData: false };
     const winnerCorrect = rows.filter(r => r.top_pick_correct).length;
@@ -92,9 +100,10 @@ export function PerformancePage() {
 
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeMsg, setRecomputeMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   // Must be before any early return (React Rules of Hooks)
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const stats = buildModelStats(evals ?? []);
+  const stats = buildModelStats(evals ?? [], showArchived);
   const selectedEvals = useMemo(() => {
     if (!selectedModel || !evals) return [];
     const hasExact = stats.find(s => s.name === selectedModel)?.hasExactData ?? false;
@@ -285,9 +294,17 @@ export function PerformancePage() {
       {/* ------------------------------------------------------------------ */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-wc-navy" />
-            <span className="font-semibold text-wc-navy text-sm">Comparación de modelos</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-wc-navy" />
+              <span className="font-semibold text-wc-navy text-sm">Comparación de modelos</span>
+            </div>
+            <button
+              onClick={() => setShowArchived(v => !v)}
+              className="text-[10px] font-semibold text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1 transition-colors shrink-0"
+            >
+              {showArchived ? 'Ocultar archivados' : 'Ver archivados'}
+            </button>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
             Aciertos de ganador (Local / Empate / Visitante) y marcador exacto por modelo.
@@ -313,12 +330,14 @@ export function PerformancePage() {
             <tbody className="divide-y divide-gray-100">
               {stats.map(row => {
                 const tier = MODEL_TIERS[row.name];
-                const isWinnerBest = row.name === bestWinnerModel;
-                const isExactBest  = row.name === bestExactModel;
+                const isArchived   = ARCHIVED_MODELS.includes(row.name);
+                const isWinnerBest = !isArchived && row.name === bestWinnerModel;
+                const isExactBest  = !isArchived && row.name === bestExactModel;
                 const isSelected   = row.name === selectedModel;
                 const awardBg = isWinnerBest && isExactBest ? 'bg-amber-50/40'
                   : isWinnerBest ? 'bg-amber-50/60'
                   : isExactBest  ? 'bg-teal-50/60'
+                  : isArchived   ? 'bg-gray-50/80'
                   : '';
                 const rowBg = isSelected
                   ? `ring-2 ring-inset ring-wc-navy/25 ${awardBg || 'bg-wc-navy/5'}`
@@ -330,14 +349,14 @@ export function PerformancePage() {
                   <tr
                     key={row.name}
                     onClick={() => handleModelClick(row.name)}
-                    className={`transition-colors cursor-pointer ${rowBg}`}
+                    className={`transition-colors cursor-pointer ${rowBg} ${isArchived ? 'opacity-60' : ''}`}
                   >
                     <td className={`px-5 py-3 sticky left-0 ${cellBg}`}>
                       <div className="flex items-center gap-2 flex-wrap">
                         {isWinnerBest && <span className="text-amber-500 text-base leading-none">★</span>}
                         {isExactBest  && <span className="text-teal-500 text-base leading-none">🎯</span>}
                         <div>
-                          <span className="font-semibold text-gray-800">{row.name}</span>
+                          <span className={`font-semibold ${isArchived ? 'text-gray-400' : 'text-gray-800'}`}>{row.name}</span>
                           {tier && (
                             <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>
                           )}
@@ -346,6 +365,11 @@ export function PerformancePage() {
                         {isExactBest  && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-700">
                             Exacto
+                          </span>
+                        )}
+                        {isArchived && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-200 text-gray-500 uppercase tracking-wide">
+                            Archivado
                           </span>
                         )}
                       </div>

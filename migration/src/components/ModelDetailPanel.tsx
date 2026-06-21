@@ -100,7 +100,7 @@ function generateSynthesis(model: MatchPrediction, homeName: string, awayName: s
       return `Bajas modificaron los xG a ${hg.toFixed(2)}-${ag.toFixed(2)}. ${d}`;
     }
 
-    case 'Momentum WC 2026': {
+    case 'Momentum del Mundial': {
       const hg = model.expectedHomeGoals ?? 0;
       const ag = model.expectedAwayGoals ?? 0;
       const inflM = (model.drivers.find(d => d.startsWith('Inflación')) ?? '').match(/×([\d.]+)/);
@@ -112,13 +112,6 @@ function generateSynthesis(model: MatchPrediction, homeName: string, awayName: s
         ? `Momentum ajusta +${push.toFixed(2)} goles al ${push > 0 ? 'local' : 'visitante'} → xG ${hg.toFixed(2)}-${ag.toFixed(2)}.`
         : `Sin diferencial de momentum entre equipos en el torneo.`;
       return `Mundial 2026: ${inflNote}. ${momNote}`;
-    }
-
-    case 'Estilo de Juego': {
-      const notes = model.drivers.filter(d => d.includes('%') || d.includes('→'));
-      if (notes.length === 0) return `Sin asimetría táctica marcada entre los estilos de juego.`;
-      if (notes.length === 1) return notes[0];
-      return `${notes[0]} ${notes[1].charAt(0).toLowerCase() + notes[1].slice(1)}`;
     }
 
     default:

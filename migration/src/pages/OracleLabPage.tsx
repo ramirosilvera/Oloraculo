@@ -23,14 +23,12 @@ function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 
 const ladder = [
   { name: 'L0',   label: 'Base',              signal: 'probabilidad uniforme' },
-  { name: 'L1',   label: 'Ranking FIFA',      signal: 'puntos externos' },
   { name: 'L2',   label: 'Elo',               signal: 'fortaleza de largo plazo' },
   { name: 'L3',   label: 'Forma reciente',    signal: 'resultados de corto plazo' },
   { name: 'L4',   label: 'Goles',             signal: 'marcadores Poisson' },
-  { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5, UCL' },
-  { name: 'L5',   label: 'Contexto',          signal: 'ajuste con fuentes' },
-  { name: 'L6',   label: 'Momentum',          signal: 'forma y racha en el torneo' },
-  { name: 'L7',   label: 'Estilo de Juego',   signal: 'perfil táctico + matchup' },
+  { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5 ligas' },
+  { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
+  { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
 ];
 
 export function OracleLabPage() {

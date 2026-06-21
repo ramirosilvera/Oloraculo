@@ -538,19 +538,6 @@ function FixtureRow({
                 );
               })()}
 
-              {(() => {
-                const tactical = pred.predictions.find(p => p.predictorName === 'Estilo de Juego' && !p.degraded);
-                if (!tactical) return null;
-                const topNote = tactical.drivers.find(d => d.includes('%') || d.includes('→'));
-                if (!topNote) return null;
-                return (
-                  <div className="bg-blue-50/60 border border-blue-100 rounded-xl px-3 py-2 flex items-start gap-2">
-                    <span className="text-blue-400 shrink-0 mt-0.5">⚔</span>
-                    <p className="text-xs text-blue-700 leading-relaxed">{topNote}</p>
-                  </div>
-                );
-              })()}
-
               {selectedModelDetail && (
                 <ModelDetailPanel
                   model={selectedModelDetail}
@@ -1380,7 +1367,7 @@ export function MatchesPage() {
     try {
       await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag });
       // Save evaluations for ALL non-degraded ladder models so PerformancePage
-      // can compare L1–L6 and the ML ensemble can learn from each model's track record.
+      // can compare L2–L6 and the ensemble can learn from each model's track record.
       // Clear any prior rows for this fixture first so re-recording stays idempotent.
       await deleteEvaluationsForFixtures([fixture.id]);
       await saveEvaluations(buildEvaluationRows(pred.predictions, fixture, hg, ag));
