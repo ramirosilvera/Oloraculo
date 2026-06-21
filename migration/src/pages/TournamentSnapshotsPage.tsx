@@ -77,7 +77,7 @@ function SimpleMarkdown({ text }: { text: string }) {
 // ---------------------------------------------------------------------------
 // GeminiAnalysis — AI analysis of all saved snapshots
 // ---------------------------------------------------------------------------
-const GEMINI_CACHE_KEY = 'oloraculo-gemini-analysis-v3';
+const GEMINI_CACHE_KEY = 'oloraculo-gemini-analysis-v4';
 const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 h
 
 interface AnalysisCache {
