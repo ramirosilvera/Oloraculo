@@ -74,25 +74,114 @@ const CLASS_MULTIPLIER: Record<string, number> = {
 const BIAS_FACTOR = 0.3;
 
 // ---------------------------------------------------------------------------
-// Score → most likely scoreline (representative based on WC historical freq)
+// Score → most likely scoreline
+// Approach: weighted sample from historical WC scoreline pools, conditioned on
+// the predicted outcome direction. Dominance modifies the margin distribution.
+// A seeded RNG (fixture_id) provides deterministic per-match "gut feel" —
+// the same fixture always gets the same scoreline, but each fixture is unique.
 // ---------------------------------------------------------------------------
+
+interface ScoreOption { home: number; away: number; w: number }
+
+// Relative frequencies sourced from WC 2006–2022 match data, within each outcome bucket.
+const HOME_WIN_POOL: ScoreOption[] = [
+  { home: 1, away: 0, w: 34 },
+  { home: 2, away: 0, w: 22 },
+  { home: 2, away: 1, w: 20 },
+  { home: 3, away: 0, w:  8 },
+  { home: 3, away: 1, w:  7 },
+  { home: 4, away: 0, w:  3 },
+  { home: 3, away: 2, w:  4 },
+  { home: 4, away: 1, w:  2 },
+];
+
+const DRAW_POOL: ScoreOption[] = [
+  { home: 1, away: 1, w: 55 },
+  { home: 0, away: 0, w: 35 },
+  { home: 2, away: 2, w:  8 },
+  { home: 3, away: 3, w:  2 },
+];
+
+const AWAY_WIN_POOL: ScoreOption[] = [
+  { home: 0, away: 1, w: 34 },
+  { home: 0, away: 2, w: 22 },
+  { home: 1, away: 2, w: 20 },
+  { home: 0, away: 3, w:  8 },
+  { home: 1, away: 3, w:  7 },
+  { home: 0, away: 4, w:  3 },
+  { home: 2, away: 3, w:  4 },
+  { home: 1, away: 4, w:  2 },
+];
+
+// Deterministic hash → [0,1) float. Fixture-specific "gut feel" that never
+// changes for the same fixture_id, but varies meaningfully between fixtures.
+function fixtureRng(fixtureId: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < fixtureId.length; i++) {
+    h ^= fixtureId.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  // Second pass for better mixing
+  h ^= h >>> 16;
+  h = (h * 0x45d9f3b) >>> 0;
+  h ^= h >>> 16;
+  return (h >>> 0) / 0xffffffff;
+}
+
+function weightedSample(pool: ScoreOption[], weights: number[], rng: number): ScoreOption {
+  const total = weights.reduce((s, w) => s + w, 0);
+  let r = rng * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return pool[i];
+  }
+  return pool[pool.length - 1];
+}
 
 function scfMostLikelyScore(
   outcome: { homeWin: number; draw: number; awayWin: number },
+  fixtureId: string,
 ): { home: number; away: number } | null {
   const { homeWin, draw, awayWin } = outcome;
   const max = Math.max(homeWin, draw, awayWin);
   if (max < 0.36) return null;
 
+  const rng = fixtureRng(fixtureId);
+
+  // Draw needs at least 0.30 probability
+  if (draw === max && draw < 0.30) return null;
+
+  let pool: ScoreOption[];
+  let strength: number; // 0=neutral, 1=certain
+
   if (homeWin === max) {
-    // Strong home dominance → 2-0; moderate → 1-0
-    return homeWin > 0.58 ? { home: 2, away: 0 } : { home: 1, away: 0 };
+    pool = HOME_WIN_POOL;
+    strength = Math.max(0, Math.min(1, (homeWin - 0.33) / 0.42));
+  } else if (awayWin === max) {
+    pool = AWAY_WIN_POOL;
+    strength = Math.max(0, Math.min(1, (awayWin - 0.33) / 0.42));
+  } else {
+    pool = DRAW_POOL;
+    strength = Math.max(0, Math.min(1, (draw - 0.25) / 0.20));
   }
-  if (awayWin === max) {
-    return awayWin > 0.58 ? { home: 0, away: 2 } : { home: 0, away: 1 };
-  }
-  // Draw
-  return draw >= 0.30 ? { home: 1, away: 1 } : null;
+
+  // Dominance modifier: higher strength boosts larger-margin scorelines.
+  // For draws: strength pushes toward 1-1 (more "action") over 0-0.
+  const weights = pool.map(item => {
+    const margin = Math.abs(item.home - item.away);
+    const total = item.home + item.away;
+    if (draw === max) {
+      // More strength → prefer 1-1 and 2-2 over 0-0
+      const goalsBoost = 1 + strength * total * 0.5;
+      return Math.max(0.5, item.w * goalsBoost);
+    }
+    // More strength → prefer bigger winning margins
+    const marginBoost = 1 + strength * (margin - 1) * 0.45;
+    return Math.max(0.5, item.w * marginBoost);
+  });
+
+  const picked = weightedSample(pool, weights, rng);
+  return { home: picked.home, away: picked.away };
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +297,7 @@ export function computeSCFScore(
     away_team_id: ctx.fixture.away_team_id,
     scf_score: Math.round(scfScore * 10) / 10,
     outcome: scfScoreToOutcome(scfScore),
-    mostLikelyScore: scfMostLikelyScore(scfScoreToOutcome(scfScore)),
+    mostLikelyScore: scfMostLikelyScore(scfScoreToOutcome(scfScore), ctx.fixture.id),
     historical_weight:        catHasActive('HISTORIA')   ? CATEGORY_WEIGHTS.HISTORIA   : 0,
     squad_weight:             catHasActive('PLANTEL')    ? CATEGORY_WEIGHTS.PLANTEL     : 0,
     momentum_weight:          catHasActive('FORMA')      ? CATEGORY_WEIGHTS.FORMA       : 0,
