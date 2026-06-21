@@ -83,9 +83,9 @@ function WinnerBar({ correct, total }: { correct: number; total: number }) {
 }
 
 export function PerformancePage() {
-  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap, _debugQueries } = useAppData();
+  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap } = useAppData();
   const qc = useQueryClient();
-  const { data: evals, isLoading, status: evalStatus, fetchStatus: evalFetchStatus, error: evalError } = useQuery({
+  const { data: evals, isLoading } = useQuery({
     queryKey: ['evaluations'],
     queryFn: loadEvaluations,
   });
@@ -107,6 +107,13 @@ export function PerformancePage() {
         return 0;
       });
   }, [selectedModel, evals, stats]);
+
+  // Must be before any early return (React Rules of Hooks)
+  const validFixtureIds = useMemo(() => new Set(fixtures.map(f => f.id)), [fixtures]);
+  const totalMatches = useMemo(
+    () => wcResults.filter(r => validFixtureIds.has(r.fixture_id)).length,
+    [wcResults, validFixtureIds],
+  );
 
   async function handleRecompute() {
     if (!engine) {
@@ -142,15 +149,6 @@ export function PerformancePage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs font-mono space-y-1">
-          <p className="font-bold text-red-700 mb-2">DEBUG — Rendimientos bloqueado</p>
-          <p>supabaseUrl: {_debugQueries.supabaseUrl}</p>
-          <p>evaluaciones: {evalStatus} / {evalFetchStatus}</p>
-          {evalError && <p className="text-red-600">evalError: {String(evalError)}</p>}
-          {Object.entries(_debugQueries).filter(([k]) => k !== 'supabaseUrl').map(([k, v]) => (
-            <p key={k}>{k}: {v}</p>
-          ))}
-        </div>
         <SectionTitle sub="Cargando evaluaciones…">Rendimiento</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <SkeletonCard /><SkeletonCard /><SkeletonCard />
@@ -166,14 +164,6 @@ export function PerformancePage() {
   }
 
   const hasData = evals && evals.length > 0;
-
-  // Only count results that correspond to a real fixture (guards against orphaned
-  // Supabase entries saved with a wrong/reversed fixture_id).
-  const validFixtureIds = useMemo(() => new Set(fixtures.map(f => f.id)), [fixtures]);
-  const totalMatches = useMemo(
-    () => wcResults.filter(r => validFixtureIds.has(r.fixture_id)).length,
-    [wcResults, validFixtureIds],
-  );
   const totalEvals = evals?.length ?? 0;
   const hasExactData = stats.some(s => s.hasExactData);
 

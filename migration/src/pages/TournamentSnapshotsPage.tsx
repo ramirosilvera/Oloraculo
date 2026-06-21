@@ -368,12 +368,12 @@ function SnapItem({ snap, isSelected, getTeamName, onClick }: SnapItemProps) {
 }
 
 export function TournamentSnapshotsPage() {
-  const { teamMap, isLoading: appLoading, _debugQueries } = useAppData();
+  const { teamMap, isLoading: appLoading } = useAppData();
   const [selected, setSelected]             = useState<PredictionSnapshot | null>(null);
   const [showDetail, setShowDetail]         = useState(false);
   const [selectedTeam, setSelectedTeam]     = useState<TeamTournamentProbability | null>(null);
 
-  const { data: snapshots, isLoading, status: snapStatus, fetchStatus: snapFetchStatus, error: snapError } = useQuery({
+  const { data: snapshots, isLoading } = useQuery({
     queryKey: ['tournament-snapshots'],
     queryFn: loadTournamentSnapshots,
   });
@@ -394,16 +394,6 @@ export function TournamentSnapshotsPage() {
   if (isLoading || appLoading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs font-mono space-y-1">
-          <p className="font-bold text-red-700 mb-2">DEBUG — Historial bloqueado</p>
-          <p>supabaseUrl: {_debugQueries.supabaseUrl}</p>
-          <p>snapshot: {snapStatus} / {snapFetchStatus}</p>
-          {snapError && <p className="text-red-600">snapError: {String(snapError)}</p>}
-          <p>appLoading: {String(appLoading)}</p>
-          {Object.entries(_debugQueries).filter(([k]) => k !== 'supabaseUrl').map(([k, v]) => (
-            <p key={k}>{k}: {v}</p>
-          ))}
-        </div>
         <Skeleton className="h-10 w-64" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (
