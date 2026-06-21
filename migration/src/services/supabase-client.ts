@@ -15,9 +15,6 @@ const SUPABASE_ANON = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'pla
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
-// DEBUG — remove once loading issue is diagnosed
-export const DEBUG_SUPABASE_URL = SUPABASE_URL;
-
 // ---------------------------------------------------------------------------
 // FixtureContexts — user-input injury / context notes per fixture
 // ---------------------------------------------------------------------------

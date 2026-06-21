@@ -12,7 +12,7 @@ import {
   loadStaticSquadStrength,
   loadStaticTacticalProfiles,
 } from '../services/static-data';
-import { loadAllFixtureContexts, loadWcActualResults, DEBUG_SUPABASE_URL } from '../services/supabase-client';
+import { loadAllFixtureContexts, loadWcActualResults } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
 import type { FixtureContext, Rating, Team, WcActualResult } from '../types/domain';
 import { useMemo } from 'react';
@@ -98,34 +98,15 @@ export function useAppData() {
   // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
   // need it (Historial, Rendimientos) don't block waiting for it to download.
   // The engine becomes available asynchronously; pages handle engine === null gracefully.
+  // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
+  // need it (Historial, Rendimientos) don't block waiting for it to download.
+  // The engine becomes available asynchronously; pages handle engine === null gracefully.
   const isLoading =
     teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
-
-  // DEBUG — remove once loading issue is diagnosed
-  console.log('[useAppData DEBUG]', {
-    appLoading: isLoading,
-    teams:    { isLoading: teams.isLoading,    status: teams.status,    fetchStatus: teams.fetchStatus    },
-    groups:   { isLoading: groups.isLoading,   status: groups.status,   fetchStatus: groups.fetchStatus   },
-    fixtures: { isLoading: fixtures.isLoading, status: fixtures.status, fetchStatus: fixtures.fetchStatus },
-    ratings:  { isLoading: ratings.isLoading,  status: ratings.status,  fetchStatus: ratings.fetchStatus  },
-    contexts: { isLoading: contexts.isLoading, status: contexts.status, fetchStatus: contexts.fetchStatus },
-    supabaseWc: { isLoading: supabaseWc.isLoading, status: supabaseWc.status, fetchStatus: supabaseWc.fetchStatus },
-  });
 
   const error =
     teams.error ?? groups.error ?? fixtures.error ??
     results.error ?? ratings.error;
-
-  // DEBUG — remove once loading issue is diagnosed
-  const _debugQueries = {
-    supabaseUrl: DEBUG_SUPABASE_URL,
-    teams:       `${teams.status}/${teams.fetchStatus}`,
-    groups:      `${groups.status}/${groups.fetchStatus}`,
-    fixtures:    `${fixtures.status}/${fixtures.fetchStatus}`,
-    ratings:     `${ratings.status}/${ratings.fetchStatus}`,
-    contexts:    `${contexts.status}/${contexts.fetchStatus}`,
-    supabaseWc:  `${supabaseWc.status}/${supabaseWc.fetchStatus}`,
-  };
 
   return {
     teams:      teams.data    ?? [],
@@ -143,6 +124,5 @@ export function useAppData() {
     wcPlayedMap,
     isLoading,
     error,
-    _debugQueries,
   };
 }
