@@ -186,10 +186,13 @@ function GeminiAnalysis({
           </Button>
         </div>
         {status === 'error' && errMsg && (
-          <div className="flex items-center gap-2 px-5 py-3 bg-red-50 border-t border-red-100">
-            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-            <p className="text-xs text-red-600 flex-1">{errMsg}</p>
-            <button onClick={() => analyze(true)} className="text-xs text-red-500 underline">Reintentar</button>
+          <div className="px-5 py-4 bg-red-50 border-t border-red-100 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-sm font-semibold text-red-700">Error al analizar</p>
+            </div>
+            <p className="text-sm text-red-600 font-mono break-all">{errMsg}</p>
+            <button onClick={() => analyze(true)} className="text-sm text-red-500 underline">Reintentar</button>
           </div>
         )}
       </Card>

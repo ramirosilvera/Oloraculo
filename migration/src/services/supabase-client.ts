@@ -226,8 +226,9 @@ export async function callGeminiAnalysis(
     body: JSON.stringify({ snapshots }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: string };
-    throw new Error(err.error ?? `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+    const parts = [`HTTP ${res.status}`, err.error, err.detail].filter(Boolean);
+    throw new Error(parts.join(' — '));
   }
   const data = await res.json() as { analysis?: string };
   if (typeof data.analysis !== 'string') throw new Error('empty-response');
