@@ -29,6 +29,7 @@ const ALL_MODELS = [
   'Potencial del plantel',
   'Goles + contexto reciente',
   'Momentum del Mundial',
+  'S. Común Futbolero',
 ];
 
 // Archived models: removed from active ensemble but historical evaluations preserved
@@ -91,7 +92,7 @@ function WinnerBar({ correct, total }: { correct: number; total: number }) {
 }
 
 export function PerformancePage() {
-  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap } = useAppData();
+  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap, squadStrengthData } = useAppData();
   const qc = useQueryClient();
   const { data: evals, isLoading } = useQuery({
     queryKey: ['evaluations'],
@@ -133,7 +134,7 @@ export function PerformancePage() {
     setRecomputeMsg(null);
     try {
       const { rows, fixtureIds, matchesProcessed, matchesSkipped } = recomputeEvaluations({
-        engine, fixtures, teamMap, ratingsList, contextMap, wcResults,
+        engine, fixtures, teamMap, ratingsList, contextMap, wcResults, squadStrengthData,
       });
       if (matchesProcessed === 0) {
         setRecomputeMsg({ kind: 'err', text: 'No hay partidos jugados para evaluar todavía.' });
@@ -359,6 +360,9 @@ export function PerformancePage() {
                           <span className={`font-semibold ${isArchived ? 'text-gray-400' : 'text-gray-800'}`}>{row.name}</span>
                           {tier && (
                             <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>
+                          )}
+                          {!tier && row.name === 'S. Común Futbolero' && (
+                            <span className="ml-1.5 text-[10px] font-black uppercase tracking-widest text-wc-navy">SCF</span>
                           )}
                         </div>
                         {isWinnerBest && <Badge color="gold">Líder</Badge>}

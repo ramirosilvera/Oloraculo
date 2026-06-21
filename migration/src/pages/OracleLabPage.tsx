@@ -18,6 +18,9 @@ import {
 } from '../components/ui';
 import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
+import { SCFCard } from '../components/SCFCard';
+import { useSCFForFixture } from '../hooks/useSCF';
+import type { Fixture } from '../types/domain';
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 
@@ -29,16 +32,46 @@ const ladder = [
   { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5 ligas' },
   { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
   { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
+  { name: 'SCF',  label: 'S. Común',          signal: 'heurísticas de comunidades reales' },
 ];
 
 export function OracleLabPage() {
-  const { teams, teamMap, ratingsList, results, fixtures, contextMap, wcResults, engine, isLoading } = useAppData();
+  const { teams, teamMap, ratingsList, results, fixtures, contextMap, wcResults, engine, isLoading, squadStrengthData } = useAppData();
   const [homeId, setHomeId] = useState<string>('');
   const [awayId, setAwayId] = useState<string>('');
   const [result, setResult] = useState<MatchPredictionResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [selectedModel, setSelectedModel] = useState<MatchPrediction | null>(null);
+  const [showSCFDetail, setShowSCFDetail] = useState(false);
+
+  // Synthetic fixture for SCF computation — built from the current homeId/awayId pair
+  const labFixture = useMemo<Fixture | null>(() => {
+    if (!homeId || !awayId || homeId === awayId) return null;
+    return {
+      id: `lab-${homeId}-${awayId}`,
+      home_team_id: homeId,
+      away_team_id: awayId,
+      group_name: 'Grupo A',
+      match_date: new Date().toISOString(),
+      status: 'scheduled',
+      home_goals: null,
+      away_goals: null,
+      neutral_venue: false,
+      is_played: false,
+    };
+  }, [homeId, awayId]);
+
+  const { result: scfResult } = useSCFForFixture({
+    fixture: labFixture!,
+    homeTeam: teamMap.get(homeId),
+    awayTeam: teamMap.get(awayId),
+    ratings: ratingsList,
+    allFixtures: fixtures,
+    wcResults,
+    squadStrengthData,
+    enabled: !!labFixture && !!result,
+  });
 
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
   const modelWeights = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
@@ -50,6 +83,7 @@ export function OracleLabPage() {
     setBusy(true);
     setError('');
     setSelectedModel(null);
+    setShowSCFDetail(false);
     try {
       const r = predictPair(homeId, awayId, teamMap, ratingsList, results, {
         engine: engine ?? undefined,
@@ -157,7 +191,7 @@ export function OracleLabPage() {
               return (
                 <button
                   key={p.predictorName}
-                  onClick={() => setSelectedModel(isSelected ? null : p)}
+                  onClick={() => { setSelectedModel(isSelected ? null : p); setShowSCFDetail(false); }}
                   className={`text-left p-4 rounded-2xl border transition-all space-y-2 ${
                     isSelected
                       ? 'border-wc-navy bg-wc-navy/5 ring-1 ring-wc-navy/20'
@@ -189,6 +223,35 @@ export function OracleLabPage() {
                 </button>
               );
             })}
+
+            {/* SCF card in model grid */}
+            {scfResult && !scfResult.degraded && (() => {
+              const { homeWin, draw, awayWin } = scfResult.outcome;
+              return (
+                <button
+                  onClick={() => { setShowSCFDetail(prev => !prev); setSelectedModel(null); }}
+                  className={`text-left p-4 rounded-2xl border transition-all space-y-2 ${
+                    showSCFDetail
+                      ? 'border-wc-navy bg-wc-navy/5 ring-1 ring-wc-navy/20'
+                      : 'border-gray-200 bg-white hover:border-wc-navy/30 hover:bg-blue-50/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-wc-navy text-white">SCF</span>
+                    <span className="text-xs font-semibold text-gray-700 truncate">S. Común Futbolero</span>
+                  </div>
+                  <p className="text-xs text-gray-500 tabular-nums">
+                    {pct(homeWin)} / {pct(draw)} / {pct(awayWin)}
+                  </p>
+                  {scfResult.mostLikelyScore && (
+                    <p className="text-xs font-medium text-gray-500">
+                      {scfResult.mostLikelyScore.home}-{scfResult.mostLikelyScore.away}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-300">{showSCFDetail ? '▲ cerrar' : '▼ detalle'}</p>
+                </button>
+              );
+            })()}
           </div>
 
           {selectedModel && (
@@ -197,6 +260,15 @@ export function OracleLabPage() {
               homeName={result.homeTeamName}
               awayName={result.awayTeamName}
               onClose={() => setSelectedModel(null)}
+            />
+          )}
+
+          {showSCFDetail && scfResult && (
+            <SCFCard
+              result={scfResult}
+              homeName={result.homeTeamName}
+              awayName={result.awayTeamName}
+              onClose={() => setShowSCFDetail(false)}
             />
           )}
         </>
@@ -215,7 +287,11 @@ export function OracleLabPage() {
               {ladder.map(row => (
                 <tr key={row.name} className="hover:bg-wc-cream/40 transition-colors">
                   <td className="py-2.5 px-5 w-14">
-                    <Badge color="navy">{row.name}</Badge>
+                    {row.name === 'SCF' ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-wc-navy text-white">SCF</span>
+                    ) : (
+                      <Badge color="navy">{row.name}</Badge>
+                    )}
                   </td>
                   <td className="py-2.5 px-4 font-semibold text-gray-700 whitespace-nowrap">{row.label}</td>
                   <td className="py-2.5 px-5 text-gray-400 text-xs">{row.signal}</td>
