@@ -12,7 +12,7 @@ import {
   loadStaticSquadStrength,
   loadStaticTacticalProfiles,
 } from '../services/static-data';
-import { loadAllFixtureContexts, loadWcActualResults } from '../services/supabase-client';
+import { loadAllFixtureContexts, loadWcActualResults, DEBUG_SUPABASE_URL } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
 import type { FixtureContext, Rating, Team, WcActualResult } from '../types/domain';
 import { useMemo } from 'react';
@@ -108,6 +108,17 @@ export function useAppData() {
     teams.error ?? groups.error ?? fixtures.error ??
     results.error ?? ratings.error;
 
+  // DEBUG
+  const _debugQueries = {
+    supabaseUrl: DEBUG_SUPABASE_URL,
+    teams:       `${teams.status}/${teams.fetchStatus}`,
+    groups:      `${groups.status}/${groups.fetchStatus}`,
+    fixtures:    `${fixtures.status}/${fixtures.fetchStatus}`,
+    ratings:     `${ratings.status}/${ratings.fetchStatus}`,
+    contexts:    `${contexts.status}/${contexts.fetchStatus}`,
+    supabaseWc:  `${supabaseWc.status}/${supabaseWc.fetchStatus}`,
+  };
+
   return {
     teams:      teams.data    ?? [],
     groups:     groups.data   ?? [],
@@ -124,5 +135,6 @@ export function useAppData() {
     wcPlayedMap,
     isLoading,
     error,
+    _debugQueries,
   };
 }

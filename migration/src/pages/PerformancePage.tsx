@@ -83,9 +83,9 @@ function WinnerBar({ correct, total }: { correct: number; total: number }) {
 }
 
 export function PerformancePage() {
-  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap } = useAppData();
+  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap, _debugQueries } = useAppData();
   const qc = useQueryClient();
-  const { data: evals, isLoading } = useQuery({
+  const { data: evals, isLoading, status: evalStatus, fetchStatus: evalFetchStatus, error: evalError } = useQuery({
     queryKey: ['evaluations'],
     queryFn: loadEvaluations,
   });
@@ -142,6 +142,15 @@ export function PerformancePage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs font-mono space-y-1">
+          <p className="font-bold text-red-700 mb-2">DEBUG — Rendimientos bloqueado</p>
+          <p>supabaseUrl: {_debugQueries.supabaseUrl}</p>
+          <p>evaluaciones: {evalStatus} / {evalFetchStatus}</p>
+          {evalError && <p className="text-red-600">evalError: {String(evalError)}</p>}
+          {Object.entries(_debugQueries).filter(([k]) => k !== 'supabaseUrl').map(([k, v]) => (
+            <p key={k}>{k}: {v}</p>
+          ))}
+        </div>
         <SectionTitle sub="Cargando evaluaciones…">Rendimiento</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <SkeletonCard /><SkeletonCard /><SkeletonCard />
