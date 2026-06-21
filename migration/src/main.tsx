@@ -12,6 +12,8 @@ import {
   loadStaticResults,
   loadStaticFixtureContexts,
   loadStaticSquads,
+  loadStaticSquadStrength,
+  loadStaticTacticalProfiles,
 } from './services/static-data';
 
 const queryClient = new QueryClient({
@@ -31,9 +33,11 @@ setTimeout(() => {
     queryClient.fetchQuery({ queryKey: ['groups'],          queryFn: loadStaticGroups,           staleTime: Infinity }),
     queryClient.fetchQuery({ queryKey: ['fixtures'],        queryFn: loadStaticFixtures,         staleTime: Infinity }),
     queryClient.fetchQuery({ queryKey: ['ratings'],         queryFn: loadStaticRatings,          staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['static-contexts'], queryFn: loadStaticFixtureContexts,  staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['squads'],          queryFn: loadStaticSquads,           staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['results'], queryFn: loadStaticResults, staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['static-contexts'],  queryFn: loadStaticFixtureContexts,  staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['squads'],           queryFn: loadStaticSquads,           staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['squad-strength'],   queryFn: loadStaticSquadStrength,    staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['tactical-profiles'],queryFn: loadStaticTacticalProfiles, staleTime: Infinity }),
+    queryClient.fetchQuery({ queryKey: ['results'],          queryFn: loadStaticResults,          staleTime: Infinity }),
   ]).catch(() => {});
 }, 0);
 

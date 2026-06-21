@@ -84,14 +84,14 @@ export function useAppData() {
 
   // Cache the engine in React Query so it's built once per session, not on
   // every page navigation (each new component instance would re-run useMemo).
-  // Stable key so the engine is built once. squadStrength/tacticalProfiles use ?? {} fallbacks,
-  // so the engine works even if those optional files haven't loaded yet.
+  // Wait for all three data sources before building — squad/tactical models return
+  // degraded results if built with empty maps and staleTime:Infinity prevents a rebuild.
   const engineQuery = useQuery({
     queryKey: ['engine'],
-    queryFn: () => new PredictionEngine(results.data!, 8, squadStrength.data ?? {}, tacticalProfiles.data ?? {}),
+    queryFn: () => new PredictionEngine(results.data!, 8, squadStrength.data!, tacticalProfiles.data!),
     staleTime: Infinity,
     gcTime: Infinity,
-    enabled: !!results.data,
+    enabled: !!results.data && !!squadStrength.data && !!tacticalProfiles.data,
   });
   const engine = engineQuery.data ?? null;
 
