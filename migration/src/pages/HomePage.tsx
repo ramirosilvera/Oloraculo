@@ -3,9 +3,11 @@
 // =============================================================================
 
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Trophy, Target, Cpu, Users, Database, ChevronRight } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
+import { loadEvaluations } from '../services/supabase-client';
 import {
   Card,
   CardHeader,
@@ -40,6 +42,36 @@ const ladder: { level: string; model: string; signal: string; color: 'gray' | 'b
 export function HomePage() {
   const { teams, fixtures, results, teamMap, isLoading } = useAppData();
   const [logoLoaded, setLogoLoaded] = useState(false);
+
+  const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
+
+  // Best model by absolute winner-pick count (min 3 evals), same logic as PerformancePage
+  const starModel = useMemo(() => {
+    if (!evalsData || evalsData.length === 0) return null;
+    const byModel = new Map<string, { wins: number; n: number }>();
+    for (const e of evalsData) {
+      const acc = byModel.get(e.model_name) ?? { wins: 0, n: 0 };
+      acc.n++;
+      if (e.top_pick_correct) acc.wins++;
+      byModel.set(e.model_name, acc);
+    }
+    let best: string | null = null, bestWins = -1;
+    for (const [name, { wins, n }] of byModel) {
+      if (n < 3) continue;
+      if (wins > bestWins) { bestWins = wins; best = name; }
+    }
+    return best;
+  }, [evalsData]);
+
+  const starModelEntry = starModel ? ladder.find(l => l.model === starModel) ?? null : null;
+
+  const upcoming = useMemo(() => {
+    const now = new Date().toISOString();
+    return fixtures
+      .filter(f => f.kickoff_utc && f.kickoff_utc > now)
+      .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''))
+      .slice(0, 5);
+  }, [fixtures]);
 
   return (
     <div className="space-y-10 animate-fade-in">
@@ -217,16 +249,33 @@ export function HomePage() {
             </div>
           </CardHeader>
           <div className="px-5 pb-5">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
-              <span className="text-2xl">★</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-amber-900">Estilo de Juego (L7)</p>
-                <p className="text-xs text-amber-700 mt-0.5">Ajuste táctico por formación, estilo de pressing y perfil de matchup para los 48 equipos del Mundial.</p>
+            {starModelEntry ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                <span className="text-2xl">★</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-amber-900">
+                    {starModelEntry.model} ({starModelEntry.level})
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">{starModelEntry.signal}</p>
+                </div>
+                <Link to="/performance">
+                  <Button variant="secondary" size="sm" className="shrink-0">Ver →</Button>
+                </Link>
               </div>
-              <Link to="/performance">
-                <Button variant="secondary" size="sm" className="shrink-0">Ver →</Button>
-              </Link>
-            </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                <span className="text-2xl text-gray-300">★</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-500">Sin datos aún</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Registrá resultados en Partidos para ver el modelo líder.
+                  </p>
+                </div>
+                <Link to="/performance">
+                  <Button variant="secondary" size="sm" className="shrink-0">Ver →</Button>
+                </Link>
+              </div>
+            )}
           </div>
         </Card>
       </section>
@@ -234,53 +283,45 @@ export function HomePage() {
       {/* ------------------------------------------------------------------ */}
       {/* 5. PRÓXIMOS PARTIDOS                                                */}
       {/* ------------------------------------------------------------------ */}
-      {!isLoading && (() => {
-        const now = new Date().toISOString();
-        const upcoming = fixtures
-          .filter(f => f.kickoff_utc && f.kickoff_utc > now)
-          .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''))
-          .slice(0, 5);
-        if (upcoming.length === 0) return null;
-        return (
-          <section className="animate-fade-in">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <SectionTitle>Próximos partidos</SectionTitle>
-                  <Link to="/matches" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity py-2 px-1">
-                    Ver todos →
-                  </Link>
-                </div>
-              </CardHeader>
-              <div className="divide-y divide-gray-50">
-                {upcoming.map(f => {
-                  const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
-                  const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
-                  const kickoffDate = f.kickoff_utc ? new Date(f.kickoff_utc).toLocaleDateString('es-AR', {
-                    weekday: 'short', day: 'numeric', month: 'short',
-                    timeZone: 'America/Argentina/Buenos_Aires',
-                  }) : '';
-                  const kickoffTime = f.kickoff_utc ? new Date(f.kickoff_utc).toLocaleTimeString('es-AR', {
-                    hour: '2-digit', minute: '2-digit',
-                    timeZone: 'America/Argentina/Buenos_Aires',
-                  }) : '';
-                  return (
-                    <Link key={f.id} to="/matches" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors">
-                      <FlagImg id={f.home_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{homeName} <span className="text-gray-400 font-normal">vs</span> {awayName}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{kickoffDate} · {kickoffTime} ART · Grp {f.group_name}</p>
-                      </div>
-                      <FlagImg id={f.away_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0" />
-                      <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
-                    </Link>
-                  );
-                })}
+      {!isLoading && upcoming.length > 0 && (
+        <section className="animate-fade-in">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <SectionTitle>Próximos partidos</SectionTitle>
+                <Link to="/matches" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity py-2 px-1">
+                  Ver todos →
+                </Link>
               </div>
-            </Card>
-          </section>
-        );
-      })()}
+            </CardHeader>
+            <div className="divide-y divide-gray-50">
+              {upcoming.map(f => {
+                const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
+                const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                const kickoffDate = f.kickoff_utc ? new Date(f.kickoff_utc).toLocaleDateString('es-AR', {
+                  weekday: 'short', day: 'numeric', month: 'short',
+                  timeZone: 'America/Argentina/Buenos_Aires',
+                }) : '';
+                const kickoffTime = f.kickoff_utc ? new Date(f.kickoff_utc).toLocaleTimeString('es-AR', {
+                  hour: '2-digit', minute: '2-digit',
+                  timeZone: 'America/Argentina/Buenos_Aires',
+                }) : '';
+                return (
+                  <Link key={f.id} to="/matches" className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 active:bg-gray-100 transition-colors">
+                    <FlagImg id={f.home_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{homeName} <span className="text-gray-400 font-normal">vs</span> {awayName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{kickoffDate} · {kickoffTime} ART · Grp {f.group_name}</p>
+                    </div>
+                    <FlagImg id={f.away_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  </Link>
+                );
+              })}
+            </div>
+          </Card>
+        </section>
+      )}
 
     </div>
   );
