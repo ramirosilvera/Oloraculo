@@ -84,8 +84,10 @@ export function useAppData() {
 
   // Cache the engine in React Query so it's built once per session, not on
   // every page navigation (each new component instance would re-run useMemo).
+  // Stable key so the engine is built once. squadStrength/tacticalProfiles use ?? {} fallbacks,
+  // so the engine works even if those optional files haven't loaded yet.
   const engineQuery = useQuery({
-    queryKey: ['engine', !!squadStrength.data, !!tacticalProfiles.data],
+    queryKey: ['engine'],
     queryFn: () => new PredictionEngine(results.data!, 8, squadStrength.data ?? {}, tacticalProfiles.data ?? {}),
     staleTime: Infinity,
     gcTime: Infinity,
@@ -93,9 +95,11 @@ export function useAppData() {
   });
   const engine = engineQuery.data ?? null;
 
+  // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
+  // need it (Historial, Rendimientos) don't block waiting for it to download.
+  // The engine becomes available asynchronously; pages handle engine === null gracefully.
   const isLoading =
-    teams.isLoading || groups.isLoading || fixtures.isLoading ||
-    results.isLoading || ratings.isLoading;
+    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
 
   const error =
     teams.error ?? groups.error ?? fixtures.error ??

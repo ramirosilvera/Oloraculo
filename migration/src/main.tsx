@@ -13,7 +13,6 @@ import {
   loadStaticFixtureContexts,
   loadStaticSquads,
 } from './services/static-data';
-import { PredictionEngine } from './engine/prediction-engine';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,15 +33,7 @@ setTimeout(() => {
     queryClient.fetchQuery({ queryKey: ['ratings'],         queryFn: loadStaticRatings,          staleTime: Infinity }),
     queryClient.fetchQuery({ queryKey: ['static-contexts'], queryFn: loadStaticFixtureContexts,  staleTime: Infinity }),
     queryClient.fetchQuery({ queryKey: ['squads'],          queryFn: loadStaticSquads,           staleTime: Infinity }),
-    queryClient.fetchQuery({ queryKey: ['results'],         queryFn: loadStaticResults,          staleTime: Infinity })
-      .then(results =>
-        queryClient.fetchQuery({
-          queryKey: ['engine'],
-          queryFn: () => new PredictionEngine(results),
-          staleTime: Infinity,
-          gcTime: Infinity,
-        }),
-      ),
+    queryClient.fetchQuery({ queryKey: ['results'], queryFn: loadStaticResults, staleTime: Infinity }),
   ]).catch(() => {});
 }, 0);
 
