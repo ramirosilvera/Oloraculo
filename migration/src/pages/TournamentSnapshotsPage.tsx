@@ -368,7 +368,7 @@ function SnapItem({ snap, isSelected, getTeamName, onClick }: SnapItemProps) {
 }
 
 export function TournamentSnapshotsPage() {
-  const { teamMap, isLoading: appLoading } = useAppData();
+  const { teamMap, isLoading: appLoading, _debugQueries } = useAppData();
   const [selected, setSelected]             = useState<PredictionSnapshot | null>(null);
   const [showDetail, setShowDetail]         = useState(false);
   const [selectedTeam, setSelectedTeam]     = useState<TeamTournamentProbability | null>(null);
@@ -396,6 +396,19 @@ export function TournamentSnapshotsPage() {
   if (isLoading || appLoading) {
     return (
       <div className="space-y-4">
+        {/* DEBUG PANEL — remove once loading issue is diagnosed */}
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs font-mono space-y-1">
+          <p className="font-bold text-red-700 mb-2">🔍 DEBUG — página bloqueada en carga</p>
+          <p><span className="text-red-500 font-bold">snapshot (Supabase):</span> {snapStatus} / {snapFetchStatus}</p>
+          {snapError && <p className="text-red-600">Error snapshot: {String(snapError)}</p>}
+          <p><span className="text-red-500 font-bold">appLoading:</span> {String(appLoading)}</p>
+          <div className="mt-2 border-t border-red-200 pt-2">
+            <p className="text-red-600 font-bold mb-1">useAppData queries (status/fetchStatus):</p>
+            {Object.entries(_debugQueries).map(([k, v]) => (
+              <p key={k}><span className="text-gray-600">{k}:</span> {v}</p>
+            ))}
+          </div>
+        </div>
         <Skeleton className="h-10 w-64" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (

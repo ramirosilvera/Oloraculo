@@ -116,6 +116,16 @@ export function useAppData() {
     teams.error ?? groups.error ?? fixtures.error ??
     results.error ?? ratings.error;
 
+  // DEBUG — remove once loading issue is diagnosed
+  const _debugQueries = {
+    teams:      `${teams.status}/${teams.fetchStatus}`,
+    groups:     `${groups.status}/${groups.fetchStatus}`,
+    fixtures:   `${fixtures.status}/${fixtures.fetchStatus}`,
+    ratings:    `${ratings.status}/${ratings.fetchStatus}`,
+    contexts:   `${contexts.status}/${contexts.fetchStatus}`,
+    supabaseWc: `${supabaseWc.status}/${supabaseWc.fetchStatus}`,
+  };
+
   return {
     teams:      teams.data    ?? [],
     groups:     groups.data   ?? [],
@@ -132,5 +142,6 @@ export function useAppData() {
     wcPlayedMap,
     isLoading,
     error,
+    _debugQueries,
   };
 }

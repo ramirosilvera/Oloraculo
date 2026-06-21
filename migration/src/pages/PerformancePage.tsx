@@ -83,7 +83,7 @@ function WinnerBar({ correct, total }: { correct: number; total: number }) {
 }
 
 export function PerformancePage() {
-  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap } = useAppData();
+  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap, _debugQueries } = useAppData();
   const qc = useQueryClient();
   const { data: evals, isLoading, status: evalStatus, fetchStatus: evalFetchStatus, error: evalError } = useQuery({
     queryKey: ['evaluations'],
@@ -144,6 +144,18 @@ export function PerformancePage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
+        {/* DEBUG PANEL — remove once loading issue is diagnosed */}
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs font-mono space-y-1">
+          <p className="font-bold text-red-700 mb-2">🔍 DEBUG — Rendimientos bloqueado en carga</p>
+          <p><span className="text-red-500 font-bold">evaluaciones (Supabase):</span> {evalStatus} / {evalFetchStatus}</p>
+          {evalError && <p className="text-red-600">Error: {String(evalError)}</p>}
+          <div className="mt-2 border-t border-red-200 pt-2">
+            <p className="text-red-600 font-bold mb-1">useAppData queries (status/fetchStatus):</p>
+            {Object.entries(_debugQueries).map(([k, v]) => (
+              <p key={k}><span className="text-gray-600">{k}:</span> {v}</p>
+            ))}
+          </div>
+        </div>
         <SectionTitle sub="Cargando evaluaciones…">Rendimiento</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <SkeletonCard /><SkeletonCard /><SkeletonCard />
