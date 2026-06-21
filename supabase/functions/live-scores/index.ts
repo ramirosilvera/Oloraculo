@@ -69,11 +69,26 @@ function mapStatus(espnName: string, period: number): LiveStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Minute calculation — ESPN clock counts DOWN from period duration.
-//   period 1: 2700 s (45 min), period 2: 2700 s, period 3/4: 900 s (15 min ET)
+// Minute calculation.
+//
+// Primary: parse ESPN's own `status.type.shortDetail` which already contains
+// the display minute ("72'", "45+2'", "HT", "FT", etc.).
+// This is the most reliable source — ESPN computes it for us.
+//
+// Fallback: compute from `status.clock` (seconds remaining, counts DOWN)
+// and `status.period`. Used when shortDetail is absent or unparseable.
 // ---------------------------------------------------------------------------
-function parseMinute(clock: number, period: number): number | null {
+function parseMinuteFromShortDetail(shortDetail: string | undefined): number | null {
+  if (!shortDetail) return null;
+  // "72'" → 72 | "45+2'" → 47 | "HT" / "FT" / anything else → null
+  const m = shortDetail.match(/^(\d+)(?:\+(\d+))?'/);
+  if (!m) return null;
+  return parseInt(m[1], 10) + (m[2] ? parseInt(m[2], 10) : 0);
+}
+
+function parseMinuteFromClock(clock: number, period: number): number | null {
   if (period === 0) return null;
+  // ESPN clock counts DOWN (seconds remaining in the period).
   const halfDur = period <= 2 ? 2700 : 900;
   const elapsed  = Math.floor((halfDur - clock) / 60);
   const base     = period === 2 ? 45 : period === 3 ? 90 : period === 4 ? 105 : 0;
@@ -206,8 +221,13 @@ Deno.serve(async (req: Request) => {
       const period: number = status.period ?? 0;
       const clock: number  = status.clock  ?? 0;
 
-      const espnStatusName: string = status.type?.name ?? '';
+      const espnStatusName: string  = status.type?.name ?? '';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const shortDetail: string | undefined = (status.type as any)?.shortDetail;
       const liveStatus = mapStatus(espnStatusName, period);
+
+      // Debug: log raw status fields so we can verify ESPN clock direction
+      console.log(`[live-scores] id=${ev.id} status=${espnStatusName} period=${period} clock=${clock} shortDetail=${shortDetail ?? 'n/a'}`);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const competitors: any[] = comp.competitors ?? [];
@@ -228,7 +248,9 @@ Deno.serve(async (req: Request) => {
       return {
         fdId:           parseInt(ev.id, 10),
         status:         liveStatus,
-        minute:         liveStatus === 'IN_PLAY' ? parseMinute(clock, period) : null,
+        minute:         liveStatus === 'IN_PLAY'
+          ? (parseMinuteFromShortDetail(shortDetail) ?? parseMinuteFromClock(clock, period))
+          : null,
         homeTeamFdName: home.team?.displayName ?? home.team?.name ?? '',
         awayTeamFdName: away.team?.displayName ?? away.team?.name ?? '',
         homeGoals:      home.score != null ? parseInt(home.score, 10) : null,

@@ -24,7 +24,7 @@ export function useLiveScores(): UseLiveScoresResult {
     queryKey: ['live-scores'],
     queryFn: fetchLiveAndRecent,
     refetchInterval: POLL_INTERVAL_MS,
-    refetchIntervalInBackground: false,
+    refetchIntervalInBackground: true,
     staleTime: POLL_INTERVAL_MS - 5_000,
     retry: (count, err) => {
       if ((err as Error).message === 'rate-limit') return false;

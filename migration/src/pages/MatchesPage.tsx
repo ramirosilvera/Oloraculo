@@ -869,6 +869,92 @@ function EventChip({ event, align }: { event: LiveEvent; align: 'left' | 'right'
 }
 
 // ---------------------------------------------------------------------------
+// LiveMatchRow — single live match with a local minute ticker.
+// The ticker increments the displayed minute every 60s so the counter
+// appears to move even between API polls (which fire every 60s).
+// Resets to the API value whenever fresh data arrives.
+// ---------------------------------------------------------------------------
+function LiveMatchRow({ m, teamMap }: { m: LiveMatch; teamMap: Map<string, Team> }) {
+  const [displayMinute, setDisplayMinute] = useState<number | null>(m.minute);
+
+  // Sync whenever the API returns a fresh minute value
+  useEffect(() => {
+    setDisplayMinute(m.minute);
+  }, [m.minute]);
+
+  // Local tick: advance one minute every 60s while the match is IN_PLAY
+  useEffect(() => {
+    if (m.status !== 'IN_PLAY' || m.minute === null) return;
+    const id = setInterval(() => {
+      setDisplayMinute(prev => (prev !== null ? Math.min(prev + 1, 95) : null));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [m.fdId, m.status, m.minute]);
+
+  const home = teamMap.get(m.homeLocalId ?? '');
+  const away = teamMap.get(m.awayLocalId ?? '');
+  const hasScore = m.homeGoals != null && m.awayGoals != null;
+  const isExplicitlyLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+  const homeEvents = (m.events ?? []).filter(e => e.side === 'home');
+  const awayEvents = (m.events ?? []).filter(e => e.side === 'away');
+  const hasEvents  = homeEvents.length > 0 || awayEvents.length > 0;
+
+  return (
+    <div key={m.fdId}>
+      {/* Score row */}
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+          <span className="text-sm font-bold text-white truncate text-right">
+            {home?.name ?? m.homeTeamFdName}
+          </span>
+          <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+        </div>
+        <div className="flex flex-col items-center shrink-0 min-w-[68px]">
+          {hasScore ? (
+            <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
+              {m.homeGoals}–{m.awayGoals}
+            </span>
+          ) : (
+            <span className="text-lg font-black text-white/50 leading-none">vs</span>
+          )}
+          <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
+            {m.status === 'PAUSED'
+              ? '½ tiempo'
+              : displayMinute
+              ? `${displayMinute}'`
+              : isExplicitlyLive
+              ? '···'
+              : 'iniciando'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+          <span className="text-sm font-bold text-white truncate">
+            {away?.name ?? m.awayTeamFdName}
+          </span>
+        </div>
+      </div>
+
+      {/* Events row — goals and cards in two columns */}
+      {hasEvents && (
+        <div className="grid grid-cols-2 gap-x-2 px-4 pb-3 -mt-1">
+          <div className="flex flex-col items-end gap-0.5">
+            {homeEvents.map((e, i) => (
+              <EventChip key={i} event={e} align="right" />
+            ))}
+          </div>
+          <div className="flex flex-col items-start gap-0.5">
+            {awayEvents.map((e, i) => (
+              <EventChip key={i} event={e} align="left" />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // LiveNow — hero card for matches currently in play.
 // Two-pronged detection so ESPN status lag doesn't hide a live match:
 //   1. ESPN says IN_PLAY or PAUSED                    → always shown
@@ -896,70 +982,9 @@ function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; te
         <span className="ml-auto text-[10px] text-red-800 font-medium">Mundial 2026</span>
       </div>
       <div className="bg-gradient-to-br from-red-950/80 to-gray-950 divide-y divide-red-900/30">
-        {live.map(m => {
-          const home = teamMap.get(m.homeLocalId ?? '');
-          const away = teamMap.get(m.awayLocalId ?? '');
-          const hasScore = m.homeGoals != null && m.awayGoals != null;
-          const isExplicitlyLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
-          const homeEvents = (m.events ?? []).filter(e => e.side === 'home');
-          const awayEvents = (m.events ?? []).filter(e => e.side === 'away');
-          const hasEvents  = homeEvents.length > 0 || awayEvents.length > 0;
-          return (
-            <div key={m.fdId}>
-              {/* Score row */}
-              <div className="flex items-center gap-3 px-4 py-3.5">
-                <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                  <span className="text-sm font-bold text-white truncate text-right">
-                    {home?.name ?? m.homeTeamFdName}
-                  </span>
-                  <FlagImg id={m.homeLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-                </div>
-                <div className="flex flex-col items-center shrink-0 min-w-[68px]">
-                  {hasScore ? (
-                    <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tight">
-                      {m.homeGoals}–{m.awayGoals}
-                    </span>
-                  ) : (
-                    <span className="text-lg font-black text-white/50 leading-none">vs</span>
-                  )}
-                  <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
-                    {m.status === 'PAUSED'
-                      ? '½ tiempo'
-                      : m.minute
-                      ? `${m.minute}'`
-                      : isExplicitlyLive
-                      ? '···'
-                      : 'iniciando'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <FlagImg id={m.awayLocalId ?? ''} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
-                  <span className="text-sm font-bold text-white truncate">
-                    {away?.name ?? m.awayTeamFdName}
-                  </span>
-                </div>
-              </div>
-
-              {/* Events row — goals and cards in two columns */}
-              {hasEvents && (
-                <div className="grid grid-cols-2 gap-x-2 px-4 pb-3 -mt-1">
-                  {/* Home events (left, right-aligned) */}
-                  <div className="flex flex-col items-end gap-0.5">
-                    {homeEvents.map((e, i) => (
-                      <EventChip key={i} event={e} align="right" />
-                    ))}
-                  </div>
-                  {/* Away events (right, left-aligned) */}
-                  <div className="flex flex-col items-start gap-0.5">
-                    {awayEvents.map((e, i) => (
-                      <EventChip key={i} event={e} align="left" />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {live.map(m => (
+          <LiveMatchRow key={m.fdId} m={m} teamMap={teamMap} />
+        ))}
       </div>
     </div>
   );
