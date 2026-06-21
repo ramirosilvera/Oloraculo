@@ -984,24 +984,90 @@ function LiveMatchRow({ m, teamMap }: { m: LiveMatch; teamMap: Map<string, Team>
 }
 
 // ---------------------------------------------------------------------------
+// ScheduledLiveRow — minimal row for matches detected via fixtures.json when
+// ESPN hasn't flipped the status yet (or doesn't have data).
+// ---------------------------------------------------------------------------
+function ScheduledLiveRow({ fixture, teamMap }: { fixture: Fixture; teamMap: Map<string, Team> }) {
+  const kickoff = fixture.kickoff_utc ? new Date(fixture.kickoff_utc).getTime() : 0;
+  const [displayMinute, setDisplayMinute] = useState<number>(() =>
+    kickoff ? Math.max(0, Math.min(95, Math.floor((Date.now() - kickoff) / 60_000))) : 0,
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!kickoff) return;
+      setDisplayMinute(Math.max(0, Math.min(95, Math.floor((Date.now() - kickoff) / 60_000))));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [kickoff]);
+
+  const home = teamMap.get(fixture.home_team_id);
+  const away = teamMap.get(fixture.away_team_id);
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+        <span className="text-sm font-bold text-white truncate text-right">
+          {home?.name ?? fixture.home_team_id}
+        </span>
+        <FlagImg id={fixture.home_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+      </div>
+      <div className="flex flex-col items-center shrink-0 min-w-[68px]">
+        <span className="text-lg font-black text-white/50 leading-none">vs</span>
+        <span className="text-[10px] font-bold text-red-400 mt-0.5 tabular-nums">
+          {displayMinute > 0 ? `~${displayMinute}'` : 'iniciando'}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <FlagImg id={fixture.away_team_id} className="w-7 h-5 object-cover rounded-[3px] shrink-0 shadow" />
+        <span className="text-sm font-bold text-white truncate">
+          {away?.name ?? fixture.away_team_id}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // LiveNow — hero card for matches currently in play.
-// Two-pronged detection so ESPN status lag doesn't hide a live match:
-//   1. ESPN says IN_PLAY or PAUSED                    → always shown
-//   2. Kickoff time is within [-5, +95] min of now   → shown even if ESPN
-//      hasn't flipped the status yet (catches the first few minutes)
+// Three-pronged detection:
+//   1. ESPN says IN_PLAY or PAUSED                       → always shown
+//   2. ESPN returns match within [-5, +95] min of m.utcDate → catches lag
+//   3. fixtures.json kickoff within [-5, +95] min of now → catches ESPN gaps
 // FINISHED / POSTPONED / CANCELLED always excluded.
 // ---------------------------------------------------------------------------
-function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; teamMap: Map<string, Team> }) {
+function LiveNow({ liveByKey, teamMap, fixtures }: {
+  liveByKey: Map<string, LiveMatch>;
+  teamMap: Map<string, Team>;
+  fixtures: Fixture[];
+}) {
   const now = Date.now();
 
-  const live = [...liveByKey.values()].filter(m => {
+  // Prongs 1 & 2: ESPN-sourced matches
+  const espnLive = [...liveByKey.values()].filter(m => {
     if (m.status === 'IN_PLAY' || m.status === 'PAUSED') return true;
     if (m.status === 'FINISHED' || m.status === 'POSTPONED' || m.status === 'CANCELLED') return false;
     const minsFromKickoff = (now - new Date(m.utcDate).getTime()) / 60_000;
     return minsFromKickoff >= -5 && minsFromKickoff <= 95;
   });
 
-  if (live.length === 0) return null;
+  // Build set of slug-pairs already covered by ESPN data
+  const espnPairs = new Set(espnLive.map(m => {
+    const h = resolveLocalId(m.homeTeamFdName, m.homeLocalId, teamMap);
+    const a = resolveLocalId(m.awayTeamFdName, m.awayLocalId, teamMap);
+    return `${h}:${a}`;
+  }));
+
+  // Prong 3: fixtures.json matches in window not already covered
+  const localLive = fixtures.filter(f => {
+    if (f.is_played) return false;
+    if (!f.kickoff_utc) return false;
+    const minsFromKickoff = (now - new Date(f.kickoff_utc).getTime()) / 60_000;
+    if (minsFromKickoff < -5 || minsFromKickoff > 95) return false;
+    return !espnPairs.has(`${f.home_team_id}:${f.away_team_id}`);
+  });
+
+  if (espnLive.length === 0 && localLive.length === 0) return null;
 
   return (
     <div className="rounded-2xl overflow-hidden border border-red-800/40 shadow-lg shadow-red-950/30">
@@ -1011,8 +1077,11 @@ function LiveNow({ liveByKey, teamMap }: { liveByKey: Map<string, LiveMatch>; te
         <span className="ml-auto text-[10px] text-red-800 font-medium">Mundial 2026</span>
       </div>
       <div className="bg-gradient-to-br from-red-950/80 to-gray-950 divide-y divide-red-900/30">
-        {live.map(m => (
+        {espnLive.map(m => (
           <LiveMatchRow key={m.fdId} m={m} teamMap={teamMap} />
+        ))}
+        {localLive.map(f => (
+          <ScheduledLiveRow key={f.id} fixture={f} teamMap={teamMap} />
         ))}
       </div>
     </div>
@@ -1350,7 +1419,7 @@ export function MatchesPage() {
       {/* EN VIVO — ESPN; solo aparece cuando hay partidos en curso           */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
-        <LiveNow liveByKey={liveByKey} teamMap={teamMap} />
+        <LiveNow liveByKey={liveByKey} teamMap={teamMap} fixtures={fixtures} />
       )}
 
       {/* ------------------------------------------------------------------ */}
