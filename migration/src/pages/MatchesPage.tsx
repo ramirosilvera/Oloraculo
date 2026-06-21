@@ -1132,6 +1132,18 @@ export function MatchesPage() {
   // Live scores from ESPN via Supabase Edge Function (60s polling)
   const { liveByKey } = useLiveScores();
 
+  // Re-key liveByKey by our local team slugs instead of ESPN numeric IDs so
+  // getLiveForFixture() can match fixtures by home_team_id / away_team_id.
+  const resolvedLiveByKey = useMemo(() => {
+    const resolved = new Map<string, LiveMatch>();
+    for (const m of liveByKey.values()) {
+      const homeId = resolveLocalId(m.homeTeamFdName, m.homeLocalId, teamMap);
+      const awayId = resolveLocalId(m.awayTeamFdName, m.awayLocalId, teamMap);
+      if (homeId && awayId) resolved.set(`${homeId}:${awayId}`, m);
+    }
+    return resolved;
+  }, [liveByKey, teamMap]);
+
   // FIFA ranking map for group-stage tiebreaking (teamId → points; higher = better)
   const fifaMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -1251,6 +1263,43 @@ export function MatchesPage() {
   // Re-run only when the engine becomes ready, the day changes, or weights update.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, selectedDate, modelWeights]);
+
+  // Auto-save results when the live API reports a match as FINISHED and we have
+  // a prediction for it. Fires on every 60s live-score poll that brings a FINISHED
+  // status for a fixture not yet in playedMap/evalDone.
+  const autoSavedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!engine) return;
+    for (const [key, m] of resolvedLiveByKey) {
+      if (m.status !== 'FINISHED' || m.homeGoals == null || m.awayGoals == null) continue;
+      const [homeId, awayId] = key.split(':');
+      const fixture = fixtures.find(f => f.home_team_id === homeId && f.away_team_id === awayId);
+      if (!fixture) continue;
+      if (playedMap.has(fixture.id)) continue;
+      if (evalDone.has(fixture.id)) continue;
+      if (autoSavedRef.current.has(fixture.id)) continue;
+      const pred = predictions.get(fixture.id);
+      if (!pred) continue;
+
+      autoSavedRef.current.add(fixture.id);
+      const hg = m.homeGoals;
+      const ag = m.awayGoals;
+      (async () => {
+        try {
+          await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag });
+          await deleteEvaluationsForFixtures([fixture.id]);
+          await saveEvaluations(buildEvaluationRows(pred.predictions, fixture, hg, ag));
+          setEvalDone(prev => new Set(prev).add(fixture.id));
+          qc.invalidateQueries({ queryKey: ['wc-results'] });
+          qc.invalidateQueries({ queryKey: ['evaluations'] });
+        } catch {
+          // Allow retry on next poll by removing from the in-progress set
+          autoSavedRef.current.delete(fixture.id);
+        }
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedLiveByKey, predictions, engine]);
 
   const expand = useCallback(async (fixture: Fixture) => {
     const isSame = expandedId === fixture.id;
@@ -1372,7 +1421,7 @@ export function MatchesPage() {
     compact,
     bestModelName: bestWinnerModelName,
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
-    liveMatch: getLiveForFixture(liveByKey, fixture.home_team_id, fixture.away_team_id),
+    liveMatch: getLiveForFixture(resolvedLiveByKey, fixture.home_team_id, fixture.away_team_id),
     goals: goalsByFixture.get(fixture.id),
   });
 
@@ -1559,7 +1608,7 @@ export function MatchesPage() {
                   const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
                   const played = playedMap.get(f.id);
                   const pred = predictions.get(f.id);
-                  const liveM = getLiveForFixture(liveByKey, f.home_team_id, f.away_team_id);
+                  const liveM = getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id);
                   const rowIsLive = liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED';
                   return (
                     <div key={f.id} className={`${i > 0 ? 'border-t border-white/10' : ''} ${rowIsLive ? 'border-l-2 border-l-red-500' : ''}`}>
@@ -1769,7 +1818,7 @@ export function MatchesPage() {
                     const result = playedMap.get(f.id);
                     const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
                     const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
-                    const liveG = getLiveForFixture(liveByKey, f.home_team_id, f.away_team_id);
+                    const liveG = getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id);
                     const isLive = liveG?.status === 'IN_PLAY' || liveG?.status === 'PAUSED';
                     const isFinishedLive = !result && liveG?.status === 'FINISHED';
                     return (
