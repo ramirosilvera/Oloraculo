@@ -220,14 +220,18 @@ export interface GeminiCondensedSnapshot {
 export async function callGeminiAnalysis(
   snapshots: GeminiCondensedSnapshot[],
 ): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('gemini-analysis', {
-    body: { snapshots },
+  const res = await fetch('/api/gemini-analysis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snapshots }),
   });
-  if (error) throw error;
-  if (typeof (data as Record<string, unknown>)?.analysis !== 'string') {
-    throw new Error('empty-response');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? `HTTP ${res.status}`);
   }
-  return (data as { analysis: string }).analysis;
+  const data = await res.json() as { analysis?: string };
+  if (typeof data.analysis !== 'string') throw new Error('empty-response');
+  return data.analysis;
 }
 
 export async function writeAppEvent(eventType: string, payload: unknown = {}): Promise<void> {
