@@ -120,8 +120,14 @@ export async function recomputePIELOO(
     const fixture = fixtureById.get(r.fixture_id);
 
     if (fixture) {
-      // Training set: all matches except this one
+      // Training set: all matches except this one.
+      // Skip if fewer than 5 training matches — rankings are too noisy to be meaningful.
       const trainResults = wcResults.filter((_, i) => i !== idx);
+      if (trainResults.length < 5) {
+        onProgress({ current: idx + 1, total });
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        continue;
+      }
 
       // Build Elo map from training set only
       const eloByFixture = new Map<string, { home: number; away: number }>();

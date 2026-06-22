@@ -41,17 +41,17 @@ const POOL_AWAY_EQ: ScoreEntry[] = [
   { home: 2, away: 3, w:  4 }, { home: 1, away: 4, w:  2 },
 ];
 const POOL_HOME_FAV: ScoreEntry[] = [
-  { home: 2, away: 0, w: 32 }, { home: 3, away: 0, w: 20 },
-  { home: 3, away: 1, w: 18 }, { home: 1, away: 0, w: 16 },
-  { home: 2, away: 1, w: 10 }, { home: 4, away: 0, w:  4 },
+  { home: 1, away: 0, w: 28 }, { home: 2, away: 0, w: 24 },
+  { home: 2, away: 1, w: 16 }, { home: 3, away: 0, w: 16 },
+  { home: 3, away: 1, w: 12 }, { home: 4, away: 0, w:  4 },
 ];
 const POOL_DRAW_FAV: ScoreEntry[] = [
   { home: 1, away: 1, w: 70 }, { home: 0, away: 0, w: 20 }, { home: 2, away: 2, w: 10 },
 ];
 const POOL_AWAY_FAV: ScoreEntry[] = [
-  { home: 0, away: 2, w: 32 }, { home: 0, away: 3, w: 20 },
-  { home: 1, away: 3, w: 18 }, { home: 0, away: 1, w: 16 },
-  { home: 1, away: 2, w: 10 }, { home: 0, away: 4, w:  4 },
+  { home: 0, away: 1, w: 28 }, { home: 0, away: 2, w: 24 },
+  { home: 1, away: 2, w: 16 }, { home: 0, away: 3, w: 16 },
+  { home: 1, away: 3, w: 12 }, { home: 0, away: 4, w:  4 },
 ];
 const POOL_HOME_SOR: ScoreEntry[] = [
   { home: 1, away: 0, w: 50 }, { home: 2, away: 1, w: 30 },
@@ -419,13 +419,16 @@ export function computePIEFromRecords(
 
     cKH += w * kh; cKD += w * kd; cKA += w * ka;
 
-    // Weighted score vote (uses the pick already in _picks[i])
+    // Soft score voting: contribute full pool distribution weighted by player weight.
+    // Replaces single wSamplePool sample (high variance) with its expectation (zero variance).
     const pc = _picks[i];
     const arc = ARCHETYPE[i];
     const sp = pc === 0 ? ARC_HOME_POOLS[arc] : pc === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
-    const sv = wSamplePool(sp, fastRng(i, fixHash, 1));
-    const skey = `${sv.home}-${sv.away}`;
-    scoreVotes.set(skey, (scoreVotes.get(skey) ?? 0) + w);
+    const invTotal = w / sp.total;
+    for (const entry of sp.entries) {
+      const skey = `${entry.home}-${entry.away}`;
+      scoreVotes.set(skey, (scoreVotes.get(skey) ?? 0) + entry.w * invTotal);
+    }
   }
   const invK = sumK > 0 ? 1 / sumK : 1;
   const pKH = cKH * invK, pKD = cKD * invK, pKA = cKA * invK;
