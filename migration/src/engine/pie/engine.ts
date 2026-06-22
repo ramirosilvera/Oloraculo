@@ -13,10 +13,14 @@ import { PIE_PLAYERS } from './players';
 import type { Fixture, WcActualResult } from '../../types/domain';
 
 // ---------------------------------------------------------------------------
-// Score pools — historical WC frequencies 2006-2022
+// Score pools — archetype-specific distributions
+// Each archetype expresses a different "vision" of how goals are scored.
 // ---------------------------------------------------------------------------
 
-const HOME_WIN_POOL = [
+type ScoreEntry = { home: number; away: number; w: number };
+
+// EQUILIBRADO — historical WC 2006-2022 baseline frequencies
+const POOL_HOME_EQ: ScoreEntry[] = [
   { home: 1, away: 0, w: 34 },
   { home: 2, away: 0, w: 22 },
   { home: 2, away: 1, w: 20 },
@@ -26,15 +30,13 @@ const HOME_WIN_POOL = [
   { home: 3, away: 2, w:  4 },
   { home: 4, away: 1, w:  2 },
 ];
-
-const DRAW_POOL = [
+const POOL_DRAW_EQ: ScoreEntry[] = [
   { home: 1, away: 1, w: 55 },
   { home: 0, away: 0, w: 35 },
   { home: 2, away: 2, w:  8 },
   { home: 3, away: 3, w:  2 },
 ];
-
-const AWAY_WIN_POOL = [
+const POOL_AWAY_EQ: ScoreEntry[] = [
   { home: 0, away: 1, w: 34 },
   { home: 0, away: 2, w: 22 },
   { home: 1, away: 2, w: 20 },
@@ -44,6 +46,115 @@ const AWAY_WIN_POOL = [
   { home: 2, away: 3, w:  4 },
   { home: 1, away: 4, w:  2 },
 ];
+
+// FAVORITO — expects dominant wins, heavier on 2-0, 3-0, 3-1
+const POOL_HOME_FAV: ScoreEntry[] = [
+  { home: 1, away: 0, w: 18 },
+  { home: 2, away: 0, w: 32 },
+  { home: 2, away: 1, w: 15 },
+  { home: 3, away: 0, w: 18 },
+  { home: 3, away: 1, w: 12 },
+  { home: 4, away: 0, w:  3 },
+  { home: 4, away: 1, w:  2 },
+];
+const POOL_DRAW_FAV: ScoreEntry[] = [
+  { home: 1, away: 1, w: 70 },
+  { home: 0, away: 0, w: 20 },
+  { home: 2, away: 2, w: 10 },
+];
+const POOL_AWAY_FAV: ScoreEntry[] = [
+  { home: 0, away: 1, w: 18 },
+  { home: 0, away: 2, w: 32 },
+  { home: 1, away: 2, w: 15 },
+  { home: 0, away: 3, w: 18 },
+  { home: 1, away: 3, w: 12 },
+  { home: 0, away: 4, w:  3 },
+  { home: 1, away: 4, w:  2 },
+];
+
+// SORPRESA — narrow margins, unexpected scores, tight games
+const POOL_HOME_SOR: ScoreEntry[] = [
+  { home: 1, away: 0, w: 50 },
+  { home: 2, away: 1, w: 30 },
+  { home: 3, away: 2, w: 12 },
+  { home: 2, away: 0, w:  8 },
+];
+const POOL_DRAW_SOR: ScoreEntry[] = [
+  { home: 0, away: 0, w: 50 },
+  { home: 1, away: 1, w: 35 },
+  { home: 2, away: 2, w: 15 },
+];
+const POOL_AWAY_SOR: ScoreEntry[] = [
+  { home: 0, away: 1, w: 50 },
+  { home: 1, away: 2, w: 30 },
+  { home: 2, away: 3, w: 12 },
+  { home: 0, away: 2, w:  8 },
+];
+
+// EMPATE — expects draws, close scores
+const POOL_HOME_EMP: ScoreEntry[] = [
+  { home: 1, away: 0, w: 40 },
+  { home: 2, away: 1, w: 35 },
+  { home: 3, away: 2, w: 15 },
+  { home: 2, away: 0, w: 10 },
+];
+const POOL_DRAW_EMP: ScoreEntry[] = [
+  { home: 0, away: 0, w: 48 },
+  { home: 1, away: 1, w: 36 },
+  { home: 2, away: 2, w: 13 },
+  { home: 3, away: 3, w:  3 },
+];
+const POOL_AWAY_EMP: ScoreEntry[] = [
+  { home: 0, away: 1, w: 40 },
+  { home: 1, away: 2, w: 35 },
+  { home: 2, away: 3, w: 15 },
+  { home: 0, away: 2, w: 10 },
+];
+
+// CAOTICO — flat distribution, high variance, exotic scores included
+const POOL_HOME_CAO: ScoreEntry[] = [
+  { home: 1, away: 0, w: 14 },
+  { home: 2, away: 0, w: 12 },
+  { home: 2, away: 1, w: 12 },
+  { home: 3, away: 0, w: 10 },
+  { home: 3, away: 1, w: 10 },
+  { home: 3, away: 2, w: 10 },
+  { home: 4, away: 0, w:  8 },
+  { home: 4, away: 1, w:  8 },
+  { home: 4, away: 2, w:  6 },
+  { home: 5, away: 1, w:  5 },
+  { home: 5, away: 2, w:  3 },
+  { home: 6, away: 1, w:  2 },
+];
+const POOL_DRAW_CAO: ScoreEntry[] = [
+  { home: 0, away: 0, w: 28 },
+  { home: 1, away: 1, w: 30 },
+  { home: 2, away: 2, w: 22 },
+  { home: 3, away: 3, w: 12 },
+  { home: 4, away: 4, w:  8 },
+];
+const POOL_AWAY_CAO: ScoreEntry[] = [
+  { home: 0, away: 1, w: 14 },
+  { home: 0, away: 2, w: 12 },
+  { home: 1, away: 2, w: 12 },
+  { home: 0, away: 3, w: 10 },
+  { home: 1, away: 3, w: 10 },
+  { home: 2, away: 3, w: 10 },
+  { home: 0, away: 4, w:  8 },
+  { home: 1, away: 4, w:  8 },
+  { home: 2, away: 4, w:  6 },
+  { home: 1, away: 5, w:  5 },
+  { home: 2, away: 5, w:  3 },
+  { home: 1, away: 6, w:  2 },
+];
+
+const SCORE_POOLS: Record<ArchetypeId, { home: ScoreEntry[]; draw: ScoreEntry[]; away: ScoreEntry[] }> = {
+  FAVORITO:    { home: POOL_HOME_FAV, draw: POOL_DRAW_FAV, away: POOL_AWAY_FAV },
+  SORPRESA:    { home: POOL_HOME_SOR, draw: POOL_DRAW_SOR, away: POOL_AWAY_SOR },
+  EMPATE:      { home: POOL_HOME_EMP, draw: POOL_DRAW_EMP, away: POOL_AWAY_EMP },
+  EQUILIBRADO: { home: POOL_HOME_EQ,  draw: POOL_DRAW_EQ,  away: POOL_AWAY_EQ  },
+  CAOTICO:     { home: POOL_HOME_CAO, draw: POOL_DRAW_CAO, away: POOL_AWAY_CAO },
+};
 
 // ---------------------------------------------------------------------------
 // Deterministic RNG — FNV-1a hash on string seed
@@ -72,7 +183,34 @@ function wSample<T extends { w: number }>(pool: T[], rng: number): T {
 }
 
 // ---------------------------------------------------------------------------
-// Elo-based prior
+// WC 2026 form bonus — adjusts static Elo with in-tournament results
+// +25 per win, +5 per draw, -15 per loss in WC 2026
+// ---------------------------------------------------------------------------
+
+function wcFormBonus(
+  teamId: string,
+  allFixtures: Fixture[],
+  wcResults: WcActualResult[],
+): number {
+  const playedMap = new Map(wcResults.map(r => [r.fixture_id, r]));
+  let bonus = 0;
+  for (const f of allFixtures) {
+    const r = playedMap.get(f.id);
+    if (!r) continue;
+    const isHome = f.home_team_id === teamId;
+    const isAway = f.away_team_id === teamId;
+    if (!isHome && !isAway) continue;
+    const gf = isHome ? r.home_goals : r.away_goals;
+    const ga = isHome ? r.away_goals : r.home_goals;
+    if      (gf > ga) bonus += 25;
+    else if (gf === ga) bonus += 5;
+    else    bonus -= 15;
+  }
+  return bonus;
+}
+
+// ---------------------------------------------------------------------------
+// Elo-based prior (with optional WC form adjustment)
 // ---------------------------------------------------------------------------
 
 function eloBasedPrior(homeElo: number, awayElo: number): { home: number; draw: number; away: number } {
@@ -86,6 +224,7 @@ function eloBasedPrior(homeElo: number, awayElo: number): { home: number; draw: 
 
 // ---------------------------------------------------------------------------
 // Player pick — deterministic for given player + fixture
+// Uses EQUILIBRADO pools internally (variety comes from archetype-aware final score)
 // ---------------------------------------------------------------------------
 
 function computePlayerPick(
@@ -94,7 +233,6 @@ function computePlayerPick(
   fixtureId: string,
 ): PIEPlayerPick {
   const rng1 = fnv1a(`${player.id}::pick::${fixtureId}`);
-  const rng2 = fnv1a(`${player.id}::score::${fixtureId}`);
 
   let h = Math.max(0.02, prior.home + player.homeSkew);
   let d = Math.max(0.02, prior.draw + player.drawSkew);
@@ -111,10 +249,33 @@ function computePlayerPick(
   const pick: 'Home' | 'Draw' | 'Away' =
     rng1 < h ? 'Home' : rng1 < h + d ? 'Draw' : 'Away';
 
-  const pool = pick === 'Home' ? HOME_WIN_POOL : pick === 'Away' ? AWAY_WIN_POOL : DRAW_POOL;
+  // Score for reputation comparison (uses player-specific seed, EQUILIBRADO pool)
+  const rng2 = fnv1a(`${player.id}::score::${fixtureId}`);
+  const sPool = SCORE_POOLS.EQUILIBRADO;
+  const pool = pick === 'Home' ? sPool.home : pick === 'Away' ? sPool.away : sPool.draw;
   const s = wSample(pool, rng2);
 
   return { playerId: player.id, pick, score: { home: s.home, away: s.away }, reputation: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Final score pick — single seeded draw from archetype-aware pool
+// NOT aggregated across 500 players: each fixture + archetype combo gets
+// exactly one draw from the pool → real variety across matches
+// ---------------------------------------------------------------------------
+
+function pickFinalScore(
+  pick: 'Home' | 'Draw' | 'Away',
+  dominantArchetype: ArchetypeId,
+  fixtureId: string,
+  contrarianSignal: number,
+): { home: number; away: number } {
+  // If elites strongly disagree with crowd, lean toward a surprising score
+  const archetype: ArchetypeId = contrarianSignal > 0.20 ? 'SORPRESA' : dominantArchetype;
+  const pools = SCORE_POOLS[archetype];
+  const pool = pick === 'Home' ? pools.home : pick === 'Away' ? pools.away : pools.draw;
+  const rng = fnv1a(`pie::finalscore::${archetype}::${pick}::${fixtureId}`);
+  return wSample(pool, rng);
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +319,11 @@ function buildReputations(
     const aElo = awayEloFn(r.fixture_id);
     if (hElo === 0 || aElo === 0) continue;
 
-    const prior = eloBasedPrior(hElo, aElo);
+    // Apply WC form bonus to reputation-building prior too
+    const homeBns = wcFormBonus(fixture.home_team_id, allFixtures, wcResults);
+    const awayBns = wcFormBonus(fixture.away_team_id, allFixtures, wcResults);
+    const prior = eloBasedPrior(hElo + homeBns, aElo + awayBns);
+
     const actual: 'Home' | 'Draw' | 'Away' =
       r.home_goals > r.away_goals ? 'Home'
       : r.home_goals === r.away_goals ? 'Draw'
@@ -204,7 +369,10 @@ export function computePIEScore(input: PIEInput): PIEResult {
     return degradedResult(fixture?.id ?? '');
   }
 
-  const prior = eloBasedPrior(homeElo, awayElo);
+  // WC 2026 form-adjusted prior
+  const homeBns = wcFormBonus(fixture.home_team_id, allFixtures, wcResults);
+  const awayBns = wcFormBonus(fixture.away_team_id, allFixtures, wcResults);
+  const prior = eloBasedPrior(homeElo + homeBns, awayElo + awayBns);
 
   // Elo lookup for reputation building
   const hEloFn = (fid: string) => eloByFixture?.get(fid)?.home ?? 0;
@@ -213,12 +381,12 @@ export function computePIEScore(input: PIEInput): PIEResult {
   const reps = buildReputations(allFixtures, wcResults, hEloFn, aEloFn);
 
   // Compute all 500 player picks + reputations
-  type WeightedPick = { pick: 'Home' | 'Draw' | 'Away'; rep: number; archetype: ArchetypeId; score: { home: number; away: number } };
+  type WeightedPick = { pick: 'Home' | 'Draw' | 'Away'; rep: number; archetype: ArchetypeId };
   const allPicks: WeightedPick[] = PIE_PLAYERS.map(player => {
-    const { pick, score } = computePlayerPick(player, prior, fixture.id);
+    const { pick } = computePlayerPick(player, prior, fixture.id);
     const entry = reps.get(player.id)!;
     const rep = computeReputation(entry.correct, entry.total, entry.upsetCorrect);
-    return { pick, rep, archetype: player.archetype, score };
+    return { pick, rep, archetype: player.archetype };
   });
 
   // Weighted crowd consensus (softmax on rep)
@@ -281,19 +449,14 @@ export function computePIEScore(input: PIEInput): PIEResult {
     archetypeKeys[0]
   );
 
-  // Most likely score — weighted vote across all 500 picks
-  const scoreVotes = new Map<string, number>();
-  for (const p of allPicks) {
-    const key = `${p.score.home}-${p.score.away}`;
-    scoreVotes.set(key, (scoreVotes.get(key) ?? 0) + p.rep);
-  }
-  let bestScoreKey = '';
-  let bestScoreW = 0;
-  for (const [k, w] of scoreVotes) {
-    if (w > bestScoreW) { bestScoreW = w; bestScoreKey = k; }
-  }
-  const [sh, sa] = bestScoreKey.split('-').map(Number);
-  const mostLikelyScore = bestScoreKey ? { home: sh, away: sa } : null;
+  // Most likely score — single archetype-aware seeded draw (NOT a vote across 500)
+  // This gives real variety: different fixtures → different FNV hash → different pool entry
+  const mostLikelyScore = pickFinalScore(
+    most_probable_pick,
+    dominant_archetype,
+    fixture.id,
+    contrarian_signal,
+  );
 
   const confidence = Math.max(crowdHome, crowdDraw, crowdAway);
 
