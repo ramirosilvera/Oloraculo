@@ -5,6 +5,10 @@
 // strength tuning) so the Performance dashboard reflects the live models and
 // backfills metrics such as exact_score_correct that older rows lack.
 //
+// PIE is evaluated via leave-one-out cross-validation (recomputePIELOO):
+// for each match X the track records are built WITHOUT X, then X is predicted.
+// This prevents in-sample inflation of PIE metrics.
+//
 // Runs in the browser (where Supabase + the engine are both available).
 // =============================================================================
 
@@ -40,8 +44,8 @@ export interface RecomputeResult {
 }
 
 /**
- * Build a fresh set of evaluation rows for every played match.
- * Pure: it only reads data and returns rows — persistence is the caller's job.
+ * Build evaluation rows for all statistical models (no PIE).
+ * Pure and synchronous — PIE uses the separate LOO function below.
  */
 export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
   const { engine, fixtures, teamMap, ratingsList, contextMap, wcResults } = deps;
@@ -51,25 +55,6 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
   const fixtureIds: string[] = [];
   let matchesProcessed = 0;
   let matchesSkipped = 0;
-
-  const actual = (hg: number, ag: number): 'Home' | 'Draw' | 'Away' =>
-    hg > ag ? 'Home' : hg === ag ? 'Draw' : 'Away';
-
-  // Build Elo lookup and PIE track records ONCE (not once per fixture)
-  const latestElo = (teamId: string) => {
-    let best: Rating | null = null;
-    for (const rt of ratingsList) {
-      if (rt.team_id !== teamId || rt.type !== 'elo') continue;
-      if (!best || rt.as_of > best.as_of) best = rt;
-    }
-    return best?.value ?? 0;
-  };
-  const eloByFixture = new Map<string, { home: number; away: number }>();
-  for (const wr of wcResults) {
-    const wf = fixtureById.get(wr.fixture_id);
-    if (wf) eloByFixture.set(wr.fixture_id, { home: latestElo(wf.home_team_id), away: latestElo(wf.away_team_id) });
-  }
-  const pieRecords = buildPIETrackRecords(fixtures, wcResults, eloByFixture);
 
   for (const r of wcResults) {
     const fixture = fixtureById.get(r.fixture_id);
@@ -84,19 +69,87 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
     if (built.length === 0) { matchesSkipped++; continue; }
 
     rows.push(...built);
+    fixtureIds.push(r.fixture_id);
+    matchesProcessed++;
+  }
 
-    // PIE evaluation row
-    {
+  return { rows, fixtureIds, matchesProcessed, matchesSkipped };
+}
+
+// ---------------------------------------------------------------------------
+// PIE — Leave-One-Out cross-validation
+// ---------------------------------------------------------------------------
+
+export interface PIELOOProgress {
+  current: number;
+  total: number;
+}
+
+/**
+ * Evaluate PIE using leave-one-out cross-validation.
+ * For each match X: build track records from all matches EXCEPT X, then
+ * predict X. This gives honest out-of-sample metrics — no data leakage.
+ *
+ * Async so the caller can yield between iterations and update a progress bar.
+ */
+export async function recomputePIELOO(
+  deps: RecomputeDeps,
+  onProgress: (p: PIELOOProgress) => void,
+): Promise<{ rows: EvaluationInsert[]; fixtureIds: string[] }> {
+  const { fixtures, ratingsList, wcResults } = deps;
+
+  const fixtureById = new Map(fixtures.map(f => [f.id, f]));
+  const rows: EvaluationInsert[] = [];
+  const fixtureIds: string[] = [];
+  const total = wcResults.length;
+
+  const latestElo = (teamId: string) => {
+    let best: Rating | null = null;
+    for (const rt of ratingsList) {
+      if (rt.team_id !== teamId || rt.type !== 'elo') continue;
+      if (!best || rt.as_of > best.as_of) best = rt;
+    }
+    return best?.value ?? 0;
+  };
+
+  const actual = (hg: number, ag: number): 'Home' | 'Draw' | 'Away' =>
+    hg > ag ? 'Home' : hg === ag ? 'Draw' : 'Away';
+
+  for (let idx = 0; idx < total; idx++) {
+    const r = wcResults[idx];
+    const fixture = fixtureById.get(r.fixture_id);
+
+    if (fixture) {
+      // Training set: all matches except this one
+      const trainResults = wcResults.filter((_, i) => i !== idx);
+
+      // Build Elo map from training set only
+      const eloByFixture = new Map<string, { home: number; away: number }>();
+      for (const wr of trainResults) {
+        const wf = fixtureById.get(wr.fixture_id);
+        if (wf) eloByFixture.set(wr.fixture_id, {
+          home: latestElo(wf.home_team_id),
+          away: latestElo(wf.away_team_id),
+        });
+      }
+
+      // Track records built WITHOUT the target match
+      const pieRecords = buildPIETrackRecords(fixtures, trainResults, eloByFixture);
+
+      const homeElo = latestElo(fixture.home_team_id);
+      const awayElo = latestElo(fixture.away_team_id);
+
+      // Predict using training-only records; form bonus also excludes match X
       const pieResult = computePIEFromRecords(
-        fixture,
-        latestElo(fixture.home_team_id),
-        latestElo(fixture.away_team_id),
-        wcResults,
-        fixtures,
-        pieRecords,
+        fixture, homeElo, awayElo, trainResults, fixtures, pieRecords,
       );
+
       if (!pieResult.degraded) {
-        const out = { homeWin: pieResult.pick_probabilities.home, draw: pieResult.pick_probabilities.draw, awayWin: pieResult.pick_probabilities.away };
+        const out = {
+          homeWin: pieResult.pick_probabilities.home,
+          draw:    pieResult.pick_probabilities.draw,
+          awayWin: pieResult.pick_probabilities.away,
+        };
         const act = actual(r.home_goals, r.away_goals);
         rows.push({
           model_name: 'PIE',
@@ -117,12 +170,14 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
             ? pieResult.mostLikelyScore.home === r.home_goals && pieResult.mostLikelyScore.away === r.away_goals
             : null,
         });
+        fixtureIds.push(r.fixture_id);
       }
     }
 
-    fixtureIds.push(r.fixture_id);
-    matchesProcessed++;
+    onProgress({ current: idx + 1, total });
+    // Yield to the event loop so the UI progress bar can repaint
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
   }
 
-  return { rows, fixtureIds, matchesProcessed, matchesSkipped };
+  return { rows, fixtureIds };
 }

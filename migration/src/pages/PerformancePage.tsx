@@ -7,7 +7,7 @@ import {
   saveEvaluations,
   deleteEvaluationsForFixtures,
 } from '../services/supabase-client';
-import { recomputeEvaluations } from '../engine/recompute-evaluations';
+import { recomputeEvaluations, recomputePIELOO } from '../engine/recompute-evaluations';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import type { PredictionEvaluation } from '../types/domain';
 import {
@@ -103,6 +103,7 @@ export function PerformancePage() {
 
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeMsg, setRecomputeMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [progress, setProgress] = useState<{ phase: string; current: number; total: number } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   // Must be before any early return (React Rules of Hooks)
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -134,27 +135,47 @@ export function PerformancePage() {
     }
     setRecomputing(true);
     setRecomputeMsg(null);
+    setProgress(null);
     try {
-      const { rows, fixtureIds, matchesProcessed, matchesSkipped } = recomputeEvaluations({
-        engine, fixtures, teamMap, ratingsList, contextMap, wcResults, squadStrengthData,
-      });
+      const deps = { engine, fixtures, teamMap, ratingsList, contextMap, wcResults, squadStrengthData };
+
+      // Phase 1 — statistical models (sync, fast)
+      setProgress({ phase: 'Modelos estadísticos', current: 0, total: wcResults.length });
+      const { rows: modelRows, fixtureIds, matchesProcessed, matchesSkipped } = recomputeEvaluations(deps);
       if (matchesProcessed === 0) {
         setRecomputeMsg({ kind: 'err', text: 'No hay partidos jugados para evaluar todavía.' });
         return;
       }
-      // Replace stale rows for the recomputed fixtures, then insert fresh ones.
-      await deleteEvaluationsForFixtures(fixtureIds);
-      await saveEvaluations(rows);
+      setProgress({ phase: 'Modelos estadísticos', current: wcResults.length, total: wcResults.length });
+
+      // Phase 2 — PIE leave-one-out (async, shows per-match progress)
+      const { rows: pieRows, fixtureIds: pieFixtureIds } = await recomputePIELOO(
+        deps,
+        ({ current, total }) => setProgress({
+          phase: 'PIE · leave-one-out',
+          current,
+          total,
+        }),
+      );
+
+      // Combine and persist
+      const allRows = [...modelRows, ...pieRows];
+      const allFixtureIds = [...new Set([...fixtureIds, ...pieFixtureIds])];
+
+      await deleteEvaluationsForFixtures(allFixtureIds);
+      await saveEvaluations(allRows);
       await qc.invalidateQueries({ queryKey: ['evaluations'] });
+
       const skip = matchesSkipped > 0 ? ` · ${matchesSkipped} omitido${matchesSkipped !== 1 ? 's' : ''}` : '';
       setRecomputeMsg({
         kind: 'ok',
-        text: `Recalculado: ${matchesProcessed} partido${matchesProcessed !== 1 ? 's' : ''}, ${rows.length} evaluaciones${skip}.`,
+        text: `Recalculado: ${matchesProcessed} partido${matchesProcessed !== 1 ? 's' : ''}, ${allRows.length} evaluaciones${skip}.`,
       });
     } catch (e) {
       setRecomputeMsg({ kind: 'err', text: `Error al recalcular: ${String(e)}` });
     } finally {
       setRecomputing(false);
+      setProgress(null);
     }
   }
 
@@ -215,10 +236,33 @@ export function PerformancePage() {
           className="shrink-0"
         >
           {recomputing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Recalculando…</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> {progress?.phase ?? 'Iniciando…'}</>
             : <><RefreshCw className="w-4 h-4" /> Recalcular evaluaciones</>}
         </Button>
       </div>
+
+      {/* Progress bar — shown during recompute */}
+      {recomputing && progress && (
+        <div className="rounded-xl border border-wc-navy/10 bg-wc-navy/3 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-wc-navy">{progress.phase}</span>
+            <span className="text-xs tabular-nums text-gray-400">
+              {progress.current}/{progress.total}
+            </span>
+          </div>
+          <div className="h-2 bg-wc-navy/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-wc-navy rounded-full transition-all duration-100"
+              style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+            />
+          </div>
+          {progress.phase === 'PIE · leave-one-out' && (
+            <p className="text-[10px] text-gray-400">
+              Evaluando sin data leakage — cada partido se predice sin conocer su propio resultado.
+            </p>
+          )}
+        </div>
+      )}
 
       {recomputeMsg && (
         <div className={`flex items-start gap-2 p-3 rounded-xl text-sm border ${
@@ -234,8 +278,8 @@ export function PerformancePage() {
       )}
 
       <p className="text-xs text-gray-400 -mt-2">
-        Recalcular vuelve a evaluar todos los partidos jugados con los modelos actuales
-        (necesario tras cambiar un modelo, como el de plantel) y completa los aciertos de marcador exacto.
+        Recalcular evalúa todos los partidos jugados con los modelos actuales. PIE usa
+        evaluación leave-one-out (sin data leakage): cada partido se predice sin conocer su propio resultado.
       </p>
 
       {/* ------------------------------------------------------------------ */}
