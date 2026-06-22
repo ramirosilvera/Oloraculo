@@ -1177,6 +1177,177 @@ function LiveNow({ liveByKey, teamMap, fixtures }: {
 }
 
 // ---------------------------------------------------------------------------
+// TodayFixtureItem — wraps each fixture in the "today" date section so that
+// usePIEForFixture can be called as a hook (hooks can't live in .map callbacks)
+// ---------------------------------------------------------------------------
+interface TodayFixtureItemProps {
+  fixture: Fixture;
+  i: number;
+  homeName: string;
+  awayName: string;
+  played: WcActualResult | undefined;
+  pred: MatchPredictionResult | undefined;
+  liveM: LiveMatch | null | undefined;
+  expandedId: string | null;
+  expandingId: string | null;
+  expand: (f: Fixture) => void;
+  hasEngine: boolean;
+  ratings: Rating[];
+  allFixtures: Fixture[];
+  wcResults: WcActualResult[];
+  fixtureRowProps: (f: Fixture) => FixtureRowProps;
+}
+
+function TodayFixtureItem({
+  fixture, i, homeName, awayName, played, pred, liveM,
+  expandedId, expandingId, expand, hasEngine, ratings, allFixtures, wcResults, fixtureRowProps,
+}: TodayFixtureItemProps) {
+  const rowIsLive = liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED';
+  const { result: pieResult } = usePIEForFixture({
+    fixture,
+    ratings,
+    allFixtures,
+    wcResults,
+    enabled: !played,
+  });
+
+  return (
+    <div className={`${i > 0 ? 'border-t border-white/10' : ''} ${rowIsLive ? 'border-l-2 border-l-red-500' : ''}`}>
+      <button
+        onClick={() => expand(fixture)}
+        disabled={expandingId === fixture.id}
+        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 active:bg-white/20 transition-all text-left ${expandingId === fixture.id ? 'opacity-70' : ''} ${rowIsLive ? 'bg-red-950/30' : ''}`}
+      >
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="text-[10px] font-bold text-wc-gold/80 uppercase tracking-wide">
+            Partido {i + 1}
+          </span>
+          {fixture.kickoff_utc && (
+            <>
+              <span className="text-white/30 text-[10px]">·</span>
+              <span className="text-[10px] font-semibold text-white/60">
+                {kickoffART(fixture.kickoff_utc)} ART
+              </span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3 w-full">
+          <FlagImg id={fixture.home_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
+          <span className="font-bold text-white text-sm truncate flex-1">{homeName}</span>
+          <span className="text-white/40 text-xs font-medium shrink-0">vs</span>
+          <span className="font-bold text-white text-sm truncate flex-1 text-right">{awayName}</span>
+          <FlagImg id={fixture.away_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
+          <span className="ml-1 shrink-0">
+            {played ? (
+              <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
+            ) : liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED' ? (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-red-300 bg-red-900/40 border border-red-500/40 px-1.5 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
+                {liveM.homeGoals ?? 0}–{liveM.awayGoals ?? 0}
+                {liveM.minute ? ` ${liveM.minute}'` : ''}
+              </span>
+            ) : liveM?.status === 'FINISHED' ? (
+              <Badge color="green">{liveM.homeGoals ?? 0}–{liveM.awayGoals ?? 0}</Badge>
+            ) : (
+              <span className="text-xs font-semibold text-wc-gold bg-wc-navy/50 px-2 py-0.5 rounded-md">
+                Grp {fixture.group_name}
+              </span>
+            )}
+          </span>
+          <span className="text-white/40 shrink-0">
+            {expandingId === fixture.id
+              ? <Loader2 className="w-4 h-4 animate-spin text-wc-gold" />
+              : expandedId === fixture.id
+                ? <ChevronUp className="w-4 h-4" />
+                : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </div>
+        {/* Prediction strip — only for unplayed fixtures */}
+        {!played && pred ? (() => {
+          const plantelPred  = pred.predictions.find(p => p.predictorName === 'Potencial del plantel' && !p.degraded);
+          const momentumPred = pred.predictions.find(p => p.predictorName === 'Momentum del Mundial'  && !p.degraded);
+          const probSrc  = plantelPred  ?? momentumPred ?? pred.bestPrediction;
+          const scoreSrc = momentumPred ?? plantelPred  ?? pred.bestPrediction;
+          const { homeWin, draw, awayWin } = probSrc.outcome;
+          const topPickResult = topPick(probSrc.outcome);
+          const isMarginDraw = topPickResult === 'Draw' && draw < Math.max(homeWin, awayWin);
+          let scoreStr: string | null = null;
+          if (scoreSrc.scoreline) {
+            const per = mostLikelyScorePerOutcome(scoreSrc.scoreline);
+            const dom = topPickResult === 'Home' ? per.homeWin
+                      : topPickResult === 'Away' ? per.awayWin : per.draw;
+            if (dom) scoreStr = `${dom.home}-${dom.away}`;
+          }
+          const topPickProb = topPickResult === 'Home' ? homeWin
+                           : topPickResult === 'Away' ? awayWin : draw;
+          const label = topPickResult === 'Home'
+            ? `L ${(homeWin*100).toFixed(0)}%`
+            : topPickResult === 'Away'
+            ? `V ${(awayWin*100).toFixed(0)}%`
+            : isMarginDraw
+            ? `~E ${(draw*100).toFixed(0)}%`
+            : `E ${(draw*100).toFixed(0)}%`;
+
+          let pieScoreStr: string | null = null;
+          let piePickLabel = '';
+          let pieProbPct = '';
+          if (pieResult && !pieResult.degraded) {
+            if (pieResult.mostLikelyScore)
+              pieScoreStr = `${pieResult.mostLikelyScore.home}-${pieResult.mostLikelyScore.away}`;
+            const pp = pieResult.pick_probabilities;
+            const pieProbTop = pieResult.most_probable_pick === 'Home' ? pp.home
+                             : pieResult.most_probable_pick === 'Away' ? pp.away : pp.draw;
+            piePickLabel = pieResult.most_probable_pick === 'Home' ? 'L'
+                         : pieResult.most_probable_pick === 'Away' ? 'V' : 'E';
+            pieProbPct = `${(pieProbTop * 100).toFixed(0)}%`;
+          }
+
+          return (
+            <div className="mt-2 space-y-1 w-full">
+              <div className="flex items-center gap-2">
+                <div className="flex flex-1 gap-px h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-blue-400/70 shrink-0" style={{ width: `${homeWin*100}%` }} />
+                  <div className="bg-white/25 shrink-0"   style={{ width: `${draw*100}%` }} />
+                  <div className="bg-red-400/70 shrink-0"  style={{ width: `${awayWin*100}%` }} />
+                </div>
+                {topPickProb >= 0.65 ? (
+                  <span className="shrink-0 text-[10px] font-bold text-amber-300">
+                    🔥 {scoreStr ? `${scoreStr} · ` : ''}{(topPickProb*100).toFixed(0)}%
+                  </span>
+                ) : isMarginDraw ? (
+                  <span className="shrink-0 text-[10px] font-semibold text-amber-300/70 tabular-nums">
+                    {scoreStr ? `${scoreStr} · ` : ''}{label}
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[10px] text-white/50 tabular-nums">
+                    {scoreStr ? `${scoreStr} · ` : ''}{label}
+                  </span>
+                )}
+              </div>
+              {pieResult && !pieResult.degraded && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black text-red-400 tracking-wider">PIE</span>
+                  <span className="text-[9px] font-semibold text-white/60 tabular-nums">
+                    {pieScoreStr ? `${pieScoreStr} · ` : ''}{piePickLabel} {pieProbPct}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })() : !played && hasEngine ? (
+          <div className="mt-2 h-1.5 rounded-full bg-white/20 animate-pulse" />
+        ) : null}
+      </button>
+      {expandedId === fixture.id && (
+        <div className="bg-white">
+          <FixtureRow {...fixtureRowProps(fixture)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MatchesPage
 // ---------------------------------------------------------------------------
 export function MatchesPage() {
@@ -1660,123 +1831,26 @@ export function MatchesPage() {
               </div>
             ) : (
               <div className="bg-white/5">
-                {todayFixtures.map((f, i) => {
-                  const homeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
-                  const awayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
-                  const played = playedMap.get(f.id);
-                  const pred = predictions.get(f.id);
-                  const liveM = getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id);
-                  const rowIsLive = liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED';
-                  return (
-                    <div key={f.id} className={`${i > 0 ? 'border-t border-white/10' : ''} ${rowIsLive ? 'border-l-2 border-l-red-500' : ''}`}>
-                      <button
-                        onClick={() => expand(f)}
-                        disabled={expandingId === f.id}
-                        className={`w-full flex flex-col px-5 py-3 hover:bg-white/10 active:bg-white/20 transition-all text-left ${expandingId === f.id ? 'opacity-70' : ''} ${rowIsLive ? 'bg-red-950/30' : ''}`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="text-[10px] font-bold text-wc-gold/80 uppercase tracking-wide">
-                            Partido {i + 1}
-                          </span>
-                          {f.kickoff_utc && (
-                            <>
-                              <span className="text-white/30 text-[10px]">·</span>
-                              <span className="text-[10px] font-semibold text-white/60">
-                                {kickoffART(f.kickoff_utc)} ART
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 w-full">
-                          <FlagImg id={f.home_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
-                          <span className="font-bold text-white text-sm truncate flex-1">{homeName}</span>
-                          <span className="text-white/40 text-xs font-medium shrink-0">vs</span>
-                          <span className="font-bold text-white text-sm truncate flex-1 text-right">{awayName}</span>
-                          <FlagImg id={f.away_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
-                          <span className="ml-1 shrink-0">
-                            {played ? (
-                              <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
-                            ) : liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED' ? (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-300 bg-red-900/40 border border-red-500/40 px-1.5 py-0.5 rounded-full">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
-                                {liveM.homeGoals ?? 0}–{liveM.awayGoals ?? 0}
-                                {liveM.minute ? ` ${liveM.minute}'` : ''}
-                              </span>
-                            ) : liveM?.status === 'FINISHED' ? (
-                              <Badge color="green">{liveM.homeGoals ?? 0}–{liveM.awayGoals ?? 0}</Badge>
-                            ) : (
-                              <span className="text-xs font-semibold text-wc-gold bg-wc-navy/50 px-2 py-0.5 rounded-md">
-                                Grp {f.group_name}
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-white/40 shrink-0">
-                            {expandingId === f.id
-                              ? <Loader2 className="w-4 h-4 animate-spin text-wc-gold" />
-                              : expandedId === f.id
-                                ? <ChevronUp className="w-4 h-4" />
-                                : <ChevronDown className="w-4 h-4" />}
-                          </span>
-                        </div>
-                        {/* Prediction strip — only for unplayed fixtures */}
-                        {!played && pred ? (() => {
-                          const plantelPred  = pred.predictions.find(p => p.predictorName === 'Potencial del plantel' && !p.degraded);
-                          const momentumPred = pred.predictions.find(p => p.predictorName === 'Momentum del Mundial'  && !p.degraded);
-                          const probSrc  = plantelPred  ?? momentumPred ?? pred.bestPrediction;
-                          const scoreSrc = momentumPred ?? plantelPred  ?? pred.bestPrediction;
-                          const { homeWin, draw, awayWin } = probSrc.outcome;
-                          const topPickResult = topPick(probSrc.outcome);
-                          const isMarginDraw = topPickResult === 'Draw' && draw < Math.max(homeWin, awayWin);
-                          let scoreStr: string | null = null;
-                          if (scoreSrc.scoreline) {
-                            const per = mostLikelyScorePerOutcome(scoreSrc.scoreline);
-                            const dom = topPickResult === 'Home' ? per.homeWin
-                                      : topPickResult === 'Away' ? per.awayWin : per.draw;
-                            if (dom) scoreStr = `${dom.home}-${dom.away}`;
-                          }
-                          const topPickProb = topPickResult === 'Home' ? homeWin
-                                           : topPickResult === 'Away' ? awayWin : draw;
-                          const label = topPickResult === 'Home'
-                            ? `L ${(homeWin*100).toFixed(0)}%`
-                            : topPickResult === 'Away'
-                            ? `V ${(awayWin*100).toFixed(0)}%`
-                            : isMarginDraw
-                            ? `~E ${(draw*100).toFixed(0)}%`
-                            : `E ${(draw*100).toFixed(0)}%`;
-                          return (
-                            <div className="mt-2 flex items-center gap-2 w-full">
-                              <div className="flex flex-1 gap-px h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-blue-400/70 shrink-0" style={{ width: `${homeWin*100}%` }} />
-                                <div className="bg-white/25 shrink-0"   style={{ width: `${draw*100}%` }} />
-                                <div className="bg-red-400/70 shrink-0"  style={{ width: `${awayWin*100}%` }} />
-                              </div>
-                              {topPickProb >= 0.65 ? (
-                                <span className="shrink-0 text-[10px] font-bold text-amber-300">
-                                  🔥 {scoreStr ? `${scoreStr} · ` : ''}{(topPickProb*100).toFixed(0)}%
-                                </span>
-                              ) : isMarginDraw ? (
-                                <span className="shrink-0 text-[10px] font-semibold text-amber-300/70 tabular-nums">
-                                  {scoreStr ? `${scoreStr} · ` : ''}{label}
-                                </span>
-                              ) : (
-                                <span className="shrink-0 text-[10px] text-white/50 tabular-nums">
-                                  {scoreStr ? `${scoreStr} · ` : ''}{label}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })() : !played && engine ? (
-                          <div className="mt-2 h-1.5 rounded-full bg-white/20 animate-pulse" />
-                        ) : null}
-                      </button>
-                      {expandedId === f.id && (
-                        <div className="bg-white">
-                          <FixtureRow {...fixtureRowProps(f)} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {todayFixtures.map((f, i) => (
+                  <TodayFixtureItem
+                    key={f.id}
+                    fixture={f}
+                    i={i}
+                    homeName={teamMap.get(f.home_team_id)?.name ?? f.home_team_id}
+                    awayName={teamMap.get(f.away_team_id)?.name ?? f.away_team_id}
+                    played={playedMap.get(f.id)}
+                    pred={predictions.get(f.id)}
+                    liveM={getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id)}
+                    expandedId={expandedId}
+                    expandingId={expandingId}
+                    expand={expand}
+                    hasEngine={!!engine}
+                    ratings={ratingsList}
+                    allFixtures={fixtures}
+                    wcResults={wcResults ?? []}
+                    fixtureRowProps={fixtureRowProps}
+                  />
+                ))}
               </div>
             )}
           </div>
