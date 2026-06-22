@@ -483,11 +483,33 @@ export function computePIEFromRecords(
   const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
   const homeForm = cachedForm(fixture.home_team_id);
   const awayForm = cachedForm(fixture.away_team_id);
-  const formAdj = (homeForm - awayForm) / 2500; // small form boost, ±0.04 range
+  const formAdj = (homeForm - awayForm) / 2500;
   const pDiff = pH - pA;
-  const λ_home = Math.max(0.35, Math.min(3.5, 1.1 + pDiff * 2.2 + formAdj));
-  const λ_away = Math.max(0.35, Math.min(3.5, 1.1 - pDiff * 2.2 - formAdj));
-  const consensusScore = poissonConstrainedMode(λ_home, λ_away, consensus_pick);
+  // Base lambdas calibrated to WC ~2.7 goals/game (1.5 home, 1.2 away).
+  // Consensus λ: each of the top-25 players adjusts Poisson rates via personality —
+  // FAV_SKEW widens the goal gap (decisive wins), DRAW_SKEW compresses it (tight games),
+  // NOISE_LEVEL inflates total goals (high-scoring/chaotic). Hybrid EQUILIBRADO majority
+  // produces moderate adjustments; diverse top-25 traits drive score variety across fixtures.
+  const base_λh = Math.max(0.35, Math.min(4.0, 1.5 + pDiff * 2.0 + formAdj));
+  const base_λa = Math.max(0.35, Math.min(4.0, 1.2 - pDiff * 2.0 - formAdj));
+  let sumLH = 0, sumLA = 0, sumLW = 0;
+  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
+    const i = topIdx[k];
+    const w = Math.max(topComp[k], 0.1);
+    const fs = FAV_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    const hs = favIsHome ? fs : -fs;
+    const adj_λh = Math.max(0.35, base_λh * (1 + hs * 1.0 - ds * 0.5) * (1 + nl * 0.30));
+    const adj_λa = Math.max(0.35, base_λa * (1 - hs * 1.0 + ds * 0.5) * (1 + nl * 0.30));
+    sumLH += w * adj_λh;
+    sumLA += w * adj_λa;
+    sumLW += w;
+  }
+  const invLW = sumLW > 0 ? 1 / sumLW : 1;
+  const consensusScore = poissonConstrainedMode(
+    Math.max(0.35, sumLH * invLW),
+    Math.max(0.35, sumLA * invLW),
+    consensus_pick,
+  );
 
   // === Find elite threshold via histogram (top 10%) ===
   const eliteTarget = Math.max(10, Math.floor(n * 0.10));

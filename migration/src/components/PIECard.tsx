@@ -17,11 +17,11 @@ interface PIECardProps {
 }
 
 const ARCHETYPE_META: Record<ArchetypeId, { emoji: string; label: string; desc: string }> = {
-  FAVORITO:    { emoji: '📈', label: 'Favorito',  desc: 'Apuesta al más fuerte' },
-  SORPRESA:    { emoji: '💥', label: 'Sorpresa',  desc: 'Busca resultados ajustados' },
-  EMPATE:      { emoji: '🤝', label: 'Empatero',  desc: 'El empate siempre llega' },
-  EQUILIBRADO: { emoji: '📊', label: 'Analítico', desc: 'Frío, sin sesgo marcado' },
-  CAOTICO:     { emoji: '🎲', label: 'Caótico',   desc: 'Impredecible, marcadores raros' },
+  FAVORITO:    { emoji: '📈', label: 'Favorito',   desc: 'Tendencia al favorito, pero flexible' },
+  SORPRESA:    { emoji: '💥', label: 'Sorpresero', desc: 'Tendencia al underdog, sin extremos' },
+  EMPATE:      { emoji: '🤝', label: 'Empatero',   desc: 'Tendencia al empate, hibrido' },
+  EQUILIBRADO: { emoji: '📊', label: 'Híbrido',    desc: 'Sin sesgo dominante — el que gana los prodes' },
+  CAOTICO:     { emoji: '🎲', label: 'Caótico',    desc: 'Alta varianza, marcadores impredecibles' },
 };
 
 function pickLabel(pick: 'Home' | 'Draw' | 'Away', home: string, away: string) {
