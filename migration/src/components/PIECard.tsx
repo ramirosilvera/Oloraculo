@@ -14,6 +14,9 @@ interface PIECardProps {
   homeName: string;
   awayName: string;
   onClose?: () => void;
+  /** LOO out-of-sample accuracy from PerformancePage evaluations (honest model metric) */
+  looWinnerAcc?: { correct: number; total: number } | null;
+  looExactAcc?: { correct: number; total: number } | null;
 }
 
 const ARCHETYPE_META: Record<ArchetypeId, { emoji: string; label: string; desc: string }> = {
@@ -90,7 +93,7 @@ function LeaderboardRow({ entry, isLeader }: {
   );
 }
 
-export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
+export function PIECard({ result, homeName, awayName, onClose, looWinnerAcc, looExactAcc }: PIECardProps) {
   if (result.degraded || !result.leader) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-2">
@@ -136,8 +139,13 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
         }`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">
-                Líder del torneo
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                  Líder del torneo interno
+                </p>
+              </div>
+              <p className="text-[9px] text-gray-300 mb-1.5 leading-tight">
+                Score acumulado en los {leader.total} partidos ya jugados · no es la eficacia del modelo
               </p>
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="text-lg">{leaderMeta.emoji}</span>
@@ -154,7 +162,7 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
                 <p className="text-xl font-black tabular-nums text-wc-navy leading-none">
                   {leader.correct}<span className="text-sm font-normal text-gray-400">/{leader.total}</span>
                 </p>
-                <p className="text-xs text-gray-400 tabular-nums">{pctInt(leaderAcc)} ganadores</p>
+                <p className="text-[10px] text-gray-400 tabular-nums">{pctInt(leaderAcc)} · torneo</p>
                 {leader.exactCorrect >= 0.5 && (
                   <p className="text-xs font-bold text-purple-700 tabular-nums">
                     {Math.round(leader.exactCorrect * 10) / 10} exactos 🎯
@@ -195,6 +203,38 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
             </p>
           </div>
         </section>
+
+        {/* LOO accuracy — honest out-of-sample model performance */}
+        {(looWinnerAcc || looExactAcc) && (
+          <section className="rounded-xl border border-wc-navy/10 bg-wc-navy/3 px-4 py-3 space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+              Eficacia real del modelo · leave-one-out
+            </p>
+            <p className="text-[9px] text-gray-300 leading-tight">
+              Evaluado partido a partido sin ver el propio resultado — métrica honesta fuera de muestra
+            </p>
+            <div className="flex gap-4 pt-0.5">
+              {looWinnerAcc && (
+                <div>
+                  <p className="text-base font-black tabular-nums text-wc-navy leading-none">
+                    {looWinnerAcc.correct}
+                    <span className="text-xs font-normal text-gray-400">/{looWinnerAcc.total}</span>
+                  </p>
+                  <p className="text-[10px] text-gray-400">dirección ✓</p>
+                </div>
+              )}
+              {looExactAcc && (
+                <div>
+                  <p className="text-base font-black tabular-nums text-purple-700 leading-none">
+                    {looExactAcc.correct}
+                    <span className="text-xs font-normal text-gray-400">/{looExactAcc.total}</span>
+                  </p>
+                  <p className="text-[10px] text-gray-400">marcador exacto 🎯</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Competition table */}
         <section>

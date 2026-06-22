@@ -402,6 +402,8 @@ interface FixtureRowProps {
   ratings: Rating[];
   allFixtures: Fixture[];
   wcResultsForPIE: WcActualResult[];
+  pieLooWinner?: { correct: number; total: number } | null;
+  pieLooExact?: { correct: number; total: number } | null;
 }
 
 function FixtureRow({
@@ -409,7 +411,7 @@ function FixtureRow({
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
-  ratings, allFixtures, wcResultsForPIE,
+  ratings, allFixtures, wcResultsForPIE, pieLooWinner, pieLooExact,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   const [showPIEDetail, setShowPIEDetail] = useState(false);
@@ -619,6 +621,8 @@ function FixtureRow({
                   homeName={homeName}
                   awayName={awayName}
                   onClose={() => setShowPIEDetail(false)}
+                  looWinnerAcc={pieLooWinner}
+                  looExactAcc={pieLooExact}
                 />
               )}
 
@@ -1399,6 +1403,16 @@ export function MatchesPage() {
   const modelWeights  = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
   const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
   const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
+  const pieLooMetrics = useMemo(() => {
+    const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE');
+    if (pieEvals.length === 0) return null;
+    const winner = { correct: pieEvals.filter(e => e.top_pick_correct).length, total: pieEvals.length };
+    const withExact = pieEvals.filter(e => e.exact_score_correct != null);
+    const exact = withExact.length > 0
+      ? { correct: withExact.filter(e => e.exact_score_correct).length, total: withExact.length }
+      : null;
+    return { winner, exact };
+  }, [evalsData]);
 
   // Best model by absolute count of correct winner picks (min 5 evals)
   const bestWinnerModelName = useMemo(() => {
@@ -1651,6 +1665,8 @@ export function MatchesPage() {
     ratings: ratingsList,
     allFixtures: fixtures,
     wcResultsForPIE: wcResults ?? [],
+    pieLooWinner: pieLooMetrics?.winner ?? null,
+    pieLooExact: pieLooMetrics?.exact ?? null,
   });
 
   // ---- filtered fixtures ----

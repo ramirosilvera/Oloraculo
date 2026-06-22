@@ -72,6 +72,16 @@ export function OracleLabPage() {
 
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
   const modelWeights = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
+  const pieLooMetrics = useMemo(() => {
+    const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE');
+    if (pieEvals.length === 0) return null;
+    const winner = { correct: pieEvals.filter(e => e.top_pick_correct).length, total: pieEvals.length };
+    const withExact = pieEvals.filter(e => e.exact_score_correct != null);
+    const exact = withExact.length > 0
+      ? { correct: withExact.filter(e => e.exact_score_correct).length, total: withExact.length }
+      : null;
+    return { winner, exact };
+  }, [evalsData]);
 
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams]);
 
@@ -288,6 +298,8 @@ export function OracleLabPage() {
               homeName={result.homeTeamName}
               awayName={result.awayTeamName}
               onClose={() => setShowPIEDetail(false)}
+              looWinnerAcc={pieLooMetrics?.winner ?? null}
+              looExactAcc={pieLooMetrics?.exact ?? null}
             />
           )}
         </>
