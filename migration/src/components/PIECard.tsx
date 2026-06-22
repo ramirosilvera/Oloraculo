@@ -62,7 +62,7 @@ function LeaderboardRow({ entry, isLeader }: {
   const accColor = acc !== null
     ? acc >= 0.60 ? 'text-emerald-700' : acc >= 0.45 ? 'text-amber-600' : 'text-gray-400'
     : 'text-gray-300';
-  const exactColor = entry.exactCorrect > 0 ? 'text-purple-700 font-bold' : 'text-gray-300';
+  const exactColor = entry.exactCorrect >= 0.5 ? 'text-purple-700 font-bold' : 'text-gray-300';
 
   return (
     <tr className={`border-t border-gray-50 ${isLeader ? 'bg-wc-navy/3' : ''}`}>
@@ -78,7 +78,7 @@ function LeaderboardRow({ entry, isLeader }: {
         <span className="text-[10px] text-gray-300">/{entry.total}</span>
       </td>
       <td className="py-2 px-1 text-right">
-        <span className={`text-xs tabular-nums ${exactColor}`}>{entry.exactCorrect}</span>
+        <span className={`text-xs tabular-nums ${exactColor}`}>{Math.round(entry.exactCorrect * 10) / 10}</span>
       </td>
       <td className="py-2 pl-1 pr-4 text-right">
         <span className={`text-xs font-black ${pickC}`}>{pickShort(entry.pick)}</span>
@@ -155,9 +155,9 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
                   {leader.correct}<span className="text-sm font-normal text-gray-400">/{leader.total}</span>
                 </p>
                 <p className="text-xs text-gray-400 tabular-nums">{pctInt(leaderAcc)} ganadores</p>
-                {leader.exactCorrect > 0 && (
+                {leader.exactCorrect >= 0.5 && (
                   <p className="text-xs font-bold text-purple-700 tabular-nums">
-                    {leader.exactCorrect} exactos 🎯
+                    {Math.round(leader.exactCorrect * 10) / 10} exactos 🎯
                   </p>
                 )}
               </div>

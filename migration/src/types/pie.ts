@@ -36,8 +36,8 @@ export interface PIEResult {
 
 // Track records for 1M players (typed arrays, exported for hook memoization)
 export interface PIETrackRecords {
-  correct:  Int32Array;   // correct winner picks per player
-  exact:    Int32Array;   // correct exact scores per player
-  total:    Int32Array;   // total matches played
-  upset:    Int32Array;   // upset picks correct per player
+  correct:  Int32Array;    // correct winner picks per player
+  exact:    Float32Array;  // expected exact score credit per player (soft counting — pool probability, not a sample)
+  total:    Int32Array;    // total matches played
+  upset:    Int32Array;    // upset picks correct per player
 }

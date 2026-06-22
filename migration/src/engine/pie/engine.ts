@@ -155,6 +155,37 @@ function wSamplePool(pool: PoolWithTotal, rng: number): ScoreEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Empirical score pool — built from actual tournament results (LOO-safe)
+// ---------------------------------------------------------------------------
+
+// Builds the score frequency distribution from the training matches of a given
+// outcome type (Home/Draw/Away). With ≥5 examples this beats any static pool
+// because it reflects how THIS tournament actually plays out — exactly what
+// 100K real prode players learn from watching the same matches.
+function buildEmpiricalScorePool(
+  wcResults: WcActualResult[],
+  direction: 'Home' | 'Draw' | 'Away',
+): PoolWithTotal | null {
+  const countMap = new Map<string, number>();
+  let total = 0;
+  for (const r of wcResults) {
+    const dir: 'Home' | 'Draw' | 'Away' =
+      r.home_goals > r.away_goals ? 'Home' : r.home_goals === r.away_goals ? 'Draw' : 'Away';
+    if (dir !== direction) continue;
+    const key = `${r.home_goals}-${r.away_goals}`;
+    countMap.set(key, (countMap.get(key) ?? 0) + 1);
+    total++;
+  }
+  if (total < 5) return null;
+  const entries: ScoreEntry[] = [];
+  countMap.forEach((count, key) => {
+    const dash = key.indexOf('-');
+    entries.push({ home: +key.slice(0, dash), away: +key.slice(dash + 1), w: count });
+  });
+  return { entries, total };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -207,7 +238,7 @@ export function buildPIETrackRecords(
   eloByFixture: Map<string, { home: number; away: number }>,
 ): PIETrackRecords {
   const correct = new Int32Array(N);
-  const exact   = new Int32Array(N);
+  const exact   = new Float32Array(N); // soft counting: pool probability, not a random sample
   const total   = new Int32Array(N);
   const upset   = new Int32Array(N);
 
@@ -267,12 +298,13 @@ export function buildPIETrackRecords(
       if (pick === actual) {
         correct[i]++;
         if (isUpset) upset[i]++;
-        // Exact score only computable when pick outcome matches
-        const rng2 = fastRng(i, fixHash, 1);
+        // Soft counting: add the pool probability of the actual score (no random sample).
+        // Deterministic ranking — players whose archetype pools align with real scores rank higher.
         const arc = ARCHETYPE[i];
         const sPool = pick === 0 ? ARC_HOME_POOLS[arc] : pick === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
-        const s = wSamplePool(sPool, rng2);
-        if (s.home === hg && s.away === ag) exact[i]++;
+        for (const e of sPool.entries) {
+          if (e.home === hg && e.away === ag) { exact[i] += e.w / sPool.total; break; }
+        }
       }
     }
   }
@@ -426,22 +458,37 @@ export function computePIEFromRecords(
   const consensus_pick: 'Home' | 'Draw' | 'Away' =
     pKH >= pKD && pKH >= pKA ? 'Home' : pKA >= pKH && pKA >= pKD ? 'Away' : 'Draw';
 
-  // Leader score: the highest-ranked top-K player who agrees with consensus_pick
-  // provides the exact score via a deterministic (but fixture-varying) pool sample.
+  // Score prediction — three-tier hierarchy:
+  // 1. Empirical pool from THIS tournament's actual results (LOO-safe, ≥5 examples required)
+  //    → The crowd-wisdom approach: real prode players bet on scores they've seen happen.
+  // 2. Fallback: leader sample from best agreeing player's archetype pool (variety)
+  // 3. Last resort: top player regardless of direction
   const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
   let consensusScore: { home: number; away: number } | null = null;
-  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
-    if (_picks[topIdx[k]] !== consensusPickCode) continue;
-    const i = topIdx[k];
-    const arc = ARCHETYPE[i];
-    const sp = consensusPickCode === 0 ? ARC_HOME_POOLS[arc]
-             : consensusPickCode === 2 ? ARC_AWAY_POOLS[arc]
-             : ARC_DRAW_POOLS[arc];
-    const sv = wSamplePool(sp, fastRng(i, fixHash, 1));
-    consensusScore = { home: sv.home, away: sv.away };
-    break;
+
+  const empPool = buildEmpiricalScorePool(wcResults, consensus_pick);
+  if (empPool) {
+    // Soft vote on empirical pool: pick the modal score from real tournament data
+    let bestEntry: ScoreEntry | null = null, bestW = -1;
+    for (const e of empPool.entries) {
+      if (e.w > bestW) { bestW = e.w; bestEntry = e; }
+    }
+    if (bestEntry) consensusScore = { home: bestEntry.home, away: bestEntry.away };
   }
-  // Fallback: top player regardless of direction
+
+  if (!consensusScore) {
+    // Fallback: best-ranked player who agrees with consensus direction
+    for (let k = 0; k < K && topIdx[k] !== -1; k++) {
+      if (_picks[topIdx[k]] !== consensusPickCode) continue;
+      const i = topIdx[k];
+      const arc = ARCHETYPE[i];
+      const sp = consensusPickCode === 0 ? ARC_HOME_POOLS[arc]
+               : consensusPickCode === 2 ? ARC_AWAY_POOLS[arc]
+               : ARC_DRAW_POOLS[arc];
+      consensusScore = wSamplePool(sp, fastRng(i, fixHash, 1));
+      break;
+    }
+  }
   if (!consensusScore && topIdx[0] !== -1) {
     const i = topIdx[0];
     const arc = ARCHETYPE[i];
