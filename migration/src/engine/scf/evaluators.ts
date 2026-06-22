@@ -52,21 +52,39 @@ export function eval_h_defending_champ_falls(ctx: SCFMatchContext): HeuristicSig
   };
 }
 
-export function eval_h_big_dont_fail_twice(_ctx: SCFMatchContext): HeuristicSignal {
-  return null_signal; // needs prior-WC data
+export function eval_h_big_dont_fail_twice(ctx: SCFMatchContext): HeuristicSignal {
+  const homeIsBig = BIG_JERSEY_TEAMS.has(ctx.homeTeam.id);
+  const awayIsBig = BIG_JERSEY_TEAMS.has(ctx.awayTeam.id);
+  if (!homeIsBig && !awayIsBig) return null_signal;
+  const homeGames = ctx.homeWCWins + ctx.homeWCDraws + ctx.homeWCLosses;
+  const awayGames = ctx.awayWCWins + ctx.awayWCDraws + ctx.awayWCLosses;
+  // Big team with no wins yet (dropped points) — history says they respond
+  const homeDropped = homeIsBig && homeGames >= 1 && ctx.homeWCWins === 0;
+  const awayDropped = awayIsBig && awayGames >= 1 && ctx.awayWCWins === 0;
+  if (!homeDropped && !awayDropped) return null_signal;
+  const direction = homeDropped && !awayDropped ? 0.3
+                  : awayDropped && !homeDropped ? -0.3
+                  : 0;
+  if (direction === 0) return null_signal;
+  const team = direction > 0 ? ctx.homeTeam.name : ctx.awayTeam.name;
+  return {
+    applies: true,
+    direction,
+    strength: 0.55,
+    note: `${team} (grande) aún sin ganar — las selecciones históricas responden cuando están contra la pared`,
+  };
 }
 
 export function eval_h_no_wc_without_scare(ctx: SCFMatchContext): HeuristicSignal {
   const eloDiff = ctx.homeElo - ctx.awayElo;
   const gap = Math.abs(eloDiff);
-  if (gap < 150) return null_signal;
-  // Big favorite always faces a scare → slight underdog uplift
+  if (gap < 100) return null_signal;
   const direction = eloDiff > 0 ? -0.15 : 0.15;
   const underdog = eloDiff > 0 ? ctx.awayTeam.name : ctx.homeTeam.name;
   return {
     applies: true,
     direction,
-    strength: Math.min(0.5, (gap - 150) / 300),
+    strength: Math.min(0.55, (gap - 100) / 300),
     note: `En todo Mundial hay sustos — ${underdog} puede ser el scare`,
   };
 }
@@ -100,18 +118,26 @@ export function eval_h_tournament_streak(ctx: SCFMatchContext): HeuristicSignal 
   const awayGames = ctx.awayWCWins + ctx.awayWCDraws + ctx.awayWCLosses;
   if (homeGames < 1 && awayGames < 1) return null_signal;
 
-  const homeStreak = homeGames > 0 ? (ctx.homeWCWins * 3 + ctx.homeWCDraws) / (homeGames * 3) : 0.33;
-  const awayStreak = awayGames > 0 ? (ctx.awayWCWins * 3 + ctx.awayWCDraws) / (awayGames * 3) : 0.33;
-  const gap = homeStreak - awayStreak;
-  if (Math.abs(gap) < 0.15) return null_signal;
+  const homePts = homeGames > 0 ? (ctx.homeWCWins * 3 + ctx.homeWCDraws) / (homeGames * 3) : 0.33;
+  const awayPts = awayGames > 0 ? (ctx.awayWCWins * 3 + ctx.awayWCDraws) / (awayGames * 3) : 0.33;
+
+  // Include goal differential as tiebreaker: a 3-0 win is not the same as 1-0
+  const homeGD = homeGames > 0 ? Math.max(-4, Math.min(4, (ctx.homeWCGoalsFor - ctx.homeWCGoalsAgainst) / homeGames)) / 8 : 0;
+  const awayGD = awayGames > 0 ? Math.max(-4, Math.min(4, (ctx.awayWCGoalsFor - ctx.awayWCGoalsAgainst) / awayGames)) / 8 : 0;
+
+  // 70% points rate, 30% goal differential
+  const homeComp = homePts * 0.70 + homeGD * 0.30;
+  const awayComp = awayPts * 0.70 + awayGD * 0.30;
+  const gap = homeComp - awayComp;
+  if (Math.abs(gap) < 0.10) return null_signal;
 
   const direction = Math.max(-0.6, Math.min(0.6, gap * 1.2));
   const team = gap > 0 ? ctx.homeTeam.name : ctx.awayTeam.name;
   return {
     applies: true,
     direction,
-    strength: Math.min(0.8, Math.abs(gap) * 1.5),
-    note: `${team} viene en mejor racha dentro del torneo`,
+    strength: Math.min(0.85, Math.abs(gap) * 2.0),
+    note: `${team} viene en mejor forma dentro del torneo (puntos + diferencia de goles)`,
   };
 }
 
@@ -309,27 +335,62 @@ export function eval_h_long_travel_fatigue(_ctx: SCFMatchContext): HeuristicSign
 // PSICOLOGIA
 // ---------------------------------------------------------------------------
 
-export function eval_h_revenge_factor(_ctx: SCFMatchContext): HeuristicSignal {
-  return null_signal; // needs historical WC H2H data
+export function eval_h_revenge_factor(ctx: SCFMatchContext): HeuristicSignal {
+  const homeGames = ctx.homeWCWins + ctx.homeWCDraws + ctx.homeWCLosses;
+  const awayGames = ctx.awayWCWins + ctx.awayWCDraws + ctx.awayWCLosses;
+  if (homeGames < 1 || awayGames < 1) return null_signal;
+
+  const homeGPG = ctx.homeWCGoalsFor / homeGames;
+  const awayGPG = ctx.awayWCGoalsFor / awayGames;
+  const goalGap = homeGPG - awayGPG;
+
+  // One team clearly more clinical — psychological edge in front of goal
+  if (Math.abs(goalGap) < 1.2) return null_signal;
+
+  const direction = Math.max(-0.4, Math.min(0.4, goalGap * 0.22));
+  const team = goalGap > 0 ? ctx.homeTeam.name : ctx.awayTeam.name;
+  return {
+    applies: true,
+    direction,
+    strength: Math.min(0.65, Math.abs(goalGap) * 0.3),
+    note: `${team} llega con mayor olfato goleador en el torneo — el equipo que anota se siente invencible`,
+  };
 }
 
 export function eval_h_overconfidence_kills(ctx: SCFMatchContext): HeuristicSignal {
   const eloDiff = ctx.homeElo - ctx.awayElo;
   const gap = Math.abs(eloDiff);
-  if (gap < 200) return null_signal;
-  // Very heavy favorites historically under-deliver vs expectations — bias signal
-  const direction = eloDiff > 0 ? -0.25 : 0.25; // toward underdog
+  if (gap < 150) return null_signal;
+  const direction = eloDiff > 0 ? -0.25 : 0.25;
   const fav = eloDiff > 0 ? ctx.homeTeam.name : ctx.awayTeam.name;
   return {
     applies: true,
     direction,
-    strength: Math.min(0.7, (gap - 200) / 250),
+    strength: Math.min(0.7, (gap - 150) / 250),
     note: `${fav} como gran favorito — sobreconfianza históricamente la castiga (68% se cumple)`,
   };
 }
 
-export function eval_h_debut_nerves(_ctx: SCFMatchContext): HeuristicSignal {
-  return null_signal; // needs WC debut data per team
+export function eval_h_debut_nerves(ctx: SCFMatchContext): HeuristicSignal {
+  const homeGames = ctx.homeWCWins + ctx.homeWCDraws + ctx.homeWCLosses;
+  const awayGames = ctx.awayWCWins + ctx.awayWCDraws + ctx.awayWCLosses;
+  // Only meaningful when one team has WC 2026 rhythm and the other is playing their opener
+  if (homeGames === 0 && awayGames === 0) return null_signal;
+  if (homeGames > 0 && awayGames > 0) return null_signal;
+  if (homeGames === 0) {
+    return {
+      applies: true,
+      direction: -0.25,
+      strength: 0.45,
+      note: `${ctx.homeTeam.name} debuta en el torneo — ${ctx.awayTeam.name} ya tiene ritmo competitivo`,
+    };
+  }
+  return {
+    applies: true,
+    direction: 0.25,
+    strength: 0.45,
+    note: `${ctx.awayTeam.name} debuta en el torneo — ${ctx.homeTeam.name} llega con rodaje`,
+  };
 }
 
 export function eval_h_trap_game(ctx: SCFMatchContext): HeuristicSignal {
