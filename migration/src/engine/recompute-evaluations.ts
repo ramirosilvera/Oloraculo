@@ -110,7 +110,7 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
           brier_score: brierScore(out, act),
           ranked_probability_score: rankedProbabilityScore(out, act),
           log_loss: logLoss(out, act),
-          top_pick_correct: topPick(out) === act,
+          top_pick_correct: pieResult.most_probable_pick === act,
           exact_score_correct: pieResult.mostLikelyScore != null
             ? pieResult.mostLikelyScore.home === r.home_goals && pieResult.mostLikelyScore.away === r.away_goals
             : null,

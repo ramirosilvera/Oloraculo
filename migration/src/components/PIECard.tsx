@@ -1,10 +1,10 @@
 // =============================================================================
 // PIECard — Prode Intelligence Engine
-// Muestra el consenso colectivo de 500 pronosticadores virtuales con
-// distintas personalidades, ponderados por reputación histórica.
+// Muestra el torneo interno de 500 jugadores virtuales.
+// El líder (más aciertos acumulados) es quien hace el pronóstico.
 // =============================================================================
 
-import type { PIEResult, ArchetypeId } from '../types/pie';
+import type { PIEResult, PIELeaderEntry, ArchetypeId } from '../types/pie';
 import { X } from 'lucide-react';
 
 interface PIECardProps {
@@ -14,13 +14,23 @@ interface PIECardProps {
   onClose?: () => void;
 }
 
-const ARCHETYPE_LABELS: Record<ArchetypeId, { label: string; emoji: string; desc: string }> = {
-  FAVORITO:    { label: 'Seguidor del favorito', emoji: '📈', desc: 'Apuesta al más fuerte' },
-  SORPRESA:    { label: 'Cazador de sorpresas',  emoji: '💥', desc: 'Busca la sorpresa' },
-  EMPATE:      { label: 'Empatero crónico',      emoji: '🤝', desc: 'El empate siempre llega' },
-  EQUILIBRADO: { label: 'Analítico neutral',     emoji: '📊', desc: 'Frío, sin sesgo marcado' },
-  CAOTICO:     { label: 'Caótico puro',          emoji: '🎲', desc: 'Imposible de predecir' },
+const ARCHETYPE_META: Record<ArchetypeId, { emoji: string; label: string; desc: string }> = {
+  FAVORITO:    { emoji: '📈', label: 'Favorito',  desc: 'Apuesta al más fuerte' },
+  SORPRESA:    { emoji: '💥', label: 'Sorpresa',  desc: 'Busca resultados ajustados' },
+  EMPATE:      { emoji: '🤝', label: 'Empatero',  desc: 'El empate siempre llega' },
+  EQUILIBRADO: { emoji: '📊', label: 'Analítico', desc: 'Frío, sin sesgo marcado' },
+  CAOTICO:     { emoji: '🎲', label: 'Caótico',   desc: 'Impredecible, marcadores raros' },
 };
+
+function pickLabel(pick: 'Home' | 'Draw' | 'Away', home: string, away: string) {
+  return pick === 'Home' ? home : pick === 'Away' ? away : 'Empate';
+}
+function pickShort(pick: 'Home' | 'Draw' | 'Away') {
+  return pick === 'Home' ? 'L' : pick === 'Away' ? 'V' : 'E';
+}
+function pickColor(pick: 'Home' | 'Draw' | 'Away') {
+  return pick === 'Home' ? 'text-wc-navy' : pick === 'Away' ? 'text-wc-red' : 'text-gray-600';
+}
 
 function MiniBar({ home, draw, away }: { home: number; draw: number; away: number }) {
   return (
@@ -33,64 +43,86 @@ function MiniBar({ home, draw, away }: { home: number; draw: number; away: numbe
 }
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
+function pctInt(n: number) { return `${Math.round(n * 100)}%`; }
 
-function PickLabel({
-  pick, homeLabel, awayLabel, prob, size = 'md',
-}: {
-  pick: 'Home' | 'Draw' | 'Away';
-  homeLabel: string;
-  awayLabel: string;
-  prob: number;
-  size?: 'sm' | 'md';
+function PlayerNum({ id }: { id: string }) {
+  const num = id.replace('pie-', '');
+  return <span className="text-gray-400 font-mono text-[10px]">#{num}</span>;
+}
+
+function LeaderboardRow({ entry, isLeader, homeName, awayName }: {
+  entry: PIELeaderEntry;
+  isLeader: boolean;
+  homeName: string;
+  awayName: string;
 }) {
-  const name = pick === 'Home' ? homeLabel : pick === 'Away' ? awayLabel : 'Empate';
-  const color = pick === 'Home' ? 'text-wc-navy' : pick === 'Away' ? 'text-wc-red' : 'text-gray-600';
-  const probColor = prob >= 0.55 ? 'text-emerald-700' : prob >= 0.42 ? 'text-amber-600' : 'text-gray-500';
+  const meta = ARCHETYPE_META[entry.archetype];
+  const acc = entry.total > 0 ? entry.correct / entry.total : null;
+  const pickC = pickColor(entry.pick);
+  const accColor = acc !== null
+    ? acc >= 0.60 ? 'text-emerald-700' : acc >= 0.45 ? 'text-amber-600' : 'text-gray-400'
+    : 'text-gray-300';
+
   return (
-    <div className="text-center">
-      <div className={`font-bold truncate ${size === 'md' ? 'text-base' : 'text-sm'} ${color}`}>{name}</div>
-      <div className={`text-xs font-semibold tabular-nums ${probColor}`}>{pct(prob)}</div>
-    </div>
+    <tr className={`border-t border-gray-50 ${isLeader ? 'bg-wc-navy/3' : ''}`}>
+      <td className="py-2 pl-4 pr-2 w-6">
+        <span className={`text-xs font-bold ${isLeader ? 'text-wc-navy' : 'text-gray-400'}`}>
+          {isLeader ? '★' : entry.rank}
+        </span>
+      </td>
+      <td className="py-2 px-2">
+        <span className="text-sm">{meta.emoji}</span>
+      </td>
+      <td className="py-2 px-2">
+        <PlayerNum id={entry.id} />
+      </td>
+      <td className="py-2 px-2 text-right tabular-nums">
+        <span className={`text-xs font-bold ${accColor}`}>{entry.correct}</span>
+        <span className="text-[10px] text-gray-300">/{entry.total}</span>
+      </td>
+      <td className="py-2 px-2 text-right">
+        {acc !== null
+          ? <span className={`text-[10px] tabular-nums ${accColor}`}>{pctInt(acc)}</span>
+          : <span className="text-[10px] text-gray-300">—</span>}
+      </td>
+      <td className="py-2 pl-2 pr-4 text-right">
+        <span className={`text-xs font-black ${pickC}`}>{pickShort(entry.pick)}</span>
+        <span className="text-[10px] text-gray-400 ml-1 tabular-nums">
+          {entry.pickScore.home}-{entry.pickScore.away}
+        </span>
+      </td>
+    </tr>
   );
 }
 
-function ContrarianBadge({ signal }: { signal: number }) {
-  if (signal < 0.05) return <span className="text-xs text-gray-400">Elites y masa alineadas</span>;
-  if (signal < 0.15) return <span className="text-xs text-amber-600">Leve divergencia élite</span>;
-  return <span className="text-xs font-semibold text-red-600">⚡ Señal contraria: élites discrepan</span>;
-}
-
 export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
-  if (result.degraded) {
+  if (result.degraded || !result.leader) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-black uppercase tracking-widest text-gray-400">PIE</span>
-          {onClose && <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>}
+          {onClose && <button onClick={onClose}><X className="w-4 h-4 text-gray-400" /></button>}
         </div>
-        <p className="text-sm text-gray-400">Sin datos Elo suficientes para calcular el consenso.</p>
+        <p className="text-sm text-gray-400">Sin datos Elo para calcular el torneo.</p>
       </div>
     );
   }
 
-  const { pick_probabilities: cp, elite_probabilities: ep } = result;
-  const crowdProb  = result.most_probable_pick === 'Home' ? cp.home : result.most_probable_pick === 'Away' ? cp.away : cp.draw;
-  const eliteProb  = result.elite_pick === 'Home' ? ep.home : result.elite_pick === 'Away' ? ep.away : ep.draw;
-
-  // Sort archetypes by avg rep descending
-  const archetypesSorted = (Object.entries(result.archetype_avg_reps) as [ArchetypeId, number][])
-    .sort((a, b) => b[1] - a[1]);
-
-  const topArchetype = result.dominant_archetype ? ARCHETYPE_LABELS[result.dominant_archetype] : null;
+  const { leader, leaderboard, pick_probabilities: cp, elite_probabilities: ep } = result;
+  const leaderMeta = ARCHETYPE_META[leader.archetype];
+  const leaderAcc = leader.total > 0 ? leader.correct / leader.total : null;
+  const crowdModal = cp.home >= cp.draw && cp.home >= cp.away ? 'Home'
+    : cp.away >= cp.home && cp.away >= cp.draw ? 'Away' : 'Draw';
 
   return (
     <div className="rounded-2xl border border-wc-navy/10 bg-white overflow-hidden">
+
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 bg-wc-navy/5 border-b border-wc-navy/10">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-wc-navy text-white">PIE</span>
-          <span className="text-sm font-bold text-wc-navy">Prode Intelligence Engine</span>
-          <span className="text-xs text-gray-400 hidden sm:block">· 500 pronosticadores</span>
+          <span className="text-sm font-bold text-wc-navy">Prode Intelligence</span>
+          <span className="text-xs text-gray-400 hidden sm:block">· {result.sample_size} jugadores compitiendo</span>
         </div>
         {onClose && (
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -100,111 +132,179 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
       </div>
 
       <div className="p-5 space-y-5">
-        {/* Crowd consensus */}
+
+        {/* Leader hero */}
+        <section className={`rounded-xl border px-4 py-3.5 ${
+          result.contrarian_signal > 0.15
+            ? 'border-amber-200 bg-amber-50/60'
+            : 'border-wc-navy/10 bg-wc-navy/3'
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">
+                Líder del torneo
+              </p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-lg">{leaderMeta.emoji}</span>
+                <span className="text-sm font-bold text-wc-navy">{leaderMeta.label}</span>
+                <PlayerNum id={leader.id} />
+                {result.contrarian_signal > 0.15 && (
+                  <span className="text-[10px] font-semibold text-amber-600 ml-1">⚡ va contra la mayoría</span>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 mb-2">{leaderMeta.desc}</p>
+            </div>
+            {leaderAcc !== null && (
+              <div className="text-right shrink-0">
+                <p className="text-xl font-black tabular-nums text-wc-navy leading-none">
+                  {leader.correct}<span className="text-sm font-normal text-gray-400">/{leader.total}</span>
+                </p>
+                <p className="text-xs text-gray-400 tabular-nums">{pctInt(leaderAcc)} aciertos</p>
+              </div>
+            )}
+          </div>
+
+          {/* Leader's pick for this fixture */}
+          <div className="flex items-center gap-3 mt-1 pt-3 border-t border-wc-navy/10">
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Su pronóstico</p>
+              <p className={`text-base font-black ${pickColor(leader.pick)}`}>
+                {pickLabel(leader.pick, homeName, awayName)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Marcador</p>
+              <p className="text-2xl font-black tabular-nums text-wc-navy leading-none">
+                {leader.pickScore.home} – {leader.pickScore.away}
+              </p>
+            </div>
+          </div>
+
+          {/* Leader support */}
+          <div className="mt-2 pt-2 border-t border-wc-navy/10">
+            <p className="text-[10px] text-gray-400">
+              <span className="font-semibold text-wc-navy">
+                {Math.round(result.leader_support * 10)}/10
+              </span> de los mejores 10 coinciden con el líder
+            </p>
+          </div>
+        </section>
+
+        {/* Competition table */}
         <section>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Consenso colectivo (500 jugadores)</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
+            Top {leaderboard.length} · torneo
+          </p>
+          <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="py-1.5 pl-4 pr-2 text-left text-[10px] text-gray-400 font-medium w-6">#</th>
+                  <th className="py-1.5 px-2 text-left text-[10px] text-gray-400 font-medium"></th>
+                  <th className="py-1.5 px-2 text-left text-[10px] text-gray-400 font-medium">ID</th>
+                  <th className="py-1.5 px-2 text-right text-[10px] text-gray-400 font-medium">Aciert.</th>
+                  <th className="py-1.5 px-2 text-right text-[10px] text-gray-400 font-medium">%</th>
+                  <th className="py-1.5 pl-2 pr-4 text-right text-[10px] text-gray-400 font-medium">Pronóst.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.map((entry) => (
+                  <LeaderboardRow
+                    key={entry.id}
+                    entry={entry}
+                    isLeader={entry.rank === 1}
+                    homeName={homeName}
+                    awayName={awayName}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            L = Local · E = Empate · V = Visitante
+          </p>
+        </section>
+
+        {/* Crowd distribution */}
+        <section>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
+            Distribución colectiva ({result.sample_size} jugadores)
+          </p>
           <div className="space-y-1.5">
             <MiniBar home={cp.home} draw={cp.draw} away={cp.away} />
             <div className="grid grid-cols-3 text-center text-xs">
               <div>
-                <div className="font-semibold text-wc-navy truncate">{homeName}</div>
+                <div className={`font-semibold ${crowdModal === 'Home' ? 'text-wc-navy' : 'text-gray-500'} truncate`}>{homeName}</div>
                 <div className="tabular-nums text-gray-600">{pct(cp.home)}</div>
               </div>
               <div>
-                <div className="font-semibold text-gray-500">Empate</div>
+                <div className={`font-semibold ${crowdModal === 'Draw' ? 'text-gray-700' : 'text-gray-400'}`}>Empate</div>
                 <div className="tabular-nums text-gray-600">{pct(cp.draw)}</div>
               </div>
               <div>
-                <div className="font-semibold text-wc-red truncate">{awayName}</div>
+                <div className={`font-semibold ${crowdModal === 'Away' ? 'text-wc-red' : 'text-gray-500'} truncate`}>{awayName}</div>
                 <div className="tabular-nums text-gray-600">{pct(cp.away)}</div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Picks comparison */}
+        {/* Elite vs crowd */}
         <section className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Masa</p>
-            <PickLabel pick={result.most_probable_pick} homeLabel={homeName} awayLabel={awayName} prob={crowdProb} />
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Masa (500)</p>
+            <p className={`text-sm font-bold ${pickColor(crowdModal)} truncate`}>
+              {pickLabel(crowdModal, homeName, awayName)}
+            </p>
+            <p className="text-[10px] tabular-nums text-gray-400">{pct(Math.max(cp.home, cp.draw, cp.away))}</p>
           </div>
-          <div className={`rounded-xl border p-3 space-y-1.5 ${result.contrarian_signal >= 0.15 ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100 bg-gray-50'}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Élite (top 10%)</p>
-            <PickLabel pick={result.elite_pick} homeLabel={homeName} awayLabel={awayName} prob={eliteProb} size="sm" />
-          </div>
-        </section>
-
-        {/* Contrarian signal */}
-        <div className="flex items-center gap-2">
-          <ContrarianBadge signal={result.contrarian_signal} />
-        </div>
-
-        {/* Elite bar */}
-        <section>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Consenso élite</p>
-          <div className="space-y-1">
-            <MiniBar home={ep.home} draw={ep.draw} away={ep.away} />
-            <div className="flex justify-between text-[10px] text-gray-400 tabular-nums">
-              <span>{pct(ep.home)}</span>
-              <span>{pct(ep.draw)}</span>
-              <span>{pct(ep.away)}</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Dominant archetype */}
-        {topArchetype && (
-          <section className="rounded-xl border border-wc-navy/10 bg-wc-navy/3 px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Arquetipo dominante</p>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{topArchetype.emoji}</span>
-              <div>
-                <p className="text-sm font-bold text-wc-navy">{topArchetype.label}</p>
-                <p className="text-xs text-gray-400">{topArchetype.desc}</p>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Archetype breakdown */}
-        <section>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Reputación por arquetipo</p>
-          <div className="space-y-1.5">
-            {archetypesSorted.map(([arc, avg]) => {
-              const { label, emoji } = ARCHETYPE_LABELS[arc];
-              const max = archetypesSorted[0][1];
-              const barW = max > 0 ? (avg / max) * 100 : 0;
-              return (
-                <div key={arc} className="flex items-center gap-2">
-                  <span className="w-5 text-sm shrink-0">{emoji}</span>
-                  <div className="w-20 text-[10px] text-gray-500 shrink-0 truncate">{label.split(' ')[0]}</div>
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-wc-navy/60 rounded-full" style={{ width: `${barW}%` }} />
-                  </div>
-                  <span className="text-[10px] tabular-nums text-gray-400 w-8 text-right shrink-0">{(avg * 100).toFixed(1)}%</span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Most likely score + meta */}
-        <section className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-gray-100">
-          {result.mostLikelyScore && (
-            <div className="text-center">
-              <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-0.5">Marcador más probable</p>
-              <p className="text-lg font-black tabular-nums text-wc-navy">
-                {result.mostLikelyScore.home} — {result.mostLikelyScore.away}
-              </p>
-            </div>
-          )}
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-0.5">Confianza</p>
-            <p className={`text-sm font-bold tabular-nums ${result.confidence >= 0.55 ? 'text-emerald-700' : result.confidence >= 0.42 ? 'text-amber-600' : 'text-gray-500'}`}>
-              {pct(result.confidence)}
+          <div className={`rounded-xl border p-3 ${
+            result.elite_pick !== crowdModal ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100 bg-gray-50'
+          }`}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Élite (top 10%)</p>
+            <p className={`text-sm font-bold ${pickColor(result.elite_pick)} truncate`}>
+              {pickLabel(result.elite_pick, homeName, awayName)}
+            </p>
+            <p className="text-[10px] tabular-nums text-gray-400">
+              {pct(Math.max(ep.home, ep.draw, ep.away))}
             </p>
           </div>
         </section>
+
+        {/* Archetype accuracy */}
+        <section>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
+            Rendimiento por arquetipo
+          </p>
+          <div className="space-y-1.5">
+            {(Object.entries(result.archetype_avg_reps) as [ArchetypeId, number][])
+              .sort((a, b) => b[1] - a[1])
+              .map(([arc, avg]) => {
+                const { emoji, label } = ARCHETYPE_META[arc];
+                const maxVal = Math.max(...Object.values(result.archetype_avg_reps));
+                const barW = maxVal > 0 ? (avg / maxVal) * 100 : 0;
+                const isLeaderArch = arc === result.dominant_archetype;
+                return (
+                  <div key={arc} className="flex items-center gap-2">
+                    <span className="w-5 text-sm shrink-0">{emoji}</span>
+                    <div className={`w-20 text-[10px] shrink-0 truncate ${isLeaderArch ? 'font-bold text-wc-navy' : 'text-gray-500'}`}>
+                      {label}
+                    </div>
+                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${isLeaderArch ? 'bg-wc-navy' : 'bg-wc-navy/40'}`}
+                        style={{ width: `${barW}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] tabular-nums text-gray-400 w-10 text-right shrink-0">
+                      {avg > 0 ? pctInt(avg) : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+
       </div>
     </div>
   );
