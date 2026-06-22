@@ -32,7 +32,7 @@ const ladder = [
   { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5 ligas' },
   { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
   { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
-  { name: 'PIE',  label: 'PIE',                signal: '500 pronosticadores virtuales ponderados por reputación' },
+  { name: 'PIE',  label: 'PIE',                signal: '100 000 pronosticadores virtuales · dirección por consenso top-25 · marcador del mejor jugador que coincide' },
 ];
 
 export function OracleLabPage() {
