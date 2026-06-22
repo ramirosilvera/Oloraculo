@@ -1,16 +1,20 @@
 // =============================================================================
-// PIE — Prode Intelligence Engine (competition model, 10 000 players)
+// PIE — Prode Intelligence Engine (competition model, 1 000 000 players)
 //
-// 10 000 virtual players compete across played WC matches.
-// Ranking: composite score = exactCorrect×3 + correct×1 + upsetCorrect×0.5
+// 1M virtual players compete across played WC matches.
+// Ranking: composite = exactCorrect×3 + correct×1 + upsetCorrect×0.5
 // The LEADER (highest composite) makes the prediction for the next fixture.
 //
-// Performance: uses integer hash (not string FNV) inside the per-player loop
-// to keep 10 000×N_matches iterations fast in the browser (~50 ms).
+// Architecture:
+//   buildPIETrackRecords  — O(N×M), memoized once per wcResults change (~300 ms)
+//   computePIEFromRecords — O(2N) per fixture, memoized per expansion (~20 ms)
+//   computePIEScore       — backward-compat wrapper for recompute-evaluations
 // =============================================================================
 
-import type { PIEPlayer, PIELeaderEntry, PIEResult, ArchetypeId } from '../../types/pie';
-import { PIE_PLAYERS } from './players';
+import type { PIELeaderEntry, PIEResult, PIETrackRecords, ArchetypeId } from '../../types/pie';
+import {
+  N, HOME_SKEW, DRAW_SKEW, NOISE_LEVEL, ARCHETYPE, ARCHETYPE_IDS,
+} from './players';
 import type { Fixture, WcActualResult } from '../../types/domain';
 
 // ---------------------------------------------------------------------------
@@ -35,7 +39,6 @@ const POOL_AWAY_EQ: ScoreEntry[] = [
   { home: 1, away: 3, w:  7 }, { home: 0, away: 4, w:  3 },
   { home: 2, away: 3, w:  4 }, { home: 1, away: 4, w:  2 },
 ];
-
 const POOL_HOME_FAV: ScoreEntry[] = [
   { home: 2, away: 0, w: 32 }, { home: 3, away: 0, w: 20 },
   { home: 3, away: 1, w: 18 }, { home: 1, away: 0, w: 16 },
@@ -49,7 +52,6 @@ const POOL_AWAY_FAV: ScoreEntry[] = [
   { home: 1, away: 3, w: 18 }, { home: 0, away: 1, w: 16 },
   { home: 1, away: 2, w: 10 }, { home: 0, away: 4, w:  4 },
 ];
-
 const POOL_HOME_SOR: ScoreEntry[] = [
   { home: 1, away: 0, w: 50 }, { home: 2, away: 1, w: 30 },
   { home: 3, away: 2, w: 12 }, { home: 2, away: 0, w:  8 },
@@ -61,7 +63,6 @@ const POOL_AWAY_SOR: ScoreEntry[] = [
   { home: 0, away: 1, w: 50 }, { home: 1, away: 2, w: 30 },
   { home: 2, away: 3, w: 12 }, { home: 0, away: 2, w:  8 },
 ];
-
 const POOL_HOME_EMP: ScoreEntry[] = [
   { home: 2, away: 1, w: 40 }, { home: 1, away: 0, w: 35 },
   { home: 3, away: 2, w: 15 }, { home: 2, away: 0, w: 10 },
@@ -74,7 +75,6 @@ const POOL_AWAY_EMP: ScoreEntry[] = [
   { home: 1, away: 2, w: 40 }, { home: 0, away: 1, w: 35 },
   { home: 2, away: 3, w: 15 }, { home: 0, away: 2, w: 10 },
 ];
-
 const POOL_HOME_CAO: ScoreEntry[] = [
   { home: 1, away: 0, w: 10 }, { home: 2, away: 0, w: 10 }, { home: 2, away: 1, w: 10 },
   { home: 3, away: 0, w:  9 }, { home: 3, away: 1, w:  9 }, { home: 3, away: 2, w:  9 },
@@ -94,26 +94,36 @@ const POOL_AWAY_CAO: ScoreEntry[] = [
   { home: 0, away: 7, w:  3 },
 ];
 
-// Precomputed pool totals for fast wSample
 type PoolWithTotal = { entries: ScoreEntry[]; total: number };
 function buildPool(entries: ScoreEntry[]): PoolWithTotal {
   return { entries, total: entries.reduce((s, e) => s + e.w, 0) };
 }
 
-const SCORE_POOLS: Record<ArchetypeId, { home: PoolWithTotal; draw: PoolWithTotal; away: PoolWithTotal }> = {
-  FAVORITO:    { home: buildPool(POOL_HOME_FAV), draw: buildPool(POOL_DRAW_FAV), away: buildPool(POOL_AWAY_FAV) },
-  SORPRESA:    { home: buildPool(POOL_HOME_SOR), draw: buildPool(POOL_DRAW_SOR), away: buildPool(POOL_AWAY_SOR) },
-  EMPATE:      { home: buildPool(POOL_HOME_EMP), draw: buildPool(POOL_DRAW_EMP), away: buildPool(POOL_AWAY_EMP) },
-  EQUILIBRADO: { home: buildPool(POOL_HOME_EQ),  draw: buildPool(POOL_DRAW_EQ),  away: buildPool(POOL_AWAY_EQ)  },
-  CAOTICO:     { home: buildPool(POOL_HOME_CAO), draw: buildPool(POOL_DRAW_CAO), away: buildPool(POOL_AWAY_CAO) },
-};
+// Indexed by archetype number 0-4 for O(1) lookup without string key
+const ARC_HOME_POOLS: PoolWithTotal[] = [
+  buildPool(POOL_HOME_FAV), // 0 FAVORITO
+  buildPool(POOL_HOME_SOR), // 1 SORPRESA
+  buildPool(POOL_HOME_EMP), // 2 EMPATE
+  buildPool(POOL_HOME_EQ),  // 3 EQUILIBRADO
+  buildPool(POOL_HOME_CAO), // 4 CAOTICO
+];
+const ARC_DRAW_POOLS: PoolWithTotal[] = [
+  buildPool(POOL_DRAW_FAV),
+  buildPool(POOL_DRAW_SOR),
+  buildPool(POOL_DRAW_EMP),
+  buildPool(POOL_DRAW_EQ),
+  buildPool(POOL_DRAW_CAO),
+];
+const ARC_AWAY_POOLS: PoolWithTotal[] = [
+  buildPool(POOL_AWAY_FAV),
+  buildPool(POOL_AWAY_SOR),
+  buildPool(POOL_AWAY_EMP),
+  buildPool(POOL_AWAY_EQ),
+  buildPool(POOL_AWAY_CAO),
+];
 
 // ---------------------------------------------------------------------------
-// Fast integer RNG — avoids string FNV in the inner player loop
-//
-// Strategy: hash the fixture ID once (string FNV, outside player loop),
-// then combine with player index and salt using pure integer arithmetic.
-// ~50× faster than string FNV per-player.
+// Fast integer RNG
 // ---------------------------------------------------------------------------
 
 function fnv1aInt(s: string): number {
@@ -125,7 +135,7 @@ function fnv1aInt(s: string): number {
   return h >>> 0;
 }
 
-// salt: 0 = pick RNG, 1 = score RNG
+// salt 0 = pick, salt 1 = score
 function fastRng(playerIdx: number, fixHash: number, salt: number): number {
   let h = (Math.imul(playerIdx + 1, 2654435761) ^ fixHash ^ Math.imul(salt, 2246822519)) >>> 0;
   h ^= h >>> 13;
@@ -144,7 +154,7 @@ function wSamplePool(pool: PoolWithTotal, rng: number): ScoreEntry {
 }
 
 // ---------------------------------------------------------------------------
-// WC 2026 form bonus
+// Helpers
 // ---------------------------------------------------------------------------
 
 function wcFormBonus(
@@ -169,7 +179,10 @@ function wcFormBonus(
   return bonus;
 }
 
-function eloBasedPrior(homeElo: number, awayElo: number): { home: number; draw: number; away: number } {
+function eloBasedPrior(
+  homeElo: number,
+  awayElo: number,
+): { home: number; draw: number; away: number } {
   const diff = homeElo - awayElo;
   const homeWinRaw = 1 / (1 + Math.pow(10, -diff / 400));
   const drawBase = 0.26 - 0.15 * Math.abs(diff / 400);
@@ -179,239 +192,275 @@ function eloBasedPrior(homeElo: number, awayElo: number): { home: number; draw: 
 }
 
 // ---------------------------------------------------------------------------
-// Player pick + score — fast integer hash, archetype-specific score pool
+// Module-level pick buffer (reused — JS is single-threaded)
 // ---------------------------------------------------------------------------
-
-function computePlayerPick(
-  player: PIEPlayer,
-  prior: { home: number; draw: number; away: number },
-  fixHash: number,  // precomputed fnv1aInt(fixtureId)
-): { pick: 'Home' | 'Draw' | 'Away'; pickScore: { home: number; away: number } } {
-  const rng1 = fastRng(player.index, fixHash, 0);
-  const rng2 = fastRng(player.index, fixHash, 1);
-
-  let h = Math.max(0.02, prior.home + player.homeSkew);
-  let d = Math.max(0.02, prior.draw + player.drawSkew);
-  let a = Math.max(0.02, prior.away - player.homeSkew - player.drawSkew);
-  const tot = h + d + a;
-  h /= tot; d /= tot; a /= tot;
-
-  const u = 1 / 3;
-  h = h * (1 - player.noiseLevel) + u * player.noiseLevel;
-  d = d * (1 - player.noiseLevel) + u * player.noiseLevel;
-  a = a * (1 - player.noiseLevel) + u * player.noiseLevel;
-
-  const pick: 'Home' | 'Draw' | 'Away' =
-    rng1 < h ? 'Home' : rng1 < h + d ? 'Draw' : 'Away';
-
-  const pools = SCORE_POOLS[player.archetype];
-  const sPool = pick === 'Home' ? pools.home : pick === 'Away' ? pools.away : pools.draw;
-  const s = wSamplePool(sPool, rng2);
-
-  return { pick, pickScore: { home: s.home, away: s.away } };
-}
+const _picks = new Uint8Array(N); // 0=Home 1=Draw 2=Away
 
 // ---------------------------------------------------------------------------
-// Track records — composite score = exactCorrect×3 + correct×1 + upsetCorrect×0.5
+// buildPIETrackRecords — expensive O(N×M), called once per wcResults change
 // ---------------------------------------------------------------------------
 
-interface TrackRecord {
-  correct: number;
-  exactCorrect: number;
-  total: number;
-  upsetCorrect: number;
-}
-
-function compositeScore(r: TrackRecord): number {
-  return r.exactCorrect * 3 + r.correct + r.upsetCorrect * 0.5;
-}
-
-function buildTrackRecords(
+export function buildPIETrackRecords(
   allFixtures: Fixture[],
   wcResults: WcActualResult[],
-  homeEloFn: (fixtureId: string) => number,
-  awayEloFn: (fixtureId: string) => number,
-): Map<string, TrackRecord> {
-  const records = new Map<string, TrackRecord>(
-    PIE_PLAYERS.map(p => [p.id, { correct: 0, exactCorrect: 0, total: 0, upsetCorrect: 0 }])
-  );
+  eloByFixture: Map<string, { home: number; away: number }>,
+): PIETrackRecords {
+  const correct = new Int32Array(N);
+  const exact   = new Int32Array(N);
+  const total   = new Int32Array(N);
+  const upset   = new Int32Array(N);
 
   const fixtureById = new Map(allFixtures.map(f => [f.id, f]));
+
+  // Cache form bonuses per team (wcFormBonus is O(allFixtures) per call)
+  const formCache = new Map<string, number>();
+  const cachedForm = (teamId: string) => {
+    if (!formCache.has(teamId)) formCache.set(teamId, wcFormBonus(teamId, allFixtures, wcResults));
+    return formCache.get(teamId)!;
+  };
 
   for (const r of wcResults) {
     const fixture = fixtureById.get(r.fixture_id);
     if (!fixture) continue;
+    const elos = eloByFixture.get(r.fixture_id);
+    if (!elos || elos.home === 0 || elos.away === 0) continue;
 
-    const hElo = homeEloFn(r.fixture_id);
-    const aElo = awayEloFn(r.fixture_id);
-    if (hElo === 0 || aElo === 0) continue;
+    const prior = eloBasedPrior(
+      elos.home + cachedForm(fixture.home_team_id),
+      elos.away + cachedForm(fixture.away_team_id),
+    );
 
-    const homeBns = wcFormBonus(fixture.home_team_id, allFixtures, wcResults);
-    const awayBns = wcFormBonus(fixture.away_team_id, allFixtures, wcResults);
-    const prior = eloBasedPrior(hElo + homeBns, aElo + awayBns);
-
-    const actual: 'Home' | 'Draw' | 'Away' =
-      r.home_goals > r.away_goals ? 'Home'
-      : r.home_goals === r.away_goals ? 'Draw'
-      : 'Away';
+    // Encode actual as number to avoid per-player string comparison
+    const actual: 0 | 1 | 2 =
+      r.home_goals > r.away_goals ? 0 : r.home_goals === r.away_goals ? 1 : 2;
 
     const isUpset =
-      (actual === 'Away' && prior.home > prior.away + 0.10) ||
-      (actual === 'Home' && prior.away > prior.home + 0.10);
+      (actual === 2 && prior.home > prior.away + 0.10) ||
+      (actual === 0 && prior.away > prior.home + 0.10);
 
-    // Precompute fixture hash once (outside player loop — key performance optimization)
     const fixHash = fnv1aInt(r.fixture_id);
+    const pH = prior.home, pD = prior.draw, pA = prior.away;
+    const hg = r.home_goals, ag = r.away_goals;
 
-    for (const player of PIE_PLAYERS) {
-      const { pick, pickScore } = computePlayerPick(player, prior, fixHash);
-      const rec = records.get(player.id)!;
-      rec.total++;
+    for (let i = 0; i < N; i++) {
+      const hs = HOME_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+
+      let h = pH + hs; if (h < 0.02) h = 0.02;
+      let d = pD + ds; if (d < 0.02) d = 0.02;
+      let a = pA - hs - ds; if (a < 0.02) a = 0.02;
+      const inv = 1 / (h + d + a);
+      h *= inv; d *= inv;
+      const nlc = 1 - nl, u = 0.33333333;
+      h = h * nlc + u * nl;
+      d = d * nlc + u * nl;
+
+      const rng1 = fastRng(i, fixHash, 0);
+      const pick: 0 | 1 | 2 = rng1 < h ? 0 : rng1 < h + d ? 1 : 2;
+
+      total[i]++;
       if (pick === actual) {
-        rec.correct++;
-        if (isUpset) rec.upsetCorrect++;
-      }
-      if (pickScore.home === r.home_goals && pickScore.away === r.away_goals) {
-        rec.exactCorrect++;
+        correct[i]++;
+        if (isUpset) upset[i]++;
+        // Exact score only computable when pick outcome matches
+        const rng2 = fastRng(i, fixHash, 1);
+        const arc = ARCHETYPE[i];
+        const sPool = pick === 0 ? ARC_HOME_POOLS[arc] : pick === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
+        const s = wSamplePool(sPool, rng2);
+        if (s.home === hg && s.away === ag) exact[i]++;
       }
     }
   }
 
-  return records;
+  return { correct, exact, total, upset };
 }
 
 // ---------------------------------------------------------------------------
-// Main PIE computation
+// computePIEFromRecords — O(2N) per fixture
 // ---------------------------------------------------------------------------
 
-export interface PIEInput {
-  fixture: Fixture;
-  homeElo: number;
-  awayElo: number;
-  allFixtures: Fixture[];
-  wcResults: WcActualResult[];
-  eloByFixture?: Map<string, { home: number; away: number }>;
-}
+export function computePIEFromRecords(
+  fixture: Fixture,
+  homeElo: number,
+  awayElo: number,
+  wcResults: WcActualResult[],
+  allFixtures: Fixture[],
+  records: PIETrackRecords,
+): PIEResult {
+  if (!fixture || homeElo <= 0 || awayElo <= 0) return degradedResult(fixture?.id ?? '');
 
-export function computePIEScore(input: PIEInput): PIEResult {
-  const { fixture, homeElo, awayElo, allFixtures, wcResults, eloByFixture } = input;
+  const { correct, exact, total, upset } = records;
 
-  if (!fixture || homeElo <= 0 || awayElo <= 0) {
-    return degradedResult(fixture?.id ?? '');
-  }
-
-  const homeBns = wcFormBonus(fixture.home_team_id, allFixtures, wcResults);
-  const awayBns = wcFormBonus(fixture.away_team_id, allFixtures, wcResults);
-  const prior = eloBasedPrior(homeElo + homeBns, awayElo + awayBns);
-
-  const hEloFn = (fid: string) => eloByFixture?.get(fid)?.home ?? 0;
-  const aEloFn = (fid: string) => eloByFixture?.get(fid)?.away ?? 0;
-  const records = buildTrackRecords(allFixtures, wcResults, hEloFn, aEloFn);
-
-  // Precompute fixture hash for the target fixture
-  const fixHash = fnv1aInt(fixture.id);
-
-  type PlayerState = {
-    player: PIEPlayer;
-    pick: 'Home' | 'Draw' | 'Away';
-    pickScore: { home: number; away: number };
-    correct: number;
-    exactCorrect: number;
-    total: number;
-    upsetCorrect: number;
-    composite: number;
+  // Cache form bonuses for this fixture's teams
+  const formCache = new Map<string, number>();
+  const cachedForm = (teamId: string) => {
+    if (!formCache.has(teamId)) formCache.set(teamId, wcFormBonus(teamId, allFixtures, wcResults));
+    return formCache.get(teamId)!;
   };
+  const prior = eloBasedPrior(
+    homeElo + cachedForm(fixture.home_team_id),
+    awayElo + cachedForm(fixture.away_team_id),
+  );
+  const fixHash = fnv1aInt(fixture.id);
+  const pH = prior.home, pD = prior.draw, pA = prior.away;
 
-  const states: PlayerState[] = PIE_PLAYERS.map(player => {
-    const { pick, pickScore } = computePlayerPick(player, prior, fixHash);
-    const rec = records.get(player.id)!;
-    return {
-      player,
+  // Composite-score histogram: bins ×2 so 0.5 step is integer-safe (max ~360)
+  const HIST_MAX = 400;
+  const hist = new Int32Array(HIST_MAX + 1);
+
+  let crowdH = 0, crowdD = 0, crowdA = 0;
+
+  // Archetype totals for accuracy breakdown
+  const arcCorr  = new Float64Array(5);
+  const arcTotal = new Float64Array(5);
+
+  // Top-K tracking (descending composite, K=10 for leader_support)
+  const K = 10;
+  const topIdx   = new Int32Array(K).fill(-1);
+  const topComp  = new Float64Array(K).fill(-Infinity);
+  let topMin = -Infinity, topMinPos = 0, topFilled = 0;
+
+  // === First O(N) pass: picks + crowd + histogram + top-K ===
+  for (let i = 0; i < N; i++) {
+    const comp = exact[i] * 3 + correct[i] + upset[i] * 0.5;
+
+    // Histogram bucket
+    const bin = comp * 2 > HIST_MAX ? HIST_MAX : (comp * 2 + 0.5) | 0;
+    hist[bin]++;
+
+    // Top-K update
+    if (topFilled < K) {
+      topIdx[topFilled] = i;
+      topComp[topFilled] = comp;
+      topFilled++;
+      if (topFilled === K) {
+        topMin = Infinity;
+        for (let k = 0; k < K; k++) {
+          if (topComp[k] < topMin) { topMin = topComp[k]; topMinPos = k; }
+        }
+      }
+    } else if (comp > topMin) {
+      topIdx[topMinPos] = i;
+      topComp[topMinPos] = comp;
+      topMin = Infinity;
+      for (let k = 0; k < K; k++) {
+        if (topComp[k] < topMin) { topMin = topComp[k]; topMinPos = k; }
+      }
+    }
+
+    // Player pick
+    const hs = HOME_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    let h = pH + hs; if (h < 0.02) h = 0.02;
+    let d = pD + ds; if (d < 0.02) d = 0.02;
+    let a = pA - hs - ds; if (a < 0.02) a = 0.02;
+    const inv = 1 / (h + d + a);
+    h *= inv; d *= inv;
+    const nlc = 1 - nl, u = 0.33333333;
+    h = h * nlc + u * nl;
+    d = d * nlc + u * nl;
+
+    const rng1 = fastRng(i, fixHash, 0);
+    const p: number = rng1 < h ? 0 : rng1 < h + d ? 1 : 2;
+    _picks[i] = p;
+    if (p === 0) crowdH++;
+    else if (p === 1) crowdD++;
+    else crowdA++;
+
+    // Archetype stats
+    const arc = ARCHETYPE[i];
+    arcCorr[arc]  += correct[i];
+    arcTotal[arc] += total[i];
+  }
+
+  // Sort top-K descending by composite (insertion sort, K=10)
+  for (let j = 1; j < K; j++) {
+    const ci = topComp[j], ii = topIdx[j];
+    let k = j - 1;
+    while (k >= 0 && topComp[k] < ci) {
+      topComp[k + 1] = topComp[k]; topIdx[k + 1] = topIdx[k]; k--;
+    }
+    topComp[k + 1] = ci; topIdx[k + 1] = ii;
+  }
+
+  const n = N;
+  const pCH = crowdH / n, pCD = crowdD / n, pCA = crowdA / n;
+
+  // === Find elite threshold via histogram (top 10%) ===
+  const eliteTarget = Math.max(10, Math.floor(n * 0.10));
+  let accumulated = 0;
+  let eliteThresholdBin = 0;
+  for (let b = HIST_MAX; b >= 0; b--) {
+    accumulated += hist[b];
+    if (accumulated >= eliteTarget) { eliteThresholdBin = b; break; }
+  }
+  const eliteThreshold = eliteThresholdBin / 2;
+
+  // === Second O(N) pass: elite picks ===
+  let eliteH = 0, eliteD = 0, eliteA = 0, eliteN = 0;
+  for (let i = 0; i < N; i++) {
+    if (exact[i] * 3 + correct[i] + upset[i] * 0.5 < eliteThreshold) continue;
+    const p = _picks[i];
+    if (p === 0) eliteH++;
+    else if (p === 1) eliteD++;
+    else eliteA++;
+    eliteN++;
+  }
+  const eN = eliteN || 1;
+  const pEH = eliteH / eN, pED = eliteD / eN, pEA = eliteA / eN;
+
+  // === Build leaderboard (top 5 with score samples) ===
+  const leaderboard: PIELeaderEntry[] = [];
+  for (let k = 0; k < Math.min(K, 5) && topIdx[k] !== -1; k++) {
+    const i = topIdx[k];
+    const pickCode = _picks[i];
+    const pick: 'Home' | 'Draw' | 'Away' =
+      pickCode === 0 ? 'Home' : pickCode === 1 ? 'Draw' : 'Away';
+    const arc = ARCHETYPE[i];
+    const sPool = pickCode === 0 ? ARC_HOME_POOLS[arc] : pickCode === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
+    const s = wSamplePool(sPool, fastRng(i, fixHash, 1));
+    leaderboard.push({
+      id: `pie-${i}`,
+      rank: k + 1,
+      archetype: ARCHETYPE_IDS[arc],
+      correct: correct[i],
+      exactCorrect: exact[i],
+      total: total[i],
+      upsetCorrect: upset[i],
       pick,
-      pickScore,
-      correct: rec.correct,
-      exactCorrect: rec.exactCorrect,
-      total: rec.total,
-      upsetCorrect: rec.upsetCorrect,
-      composite: compositeScore(rec),
-    };
-  });
-
-  // Rank by composite score (exactCorrect×3 + correct + upsetCorrect×0.5)
-  const ranked = [...states].sort((a, b) => {
-    if (b.composite !== a.composite) return b.composite - a.composite;
-    return a.player.id.localeCompare(b.player.id);  // stable tiebreak
-  });
-
-  const leaderState = ranked[0];
-
-  const leaderboard: PIELeaderEntry[] = ranked.slice(0, 5).map((s, i) => ({
-    id: s.player.id,
-    rank: i + 1,
-    archetype: s.player.archetype,
-    correct: s.correct,
-    exactCorrect: s.exactCorrect,
-    total: s.total,
-    upsetCorrect: s.upsetCorrect,
-    pick: s.pick,
-    pickScore: s.pickScore,
-  }));
-
-  const leader: PIELeaderEntry = { ...leaderboard[0] };
-
-  // Crowd consensus (equal-weighted)
-  let crowdHome = 0, crowdDraw = 0, crowdAway = 0;
-  for (const s of states) {
-    if      (s.pick === 'Home') crowdHome++;
-    else if (s.pick === 'Draw') crowdDraw++;
-    else                        crowdAway++;
+      pickScore: { home: s.home, away: s.away },
+    });
   }
-  const n = states.length;
-  crowdHome /= n; crowdDraw /= n; crowdAway /= n;
 
-  // Elite consensus (top 10% by composite)
-  const eliteCount = Math.max(10, Math.floor(n * 0.10));
-  const elite = ranked.slice(0, eliteCount);
-  let eliteHome = 0, eliteDraw = 0, eliteAway = 0;
-  for (const s of elite) {
-    if      (s.pick === 'Home') eliteHome++;
-    else if (s.pick === 'Draw') eliteDraw++;
-    else                        eliteAway++;
+  if (leaderboard.length === 0) return degradedResult(fixture.id);
+
+  const leader = leaderboard[0];
+  const leaderPickCode = _picks[topIdx[0]];
+
+  // leader_support: fraction of top-10 that agree with leader
+  let supportCount = 0, validTop = 0;
+  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
+    validTop++;
+    if (_picks[topIdx[k]] === leaderPickCode) supportCount++;
   }
-  eliteHome /= eliteCount; eliteDraw /= eliteCount; eliteAway /= eliteCount;
+  const leader_support = validTop > 0 ? supportCount / validTop : 0;
+
+  // Contrarian signal
+  const crowdModal: 'Home' | 'Draw' | 'Away' =
+    pCH >= pCD && pCH >= pCA ? 'Home' : pCA >= pCH && pCA >= pCD ? 'Away' : 'Draw';
+  const contrarian_signal =
+    leader.pick !== crowdModal ? 1 - Math.max(pCH, pCD, pCA) : 0;
 
   const elite_pick: 'Home' | 'Draw' | 'Away' =
-    eliteHome >= eliteDraw && eliteHome >= eliteAway ? 'Home'
-    : eliteAway >= eliteHome && eliteAway >= eliteDraw ? 'Away' : 'Draw';
+    pEH >= pED && pEH >= pEA ? 'Home' : pEA >= pEH && pEA >= pED ? 'Away' : 'Draw';
 
-  const top10 = ranked.slice(0, 10);
-  const leader_support = top10.filter(s => s.pick === leader.pick).length / top10.length;
-
-  const crowdModal: 'Home' | 'Draw' | 'Away' =
-    crowdHome >= crowdDraw && crowdHome >= crowdAway ? 'Home'
-    : crowdAway >= crowdHome && crowdAway >= crowdDraw ? 'Away' : 'Draw';
-  const contrarian_signal = leader.pick !== crowdModal
-    ? 1 - Math.max(crowdHome, crowdDraw, crowdAway)
-    : 0;
-
-  // Archetype accuracy breakdown
-  const archetypeStats: Record<ArchetypeId, { correct: number; total: number }> = {
-    FAVORITO: { correct: 0, total: 0 }, SORPRESA:    { correct: 0, total: 0 },
-    EMPATE:   { correct: 0, total: 0 }, EQUILIBRADO: { correct: 0, total: 0 },
-    CAOTICO:  { correct: 0, total: 0 },
-  };
-  for (const s of states) {
-    archetypeStats[s.player.archetype].correct += s.correct;
-    archetypeStats[s.player.archetype].total   += s.total;
-  }
-  const archetype_avg_reps: Record<ArchetypeId, number> = {} as Record<ArchetypeId, number>;
-  for (const arc of Object.keys(archetypeStats) as ArchetypeId[]) {
-    const { correct, total } = archetypeStats[arc];
-    archetype_avg_reps[arc] = total > 0 ? correct / total : 0;
+  // Archetype avg accuracy
+  const archetype_avg_reps = {} as Record<ArchetypeId, number>;
+  for (let a = 0; a < 5; a++) {
+    archetype_avg_reps[ARCHETYPE_IDS[a]] = arcTotal[a] > 0 ? arcCorr[a] / arcTotal[a] : 0;
   }
 
   const confidence = leader.total > 0
     ? leader.correct / leader.total
-    : Math.max(crowdHome, crowdDraw, crowdAway);
+    : Math.max(pCH, pCD, pCA);
 
   return {
     fixture_id: fixture.id,
@@ -419,11 +468,11 @@ export function computePIEScore(input: PIEInput): PIEResult {
     mostLikelyScore: leader.pickScore,
     leader,
     leader_support,
-    pick_probabilities: { home: crowdHome, draw: crowdDraw, away: crowdAway },
-    elite_probabilities: { home: eliteHome, draw: eliteDraw, away: eliteAway },
+    pick_probabilities: { home: pCH, draw: pCD, away: pCA },
+    elite_probabilities: { home: pEH, draw: pED, away: pEA },
     elite_pick,
     contrarian_signal,
-    dominant_archetype: leaderState.player.archetype,
+    dominant_archetype: ARCHETYPE_IDS[ARCHETYPE[topIdx[0]]],
     archetype_avg_reps,
     leaderboard,
     confidence,
@@ -431,6 +480,10 @@ export function computePIEScore(input: PIEInput): PIEResult {
     degraded: false,
   };
 }
+
+// ---------------------------------------------------------------------------
+// degradedResult helper
+// ---------------------------------------------------------------------------
 
 function degradedResult(fixture_id: string): PIEResult {
   const u = 1 / 3;
@@ -452,4 +505,26 @@ function degradedResult(fixture_id: string): PIEResult {
     sample_size: 0,
     degraded: true,
   };
+}
+
+// ---------------------------------------------------------------------------
+// PIEInput / computePIEScore — backward-compat wrapper
+// ---------------------------------------------------------------------------
+
+export interface PIEInput {
+  fixture: Fixture;
+  homeElo: number;
+  awayElo: number;
+  allFixtures: Fixture[];
+  wcResults: WcActualResult[];
+  eloByFixture?: Map<string, { home: number; away: number }>;
+}
+
+export function computePIEScore(input: PIEInput): PIEResult {
+  const { fixture, homeElo, awayElo, allFixtures, wcResults, eloByFixture } = input;
+  const eloMap = new Map<string, { home: number; away: number }>(
+    wcResults.map(r => [r.fixture_id, eloByFixture?.get(r.fixture_id) ?? { home: 0, away: 0 }])
+  );
+  const records = buildPIETrackRecords(allFixtures, wcResults, eloMap);
+  return computePIEFromRecords(fixture, homeElo, awayElo, wcResults, allFixtures, records);
 }

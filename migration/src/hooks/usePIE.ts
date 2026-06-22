@@ -1,9 +1,11 @@
-// PIE hook — computes PIE score for a single fixture (pure, no server fetch needed).
+// PIE hook — computes PIE result for a single fixture.
+// Track records (O(N×M)) are cached at module level so they are built once
+// across all fixture rows even though each row has its own hook instance.
 
 import { useMemo } from 'react';
-import { computePIEScore } from '../engine/pie/engine';
+import { buildPIETrackRecords, computePIEFromRecords } from '../engine/pie/engine';
 import type { Fixture, Rating, WcActualResult } from '../types/domain';
-import type { PIEResult } from '../types/pie';
+import type { PIEResult, PIETrackRecords } from '../types/pie';
 
 function latestElo(teamId: string, ratings: Rating[]): number {
   let best: Rating | null = null;
@@ -12,6 +14,23 @@ function latestElo(teamId: string, ratings: Rating[]): number {
     if (!best || r.as_of > best.as_of) best = r;
   }
   return best?.value ?? 0;
+}
+
+// Module-level cache: track records are expensive to build (O(N×M) ≈ 300 ms).
+// Key: "wcResults.length:allFixtures.length" — sufficient because results are
+// append-only and fixtures are static.
+let _recordsCache: { key: string; records: PIETrackRecords } | null = null;
+
+function getCachedRecords(
+  allFixtures: Fixture[],
+  wcResults: WcActualResult[],
+  eloByFixture: Map<string, { home: number; away: number }>,
+): PIETrackRecords {
+  const key = `${wcResults.length}:${allFixtures.length}`;
+  if (_recordsCache?.key === key) return _recordsCache.records;
+  const records = buildPIETrackRecords(allFixtures, wcResults, eloByFixture);
+  _recordsCache = { key, records };
+  return records;
 }
 
 interface UsePIEOptions {
@@ -29,7 +48,6 @@ export function usePIEForFixture({
   wcResults,
   enabled = true,
 }: UsePIEOptions): { result: PIEResult | null } {
-  // Build a lookup map so reputation can use per-fixture Elo
   const eloByFixture = useMemo(() => {
     const fixtureById = new Map(allFixtures.map(f => [f.id, f]));
     const map = new Map<string, { home: number; away: number }>();
@@ -46,9 +64,10 @@ export function usePIEForFixture({
 
   const result = useMemo<PIEResult | null>(() => {
     if (!enabled || !fixture) return null;
+    const records = getCachedRecords(allFixtures, wcResults, eloByFixture);
     const homeElo = latestElo(fixture.home_team_id, ratings);
     const awayElo = latestElo(fixture.away_team_id, ratings);
-    return computePIEScore({ fixture, homeElo, awayElo, allFixtures, wcResults, eloByFixture });
+    return computePIEFromRecords(fixture, homeElo, awayElo, wcResults, allFixtures, records);
   }, [enabled, fixture, ratings, allFixtures, wcResults, eloByFixture]);
 
   return { result };

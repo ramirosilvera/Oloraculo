@@ -1,25 +1,15 @@
 // =============================================================================
-// Oloráculo — PIE (Prode Intelligence Engine) types
+// Oloráculo — PIE types
 // =============================================================================
 
 export type ArchetypeId = 'FAVORITO' | 'SORPRESA' | 'EMPATE' | 'EQUILIBRADO' | 'CAOTICO';
 
-export interface PIEPlayer {
-  id: string;
-  index: number;       // 0-9999 — used for fast integer hashing
-  homeSkew: number;    // -0.15 to +0.15
-  drawSkew: number;    // -0.08 to +0.12
-  noiseLevel: number;  // 0.05 to 0.50
-  archetype: ArchetypeId;
-}
-
-// One entry in the competition leaderboard
 export interface PIELeaderEntry {
   id: string;
   rank: number;
   archetype: ArchetypeId;
-  correct: number;       // correct winner picks
-  exactCorrect: number;  // correct exact score picks (harder, 3× weight)
+  correct: number;
+  exactCorrect: number;
   total: number;
   upsetCorrect: number;
   pick: 'Home' | 'Draw' | 'Away';
@@ -28,21 +18,26 @@ export interface PIELeaderEntry {
 
 export interface PIEResult {
   fixture_id: string;
-  // Primary prediction: the competition leader's pick
   most_probable_pick: 'Home' | 'Draw' | 'Away';
   mostLikelyScore: { home: number; away: number } | null;
   leader: PIELeaderEntry | null;
-  leader_support: number;  // % of top 10 that agree with leader (0-1)
-  // Crowd distribution (equal-weighted, for probability bars)
+  leader_support: number;
   pick_probabilities: { home: number; draw: number; away: number };
-  // Elite consensus (top 10% by composite score)
   elite_probabilities: { home: number; draw: number; away: number };
   elite_pick: 'Home' | 'Draw' | 'Away';
   contrarian_signal: number;
   dominant_archetype: ArchetypeId | null;
   archetype_avg_reps: Record<ArchetypeId, number>;
-  leaderboard: PIELeaderEntry[];  // top 5
+  leaderboard: PIELeaderEntry[];
   confidence: number;
   sample_size: number;
   degraded: boolean;
+}
+
+// Track records for 1M players (typed arrays, exported for hook memoization)
+export interface PIETrackRecords {
+  correct:  Int32Array;   // correct winner picks per player
+  exact:    Int32Array;   // correct exact scores per player
+  total:    Int32Array;   // total matches played
+  upset:    Int32Array;   // upset picks correct per player
 }
