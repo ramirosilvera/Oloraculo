@@ -19,7 +19,7 @@ import type {
 } from '../types/domain';
 // Team, SquadStrengthEntry kept for RecomputeDeps callers
 import { buildEvaluationRows, type EvaluationInsert } from './evaluation';
-import { computePIEScore } from './pie/engine';
+import { buildPIETrackRecords, computePIEFromRecords } from './pie/engine';
 import { brierScore, rankedProbabilityScore, logLoss, topPick } from './probability-helper';
 
 export interface RecomputeDeps {
@@ -55,6 +55,22 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
   const actual = (hg: number, ag: number): 'Home' | 'Draw' | 'Away' =>
     hg > ag ? 'Home' : hg === ag ? 'Draw' : 'Away';
 
+  // Build Elo lookup and PIE track records ONCE (not once per fixture)
+  const latestElo = (teamId: string) => {
+    let best: Rating | null = null;
+    for (const rt of ratingsList) {
+      if (rt.team_id !== teamId || rt.type !== 'elo') continue;
+      if (!best || rt.as_of > best.as_of) best = rt;
+    }
+    return best?.value ?? 0;
+  };
+  const eloByFixture = new Map<string, { home: number; away: number }>();
+  for (const wr of wcResults) {
+    const wf = fixtureById.get(wr.fixture_id);
+    if (wf) eloByFixture.set(wr.fixture_id, { home: latestElo(wf.home_team_id), away: latestElo(wf.away_team_id) });
+  }
+  const pieRecords = buildPIETrackRecords(fixtures, wcResults, eloByFixture);
+
   for (const r of wcResults) {
     const fixture = fixtureById.get(r.fixture_id);
     if (!fixture) { matchesSkipped++; continue; }
@@ -71,28 +87,14 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
 
     // PIE evaluation row
     {
-      // Build per-fixture Elo lookup from fixtures already processed
-      const eloByFixture = new Map<string, { home: number; away: number }>();
-      const latestElo = (teamId: string) => {
-        let best: Rating | null = null;
-        for (const rt of ratingsList) {
-          if (rt.team_id !== teamId || rt.type !== 'elo') continue;
-          if (!best || rt.as_of > best.as_of) best = rt;
-        }
-        return best?.value ?? 0;
-      };
-      for (const wr of wcResults) {
-        const wf = fixtureById.get(wr.fixture_id);
-        if (wf) eloByFixture.set(wr.fixture_id, { home: latestElo(wf.home_team_id), away: latestElo(wf.away_team_id) });
-      }
-      const pieResult = computePIEScore({
+      const pieResult = computePIEFromRecords(
         fixture,
-        homeElo: latestElo(fixture.home_team_id),
-        awayElo: latestElo(fixture.away_team_id),
-        allFixtures: fixtures,
+        latestElo(fixture.home_team_id),
+        latestElo(fixture.away_team_id),
         wcResults,
-        eloByFixture,
-      });
+        fixtures,
+        pieRecords,
+      );
       if (!pieResult.degraded) {
         const out = { homeWin: pieResult.pick_probabilities.home, draw: pieResult.pick_probabilities.draw, awayWin: pieResult.pick_probabilities.away };
         const act = actual(r.home_goals, r.away_goals);

@@ -6,7 +6,7 @@
 
 import type { ArchetypeId } from '../../types/pie';
 
-export const N = 1_000_000;
+export const N = 100_000;
 
 export const HOME_SKEW   = new Float32Array(N); // 4 MB
 export const DRAW_SKEW   = new Float32Array(N); // 4 MB
