@@ -20,6 +20,7 @@ import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
 import { SCFCard } from '../components/SCFCard';
 import { useSCFForFixture } from '../hooks/useSCF';
+import { useProdeStandings } from '../hooks/useProde';
 import type { Fixture } from '../types/domain';
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
@@ -61,6 +62,15 @@ export function OracleLabPage() {
       is_played: false,
     };
   }, [homeId, awayId]);
+
+  const { standings: prodeStandings } = useProdeStandings({
+    allFixtures: fixtures,
+    wcResults,
+    teamMap,
+    ratings: ratingsList,
+    squadStrengthData,
+    enabled: !isLoading,
+  });
 
   const { result: scfResult } = useSCFForFixture({
     fixture: labFixture!,
@@ -268,6 +278,7 @@ export function OracleLabPage() {
               result={scfResult}
               homeName={result.homeTeamName}
               awayName={result.awayTeamName}
+              standings={prodeStandings}
               onClose={() => setShowSCFDetail(false)}
             />
           )}

@@ -100,3 +100,30 @@ export interface HeuristicSignal {
   strength: number;    // 0 to 1
   note: string;
 }
+
+// =============================================================================
+// Prode — virtual players that make deterministic picks from the CF outcome
+// =============================================================================
+
+export interface ProdePlayer {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  biasHome: number;   // additive shift on homeWin before normalizing
+  biasDraw: number;
+  biasAway: number;
+  noiseLevel: number; // 0-1: blends toward uniform (simulates gut-feel noise)
+}
+
+export interface ProdePlayerPick {
+  playerId: string;
+  pick: 'Home' | 'Draw' | 'Away';
+  score: { home: number; away: number } | null;
+}
+
+export interface ProdeStanding {
+  player: ProdePlayer;
+  correct: number;
+  total: number;
+}

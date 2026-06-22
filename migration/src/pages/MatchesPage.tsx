@@ -21,6 +21,8 @@ import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, Da
 import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
 import { SCFCard } from '../components/SCFCard';
 import { useSCFForFixture } from '../hooks/useSCF';
+import { useProdeStandings } from '../hooks/useProde';
+import type { ProdeStanding } from '../types/scf';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
@@ -398,12 +400,13 @@ interface FixtureRowProps {
   bestModelWinnerAcc: number | null;
   liveMatch?: LiveMatch;
   goals?: MatchGoal[];
-  // SCF data
+  // SCF / Prode data
   teamMap: Map<string, Team>;
   ratings: Rating[];
   allFixtures: Fixture[];
   wcResultsForSCF: WcActualResult[];
   squadStrengthData: Record<string, SquadStrengthEntry>;
+  prodeStandings: ProdeStanding[];
 }
 
 function FixtureRow({
@@ -411,7 +414,7 @@ function FixtureRow({
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
-  teamMap, ratings, allFixtures, wcResultsForSCF, squadStrengthData,
+  teamMap, ratings, allFixtures, wcResultsForSCF, squadStrengthData, prodeStandings,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   const [showSCFDetail, setShowSCFDetail] = useState(false);
@@ -599,6 +602,7 @@ function FixtureRow({
                   result={scfResult}
                   homeName={homeName}
                   awayName={awayName}
+                  standings={prodeStandings}
                   onClose={() => setShowSCFDetail(false)}
                 />
               )}
@@ -1232,6 +1236,15 @@ export function MatchesPage() {
     [bestWinnerModelName, evalsData],
   );
 
+  const { standings: prodeStandings } = useProdeStandings({
+    allFixtures: fixtures,
+    wcResults: wcResults ?? [],
+    teamMap,
+    ratings: ratingsList,
+    squadStrengthData,
+    enabled: !isLoading,
+  });
+
   const [expandedId, setExpandedId]     = useState<string | null>(null);
   const [expandingId, setExpandingId]   = useState<string | null>(null);
   const [predictions, setPredictions]   = useState<Map<string, MatchPredictionResult>>(new Map());
@@ -1463,6 +1476,7 @@ export function MatchesPage() {
     allFixtures: fixtures,
     wcResultsForSCF: wcResults ?? [],
     squadStrengthData,
+    prodeStandings,
   });
 
   // ---- filtered fixtures ----
