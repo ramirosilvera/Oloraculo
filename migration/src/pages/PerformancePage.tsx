@@ -29,7 +29,7 @@ const ALL_MODELS = [
   'Potencial del plantel',
   'Goles + contexto reciente',
   'Momentum del Mundial',
-  'S. Común Futbolero',
+  'PIE',
 ];
 
 // Archived models: removed from active ensemble but historical evaluations preserved
@@ -361,8 +361,8 @@ export function PerformancePage() {
                           {tier && (
                             <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>
                           )}
-                          {!tier && row.name === 'S. Común Futbolero' && (
-                            <span className="ml-1.5 text-[10px] font-black uppercase tracking-widest text-wc-navy">SCF</span>
+                          {!tier && row.name === 'PIE' && (
+                            <span className="ml-1.5 text-[10px] font-black uppercase tracking-widest text-wc-navy">PIE</span>
                           )}
                         </div>
                         {isWinnerBest && <Badge color="gold">Líder</Badge>}

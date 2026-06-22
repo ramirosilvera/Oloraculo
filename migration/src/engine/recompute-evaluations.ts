@@ -17,9 +17,9 @@ import type {
   WcActualResult,
   SquadStrengthEntry,
 } from '../types/domain';
+// Team, SquadStrengthEntry kept for RecomputeDeps callers
 import { buildEvaluationRows, type EvaluationInsert } from './evaluation';
-import { buildSCFContext } from './scf/context-builder';
-import { computeSCFScore, STATIC_HEURISTICS } from './scf/engine';
+import { computePIEScore } from './pie/engine';
 import { brierScore, rankedProbabilityScore, logLoss, topPick } from './probability-helper';
 
 export interface RecomputeDeps {
@@ -29,7 +29,7 @@ export interface RecomputeDeps {
   ratingsList: Rating[];
   contextMap: Map<string, FixtureContext>;
   wcResults: WcActualResult[];
-  squadStrengthData: Record<string, SquadStrengthEntry>;
+  squadStrengthData?: Record<string, SquadStrengthEntry>;
 }
 
 export interface RecomputeResult {
@@ -44,7 +44,7 @@ export interface RecomputeResult {
  * Pure: it only reads data and returns rows — persistence is the caller's job.
  */
 export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
-  const { engine, fixtures, teamMap, ratingsList, contextMap, wcResults, squadStrengthData } = deps;
+  const { engine, fixtures, teamMap, ratingsList, contextMap, wcResults } = deps;
 
   const fixtureById = new Map(fixtures.map(f => [f.id, f]));
   const rows: EvaluationInsert[] = [];
@@ -69,17 +69,35 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
 
     rows.push(...built);
 
-    // SCF evaluation row
-    const homeTeam = teamMap.get(fixture.home_team_id);
-    const awayTeam = teamMap.get(fixture.away_team_id);
-    if (homeTeam && awayTeam) {
-      const scfCtx = buildSCFContext(fixture, homeTeam, awayTeam, ratingsList, fixtures, wcResults, squadStrengthData);
-      const scfResult = computeSCFScore(scfCtx, STATIC_HEURISTICS);
-      if (!scfResult.degraded) {
-        const out = scfResult.outcome;
+    // PIE evaluation row
+    {
+      // Build per-fixture Elo lookup from fixtures already processed
+      const eloByFixture = new Map<string, { home: number; away: number }>();
+      const latestElo = (teamId: string) => {
+        let best: Rating | null = null;
+        for (const rt of ratingsList) {
+          if (rt.team_id !== teamId || rt.type !== 'elo') continue;
+          if (!best || rt.as_of > best.as_of) best = rt;
+        }
+        return best?.value ?? 0;
+      };
+      for (const wr of wcResults) {
+        const wf = fixtureById.get(wr.fixture_id);
+        if (wf) eloByFixture.set(wr.fixture_id, { home: latestElo(wf.home_team_id), away: latestElo(wf.away_team_id) });
+      }
+      const pieResult = computePIEScore({
+        fixture,
+        homeElo: latestElo(fixture.home_team_id),
+        awayElo: latestElo(fixture.away_team_id),
+        allFixtures: fixtures,
+        wcResults,
+        eloByFixture,
+      });
+      if (!pieResult.degraded) {
+        const out = { homeWin: pieResult.pick_probabilities.home, draw: pieResult.pick_probabilities.draw, awayWin: pieResult.pick_probabilities.away };
         const act = actual(r.home_goals, r.away_goals);
         rows.push({
-          model_name: 'S. Común Futbolero',
+          model_name: 'PIE',
           fixture_id: fixture.id,
           home_team_id: fixture.home_team_id,
           away_team_id: fixture.away_team_id,
@@ -93,8 +111,8 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
           ranked_probability_score: rankedProbabilityScore(out, act),
           log_loss: logLoss(out, act),
           top_pick_correct: topPick(out) === act,
-          exact_score_correct: scfResult.mostLikelyScore != null
-            ? scfResult.mostLikelyScore.home === r.home_goals && scfResult.mostLikelyScore.away === r.away_goals
+          exact_score_correct: pieResult.mostLikelyScore != null
+            ? pieResult.mostLikelyScore.home === r.home_goals && pieResult.mostLikelyScore.away === r.away_goals
             : null,
         });
       }

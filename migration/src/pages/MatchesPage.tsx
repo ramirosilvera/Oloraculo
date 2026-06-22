@@ -17,12 +17,10 @@ import { GoalList } from '../components/GoalList';
 import { TopScorers } from '../components/TopScorers';
 import { computeModelWeights } from '../engine/final-selector';
 import { buildEvaluationRows } from '../engine/evaluation';
-import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team, Rating, SquadStrengthEntry } from '../types/domain';
+import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team, Rating } from '../types/domain';
 import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
-import { SCFCard } from '../components/SCFCard';
-import { useSCFForFixture } from '../hooks/useSCF';
-import { useProdeStandings } from '../hooks/useProde';
-import type { ProdeStanding } from '../types/scf';
+import { PIECard } from '../components/PIECard';
+import { usePIEForFixture } from '../hooks/usePIE';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
@@ -400,13 +398,10 @@ interface FixtureRowProps {
   bestModelWinnerAcc: number | null;
   liveMatch?: LiveMatch;
   goals?: MatchGoal[];
-  // SCF / Prode data
-  teamMap: Map<string, Team>;
+  // PIE data
   ratings: Rating[];
   allFixtures: Fixture[];
-  wcResultsForSCF: WcActualResult[];
-  squadStrengthData: Record<string, SquadStrengthEntry>;
-  prodeStandings: ProdeStanding[];
+  wcResultsForPIE: WcActualResult[];
 }
 
 function FixtureRow({
@@ -414,18 +409,15 @@ function FixtureRow({
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
-  teamMap, ratings, allFixtures, wcResultsForSCF, squadStrengthData, prodeStandings,
+  ratings, allFixtures, wcResultsForPIE,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
-  const [showSCFDetail, setShowSCFDetail] = useState(false);
-  const { result: scfResult } = useSCFForFixture({
+  const [showPIEDetail, setShowPIEDetail] = useState(false);
+  const { result: pieResult } = usePIEForFixture({
     fixture,
-    homeTeam: teamMap.get(fixture.home_team_id),
-    awayTeam: teamMap.get(fixture.away_team_id),
     ratings,
     allFixtures,
-    wcResults: wcResultsForSCF,
-    squadStrengthData,
+    wcResults: wcResultsForPIE,
     enabled: isExpanded,
   });
   return (
@@ -540,7 +532,7 @@ function FixtureRow({
                       return (
                         <button
                           key={p.predictorName}
-                          onClick={() => { setShowSCFDetail(false); setSelectedModelDetail(isSelected ? null : p); }}
+                          onClick={() => { setShowPIEDetail(false); setSelectedModelDetail(isSelected ? null : p); }}
                           className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left transition-all ${isBest ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-gray-50'} ${isSelected ? 'bg-blue-50/60' : ''}`}
                         >
                           {isBest
@@ -557,27 +549,27 @@ function FixtureRow({
                         </button>
                       );
                     })}
-                    {/* SCF row — same layout as model rows, at the bottom of the table */}
-                    {scfResult && !scfResult.degraded && (() => {
-                      const scfPick = scfResult.outcome.homeWin > scfResult.outcome.awayWin && scfResult.outcome.homeWin > scfResult.outcome.draw ? 'Home'
-                                    : scfResult.outcome.awayWin > scfResult.outcome.homeWin && scfResult.outcome.awayWin > scfResult.outcome.draw ? 'Away' : 'Draw';
-                      const scfProb = scfPick === 'Home' ? scfResult.outcome.homeWin : scfPick === 'Away' ? scfResult.outcome.awayWin : scfResult.outcome.draw;
-                      const scfPickLabel = scfPick === 'Home' ? 'L' : scfPick === 'Away' ? 'V' : 'E';
-                      const scfPickColor = scfPick === 'Home' ? 'text-wc-navy' : scfPick === 'Away' ? 'text-wc-red' : 'text-gray-600';
+                    {/* PIE row — same layout as model rows, at the bottom of the table */}
+                    {pieResult && !pieResult.degraded && (() => {
+                      const { home: pieHome, draw: pieDraw, away: pieAway } = pieResult.pick_probabilities;
+                      const piePick = pieResult.most_probable_pick;
+                      const pieProb = piePick === 'Home' ? pieHome : piePick === 'Away' ? pieAway : pieDraw;
+                      const piePickLabel = piePick === 'Home' ? 'L' : piePick === 'Away' ? 'V' : 'E';
+                      const piePickColor = piePick === 'Home' ? 'text-wc-navy' : piePick === 'Away' ? 'text-wc-red' : 'text-gray-600';
                       return (
                         <>
                           <div className="border-t border-dashed border-gray-100" />
                           <button
-                            onClick={() => { setSelectedModelDetail(null); setShowSCFDetail(prev => !prev); }}
-                            className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-all hover:bg-gray-50 ${showSCFDetail ? 'bg-blue-50/60' : ''}`}
+                            onClick={() => { setSelectedModelDetail(null); setShowPIEDetail(prev => !prev); }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-all hover:bg-gray-50 ${showPIEDetail ? 'bg-blue-50/60' : ''}`}
                           >
                             <span className="w-3 shrink-0" />
-                            <span className="w-16 font-semibold text-wc-navy truncate shrink-0">S. Común</span>
-                            <MiniBar home={scfResult.outcome.homeWin} draw={scfResult.outcome.draw} away={scfResult.outcome.awayWin} />
-                            <span className={`font-black tabular-nums text-sm ${scfPickColor} w-5 text-center shrink-0`}>{scfPickLabel}</span>
-                            <span className="text-gray-400 tabular-nums w-9 text-right shrink-0">{Math.round(scfProb * 100)}%</span>
-                            {scfResult.mostLikelyScore
-                              ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{scfResult.mostLikelyScore.home}-{scfResult.mostLikelyScore.away}</span>
+                            <span className="w-16 font-semibold text-wc-navy truncate shrink-0">PIE</span>
+                            <MiniBar home={pieHome} draw={pieDraw} away={pieAway} />
+                            <span className={`font-black tabular-nums text-sm ${piePickColor} w-5 text-center shrink-0`}>{piePickLabel}</span>
+                            <span className="text-gray-400 tabular-nums w-9 text-right shrink-0">{Math.round(pieProb * 100)}%</span>
+                            {pieResult.mostLikelyScore
+                              ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{pieResult.mostLikelyScore.home}-{pieResult.mostLikelyScore.away}</span>
                               : <span className="w-7 shrink-0" />}
                             <span className="text-gray-300 text-[10px] shrink-0">›</span>
                           </button>
@@ -597,13 +589,12 @@ function FixtureRow({
                 />
               )}
 
-              {showSCFDetail && scfResult && (
-                <SCFCard
-                  result={scfResult}
+              {showPIEDetail && pieResult && (
+                <PIECard
+                  result={pieResult}
                   homeName={homeName}
                   awayName={awayName}
-                  standings={prodeStandings}
-                  onClose={() => setShowSCFDetail(false)}
+                  onClose={() => setShowPIEDetail(false)}
                 />
               )}
 
@@ -1165,7 +1156,7 @@ function LiveNow({ liveByKey, teamMap, fixtures }: {
 // MatchesPage
 // ---------------------------------------------------------------------------
 export function MatchesPage() {
-  const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, squadStrengthData, isLoading, error } = useAppData();
+  const { groups, fixtures, teamMap, contextMap, engine, ratingsList, wcResults, wcPlayedMap, isLoading, error } = useAppData();
   const qc = useQueryClient();
 
   // Live scores from ESPN via Supabase Edge Function (60s polling)
@@ -1235,15 +1226,6 @@ export function MatchesPage() {
     () => bestWinnerModelName ? modelStats(evalsData ?? [], bestWinnerModelName) : null,
     [bestWinnerModelName, evalsData],
   );
-
-  const { standings: prodeStandings } = useProdeStandings({
-    allFixtures: fixtures,
-    wcResults: wcResults ?? [],
-    teamMap,
-    ratings: ratingsList,
-    squadStrengthData,
-    enabled: !isLoading,
-  });
 
   const [expandedId, setExpandedId]     = useState<string | null>(null);
   const [expandingId, setExpandingId]   = useState<string | null>(null);
@@ -1471,12 +1453,9 @@ export function MatchesPage() {
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
     liveMatch: getLiveForFixture(resolvedLiveByKey, fixture.home_team_id, fixture.away_team_id),
     goals: goalsByFixture.get(fixture.id),
-    teamMap,
     ratings: ratingsList,
     allFixtures: fixtures,
-    wcResultsForSCF: wcResults ?? [],
-    squadStrengthData,
-    prodeStandings,
+    wcResultsForPIE: wcResults ?? [],
   });
 
   // ---- filtered fixtures ----
