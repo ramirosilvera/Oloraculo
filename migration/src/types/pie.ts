@@ -6,6 +6,7 @@ export type ArchetypeId = 'FAVORITO' | 'SORPRESA' | 'EMPATE' | 'EQUILIBRADO' | '
 
 export interface PIEPlayer {
   id: string;
+  index: number;       // 0-9999 — used for fast integer hashing
   homeSkew: number;    // -0.15 to +0.15
   drawSkew: number;    // -0.08 to +0.12
   noiseLevel: number;  // 0.05 to 0.50
@@ -14,37 +15,33 @@ export interface PIEPlayer {
 
 // One entry in the competition leaderboard
 export interface PIELeaderEntry {
-  id: string;            // e.g. "pie-247"
-  rank: number;          // 1-based
+  id: string;
+  rank: number;
   archetype: ArchetypeId;
-  correct: number;       // correct winner picks so far
-  total: number;         // total matches played so far
-  upsetCorrect: number;  // correct upset picks (harder, tiebreak)
+  correct: number;       // correct winner picks
+  exactCorrect: number;  // correct exact score picks (harder, 3× weight)
+  total: number;
+  upsetCorrect: number;
   pick: 'Home' | 'Draw' | 'Away';
   pickScore: { home: number; away: number };
 }
 
 export interface PIEResult {
   fixture_id: string;
-  // ── Primary prediction: the competition leader's pick ──────────────────
+  // Primary prediction: the competition leader's pick
   most_probable_pick: 'Home' | 'Draw' | 'Away';
   mostLikelyScore: { home: number; away: number } | null;
   leader: PIELeaderEntry | null;
-  // % of the top 10 that agree with the leader (0-1)
-  leader_support: number;
-  // ── Crowd distribution (equal-weighted, for probability bars) ──────────
+  leader_support: number;  // % of top 10 that agree with leader (0-1)
+  // Crowd distribution (equal-weighted, for probability bars)
   pick_probabilities: { home: number; draw: number; away: number };
-  // ── Elite consensus (top 10% by correct picks) ─────────────────────────
+  // Elite consensus (top 10% by composite score)
   elite_probabilities: { home: number; draw: number; away: number };
   elite_pick: 'Home' | 'Draw' | 'Away';
-  // 1 = leader's pick is completely opposite to crowd modal
   contrarian_signal: number;
-  // Archetype of the current leader
   dominant_archetype: ArchetypeId | null;
-  // Average accuracy rate per archetype (for breakdown chart)
   archetype_avg_reps: Record<ArchetypeId, number>;
-  // Top 5 for leaderboard display in the card
-  leaderboard: PIELeaderEntry[];
+  leaderboard: PIELeaderEntry[];  // top 5
   confidence: number;
   sample_size: number;
   degraded: boolean;

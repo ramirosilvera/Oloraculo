@@ -50,11 +50,9 @@ function PlayerNum({ id }: { id: string }) {
   return <span className="text-gray-400 font-mono text-[10px]">#{num}</span>;
 }
 
-function LeaderboardRow({ entry, isLeader, homeName, awayName }: {
+function LeaderboardRow({ entry, isLeader }: {
   entry: PIELeaderEntry;
   isLeader: boolean;
-  homeName: string;
-  awayName: string;
 }) {
   const meta = ARCHETYPE_META[entry.archetype];
   const acc = entry.total > 0 ? entry.correct / entry.total : null;
@@ -62,30 +60,25 @@ function LeaderboardRow({ entry, isLeader, homeName, awayName }: {
   const accColor = acc !== null
     ? acc >= 0.60 ? 'text-emerald-700' : acc >= 0.45 ? 'text-amber-600' : 'text-gray-400'
     : 'text-gray-300';
+  const exactColor = entry.exactCorrect > 0 ? 'text-purple-700 font-bold' : 'text-gray-300';
 
   return (
     <tr className={`border-t border-gray-50 ${isLeader ? 'bg-wc-navy/3' : ''}`}>
-      <td className="py-2 pl-4 pr-2 w-6">
+      <td className="py-2 pl-4 pr-1 w-5">
         <span className={`text-xs font-bold ${isLeader ? 'text-wc-navy' : 'text-gray-400'}`}>
           {isLeader ? '★' : entry.rank}
         </span>
       </td>
-      <td className="py-2 px-2">
-        <span className="text-sm">{meta.emoji}</span>
-      </td>
-      <td className="py-2 px-2">
-        <PlayerNum id={entry.id} />
-      </td>
-      <td className="py-2 px-2 text-right tabular-nums">
+      <td className="py-2 px-1 text-sm">{meta.emoji}</td>
+      <td className="py-2 px-1"><PlayerNum id={entry.id} /></td>
+      <td className="py-2 px-1 text-right tabular-nums">
         <span className={`text-xs font-bold ${accColor}`}>{entry.correct}</span>
         <span className="text-[10px] text-gray-300">/{entry.total}</span>
       </td>
-      <td className="py-2 px-2 text-right">
-        {acc !== null
-          ? <span className={`text-[10px] tabular-nums ${accColor}`}>{pctInt(acc)}</span>
-          : <span className="text-[10px] text-gray-300">—</span>}
+      <td className="py-2 px-1 text-right">
+        <span className={`text-xs tabular-nums ${exactColor}`}>{entry.exactCorrect}</span>
       </td>
-      <td className="py-2 pl-2 pr-4 text-right">
+      <td className="py-2 pl-1 pr-4 text-right">
         <span className={`text-xs font-black ${pickC}`}>{pickShort(entry.pick)}</span>
         <span className="text-[10px] text-gray-400 ml-1 tabular-nums">
           {entry.pickScore.home}-{entry.pickScore.away}
@@ -155,11 +148,16 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
               <p className="text-[10px] text-gray-400 mb-2">{leaderMeta.desc}</p>
             </div>
             {leaderAcc !== null && (
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 space-y-0.5">
                 <p className="text-xl font-black tabular-nums text-wc-navy leading-none">
                   {leader.correct}<span className="text-sm font-normal text-gray-400">/{leader.total}</span>
                 </p>
-                <p className="text-xs text-gray-400 tabular-nums">{pctInt(leaderAcc)} aciertos</p>
+                <p className="text-xs text-gray-400 tabular-nums">{pctInt(leaderAcc)} ganadores</p>
+                {leader.exactCorrect > 0 && (
+                  <p className="text-xs font-bold text-purple-700 tabular-nums">
+                    {leader.exactCorrect} exactos 🎯
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -199,12 +197,12 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="py-1.5 pl-4 pr-2 text-left text-[10px] text-gray-400 font-medium w-6">#</th>
-                  <th className="py-1.5 px-2 text-left text-[10px] text-gray-400 font-medium"></th>
-                  <th className="py-1.5 px-2 text-left text-[10px] text-gray-400 font-medium">ID</th>
-                  <th className="py-1.5 px-2 text-right text-[10px] text-gray-400 font-medium">Aciert.</th>
-                  <th className="py-1.5 px-2 text-right text-[10px] text-gray-400 font-medium">%</th>
-                  <th className="py-1.5 pl-2 pr-4 text-right text-[10px] text-gray-400 font-medium">Pronóst.</th>
+                  <th className="py-1.5 pl-4 pr-1 text-left text-[10px] text-gray-400 font-medium w-5">#</th>
+                  <th className="py-1.5 px-1 text-[10px] text-gray-400 font-medium"></th>
+                  <th className="py-1.5 px-1 text-left text-[10px] text-gray-400 font-medium">ID</th>
+                  <th className="py-1.5 px-1 text-right text-[10px] text-gray-400 font-medium">Win</th>
+                  <th className="py-1.5 px-1 text-right text-[10px] text-purple-400 font-medium">Exact</th>
+                  <th className="py-1.5 pl-1 pr-4 text-right text-[10px] text-gray-400 font-medium">Pronóst.</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,8 +211,6 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
                     key={entry.id}
                     entry={entry}
                     isLeader={entry.rank === 1}
-                    homeName={homeName}
-                    awayName={awayName}
                   />
                 ))}
               </tbody>

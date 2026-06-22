@@ -1,5 +1,5 @@
 // =============================================================================
-// PIE — 500 deterministic virtual players generated via LCG
+// PIE — 10 000 deterministic virtual players generated via LCG
 // Player parameters are stable across builds (same seed → same players)
 // =============================================================================
 
@@ -14,7 +14,6 @@ function makeLCG(seed: number) {
   };
 }
 
-// Map [0,1] to [lo, hi]
 function lerp(t: number, lo: number, hi: number) {
   return lo + t * (hi - lo);
 }
@@ -31,12 +30,13 @@ function generatePlayers(): PIEPlayer[] {
   const rng = makeLCG(0xDEADBEEF);
   const players: PIEPlayer[] = [];
 
-  for (let i = 0; i < 500; i++) {
-    const homeSkew  = lerp(rng(), -0.15,  0.15);
-    const drawSkew  = lerp(rng(), -0.08,  0.12);
+  for (let i = 0; i < 10_000; i++) {
+    const homeSkew   = lerp(rng(), -0.15,  0.15);
+    const drawSkew   = lerp(rng(), -0.08,  0.12);
     const noiseLevel = lerp(rng(),  0.05,  0.50);
     players.push({
       id: `pie-${i}`,
+      index: i,
       homeSkew,
       drawSkew,
       noiseLevel,
