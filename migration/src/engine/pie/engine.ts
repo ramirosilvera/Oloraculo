@@ -3,8 +3,8 @@
 //
 // 1M virtual players compete across played WC matches.
 // Ranking: composite = exactCorrect×3 + correct×1 + upsetCorrect×0.5
-// Prediction = weighted consensus of top-100 players (weighted average of per-player
-// probability models). More stable than a single leader — resistant to lucky streaks.
+// Prediction = weighted consensus of top-25 players (weighted average of per-player
+// probability models). Tight elite pool — more decisive predictions than a wider consensus.
 //
 // Architecture:
 //   buildPIETrackRecords  — O(N×M), memoized once per wcResults change (~300 ms)
@@ -321,8 +321,8 @@ export function computePIEFromRecords(
   const arcCorr  = new Float64Array(5);
   const arcTotal = new Float64Array(5);
 
-  // Top-K tracking (descending composite, K=100 for consensus)
-  const K = 100;
+  // Top-K tracking (descending composite, K=25 for consensus)
+  const K = 25;
   const topIdx   = new Int32Array(K).fill(-1);
   const topComp  = new Float64Array(K).fill(-Infinity);
   let topMin = -Infinity, topMinPos = 0, topFilled = 0;

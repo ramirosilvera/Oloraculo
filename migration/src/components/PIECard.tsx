@@ -1,7 +1,7 @@
 // =============================================================================
 // PIECard — Prode Intelligence Engine
 // Muestra el torneo interno de 100 000 jugadores virtuales.
-// La predicción viene del consenso ponderado de los top-100 por score compuesto.
+// La predicción viene del consenso ponderado de los top-25 por score compuesto.
 // El líder sigue siendo el jugador #1, pero el pronóstico es del consenso.
 // =============================================================================
 
@@ -105,7 +105,7 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
   const { leader, leaderboard, pick_probabilities: cp, elite_probabilities: ep } = result;
   const leaderMeta = ARCHETYPE_META[leader.archetype];
   const leaderAcc = leader.total > 0 ? leader.correct / leader.total : null;
-  // cp is now the weighted top-100 consensus, not the full crowd
+  // cp is now the weighted top-25 consensus, not the full crowd
   const consensusModal = result.most_probable_pick;
 
   return (
@@ -167,7 +167,7 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
           <div className="flex items-center gap-3 mt-1 pt-3 border-t border-wc-navy/10">
             <div className="flex-1">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">
-                Consenso top-100
+                Consenso top-25
               </p>
               <p className={`text-base font-black ${pickColor(result.most_probable_pick)}`}>
                 {pickLabel(result.most_probable_pick, homeName, awayName)}
@@ -189,8 +189,8 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
           <div className="mt-2 pt-2 border-t border-wc-navy/10">
             <p className="text-[10px] text-gray-400">
               <span className="font-semibold text-wc-navy">
-                {Math.round(result.leader_support * 100)}/100
-              </span> de los mejores 100 coinciden con el consenso
+                {Math.round(result.leader_support * 25)}/25
+              </span> de los mejores 25 coinciden con el consenso
             </p>
           </div>
         </section>
@@ -231,7 +231,7 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
         {/* Consensus distribution */}
         <section>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
-            Probabilidades del consenso · top-100
+            Probabilidades del consenso · top-25
           </p>
           <div className="space-y-1.5">
             <MiniBar home={cp.home} draw={cp.draw} away={cp.away} />
@@ -255,7 +255,7 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
         {/* Elite vs crowd */}
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Consenso (top 100)</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Consenso (top 25)</p>
             <p className={`text-sm font-bold ${pickColor(consensusModal)} truncate`}>
               {pickLabel(consensusModal, homeName, awayName)}
             </p>
