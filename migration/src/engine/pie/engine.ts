@@ -433,10 +433,25 @@ export function computePIEFromRecords(
   const consensus_pick: 'Home' | 'Draw' | 'Away' =
     pKH >= pKD && pKH >= pKA ? 'Home' : pKA >= pKH && pKA >= pKD ? 'Away' : 'Draw';
 
-  let bestSKey = '1-0', bestSW = -Infinity;
-  scoreVotes.forEach((w, key) => { if (w > bestSW) { bestSW = w; bestSKey = key; } });
-  const [csH, csA] = bestSKey.split('-').map(Number);
-  const consensusScore: { home: number; away: number } = { home: csH, away: csA };
+  // Only consider scores whose direction matches consensus_pick to keep exact/winner consistent
+  let bestSKey = '', bestSW = -Infinity;
+  scoreVotes.forEach((w, key) => {
+    const dash = key.indexOf('-');
+    const h = +key.slice(0, dash), a = +key.slice(dash + 1);
+    const compatible = consensus_pick === 'Home' ? h > a
+                     : consensus_pick === 'Away' ? a > h
+                     : h === a;
+    if (compatible && w > bestSW) { bestSW = w; bestSKey = key; }
+  });
+  // Fallback if no compatible score exists (edge case with extreme noise)
+  if (!bestSKey) {
+    scoreVotes.forEach((w, key) => { if (w > bestSW) { bestSW = w; bestSKey = key; } });
+  }
+  const dash = bestSKey.indexOf('-');
+  const consensusScore: { home: number; away: number } = {
+    home: +bestSKey.slice(0, dash),
+    away: +bestSKey.slice(dash + 1),
+  };
 
   // === Find elite threshold via histogram (top 10%) ===
   const eliteTarget = Math.max(10, Math.floor(n * 0.10));
@@ -488,10 +503,10 @@ export function computePIEFromRecords(
 
   const leader = leaderboard[0];
 
-  // leader_support: fraction of the top-10 (not top-100) that agree with the consensus pick
+  // leader_support: fraction of the full top-K that agree with the consensus pick
   const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
   let supportCount = 0, validTop = 0;
-  for (let k = 0; k < 10 && topIdx[k] !== -1; k++) {
+  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     validTop++;
     if (_picks[topIdx[k]] === consensusPickCode) supportCount++;
   }

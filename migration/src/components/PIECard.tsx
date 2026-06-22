@@ -189,8 +189,8 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
           <div className="mt-2 pt-2 border-t border-wc-navy/10">
             <p className="text-[10px] text-gray-400">
               <span className="font-semibold text-wc-navy">
-                {Math.round(result.leader_support * 10)}/10
-              </span> de los mejores 10 coinciden con el consenso
+                {Math.round(result.leader_support * 100)}/100
+              </span> de los mejores 100 coinciden con el consenso
             </p>
           </div>
         </section>
