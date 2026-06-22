@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Trophy, Target, Cpu, Users, Database, ChevronRight } from 'lucide-react';
+import { Trophy, Target, Cpu, Users, Database, ChevronRight, BarChart2 } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
 import { loadEvaluations } from '../services/supabase-client';
 import {
@@ -22,15 +22,16 @@ import {
 // ---------------------------------------------------------------------------
 // Escalera de predicción
 // ---------------------------------------------------------------------------
-const ladder: { level: string; model: string; signal: string; color: 'gray' | 'blue' | 'green' | 'gold' | 'red' | 'navy' }[] = [
-  { level: 'L0',    model: 'Base',                    signal: 'probabilidad uniforme',             color: 'gray'  },
-  { level: 'L2',    model: 'Elo',                     signal: 'fortaleza de largo plazo',           color: 'blue'  },
-  { level: 'L3',    model: 'Forma reciente',           signal: 'resultados de corto plazo',         color: 'green' },
-  { level: 'L4',    model: 'Goles (Poisson)',          signal: 'marcadores Dixon-Coles, 8 años',    color: 'gold'  },
-  { level: 'L4.5',  model: 'Potencial del plantel',   signal: 'valor de mercado, top-5 ligas',     color: 'gold'  },
-  { level: 'L5',    model: 'Goles + contexto',        signal: 'disponibilidad de jugadores',       color: 'red'   },
-  { level: 'L6',    model: 'Momentum del Mundial',    signal: 'inflación WC + momentum en torneo', color: 'navy'  },
-  { level: 'Final', model: 'Oráculo',                 signal: 'ensemble calibrado por historial',  color: 'navy'  },
+const ladder: { level: string; model: string; signal: string; color: 'gray' | 'blue' | 'green' | 'gold' | 'red' | 'navy'; pie?: boolean }[] = [
+  { level: 'L0',    model: 'Base',                       signal: 'probabilidad uniforme',                          color: 'gray'  },
+  { level: 'L2',    model: 'Elo',                        signal: 'fortaleza de largo plazo',                       color: 'blue'  },
+  { level: 'L3',    model: 'Forma reciente',              signal: 'resultados de corto plazo',                     color: 'green' },
+  { level: 'L4',    model: 'Goles (Poisson)',             signal: 'marcadores Dixon-Coles, 8 años',                color: 'gold'  },
+  { level: 'L4.5',  model: 'Potencial del plantel',      signal: 'valor de mercado, top-5 ligas',                 color: 'gold'  },
+  { level: 'L5',    model: 'Goles + contexto',           signal: 'disponibilidad de jugadores',                   color: 'red'   },
+  { level: 'L6',    model: 'Momentum del Mundial',       signal: 'inflación WC + momentum en torneo',             color: 'navy'  },
+  { level: 'PIE',   model: 'Prode Intelligence Engine',  signal: '100.000 pronos. virtuales · lider por torneo',  color: 'red',  pie: true },
+  { level: 'Final', model: 'Oráculo',                    signal: 'ensemble calibrado por historial',               color: 'navy'  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -128,6 +129,16 @@ export function HomePage() {
               Ver simulación
             </Button>
           </Link>
+          <Link to="/performance">
+            <Button
+              variant="ghost"
+              size="lg"
+              className="text-wc-gold border border-wc-gold/40 hover:bg-wc-gold/10 w-full sm:w-auto flex items-center gap-2"
+            >
+              <BarChart2 className="w-4 h-4" />
+              Rendimiento
+            </Button>
+          </Link>
         </div>
 
         <div className="pt-5 border-t border-white/20 space-y-1 text-center">
@@ -181,8 +192,8 @@ export function HomePage() {
                 icon={<Database className="w-5 h-5" />}
               />
               <StatCard
-                label="Simulaciones"
-                value="10.000"
+                label="Jugadores PIE"
+                value="100.000"
                 icon={<Cpu className="w-5 h-5" />}
               />
             </>
@@ -214,14 +225,21 @@ export function HomePage() {
                 {ladder.map((row) => (
                   <tr
                     key={row.level}
-                    className={`border-b border-gray-50 last:border-0 transition-colors hover:bg-gray-50 ${
-                      row.level === 'Final' ? 'bg-wc-navy/5' : ''
+                    className={`border-b border-gray-50 last:border-0 transition-colors ${
+                      row.pie    ? 'bg-red-50/60 hover:bg-red-50' :
+                      row.level === 'Final' ? 'bg-wc-navy/5 hover:bg-wc-navy/10' :
+                      'hover:bg-gray-50'
                     }`}
                   >
                     <td className="px-5 py-3">
                       <Badge color={row.color}>{row.level}</Badge>
                     </td>
-                    <td className="px-3 py-3 font-semibold text-gray-800">{row.model}</td>
+                    <td className="px-3 py-3 font-semibold text-gray-800">
+                      {row.model}
+                      {row.pie && (
+                        <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded">nuevo</span>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-gray-500 hidden sm:table-cell">{row.signal}</td>
                   </tr>
                 ))}
@@ -241,8 +259,11 @@ export function HomePage() {
               <SectionTitle sub="El modelo con mejor porcentaje de ganador correcto en partidos ya jugados.">
                 Modelo estrella
               </SectionTitle>
-              <Link to="/performance" className="text-xs font-semibold text-wc-navy hover:underline active:opacity-70 transition-opacity py-2 px-1">
-                Ver rendimiento →
+              <Link to="/performance">
+                <Button variant="secondary" size="sm" className="flex items-center gap-1.5 shrink-0">
+                  <BarChart2 className="w-3.5 h-3.5" />
+                  Ver rendimiento
+                </Button>
               </Link>
             </div>
           </CardHeader>
