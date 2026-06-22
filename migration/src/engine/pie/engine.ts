@@ -3,7 +3,8 @@
 //
 // 1M virtual players compete across played WC matches.
 // Ranking: composite = exactCorrect×3 + correct×1 + upsetCorrect×0.5
-// The LEADER (highest composite) makes the prediction for the next fixture.
+// Prediction = weighted consensus of top-100 players (weighted average of per-player
+// probability models). More stable than a single leader — resistant to lucky streaks.
 //
 // Architecture:
 //   buildPIETrackRecords  — O(N×M), memoized once per wcResults change (~300 ms)
@@ -313,8 +314,8 @@ export function computePIEFromRecords(
   const arcCorr  = new Float64Array(5);
   const arcTotal = new Float64Array(5);
 
-  // Top-K tracking (descending composite, K=10 for leader_support)
-  const K = 10;
+  // Top-K tracking (descending composite, K=100 for consensus)
+  const K = 100;
   const topIdx   = new Int32Array(K).fill(-1);
   const topComp  = new Float64Array(K).fill(-Infinity);
   let topMin = -Infinity, topMinPos = 0, topFilled = 0;
@@ -371,7 +372,7 @@ export function computePIEFromRecords(
     arcTotal[arc] += total[i];
   }
 
-  // Sort top-K descending by composite (insertion sort, K=10)
+  // Sort top-K descending by composite (insertion sort, K=100 — ~5 000 ops, negligible)
   for (let j = 1; j < K; j++) {
     const ci = topComp[j], ii = topIdx[j];
     let k = j - 1;
@@ -383,6 +384,50 @@ export function computePIEFromRecords(
 
   const n = N;
   const pCH = crowdH / n, pCD = crowdD / n, pCA = crowdA / n;
+
+  // === Weighted consensus from top-K ===
+  // Each player's weight = composite score (floors at 0.1 so new players contribute equally)
+  // We average their *per-player probability models* (h/d/a), not their binary picks.
+  // Scores are accumulated into a weighted vote map; the most-voted score wins.
+  let sumK = 0, cKH = 0, cKD = 0, cKA = 0;
+  const scoreVotes = new Map<string, number>();
+  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
+    const i = topIdx[k];
+    const w = Math.max(topComp[k], 0.1);
+    sumK += w;
+
+    // Recompute this player's model probabilities for the current fixture
+    const hs = HOME_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    let kh = pH + hs; if (kh < 0.02) kh = 0.02;
+    let kd = pD + ds; if (kd < 0.02) kd = 0.02;
+    let ka = pA - hs - ds; if (ka < 0.02) ka = 0.02;
+    const kinv = 1 / (kh + kd + ka);
+    kh *= kinv; kd *= kinv; ka = 1 - kh - kd;
+    const knlc = 1 - nl, uu = 0.33333333;
+    kh = kh * knlc + uu * nl;
+    kd = kd * knlc + uu * nl;
+    ka = 1 - kh - kd;
+
+    cKH += w * kh; cKD += w * kd; cKA += w * ka;
+
+    // Weighted score vote (uses the pick already in _picks[i])
+    const pc = _picks[i];
+    const arc = ARCHETYPE[i];
+    const sp = pc === 0 ? ARC_HOME_POOLS[arc] : pc === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
+    const sv = wSamplePool(sp, fastRng(i, fixHash, 1));
+    const skey = `${sv.home}-${sv.away}`;
+    scoreVotes.set(skey, (scoreVotes.get(skey) ?? 0) + w);
+  }
+  const invK = sumK > 0 ? 1 / sumK : 1;
+  const pKH = cKH * invK, pKD = cKD * invK, pKA = cKA * invK;
+
+  const consensus_pick: 'Home' | 'Draw' | 'Away' =
+    pKH >= pKD && pKH >= pKA ? 'Home' : pKA >= pKH && pKA >= pKD ? 'Away' : 'Draw';
+
+  let bestSKey = '1-0', bestSW = -Infinity;
+  scoreVotes.forEach((w, key) => { if (w > bestSW) { bestSW = w; bestSKey = key; } });
+  const [csH, csA] = bestSKey.split('-').map(Number);
+  const consensusScore: { home: number; away: number } = { home: csH, away: csA };
 
   // === Find elite threshold via histogram (top 10%) ===
   const eliteTarget = Math.max(10, Math.floor(n * 0.10));
@@ -433,13 +478,13 @@ export function computePIEFromRecords(
   if (leaderboard.length === 0) return degradedResult(fixture.id);
 
   const leader = leaderboard[0];
-  const leaderPickCode = _picks[topIdx[0]];
 
-  // leader_support: fraction of top-10 that agree with leader
+  // leader_support: fraction of the top-10 (not top-100) that agree with the consensus pick
+  const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
   let supportCount = 0, validTop = 0;
-  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
+  for (let k = 0; k < 10 && topIdx[k] !== -1; k++) {
     validTop++;
-    if (_picks[topIdx[k]] === leaderPickCode) supportCount++;
+    if (_picks[topIdx[k]] === consensusPickCode) supportCount++;
   }
   const leader_support = validTop > 0 ? supportCount / validTop : 0;
 
@@ -458,21 +503,25 @@ export function computePIEFromRecords(
     archetype_avg_reps[ARCHETYPE_IDS[a]] = arcTotal[a] > 0 ? arcCorr[a] / arcTotal[a] : 0;
   }
 
-  const confidence = leader.total > 0
-    ? leader.correct / leader.total
-    : Math.max(pCH, pCD, pCA);
+  const confidence = Math.max(pKH, pKD, pKA);
+
+  // dominant_archetype: most common archetype among top-10
+  const arcCount = new Int32Array(5);
+  for (let k = 0; k < 10 && topIdx[k] !== -1; k++) arcCount[ARCHETYPE[topIdx[k]]]++;
+  let domArc = 0;
+  for (let a = 1; a < 5; a++) if (arcCount[a] > arcCount[domArc]) domArc = a;
 
   return {
     fixture_id: fixture.id,
-    most_probable_pick: leader.pick,
-    mostLikelyScore: leader.pickScore,
+    most_probable_pick: consensus_pick,
+    mostLikelyScore: consensusScore,
     leader,
     leader_support,
-    pick_probabilities: { home: pCH, draw: pCD, away: pCA },
+    pick_probabilities: { home: pKH, draw: pKD, away: pKA },
     elite_probabilities: { home: pEH, draw: pED, away: pEA },
     elite_pick,
     contrarian_signal,
-    dominant_archetype: ARCHETYPE_IDS[ARCHETYPE[topIdx[0]]],
+    dominant_archetype: ARCHETYPE_IDS[domArc],
     archetype_avg_reps,
     leaderboard,
     confidence,
