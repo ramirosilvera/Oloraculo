@@ -470,39 +470,88 @@ function FixtureRow({
 
           {pred && (
             <>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge color="blue">{pred.bestPrediction.predictorName}</Badge>
-                  {bestModelName && bestModelWinnerAcc !== null && (
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                      ★ {bestModelName} · {Math.round(bestModelWinnerAcc * 100)}% ganador
-                    </span>
+              {/* ── Predicción principal: PIE ──────────────────────────────────── */}
+              {pieResult && !pieResult.degraded ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge color="red">PIE</Badge>
+                    {pieResult.leader && (
+                      <span className="text-[10px] text-gray-500">
+                        Líder #{pieResult.leader.id.replace('pie-', '')}
+                        {' '}· {pieResult.leader.correct}/{pieResult.leader.total} ✓
+                        {pieResult.leader.exactCorrect > 0 && ` · ${pieResult.leader.exactCorrect} 🎯`}
+                      </span>
+                    )}
+                    {bestModelName && bestModelWinnerAcc !== null && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                        ★ {bestModelName} · {Math.round(bestModelWinnerAcc * 100)}%
+                      </span>
+                    )}
+                  </div>
+                  <ProbBar
+                    home={pieResult.pick_probabilities.home}
+                    draw={pieResult.pick_probabilities.draw}
+                    away={pieResult.pick_probabilities.away}
+                    homeLabel={homeName}
+                    awayLabel={awayName}
+                  />
+                  {pieResult.mostLikelyScore && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-gray-500">Pronóstico líder:</span>
+                      <span className="font-black text-wc-navy tabular-nums">
+                        {pieResult.mostLikelyScore.home}–{pieResult.mostLikelyScore.away}
+                      </span>
+                      <span className="text-gray-400">
+                        ({pieResult.most_probable_pick === 'Home' ? homeName
+                          : pieResult.most_probable_pick === 'Away' ? awayName
+                          : 'Empate'})
+                      </span>
+                    </div>
                   )}
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <Info className="w-3 h-3 shrink-0" />
-                    {pred.bestPrediction.explanation}
-                  </span>
+                  <button
+                    onClick={() => { setSelectedModelDetail(null); setShowPIEDetail(prev => !prev); }}
+                    className="text-[11px] font-semibold text-red-600 hover:text-red-800 flex items-center gap-1 active:opacity-70 transition-opacity"
+                  >
+                    Ver análisis de competencia →
+                  </button>
                 </div>
-                <ProbBar
-                  home={pred.bestPrediction.outcome.homeWin}
-                  draw={pred.bestPrediction.outcome.draw}
-                  away={pred.bestPrediction.outcome.awayWin}
-                  homeLabel={homeName}
-                  awayLabel={awayName}
-                />
-                {pred.bestPrediction.scoreline && (() => {
-                  const perOutcome = mostLikelyScorePerOutcome(pred.bestPrediction.scoreline);
-                  return (
-                    <ScoreTriple
-                      scores={perOutcome}
-                      homeLabel={homeName}
-                      awayLabel={awayName}
-                      size="sm"
-                    />
-                  );
-                })()}
-              </div>
+              ) : (
+                /* Sin datos PIE aún: mostrar el mejor modelo estadístico */
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge color="blue">{pred.bestPrediction.predictorName}</Badge>
+                    {bestModelName && bestModelWinnerAcc !== null && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                        ★ {bestModelName} · {Math.round(bestModelWinnerAcc * 100)}% ganador
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Info className="w-3 h-3 shrink-0" />
+                      {pred.bestPrediction.explanation}
+                    </span>
+                  </div>
+                  <ProbBar
+                    home={pred.bestPrediction.outcome.homeWin}
+                    draw={pred.bestPrediction.outcome.draw}
+                    away={pred.bestPrediction.outcome.awayWin}
+                    homeLabel={homeName}
+                    awayLabel={awayName}
+                  />
+                  {pred.bestPrediction.scoreline && (() => {
+                    const perOutcome = mostLikelyScorePerOutcome(pred.bestPrediction.scoreline);
+                    return (
+                      <ScoreTriple
+                        scores={perOutcome}
+                        homeLabel={homeName}
+                        awayLabel={awayName}
+                        size="sm"
+                      />
+                    );
+                  })()}
+                </div>
+              )}
 
+              {/* ── Modelos de referencia ───────────────────────────────────────── */}
               {(() => {
                 const topModels = pred.predictions
                   .filter(p => !p.degraded)
@@ -512,14 +561,16 @@ function FixtureRow({
                 const allAgree = picks.length >= 2 && picks.every(pk => pk === picks[0]);
                 return (
                   <div className="rounded-xl border border-gray-100 overflow-hidden">
-                    {allAgree && (
-                      <div className="px-3 py-1.5 bg-emerald-50 border-b border-emerald-100 flex items-center gap-1.5">
-                        <span className="text-emerald-600 text-[10px]">●</span>
-                        <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">
-                          Consenso · todos coinciden en {picks[0] === 'Home' ? homeName : picks[0] === 'Away' ? awayName : 'Empate'}
+                    <div className="px-3 py-1.5 bg-gray-50/60 border-b border-gray-50 flex items-center gap-2">
+                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-1">
+                        Modelos de referencia
+                      </span>
+                      {allAgree && (
+                        <span className="text-[10px] font-bold text-emerald-700">
+                          ● Consenso · {picks[0] === 'Home' ? homeName : picks[0] === 'Away' ? awayName : 'Empate'}
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     {topModels.map(p => {
                       const pick = topPick(p.outcome);
                       const isBest = p.predictorName === bestModelName;
@@ -549,33 +600,6 @@ function FixtureRow({
                         </button>
                       );
                     })}
-                    {/* PIE row — same layout as model rows, at the bottom of the table */}
-                    {pieResult && !pieResult.degraded && (() => {
-                      const { home: pieHome, draw: pieDraw, away: pieAway } = pieResult.pick_probabilities;
-                      const piePick = pieResult.most_probable_pick;
-                      const pieProb = piePick === 'Home' ? pieHome : piePick === 'Away' ? pieAway : pieDraw;
-                      const piePickLabel = piePick === 'Home' ? 'L' : piePick === 'Away' ? 'V' : 'E';
-                      const piePickColor = piePick === 'Home' ? 'text-wc-navy' : piePick === 'Away' ? 'text-wc-red' : 'text-gray-600';
-                      return (
-                        <>
-                          <div className="border-t border-dashed border-gray-100" />
-                          <button
-                            onClick={() => { setSelectedModelDetail(null); setShowPIEDetail(prev => !prev); }}
-                            className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-all hover:bg-gray-50 ${showPIEDetail ? 'bg-blue-50/60' : ''}`}
-                          >
-                            <span className="w-3 shrink-0" />
-                            <span className="w-16 font-semibold text-wc-navy truncate shrink-0">PIE</span>
-                            <MiniBar home={pieHome} draw={pieDraw} away={pieAway} />
-                            <span className={`font-black tabular-nums text-sm ${piePickColor} w-5 text-center shrink-0`}>{piePickLabel}</span>
-                            <span className="text-gray-400 tabular-nums w-9 text-right shrink-0">{Math.round(pieProb * 100)}%</span>
-                            {pieResult.mostLikelyScore
-                              ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{pieResult.mostLikelyScore.home}-{pieResult.mostLikelyScore.away}</span>
-                              : <span className="w-7 shrink-0" />}
-                            <span className="text-gray-300 text-[10px] shrink-0">›</span>
-                          </button>
-                        </>
-                      );
-                    })()}
                   </div>
                 );
               })()}
