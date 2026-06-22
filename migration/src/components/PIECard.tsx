@@ -1,7 +1,8 @@
 // =============================================================================
 // PIECard — Prode Intelligence Engine
-// Muestra el torneo interno de 500 jugadores virtuales.
-// El líder (más aciertos acumulados) es quien hace el pronóstico.
+// Muestra el torneo interno de 100 000 jugadores virtuales.
+// La predicción viene del consenso ponderado de los top-100 por score compuesto.
+// El líder sigue siendo el jugador #1, pero el pronóstico es del consenso.
 // =============================================================================
 
 import type { PIEResult, PIELeaderEntry, ArchetypeId } from '../types/pie';
@@ -104,8 +105,8 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
   const { leader, leaderboard, pick_probabilities: cp, elite_probabilities: ep } = result;
   const leaderMeta = ARCHETYPE_META[leader.archetype];
   const leaderAcc = leader.total > 0 ? leader.correct / leader.total : null;
-  const crowdModal = cp.home >= cp.draw && cp.home >= cp.away ? 'Home'
-    : cp.away >= cp.home && cp.away >= cp.draw ? 'Away' : 'Draw';
+  // cp is now the weighted top-100 consensus, not the full crowd
+  const consensusModal = result.most_probable_pick;
 
   return (
     <div className="rounded-2xl border border-wc-navy/10 bg-white overflow-hidden">
@@ -162,28 +163,34 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
             )}
           </div>
 
-          {/* Leader's pick for this fixture */}
+          {/* Consensus pick for this fixture */}
           <div className="flex items-center gap-3 mt-1 pt-3 border-t border-wc-navy/10">
             <div className="flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Su pronóstico</p>
-              <p className={`text-base font-black ${pickColor(leader.pick)}`}>
-                {pickLabel(leader.pick, homeName, awayName)}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">
+                Consenso top-100
+              </p>
+              <p className={`text-base font-black ${pickColor(result.most_probable_pick)}`}>
+                {pickLabel(result.most_probable_pick, homeName, awayName)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Marcador</p>
-              <p className="text-2xl font-black tabular-nums text-wc-navy leading-none">
-                {leader.pickScore.home} – {leader.pickScore.away}
-              </p>
+              {result.mostLikelyScore ? (
+                <p className="text-2xl font-black tabular-nums text-wc-navy leading-none">
+                  {result.mostLikelyScore.home} – {result.mostLikelyScore.away}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400">—</p>
+              )}
             </div>
           </div>
 
-          {/* Leader support */}
+          {/* Consensus support */}
           <div className="mt-2 pt-2 border-t border-wc-navy/10">
             <p className="text-[10px] text-gray-400">
               <span className="font-semibold text-wc-navy">
                 {Math.round(result.leader_support * 10)}/10
-              </span> de los mejores 10 coinciden con el líder
+              </span> de los mejores 10 coinciden con el consenso
             </p>
           </div>
         </section>
@@ -221,24 +228,24 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
           </p>
         </section>
 
-        {/* Crowd distribution */}
+        {/* Consensus distribution */}
         <section>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
-            Distribución colectiva ({result.sample_size} jugadores)
+            Probabilidades del consenso · top-100
           </p>
           <div className="space-y-1.5">
             <MiniBar home={cp.home} draw={cp.draw} away={cp.away} />
             <div className="grid grid-cols-3 text-center text-xs">
               <div>
-                <div className={`font-semibold ${crowdModal === 'Home' ? 'text-wc-navy' : 'text-gray-500'} truncate`}>{homeName}</div>
+                <div className={`font-semibold ${consensusModal === 'Home' ? 'text-wc-navy' : 'text-gray-500'} truncate`}>{homeName}</div>
                 <div className="tabular-nums text-gray-600">{pct(cp.home)}</div>
               </div>
               <div>
-                <div className={`font-semibold ${crowdModal === 'Draw' ? 'text-gray-700' : 'text-gray-400'}`}>Empate</div>
+                <div className={`font-semibold ${consensusModal === 'Draw' ? 'text-gray-700' : 'text-gray-400'}`}>Empate</div>
                 <div className="tabular-nums text-gray-600">{pct(cp.draw)}</div>
               </div>
               <div>
-                <div className={`font-semibold ${crowdModal === 'Away' ? 'text-wc-red' : 'text-gray-500'} truncate`}>{awayName}</div>
+                <div className={`font-semibold ${consensusModal === 'Away' ? 'text-wc-red' : 'text-gray-500'} truncate`}>{awayName}</div>
                 <div className="tabular-nums text-gray-600">{pct(cp.away)}</div>
               </div>
             </div>
@@ -248,14 +255,14 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
         {/* Elite vs crowd */}
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Masa (500)</p>
-            <p className={`text-sm font-bold ${pickColor(crowdModal)} truncate`}>
-              {pickLabel(crowdModal, homeName, awayName)}
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Consenso (top 100)</p>
+            <p className={`text-sm font-bold ${pickColor(consensusModal)} truncate`}>
+              {pickLabel(consensusModal, homeName, awayName)}
             </p>
             <p className="text-[10px] tabular-nums text-gray-400">{pct(Math.max(cp.home, cp.draw, cp.away))}</p>
           </div>
           <div className={`rounded-xl border p-3 ${
-            result.elite_pick !== crowdModal ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100 bg-gray-50'
+            result.elite_pick !== consensusModal ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100 bg-gray-50'
           }`}>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Élite (top 10%)</p>
             <p className={`text-sm font-bold ${pickColor(result.elite_pick)} truncate`}>
