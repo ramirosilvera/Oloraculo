@@ -377,7 +377,7 @@ export function computePIEFromRecords(
 
   // === First O(N) pass: picks + crowd + histogram + top-K ===
   for (let i = 0; i < N; i++) {
-    const comp = exact[i] * 3 + correct[i] + upset[i] * 0.5;
+    const comp = exact[i] * 3 + correct[i] + upset[i] * 2.5;
 
     // Histogram bucket
     const bin = comp * 2 > HIST_MAX ? HIST_MAX : (comp * 2 + 0.5) | 0;
@@ -524,7 +524,7 @@ export function computePIEFromRecords(
   // === Second O(N) pass: elite picks ===
   let eliteH = 0, eliteD = 0, eliteA = 0, eliteN = 0;
   for (let i = 0; i < N; i++) {
-    if (exact[i] * 3 + correct[i] + upset[i] * 0.5 < eliteThreshold) continue;
+    if (exact[i] * 3 + correct[i] + upset[i] * 2.5 < eliteThreshold) continue;
     const p = _picks[i];
     if (p === 0) eliteH++;
     else if (p === 1) eliteD++;

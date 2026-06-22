@@ -175,6 +175,8 @@ export async function recomputePIELOO(
           exact_score_correct: pieResult.mostLikelyScore != null
             ? pieResult.mostLikelyScore.home === r.home_goals && pieResult.mostLikelyScore.away === r.away_goals
             : null,
+          predicted_home_goals: pieResult.mostLikelyScore?.home ?? null,
+          predicted_away_goals: pieResult.mostLikelyScore?.away ?? null,
         });
         fixtureIds.push(r.fixture_id);
       }

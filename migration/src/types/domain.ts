@@ -118,6 +118,8 @@ export interface PredictionEvaluation {
   log_loss: number;
   top_pick_correct: boolean;
   exact_score_correct?: boolean | null;
+  predicted_home_goals?: number | null;
+  predicted_away_goals?: number | null;
   predicted_at: string;
 }
 

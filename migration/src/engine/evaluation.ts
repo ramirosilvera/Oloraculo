@@ -44,5 +44,7 @@ export function buildEvaluationRows(
       exact_score_correct: p.mostLikelyScore != null
         ? p.mostLikelyScore.home === homeGoals && p.mostLikelyScore.away === awayGoals
         : null,
+      predicted_home_goals: p.mostLikelyScore?.home ?? null,
+      predicted_away_goals: p.mostLikelyScore?.away ?? null,
     }));
 }

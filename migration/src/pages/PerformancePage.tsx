@@ -516,10 +516,13 @@ export function PerformancePage() {
                 <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-5 py-3 font-semibold">Partido</th>
-                    <th className="text-left px-4 py-3 font-semibold">Resultado</th>
-                    <th className="text-center px-4 py-3 font-semibold">Ganador ✓</th>
+                    <th className="text-left px-4 py-3 font-semibold">Real</th>
                     {selectedModelStats?.hasExactData && (
-                      <th className="text-center px-4 py-3 font-semibold">Exacto ✓</th>
+                      <th className="text-center px-4 py-3 font-semibold">Predicho</th>
+                    )}
+                    <th className="text-center px-4 py-3 font-semibold">Dir ✓</th>
+                    {selectedModelStats?.hasExactData && (
+                      <th className="text-center px-4 py-3 font-semibold">Exact ✓</th>
                     )}
                   </tr>
                 </thead>
@@ -527,17 +530,29 @@ export function PerformancePage() {
                   {selectedEvals.map(e => {
                     const home = teamMap.get(e.home_team_id)?.name ?? e.home_team_id;
                     const away = teamMap.get(e.away_team_id)?.name ?? e.away_team_id;
+                    const hasPredScore = e.predicted_home_goals != null && e.predicted_away_goals != null;
                     const rowColor = e.exact_score_correct
-                      ? 'hover:bg-green-50/50'
+                      ? 'bg-green-50/40 hover:bg-green-50/60'
                       : e.top_pick_correct
                         ? 'hover:bg-green-50/20'
                         : 'hover:bg-wc-cream/30';
                     return (
                       <tr key={e.id} className={`transition-colors ${rowColor}`}>
-                        <td className="px-5 py-2.5 text-gray-800 font-medium">{home} vs {away}</td>
-                        <td className="px-4 py-2.5 text-gray-600 font-bold tabular-nums">
+                        <td className="px-5 py-2.5 text-gray-800 font-medium text-xs">{home} vs {away}</td>
+                        <td className="px-4 py-2.5 text-gray-700 font-black tabular-nums text-sm">
                           {e.home_goals}–{e.away_goals}
                         </td>
+                        {selectedModelStats?.hasExactData && (
+                          <td className="px-4 py-2.5 text-center tabular-nums text-sm">
+                            {hasPredScore ? (
+                              <span className={`font-bold ${e.exact_score_correct ? 'text-green-700' : 'text-gray-400'}`}>
+                                {e.predicted_home_goals}–{e.predicted_away_goals}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-4 py-2.5 text-center">
                           {e.top_pick_correct
                             ? <span className="text-green-600 font-bold">✓</span>
