@@ -155,34 +155,50 @@ function wSamplePool(pool: PoolWithTotal, rng: number): ScoreEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Empirical score pool — built from actual tournament results (LOO-safe)
+// Poisson score model (industry standard for football betting)
 // ---------------------------------------------------------------------------
 
-// Builds the score frequency distribution from the training matches of a given
-// outcome type (Home/Draw/Away). With ≥5 examples this beats any static pool
-// because it reflects how THIS tournament actually plays out — exactly what
-// 100K real prode players learn from watching the same matches.
-function buildEmpiricalScorePool(
-  wcResults: WcActualResult[],
+// P(k goals; lambda) via log-space to avoid underflow
+function poissonPMF(k: number, lambda: number): number {
+  if (lambda <= 0) return k === 0 ? 1 : 0;
+  let logP = -lambda;
+  for (let i = 1; i <= k; i++) logP += Math.log(lambda / i);
+  return Math.exp(logP);
+}
+
+// Dixon-Coles low-score correction (1997): 0-0, 1-0, 0-1, 1-1 are more/less
+// frequent than pure Poisson predicts. rho ≈ -0.13 is empirically calibrated.
+function dixonColesCorr(h: number, a: number, lh: number, la: number, rho: number): number {
+  if (h === 0 && a === 0) return 1 - lh * la * rho;
+  if (h === 1 && a === 0) return 1 + la * rho;
+  if (h === 0 && a === 1) return 1 + lh * rho;
+  if (h === 1 && a === 1) return 1 - rho;
+  return 1;
+}
+
+// Most likely exact score consistent with the given outcome direction.
+// Uses independent Poisson goal models with Dixon-Coles low-score correction.
+// lambdaHome/Away derived from Elo win probabilities.
+function poissonConstrainedMode(
+  lambdaHome: number,
+  lambdaAway: number,
   direction: 'Home' | 'Draw' | 'Away',
-): PoolWithTotal | null {
-  const countMap = new Map<string, number>();
-  let total = 0;
-  for (const r of wcResults) {
-    const dir: 'Home' | 'Draw' | 'Away' =
-      r.home_goals > r.away_goals ? 'Home' : r.home_goals === r.away_goals ? 'Draw' : 'Away';
-    if (dir !== direction) continue;
-    const key = `${r.home_goals}-${r.away_goals}`;
-    countMap.set(key, (countMap.get(key) ?? 0) + 1);
-    total++;
+): { home: number; away: number } {
+  const RHO = -0.13; // Dixon-Coles empirical parameter
+  let bestH = 0, bestA = 0, bestProb = -1;
+  for (let h = 0; h <= 6; h++) {
+    const ph = poissonPMF(h, lambdaHome);
+    if (ph < 1e-7) continue;
+    for (let a = 0; a <= 6; a++) {
+      const compatible = direction === 'Home' ? h > a : direction === 'Away' ? a > h : h === a;
+      if (!compatible) continue;
+      const pa = poissonPMF(a, lambdaAway);
+      const corr = dixonColesCorr(h, a, lambdaHome, lambdaAway, RHO);
+      const prob = ph * pa * corr;
+      if (prob > bestProb) { bestProb = prob; bestH = h; bestA = a; }
+    }
   }
-  if (total < 5) return null;
-  const entries: ScoreEntry[] = [];
-  countMap.forEach((count, key) => {
-    const dash = key.indexOf('-');
-    entries.push({ home: +key.slice(0, dash), away: +key.slice(dash + 1), w: count });
-  });
-  return { entries, total };
+  return { home: bestH, away: bestA };
 }
 
 // ---------------------------------------------------------------------------
@@ -458,43 +474,20 @@ export function computePIEFromRecords(
   const consensus_pick: 'Home' | 'Draw' | 'Away' =
     pKH >= pKD && pKH >= pKA ? 'Home' : pKA >= pKH && pKA >= pKD ? 'Away' : 'Draw';
 
-  // Score prediction — three-tier hierarchy:
-  // 1. Empirical pool from THIS tournament's actual results (LOO-safe, ≥5 examples required)
-  //    → The crowd-wisdom approach: real prode players bet on scores they've seen happen.
-  // 2. Fallback: leader sample from best agreeing player's archetype pool (variety)
-  // 3. Last resort: top player regardless of direction
+  // Poisson + Dixon-Coles score prediction.
+  // Convert Elo win probabilities to per-team expected goals (lambdas), then find the
+  // most likely exact score consistent with the consensus direction.
+  // Formula: λ_home = base + strength_diff_factor (clamped to [0.35, 3.5]).
+  // Dixon-Coles correction adjusts the probability of low-score outcomes (0-0, 1-0, 0-1,
+  // 1-1) which are more common in football than pure Poisson predicts.
   const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
-  let consensusScore: { home: number; away: number } | null = null;
-
-  const empPool = buildEmpiricalScorePool(wcResults, consensus_pick);
-  if (empPool) {
-    // Soft vote on empirical pool: pick the modal score from real tournament data
-    let bestEntry: ScoreEntry | null = null, bestW = -1;
-    for (const e of empPool.entries) {
-      if (e.w > bestW) { bestW = e.w; bestEntry = e; }
-    }
-    if (bestEntry) consensusScore = { home: bestEntry.home, away: bestEntry.away };
-  }
-
-  if (!consensusScore) {
-    // Fallback: best-ranked player who agrees with consensus direction
-    for (let k = 0; k < K && topIdx[k] !== -1; k++) {
-      if (_picks[topIdx[k]] !== consensusPickCode) continue;
-      const i = topIdx[k];
-      const arc = ARCHETYPE[i];
-      const sp = consensusPickCode === 0 ? ARC_HOME_POOLS[arc]
-               : consensusPickCode === 2 ? ARC_AWAY_POOLS[arc]
-               : ARC_DRAW_POOLS[arc];
-      consensusScore = wSamplePool(sp, fastRng(i, fixHash, 1));
-      break;
-    }
-  }
-  if (!consensusScore && topIdx[0] !== -1) {
-    const i = topIdx[0];
-    const arc = ARCHETYPE[i];
-    const sp = _picks[i] === 0 ? ARC_HOME_POOLS[arc] : _picks[i] === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
-    consensusScore = wSamplePool(sp, fastRng(i, fixHash, 1));
-  }
+  const homeForm = cachedForm(fixture.home_team_id);
+  const awayForm = cachedForm(fixture.away_team_id);
+  const formAdj = (homeForm - awayForm) / 2500; // small form boost, ±0.04 range
+  const pDiff = pH - pA;
+  const λ_home = Math.max(0.35, Math.min(3.5, 1.1 + pDiff * 2.2 + formAdj));
+  const λ_away = Math.max(0.35, Math.min(3.5, 1.1 - pDiff * 2.2 - formAdj));
+  const consensusScore = poissonConstrainedMode(λ_home, λ_away, consensus_pick);
 
   // === Find elite threshold via histogram (top 10%) ===
   const eliteTarget = Math.max(10, Math.floor(n * 0.10));
