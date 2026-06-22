@@ -57,7 +57,7 @@ export function OracleLabPage() {
       status: 'scheduled',
       home_goals: null,
       away_goals: null,
-      neutral_venue: false,
+      neutral_venue: true,
       is_played: false,
     };
   }, [homeId, awayId]);
@@ -224,6 +224,18 @@ export function OracleLabPage() {
             {/* PIE card in model grid */}
             {pieResult && !pieResult.degraded && (() => {
               const { home, draw, away } = pieResult.pick_probabilities;
+              const pick = pieResult.most_probable_pick;
+              const pickShort = pick === 'Home' ? 'L' : pick === 'Away' ? 'V' : 'E';
+              const pickColor = pick === 'Home' ? 'text-wc-navy' : pick === 'Away' ? 'text-wc-red' : 'text-gray-600';
+              const archetypeEmoji: Record<string, string> = {
+                FAVORITO: '📈', SORPRESA: '💥', EMPATE: '🤝', EQUILIBRADO: '📊', CAOTICO: '🎲',
+              };
+              const archetypeLabel: Record<string, string> = {
+                FAVORITO: 'Favorito', SORPRESA: 'Sorpresa', EMPATE: 'Empatero',
+                EQUILIBRADO: 'Analítico', CAOTICO: 'Caótico',
+              };
+              const leaderArc = pieResult.leader?.archetype;
+              const support25 = Math.round(pieResult.leader_support * 25);
               return (
                 <button
                   onClick={() => { setShowPIEDetail(prev => !prev); setSelectedModel(null); }}
@@ -240,9 +252,19 @@ export function OracleLabPage() {
                   <p className="text-xs text-gray-500 tabular-nums">
                     {pct(home)} / {pct(draw)} / {pct(away)}
                   </p>
-                  {pieResult.mostLikelyScore && (
-                    <p className="text-xs font-medium text-gray-500">
-                      {pieResult.mostLikelyScore.home}-{pieResult.mostLikelyScore.away}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-black ${pickColor}`}>{pickShort}</span>
+                    {pieResult.mostLikelyScore && (
+                      <span className="text-xs font-medium text-gray-600 tabular-nums">
+                        {pieResult.mostLikelyScore.home}–{pieResult.mostLikelyScore.away}
+                        <span className="text-[10px] text-gray-400 ml-1">líder</span>
+                      </span>
+                    )}
+                  </div>
+                  {leaderArc && (
+                    <p className="text-[10px] text-gray-400">
+                      {archetypeEmoji[leaderArc]} {archetypeLabel[leaderArc]}
+                      <span className="ml-1.5 text-wc-navy font-semibold">{support25}/25</span>
                     </p>
                   )}
                   <p className="text-[10px] text-gray-300">{showPIEDetail ? '▲ cerrar' : '▼ detalle'}</p>
