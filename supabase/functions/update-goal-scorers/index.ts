@@ -7,7 +7,6 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const SERPER_KEY          = Deno.env.get('SERPER_API_KEY')!;
 const SUPABASE_URL        = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -180,6 +179,7 @@ async function fetchGoalScorers(
   fixtureId: string,
   homeId: string,
   awayId: string,
+  serperKey: string,
 ): Promise<GoalEntry[]> {
   const home = teamName(homeId);
   const away = teamName(awayId);
@@ -189,7 +189,7 @@ async function fetchGoalScorers(
   try {
     res = await fetch('https://google.serper.dev/search', {
       method:  'POST',
-      headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
+      headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
       body:    JSON.stringify({ q: query, gl: 'us', hl: 'en', num: 5 }),
     });
   } catch (e) {
@@ -228,7 +228,8 @@ async function fetchGoalScorers(
 // ─────────────────────────────────────────────────────────────────────────────
 // Main handler
 // ─────────────────────────────────────────────────────────────────────────────
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const SERPER_KEY = Deno.env.get('SERPER_API_KEY') || req.headers.get('X-Serper-Key') || '';
   if (!SERPER_KEY) {
     return new Response(JSON.stringify({ error: 'SERPER_API_KEY not set' }), { status: 500 });
   }
@@ -260,7 +261,7 @@ Deno.serve(async (_req) => {
     const awayId = parts[3];
 
     try {
-      const goals = await fetchGoalScorers(fixtureId, homeId, awayId);
+      const goals = await fetchGoalScorers(fixtureId, homeId, awayId, SERPER_KEY);
       if (goals.length > 0) {
         allGoals.push(...goals);
         updatedFixtures.push(fixtureId);
