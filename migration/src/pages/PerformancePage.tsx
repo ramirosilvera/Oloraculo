@@ -43,6 +43,7 @@ interface ModelStats {
   n: number;
   winnerCorrect: number;
   exactCorrect: number | null;
+  exactTotal: number;
   hasExactData: boolean;
 }
 
@@ -60,12 +61,13 @@ function buildModelStats(evals: PredictionEvaluation[], includeArchived = false)
 
   return models.map(name => {
     const rows = byModel.get(name) ?? [];
-    if (rows.length === 0) return { name, n: 0, winnerCorrect: 0, exactCorrect: null, hasExactData: false };
+    if (rows.length === 0) return { name, n: 0, winnerCorrect: 0, exactCorrect: null, exactTotal: 0, hasExactData: false };
     const winnerCorrect = rows.filter(r => r.top_pick_correct).length;
     const rowsWithExact = rows.filter(r => r.exact_score_correct != null);
     const hasExactData = rowsWithExact.length > 0;
     const exactCorrect = hasExactData ? rowsWithExact.filter(r => r.exact_score_correct).length : null;
-    return { name, n: rows.length, winnerCorrect, exactCorrect, hasExactData };
+    const exactTotal = rowsWithExact.length;
+    return { name, n: rows.length, winnerCorrect, exactCorrect, exactTotal, hasExactData };
   });
 }
 
@@ -401,9 +403,9 @@ export function PerformancePage() {
                         <span className={`font-bold tabular-nums text-sm ${
                           (row.exactCorrect ?? 0) > 0 ? 'text-green-700' : 'text-gray-500'
                         }`}>
-                          {row.exactCorrect ?? 0}/{row.n} {' '}
+                          {row.exactCorrect ?? 0}/{row.exactTotal} {' '}
                           <span className="text-xs font-normal text-gray-400">
-                            ({pct(row.exactCorrect ?? 0, row.n)})
+                            ({pct(row.exactCorrect ?? 0, row.exactTotal)})
                           </span>
                         </span>
                       )}
@@ -439,7 +441,7 @@ export function PerformancePage() {
                   <p className="text-xs text-gray-400 mt-0.5">
                     {selectedModelStats.winnerCorrect}/{selectedModelStats.n} ganador
                     {selectedModelStats.hasExactData
-                      ? ` · ${selectedModelStats.exactCorrect ?? 0}/${selectedModelStats.n} exacto`
+                      ? ` · ${selectedModelStats.exactCorrect ?? 0}/${selectedModelStats.exactTotal} exacto`
                       : ''}
                   </p>
                 )}
