@@ -479,7 +479,7 @@ function FixtureRow({
                       <span className="text-[10px] text-gray-500">
                         Líder #{pieResult.leader.id.replace('pie-', '')}
                         {' '}· {pieResult.leader.correct}/{pieResult.leader.total} ✓
-                        {pieResult.leader.exactCorrect > 0 && ` · ${pieResult.leader.exactCorrect} 🎯`}
+                        {pieResult.leader.exactCorrect >= 0.5 && ` · ${Math.round(pieResult.leader.exactCorrect * 10) / 10} 🎯`}
                       </span>
                     )}
                     {bestModelName && bestModelWinnerAcc !== null && (

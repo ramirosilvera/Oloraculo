@@ -231,8 +231,8 @@ export function OracleLabPage() {
                 FAVORITO: '📈', SORPRESA: '💥', EMPATE: '🤝', EQUILIBRADO: '📊', CAOTICO: '🎲',
               };
               const archetypeLabel: Record<string, string> = {
-                FAVORITO: 'Favorito', SORPRESA: 'Sorpresa', EMPATE: 'Empatero',
-                EQUILIBRADO: 'Analítico', CAOTICO: 'Caótico',
+                FAVORITO: 'Favorito', SORPRESA: 'Sorpresero', EMPATE: 'Empatero',
+                EQUILIBRADO: 'Híbrido', CAOTICO: 'Caótico',
               };
               const leaderArc = pieResult.leader?.archetype;
               const support25 = Math.round(pieResult.leader_support * 25);
