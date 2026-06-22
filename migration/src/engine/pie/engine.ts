@@ -14,7 +14,7 @@
 
 import type { PIELeaderEntry, PIEResult, PIETrackRecords, ArchetypeId } from '../../types/pie';
 import {
-  N, HOME_SKEW, DRAW_SKEW, NOISE_LEVEL, ARCHETYPE, ARCHETYPE_IDS,
+  N, FAV_SKEW, DRAW_SKEW, NOISE_LEVEL, ARCHETYPE, ARCHETYPE_IDS,
 } from './players';
 import type { Fixture, WcActualResult } from '../../types/domain';
 
@@ -242,9 +242,14 @@ export function buildPIETrackRecords(
     const fixHash = fnv1aInt(r.fixture_id);
     const pH = prior.home, pD = prior.draw, pA = prior.away;
     const hg = r.home_goals, ag = r.away_goals;
+    // In a neutral-venue tournament the Elo-favored team may be listed as home or away.
+    // favIsHome=true means the stronger team (by Elo prior) is in the home slot.
+    const favIsHome = pH >= pA;
 
     for (let i = 0; i < N; i++) {
-      const hs = HOME_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+      const fs = FAV_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+      // Apply FAV_SKEW toward the stronger team, regardless of home/away position
+      const hs = favIsHome ? fs : -fs;
 
       let h = pH + hs; if (h < 0.02) h = 0.02;
       let d = pD + ds; if (d < 0.02) d = 0.02;
@@ -303,6 +308,8 @@ export function computePIEFromRecords(
   );
   const fixHash = fnv1aInt(fixture.id);
   const pH = prior.home, pD = prior.draw, pA = prior.away;
+  // Neutral venue: resolve which slot holds the Elo-favored team once per fixture
+  const favIsHome = pH >= pA;
 
   // Composite-score histogram: bins ×2 so 0.5 step is integer-safe (max ~360)
   const HIST_MAX = 400;
@@ -348,8 +355,9 @@ export function computePIEFromRecords(
       }
     }
 
-    // Player pick
-    const hs = HOME_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    // Player pick — FAV_SKEW applied toward the Elo-stronger team
+    const fs = FAV_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    const hs = favIsHome ? fs : -fs;
     let h = pH + hs; if (h < 0.02) h = 0.02;
     let d = pD + ds; if (d < 0.02) d = 0.02;
     let a = pA - hs - ds; if (a < 0.02) a = 0.02;
@@ -397,7 +405,8 @@ export function computePIEFromRecords(
     sumK += w;
 
     // Recompute this player's model probabilities for the current fixture
-    const hs = HOME_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    const fs = FAV_SKEW[i], ds = DRAW_SKEW[i], nl = NOISE_LEVEL[i];
+    const hs = favIsHome ? fs : -fs;
     let kh = pH + hs; if (kh < 0.02) kh = 0.02;
     let kd = pD + ds; if (kd < 0.02) kd = 0.02;
     let ka = pA - hs - ds; if (ka < 0.02) ka = 0.02;
