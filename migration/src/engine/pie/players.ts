@@ -1,12 +1,17 @@
 // =============================================================================
-// PIE — 1 000 000 deterministic virtual players (typed arrays, LCG)
-// Player data lives in flat typed arrays — ~13 MB vs ~100 MB for objects.
+// PIE — 100 000 deterministic virtual players (typed arrays, LCG)
+// Player data lives in flat typed arrays — ~1.3 MB vs ~10 MB for objects.
 // Initialization runs once at module load (~30 ms) via an IIFE.
 //
-// FAV_SKEW: bias toward the Elo-favored team (positive = backs the stronger
-// team, negative = backs the underdog). Direction is resolved per-fixture in
-// the engine, so it works correctly regardless of which team is listed as
-// "home" — important since WC matches are played at neutral venues.
+// FAV_SKEW: continuous bias toward the Elo-favored team (+) or underdog (-).
+// DRAW_SKEW: continuous draw-preference bias.
+// NOISE_LEVEL: how much randomness the player injects into their picks.
+//
+// Archetype thresholds are intentionally strict: only ~18% of players are
+// extreme types (FAVORITO/SORPRESA/EMPATE/CAOTICO). The majority (~55%) fall
+// into EQUILIBRADO — the hybrid analyst with no dominant single bias. This
+// mirrors real prode data: winners are rarely extremists, they have a tendency
+// but stay flexible. Pure archetypes are rare and usually lose long-term.
 // =============================================================================
 
 import type { ArchetypeId } from '../../types/pie';
@@ -35,10 +40,10 @@ export const ARCHETYPE_IDS: ArchetypeId[] =
     DRAW_SKEW[i]   = ds;
     NOISE_LEVEL[i] = nl;
     ARCHETYPE[i] =
-      nl > 0.38  ? 4 :  // CAOTICO   — high noise, unpredictable
-      fs > 0.08  ? 0 :  // FAVORITO  — consistently backs the stronger team
-      fs < -0.08 ? 1 :  // SORPRESA  — consistently backs the underdog
-      ds > 0.08  ? 2 :  // EMPATE    — draw-biased
-                   3;   // EQUILIBRADO
+      nl > 0.42  ? 4 :  // CAOTICO   — very high noise (~18 %)
+      fs > 0.10  ? 0 :  // FAVORITO  — strong fav bias, rare pure type (~14 %)
+      fs < -0.10 ? 1 :  // SORPRESA  — strong upset bias, rare pure type (~14 %)
+      ds > 0.09  ? 2 :  // EMPATE    — strong draw bias, rare (~8 %)
+                   3;   // EQUILIBRADO — hybrid majority (~55 %): mild tendencies, no extreme axis
   }
 })();
