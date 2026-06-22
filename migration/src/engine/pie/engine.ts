@@ -394,11 +394,12 @@ export function computePIEFromRecords(
   const pCH = crowdH / n, pCD = crowdD / n, pCA = crowdA / n;
 
   // === Weighted consensus from top-K ===
-  // Each player's weight = composite score (floors at 0.1 so new players contribute equally)
-  // We average their *per-player probability models* (h/d/a), not their binary picks.
-  // Scores are accumulated into a weighted vote map; the most-voted score wins.
+  // Probabilities: weighted average of per-player models → reliable direction signal.
+  // Score: single deterministic sample from the best agreeing player's archetype pool.
+  // Using one player's sample (not pool average) gives variety across fixtures — the same
+  // player predicts 1-0 for one match, 2-1 for another, 3-0 for another, because
+  // fastRng is seeded by fixture ID as well as player index.
   let sumK = 0, cKH = 0, cKD = 0, cKA = 0;
-  const scoreVotes = new Map<string, number>();
   for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     const i = topIdx[k];
     const w = Math.max(topComp[k], 0.1);
@@ -418,17 +419,6 @@ export function computePIEFromRecords(
     ka = 1 - kh - kd;
 
     cKH += w * kh; cKD += w * kd; cKA += w * ka;
-
-    // Soft score voting: contribute full pool distribution weighted by player weight.
-    // Replaces single wSamplePool sample (high variance) with its expectation (zero variance).
-    const pc = _picks[i];
-    const arc = ARCHETYPE[i];
-    const sp = pc === 0 ? ARC_HOME_POOLS[arc] : pc === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
-    const invTotal = w / sp.total;
-    for (const entry of sp.entries) {
-      const skey = `${entry.home}-${entry.away}`;
-      scoreVotes.set(skey, (scoreVotes.get(skey) ?? 0) + entry.w * invTotal);
-    }
   }
   const invK = sumK > 0 ? 1 / sumK : 1;
   const pKH = cKH * invK, pKD = cKD * invK, pKA = cKA * invK;
@@ -436,25 +426,28 @@ export function computePIEFromRecords(
   const consensus_pick: 'Home' | 'Draw' | 'Away' =
     pKH >= pKD && pKH >= pKA ? 'Home' : pKA >= pKH && pKA >= pKD ? 'Away' : 'Draw';
 
-  // Only consider scores whose direction matches consensus_pick to keep exact/winner consistent
-  let bestSKey = '', bestSW = -Infinity;
-  scoreVotes.forEach((w, key) => {
-    const dash = key.indexOf('-');
-    const h = +key.slice(0, dash), a = +key.slice(dash + 1);
-    const compatible = consensus_pick === 'Home' ? h > a
-                     : consensus_pick === 'Away' ? a > h
-                     : h === a;
-    if (compatible && w > bestSW) { bestSW = w; bestSKey = key; }
-  });
-  // Fallback if no compatible score exists (edge case with extreme noise)
-  if (!bestSKey) {
-    scoreVotes.forEach((w, key) => { if (w > bestSW) { bestSW = w; bestSKey = key; } });
+  // Leader score: the highest-ranked top-K player who agrees with consensus_pick
+  // provides the exact score via a deterministic (but fixture-varying) pool sample.
+  const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
+  let consensusScore: { home: number; away: number } | null = null;
+  for (let k = 0; k < K && topIdx[k] !== -1; k++) {
+    if (_picks[topIdx[k]] !== consensusPickCode) continue;
+    const i = topIdx[k];
+    const arc = ARCHETYPE[i];
+    const sp = consensusPickCode === 0 ? ARC_HOME_POOLS[arc]
+             : consensusPickCode === 2 ? ARC_AWAY_POOLS[arc]
+             : ARC_DRAW_POOLS[arc];
+    const sv = wSamplePool(sp, fastRng(i, fixHash, 1));
+    consensusScore = { home: sv.home, away: sv.away };
+    break;
   }
-  const dash = bestSKey.indexOf('-');
-  const consensusScore: { home: number; away: number } = {
-    home: +bestSKey.slice(0, dash),
-    away: +bestSKey.slice(dash + 1),
-  };
+  // Fallback: top player regardless of direction
+  if (!consensusScore && topIdx[0] !== -1) {
+    const i = topIdx[0];
+    const arc = ARCHETYPE[i];
+    const sp = _picks[i] === 0 ? ARC_HOME_POOLS[arc] : _picks[i] === 2 ? ARC_AWAY_POOLS[arc] : ARC_DRAW_POOLS[arc];
+    consensusScore = wSamplePool(sp, fastRng(i, fixHash, 1));
+  }
 
   // === Find elite threshold via histogram (top 10%) ===
   const eliteTarget = Math.max(10, Math.floor(n * 0.10));
@@ -507,7 +500,6 @@ export function computePIEFromRecords(
   const leader = leaderboard[0];
 
   // leader_support: fraction of the full top-K that agree with the consensus pick
-  const consensusPickCode = consensus_pick === 'Home' ? 0 : consensus_pick === 'Draw' ? 1 : 2;
   let supportCount = 0, validTop = 0;
   for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     validTop++;
