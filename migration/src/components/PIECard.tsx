@@ -1,8 +1,9 @@
 // =============================================================================
 // PIECard — Prode Intelligence Engine
 // Muestra el torneo interno de 100 000 jugadores virtuales.
-// La predicción viene del consenso ponderado de los top-25 por score compuesto.
-// El líder sigue siendo el jugador #1, pero el pronóstico es del consenso.
+// Dirección (quién gana): consenso ponderado del top-25.
+// Marcador exacto: predicción del mejor jugador del top-25 que coincide con
+// esa dirección — sample determinista de su pool de arquetipo, varía por partido.
 // =============================================================================
 
 import type { PIEResult, PIELeaderEntry, ArchetypeId } from '../types/pie';
@@ -174,7 +175,7 @@ export function PIECard({ result, homeName, awayName, onClose }: PIECardProps) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Marcador</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Marcador · líder</p>
               {result.mostLikelyScore ? (
                 <p className="text-2xl font-black tabular-nums text-wc-navy leading-none">
                   {result.mostLikelyScore.home} – {result.mostLikelyScore.away}
