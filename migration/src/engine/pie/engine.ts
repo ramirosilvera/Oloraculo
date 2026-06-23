@@ -3,8 +3,9 @@
 //
 // 1M virtual players compete across played WC matches.
 // Ranking: composite = exactCorrect×3 + correct×1 + upsetCorrect×0.5
-// Prediction = weighted consensus of top-25 players (weighted average of per-player
-// probability models). Tight elite pool — more decisive predictions than a wider consensus.
+// Prediction = weighted consensus of top-50 players (weighted average of per-player
+// probability models). Balanced elite pool — lower flip rate and better archetype
+// diversity than a tighter top-25 consensus.
 //
 // Architecture:
 //   buildPIETrackRecords  — O(N×M), memoized once per wcResults change (~300 ms)
@@ -239,6 +240,9 @@ function eloBasedPrior(
   return { home: homeWinRaw * rem, draw, away: (1 - homeWinRaw) * rem };
 }
 
+// Exported so UI components can display the correct K without hardcoding.
+export const PIE_CONSENSUS_K = 50;
+
 // ---------------------------------------------------------------------------
 // Module-level pick buffer (reused — JS is single-threaded)
 // ---------------------------------------------------------------------------
@@ -369,8 +373,8 @@ export function computePIEFromRecords(
   const arcCorr  = new Float64Array(5);
   const arcTotal = new Float64Array(5);
 
-  // Top-K tracking (descending composite, K=25 for consensus)
-  const K = 25;
+  // Top-K tracking (descending composite)
+  const K = PIE_CONSENSUS_K;
   const topIdx   = new Int32Array(K).fill(-1);
   const topComp  = new Float64Array(K).fill(-Infinity);
   let topMin = -Infinity, topMinPos = 0, topFilled = 0;
@@ -428,7 +432,7 @@ export function computePIEFromRecords(
     arcTotal[arc] += total[i];
   }
 
-  // Sort top-K descending by composite (insertion sort, K=100 — ~5 000 ops, negligible)
+  // Sort top-K descending by composite (insertion sort, K=50 — ~1 250 ops, negligible)
   for (let j = 1; j < K; j++) {
     const ci = topComp[j], ii = topIdx[j];
     let k = j - 1;
@@ -486,10 +490,10 @@ export function computePIEFromRecords(
   const formAdj = (homeForm - awayForm) / 2500;
   const pDiff = pH - pA;
   // Base lambdas calibrated to WC ~2.7 goals/game (1.5 home, 1.2 away).
-  // Consensus λ: each of the top-25 players adjusts Poisson rates via personality —
+  // Consensus λ: each of the top-50 players adjusts Poisson rates via personality —
   // FAV_SKEW widens the goal gap (decisive wins), DRAW_SKEW compresses it (tight games),
   // NOISE_LEVEL inflates total goals (high-scoring/chaotic). Hybrid EQUILIBRADO majority
-  // produces moderate adjustments; diverse top-25 traits drive score variety across fixtures.
+  // produces moderate adjustments; diverse top-50 traits drive score variety across fixtures.
   const base_λh = Math.max(0.35, Math.min(4.0, 1.5 + pDiff * 2.0 + formAdj));
   const base_λa = Math.max(0.35, Math.min(4.0, 1.2 - pDiff * 2.0 - formAdj));
   let sumLH = 0, sumLA = 0, sumLW = 0;

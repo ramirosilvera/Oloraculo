@@ -20,6 +20,7 @@ import { mostLikelyScorePerOutcome } from '../engine/probability-helper';
 import { ModelDetailPanel } from '../components/ModelDetailPanel';
 import { PIECard } from '../components/PIECard';
 import { usePIEForFixture } from '../hooks/usePIE';
+import { PIE_CONSENSUS_K } from '../engine/pie/engine';
 import type { Fixture } from '../types/domain';
 
 function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
@@ -32,7 +33,7 @@ const ladder = [
   { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5 ligas' },
   { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
   { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
-  { name: 'PIE',  label: 'PIE',                signal: '100 000 pronosticadores virtuales · dirección por consenso top-25 · marcador del mejor jugador que coincide' },
+  { name: 'PIE',  label: 'PIE',                signal: `100 000 pronosticadores virtuales · dirección por consenso top-${PIE_CONSENSUS_K} · marcador del mejor jugador que coincide` },
 ];
 
 export function OracleLabPage() {
@@ -245,7 +246,7 @@ export function OracleLabPage() {
                 EQUILIBRADO: 'Híbrido', CAOTICO: 'Caótico',
               };
               const leaderArc = pieResult.leader?.archetype;
-              const support25 = Math.round(pieResult.leader_support * 25);
+              const supportK = Math.round(pieResult.leader_support * PIE_CONSENSUS_K);
               return (
                 <button
                   onClick={() => { setShowPIEDetail(prev => !prev); setSelectedModel(null); }}
@@ -274,7 +275,7 @@ export function OracleLabPage() {
                   {leaderArc && (
                     <p className="text-[10px] text-gray-400">
                       {archetypeEmoji[leaderArc]} {archetypeLabel[leaderArc]}
-                      <span className="ml-1.5 text-wc-navy font-semibold">{support25}/25</span>
+                      <span className="ml-1.5 text-wc-navy font-semibold">{supportK}/{PIE_CONSENSUS_K}</span>
                     </p>
                   )}
                   <p className="text-[10px] text-gray-300">{showPIEDetail ? '▲ cerrar' : '▼ detalle'}</p>
