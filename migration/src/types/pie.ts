@@ -32,6 +32,7 @@ export interface PIEResult {
   confidence: number;
   sample_size: number;
   degraded: boolean;
+  consensus_k: number;
 }
 
 // Track records for 1M players (typed arrays, exported for hook memoization)

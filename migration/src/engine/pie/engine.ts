@@ -240,9 +240,6 @@ function eloBasedPrior(
   return { home: homeWinRaw * rem, draw, away: (1 - homeWinRaw) * rem };
 }
 
-// Exported so UI components can display the correct K without hardcoding.
-export const PIE_CONSENSUS_K = 50;
-
 // ---------------------------------------------------------------------------
 // Module-level pick buffer (reused — JS is single-threaded)
 // ---------------------------------------------------------------------------
@@ -373,15 +370,16 @@ export function computePIEFromRecords(
   const arcCorr  = new Float64Array(5);
   const arcTotal = new Float64Array(5);
 
+  // Adaptive K: grows with tournament progress (1.25 matches per player, min 25)
+  const K = Math.max(25, Math.floor(wcResults.length * 1.25));
   // Top-K tracking (descending composite)
-  const K = PIE_CONSENSUS_K;
   const topIdx   = new Int32Array(K).fill(-1);
   const topComp  = new Float64Array(K).fill(-Infinity);
   let topMin = -Infinity, topMinPos = 0, topFilled = 0;
 
   // === First O(N) pass: picks + crowd + histogram + top-K ===
   for (let i = 0; i < N; i++) {
-    const comp = exact[i] * 3 + correct[i] + upset[i] * 2.5;
+    const comp = exact[i] * 3 + correct[i] + upset[i] * 1.5;
 
     // Histogram bucket
     const bin = comp * 2 > HIST_MAX ? HIST_MAX : (comp * 2 + 0.5) | 0;
@@ -528,7 +526,7 @@ export function computePIEFromRecords(
   // === Second O(N) pass: elite picks ===
   let eliteH = 0, eliteD = 0, eliteA = 0, eliteN = 0;
   for (let i = 0; i < N; i++) {
-    if (exact[i] * 3 + correct[i] + upset[i] * 2.5 < eliteThreshold) continue;
+    if (exact[i] * 3 + correct[i] + upset[i] * 1.5 < eliteThreshold) continue;
     const p = _picks[i];
     if (p === 0) eliteH++;
     else if (p === 1) eliteD++;
@@ -612,6 +610,7 @@ export function computePIEFromRecords(
     confidence,
     sample_size: n,
     degraded: false,
+    consensus_k: K,
   };
 }
 
@@ -638,6 +637,7 @@ function degradedResult(fixture_id: string): PIEResult {
     confidence: u,
     sample_size: 0,
     degraded: true,
+    consensus_k: 25,
   };
 }
 
