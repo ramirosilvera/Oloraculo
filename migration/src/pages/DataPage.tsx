@@ -66,7 +66,7 @@ export function DataPage() {
 
   return (
     <div className="space-y-6">
-      <SectionTitle sub="Los datos estáticos se sirven desde archivos JSON del repositorio. Solo predicciones y evaluaciones van a Supabase.">
+      <SectionTitle sub="Datos estáticos desde archivos JSON · predicciones, goles y resultados WC 2026 en Supabase.">
         Datos del Sistema
       </SectionTitle>
 
@@ -232,8 +232,11 @@ export function DataPage() {
         <p className="font-semibold mb-1">Arquitectura</p>
         <p className="text-gray-600 leading-relaxed">
           Los datos estáticos (equipos, grupos, fixtures, historial, ratings) se sirven como archivos JSON
-          desde GitHub Pages — sin base de datos. Solo las predicciones guardadas, evaluaciones y contextos
-          de partidos van a Supabase. El motor de predicción y la simulación Monte Carlo corren 100% en el browser.
+          desde GitHub Pages — sin base de datos. A Supabase van: predicciones guardadas, evaluaciones,
+          goles del torneo (<code className="font-mono text-xs">match_goals</code>) y resultados oficiales
+          WC 2026 (<code className="font-mono text-xs">wc_actual_results</code>).
+          El motor PIE (Prode Intelligence Engine) corre 100% en el browser: 100.000 jugadores virtuales
+          deterministas generados con LCG — sin servidor ni simulación Monte Carlo.
         </p>
       </div>
     </div>
