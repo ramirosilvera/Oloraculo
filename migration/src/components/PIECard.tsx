@@ -109,7 +109,7 @@ export function PIECard({ result, homeName, awayName, onClose, looWinnerAcc, loo
   const { leader, leaderboard, pick_probabilities: cp, elite_probabilities: ep } = result;
   const leaderMeta = ARCHETYPE_META[leader.archetype];
   const leaderAcc = leader.total > 0 ? leader.correct / leader.total : null;
-  // cp is now the weighted top-50 consensus, not the full crowd
+  // cp is the top-K consensus (K adaptive), not the full crowd
   const consensusModal = result.most_probable_pick;
 
   return (

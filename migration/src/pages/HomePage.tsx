@@ -30,7 +30,7 @@ const ladder: { level: string; model: string; signal: string; color: 'gray' | 'b
   { level: 'L4.5',  model: 'Potencial del plantel',      signal: 'valor de mercado, top-5 ligas',                 color: 'gold'  },
   { level: 'L5',    model: 'Goles + contexto',           signal: 'disponibilidad de jugadores',                   color: 'red'   },
   { level: 'L6',    model: 'Momentum del Mundial',       signal: 'inflación WC + momentum en torneo',             color: 'navy'  },
-  { level: 'PIE',   model: 'Prode Intelligence Engine',  signal: '100.000 pronos. virtuales · lider por torneo',  color: 'red',  pie: true },
+  { level: 'PIE',   model: 'Prode Intelligence Engine',  signal: '100.000 pronosticadores virtuales · consenso top-K adaptativo · arquetipo Híbrido domina el panel',  color: 'red',  pie: true },
   { level: 'Final', model: 'Oráculo',                    signal: 'ensemble calibrado por historial',               color: 'navy'  },
 ];
 

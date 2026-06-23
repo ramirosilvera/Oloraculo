@@ -1,11 +1,11 @@
 // =============================================================================
 // PIE — Prode Intelligence Engine (competition model, 1 000 000 players)
 //
-// 1M virtual players compete across played WC matches.
-// Ranking: composite = exactCorrect×3 + correct×1 + upsetCorrect×0.5
-// Prediction = weighted consensus of top-50 players (weighted average of per-player
-// probability models). Balanced elite pool — lower flip rate and better archetype
-// diversity than a tighter top-25 consensus.
+// 100 000 virtual players compete across played WC matches.
+// Ranking: composite = exactCorrect×3 + correct×1 + upsetCorrect×1.5
+// Prediction = consensus of top-K players (K = max(25, floor(M×1.25))), adaptive
+// to tournament progress — grows from 25 early-game to ~75 by end of groups.
+// Reduced upset weight vs earlier iterations keeps EQUILIBRADO dominant in the elite pool.
 //
 // Architecture:
 //   buildPIETrackRecords  — O(N×M), memoized once per wcResults change (~300 ms)
@@ -488,10 +488,10 @@ export function computePIEFromRecords(
   const formAdj = (homeForm - awayForm) / 2500;
   const pDiff = pH - pA;
   // Base lambdas calibrated to WC ~2.7 goals/game (1.5 home, 1.2 away).
-  // Consensus λ: each of the top-50 players adjusts Poisson rates via personality —
+  // Consensus λ: each of the top-K players adjusts Poisson rates via personality —
   // FAV_SKEW widens the goal gap (decisive wins), DRAW_SKEW compresses it (tight games),
   // NOISE_LEVEL inflates total goals (high-scoring/chaotic). Hybrid EQUILIBRADO majority
-  // produces moderate adjustments; diverse top-50 traits drive score variety across fixtures.
+  // produces moderate adjustments; diverse top-K traits drive score variety across fixtures.
   const base_λh = Math.max(0.35, Math.min(4.0, 1.5 + pDiff * 2.0 + formAdj));
   const base_λa = Math.max(0.35, Math.min(4.0, 1.2 - pDiff * 2.0 - formAdj));
   let sumLH = 0, sumLA = 0, sumLW = 0;
