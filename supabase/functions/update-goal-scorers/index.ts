@@ -414,27 +414,28 @@ Deno.serve(async (req) => {
     .select('home_team_id, away_team_id, kickoff_utc');
   if (fErr) return new Response(JSON.stringify({ error: fErr.message }), { status: 500 });
 
-  // Build lookup: "homeId:awayId" → YYYYMMDD date string
-  const dateByTeams = new Map<string, string>();
+  // Build lookup: "teamA:teamB" → { date, dbHome, dbAway }
+  // Stored under both orderings so fixture_ids with reversed home/away still match.
+  const fixtureByKey = new Map<string, { date: string; dbHome: string; dbAway: string }>();
   for (const f of fixtureRows ?? []) {
-    const key = `${f.home_team_id}:${f.away_team_id}`;
     const d = new Date(f.kickoff_utc);
     const dateStr = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
-    dateByTeams.set(key, dateStr);
+    const entry = { date: dateStr, dbHome: f.home_team_id, dbAway: f.away_team_id };
+    fixtureByKey.set(`${f.home_team_id}:${f.away_team_id}`, entry);
+    fixtureByKey.set(`${f.away_team_id}:${f.home_team_id}`, entry); // reverse lookup
   }
 
-  // Organize fixtures by date for ESPN/SofaScore batching
+  // Organize fixtures by date for ESPN/SofaScore batching.
+  // Use dbHome/dbAway (the real venue order) so ESPN/SofaScore home-team detection is correct.
   const fixturesByDate = new Map<string, Array<{ fixtureId: string; homeId: string; awayId: string }>>();
   for (const r of groupResults) {
     const parts = r.fixture_id.split(':');
     if (parts.length < 4) continue;
-    const homeId = parts[2];
-    const awayId = parts[3];
-    const date = dateByTeams.get(`${homeId}:${awayId}`) ?? '';
-    if (!date) continue;
-    const existing = fixturesByDate.get(date) ?? [];
-    existing.push({ fixtureId: r.fixture_id, homeId, awayId });
-    fixturesByDate.set(date, existing);
+    const info = fixtureByKey.get(`${parts[2]}:${parts[3]}`);
+    if (!info) { console.warn(`[init] no wc_fixtures row for ${r.fixture_id}`); continue; }
+    const existing = fixturesByDate.get(info.date) ?? [];
+    existing.push({ fixtureId: r.fixture_id, homeId: info.dbHome, awayId: info.dbAway });
+    fixturesByDate.set(info.date, existing);
   }
 
   // ── SOURCE 1: ESPN ─────────────────────────────────────────────────────────
