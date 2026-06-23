@@ -174,6 +174,11 @@ async function fetchGoalsFromESPN(
         const awayName = teamName(awayId).toLowerCase();
 
         // Match event by home+away team name
+        // Build word lists from both slug and display name for robust matching
+        // e.g. 'cape-verde' + 'Cape Verde' → ['cape','verde'] catches 'Cabo Verde' via 'verde'
+        const homeWords = [...homeId.split('-'), ...homeName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
+        const awayWords = [...awayId.split('-'), ...awayName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
+
         const ev = events.find(e => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const comps: any[] = e.competitions?.[0]?.competitors ?? [];
@@ -183,7 +188,7 @@ async function fetchGoalsFromESPN(
           const a = comps.find((c: any) => c.homeAway === 'away');
           const hn = (h?.team?.displayName ?? h?.team?.name ?? '').toLowerCase();
           const an = (a?.team?.displayName ?? a?.team?.name ?? '').toLowerCase();
-          return hn.includes(homeName.split(' ')[0]) && an.includes(awayName.split(' ')[0]);
+          return homeWords.some(w => hn.includes(w)) && awayWords.some(w => an.includes(w));
         });
 
         if (!ev) { console.log(`[espn] no match found for ${fixtureId} on ${date}`); continue; }
@@ -246,11 +251,14 @@ async function fetchGoalsFromSofa(
         const homeName = teamName(homeId).toLowerCase();
         const awayName = teamName(awayId).toLowerCase();
 
+        const homeWordsSofa = [...homeId.split('-'), ...homeName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
+        const awayWordsSofa = [...awayId.split('-'), ...awayName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ev = wcEvents.find((e: any) => {
           const hn = (e.homeTeam?.name ?? '').toLowerCase();
           const an = (e.awayTeam?.name ?? '').toLowerCase();
-          return hn.includes(homeName.split(' ')[0]) && an.includes(awayName.split(' ')[0]);
+          return homeWordsSofa.some(w => hn.includes(w)) && awayWordsSofa.some(w => an.includes(w));
         });
 
         if (!ev) { console.log(`[sofa] no match for ${fixtureId} on ${sofaDate}`); continue; }
@@ -473,7 +481,11 @@ Deno.serve(async (req) => {
     for (const r of stillMissingForSerper) {
       const parts = r.fixture_id.split(':');
       if (parts.length < 4) continue;
-      const goals = await fetchGoalScorersFromSerper(r.fixture_id, parts[2], parts[3], SERPER_KEY);
+      // Use dbHome/dbAway from wc_fixtures (not fixture_id order) for correct team attribution
+      const info = fixtureByKey.get(`${parts[2]}:${parts[3]}`);
+      const homeId = info?.dbHome ?? parts[2];
+      const awayId = info?.dbAway ?? parts[3];
+      const goals = await fetchGoalScorersFromSerper(r.fixture_id, homeId, awayId, SERPER_KEY);
       if (goals.length > 0) serperGoals.set(r.fixture_id, goals);
       await new Promise(res => setTimeout(res, 1200));
     }
