@@ -197,7 +197,8 @@ async function fetchGoalsFromESPN(
         const comp = ev.competitions?.[0] ?? {};
         const goals = parseEspnGoals(comp, fixtureId, homeId, awayId);
         console.log(`[espn] ${fixtureId}: ${goals.length} goals`);
-        result.set(fixtureId, goals);
+        // Only mark covered if we got actual goal events; otherwise fall through to SofaScore/Serper
+        if (goals.length > 0) result.set(fixtureId, goals);
       }
     } catch (e) {
       console.error(`[espn] error for date ${date}:`, e);
@@ -284,7 +285,8 @@ async function fetchGoalsFromSofa(
           });
 
           console.log(`[sofa] ${fixtureId}: ${goals.length} goals`);
-          result.set(fixtureId, goals);
+          // Only mark covered if we got actual goal events; otherwise fall through to Serper
+          if (goals.length > 0) result.set(fixtureId, goals);
         } catch (e) {
           console.error(`[sofa] incidents error for ${fixtureId}:`, e);
         }
