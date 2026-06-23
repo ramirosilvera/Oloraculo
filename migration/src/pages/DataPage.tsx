@@ -7,28 +7,8 @@ import {
   Badge,
   SectionTitle,
   SkeletonCard,
+  FlagImg,
 } from '../components/ui';
-
-const FLAGS: Record<string, string> = {
-  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
-  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
-  'belgium': '🇧🇪', 'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽',
-  'united-states': '🇺🇸', 'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷',
-  'morocco': '🇲🇦', 'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺',
-  'croatia': '🇭🇷', 'switzerland': '🇨🇭', 'norway': '🇳🇴', 'sweden': '🇸🇪',
-  'austria': '🇦🇹', 'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬',
-  'saudi-arabia': '🇸🇦', 'south-africa': '🇿🇦', 'ghana': '🇬🇭', 'tunisia': '🇹🇳',
-  'algeria': '🇩🇿', 'ivory-coast': '🇨🇮', 'nigeria': '🇳🇬', 'cameroon': '🇨🇲',
-  'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'czechia': '🇨🇿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
-  'paraguay': '🇵🇾', 'haiti': '🇭🇹', 'panama': '🇵🇦', 'curacao': '🇨🇼',
-  'jordan': '🇯🇴', 'iraq': '🇮🇶', 'new-zealand': '🇳🇿', 'cape-verde': '🇨🇻',
-  'uzbekistan': '🇺🇿', 'congo-dr': '🇨🇩', 'bosnia-and-herzegovina': '🇧🇦',
-  'qatar': '🇶🇦',
-};
-
-function flag(teamId: string) {
-  return FLAGS[teamId.toLowerCase()] ?? '🏳️';
-}
 
 export function DataPage() {
   const { teams, fixtures, results, ratings, groups, teamMap, isLoading } = useAppData();
@@ -120,7 +100,7 @@ export function DataPage() {
                         const name = teamMap.get(id)?.name ?? id;
                         return (
                           <span key={id} className="inline-flex items-center gap-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 font-medium text-gray-700">
-                            <span>{flag(id)}</span>
+                            <FlagImg id={id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />
                             <span>{name}</span>
                           </span>
                         );
@@ -163,7 +143,7 @@ export function DataPage() {
                   <tr key={elo.team_id} className="hover:bg-wc-cream/30 transition-colors">
                     <td className="px-5 py-2.5 text-gray-400 font-semibold tabular-nums">{i + 1}</td>
                     <td className="px-4 py-2.5 font-medium text-gray-800">
-                      <span className="mr-1.5">{flag(elo.team_id)}</span>{name}
+                      <span className="inline-flex items-center gap-1.5"><FlagImg id={elo.team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />{name}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-wc-navy">{Math.round(elo.value)}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-gray-500">{fifa ? Math.round(fifa.value) : '—'}</td>
@@ -176,7 +156,7 @@ export function DataPage() {
                   <tr key={`fifa-only-${fifa.team_id}`} className="hover:bg-wc-cream/30 transition-colors">
                     <td className="px-5 py-2.5 text-gray-400 font-semibold tabular-nums">{topElo.length + i + 1}</td>
                     <td className="px-4 py-2.5 font-medium text-gray-800">
-                      <span className="mr-1.5">{flag(fifa.team_id)}</span>{name}
+                      <span className="inline-flex items-center gap-1.5"><FlagImg id={fifa.team_id} className="w-5 h-3.5 object-cover rounded-[2px] shrink-0" />{name}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right text-gray-400">—</td>
                     <td className="px-5 py-2.5 text-right tabular-nums font-semibold text-wc-navy">{Math.round(fifa.value)}</td>
