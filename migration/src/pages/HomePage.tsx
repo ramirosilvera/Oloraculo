@@ -141,11 +141,11 @@ export function HomePage() {
           </Link>
         </div>
 
-        <div className="pt-5 border-t border-white/20 space-y-1 text-center">
+        <div className="pt-5 border-t border-white/20 space-y-1.5 text-center">
           <p className="text-white/40 text-[10px] uppercase tracking-widest font-semibold">Creadores</p>
           <p className="text-white text-sm font-bold">
             Mariano Villa
-            <span className="font-normal text-white/60"> · idea y motor estadístico · </span>
+            <span className="font-normal text-white/60"> · idea original · </span>
             <a
               href="https://github.com/marianovilla/oloraculo"
               target="_blank"
@@ -157,7 +157,12 @@ export function HomePage() {
           </p>
           <p className="text-white text-sm font-bold">
             Ramiro Silvera
-            <span className="font-normal text-white/60"> · app web</span>
+            <span className="font-normal text-white/60"> · diseño de la app · modelos </span>
+            <span className="text-wc-gold font-semibold">Plantel</span>
+            <span className="font-normal text-white/60">, </span>
+            <span className="text-wc-gold font-semibold">Momentum</span>
+            <span className="font-normal text-white/60"> y </span>
+            <span className="text-wc-gold font-semibold">PIE</span>
           </p>
         </div>
       </section>
