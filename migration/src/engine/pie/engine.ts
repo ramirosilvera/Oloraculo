@@ -487,13 +487,12 @@ export function computePIEFromRecords(
   const awayForm = cachedForm(fixture.away_team_id);
   const formAdj = (homeForm - awayForm) / 2500;
   const pDiff = pH - pA;
-  // Base lambdas calibrated to WC ~2.7 goals/game (1.5 home, 1.2 away).
-  // Consensus λ: each of the top-K players adjusts Poisson rates via personality —
-  // FAV_SKEW widens the goal gap (decisive wins), DRAW_SKEW compresses it (tight games),
-  // NOISE_LEVEL inflates total goals (high-scoring/chaotic). Hybrid EQUILIBRADO majority
-  // produces moderate adjustments; diverse top-K traits drive score variety across fixtures.
-  const base_λh = Math.max(0.35, Math.min(4.0, 1.5 + pDiff * 2.0 + formAdj));
-  const base_λa = Math.max(0.35, Math.min(4.0, 1.2 - pDiff * 2.0 - formAdj));
+  // Base lambdas calibrated to WC ~2.4 goals/game after ~8% player-noise boost.
+  // Lower coefficients vs earlier iterations prevent 2-0 from dominating moderate
+  // favorites: 1-0 is the Poisson mode when λh < ~1.8, which holds for pDiff < 0.45.
+  // Strong favorites (pDiff ≥ 0.45) still land on 2-0; lopsided matches on 2-0/3-0.
+  const base_λh = Math.max(0.35, Math.min(4.0, 1.2 + pDiff * 1.3 + formAdj));
+  const base_λa = Math.max(0.35, Math.min(4.0, 1.0 - pDiff * 1.3 - formAdj));
   let sumLH = 0, sumLA = 0, sumLW = 0;
   for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     const i = topIdx[k];
