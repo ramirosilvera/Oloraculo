@@ -447,9 +447,9 @@ export function PerformancePage() {
                         <span className={`font-bold tabular-nums text-sm ${
                           (row.exactCorrect ?? 0) > 0 ? 'text-green-700' : 'text-gray-500'
                         }`}>
-                          {row.exactCorrect ?? 0}/{row.exactTotal} {' '}
+                          {row.exactCorrect ?? 0}/{row.n} {' '}
                           <span className="text-xs font-normal text-gray-400">
-                            ({pct(row.exactCorrect ?? 0, row.exactTotal)})
+                            ({pct(row.exactCorrect ?? 0, row.n)})
                           </span>
                         </span>
                       )}

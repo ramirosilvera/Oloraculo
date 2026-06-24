@@ -99,7 +99,7 @@ export function useAppData() {
   // need it (Historial, Rendimientos) don't block waiting for it to download.
   // The engine becomes available asynchronously; pages handle engine === null gracefully.
   const isLoading =
-    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
+    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading || supabaseWc.isLoading;
 
   const error =
     teams.error ?? groups.error ?? fixtures.error ??

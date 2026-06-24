@@ -14,12 +14,12 @@ import {
 
 const navItems = [
   { to: '/',                     icon: Home,         label: 'Inicio' },
-  { to: '/lab',                  icon: FlaskConical, label: 'Laboratorio' },
+  { to: '/lab',                  icon: FlaskConical, label: 'Predicciones' },
   { to: '/matches',              icon: Swords,       label: 'Partidos' },
   { to: '/tournament',           icon: Trophy,       label: 'Torneo' },
   { to: '/tournament/snapshots', icon: History,      label: 'Historial' },
   { to: '/performance',          icon: BarChart3,    label: 'Rendimiento' },
-  { to: '/data',                 icon: Database,     label: 'Datos' },
+  { to: '/data',                 icon: Database,     label: 'Estadísticas' },
 ];
 
 // Module-level counter so NavButton instances can signal the top bar

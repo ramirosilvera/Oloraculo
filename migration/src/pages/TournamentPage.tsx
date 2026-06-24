@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../hooks/useAppData';
 import { saveTournamentSnapshot } from '../services/supabase-client';
@@ -84,6 +84,11 @@ export function TournamentPage() {
   const [saving, setSaving]             = useState(false);
   const [saved, setSaved]               = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<TeamTournamentProbability | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    return () => { workerRef.current?.terminate(); };
+  }, []);
 
   const getTeamName = (id: string) => teamMap.get(id)?.name ?? id;
 
@@ -116,14 +121,16 @@ export function TournamentPage() {
         new URL('../workers/simulation.worker.ts', import.meta.url),
         { type: 'module' },
       );
+      workerRef.current = worker;
 
       const result = await new Promise<TournamentProjection>((resolve, reject) => {
         worker.onmessage = (e: MessageEvent<{ ok: boolean; result?: TournamentProjection; error?: string }>) => {
           worker.terminate();
+          workerRef.current = null;
           if (e.data.ok && e.data.result) resolve(e.data.result);
           else reject(new Error(e.data.error ?? 'Simulation failed'));
         };
-        worker.onerror = reject;
+        worker.onerror = (e) => { worker.terminate(); workerRef.current = null; reject(e); };
         worker.postMessage(input);
       });
 

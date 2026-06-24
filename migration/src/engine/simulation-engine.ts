@@ -462,10 +462,13 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
     };
   });
 
+  const _completed = allResults.filter(r => r.home_goals != null);
+  const _rKey = `${_completed.length}:${_completed.reduce((s, r) => s + (r.home_goals ?? 0) + (r.away_goals ?? 0), 0)}`;
+
   return {
     simulations,
     modelName: 'Final',
-    inputSummaryHash: `sim:${simulations}:seed:${seed}`,
+    inputSummaryHash: `sim:${simulations}:seed:${seed}:${_rKey}`,
     teams: teams.sort((a, b) => b.winTournament - a.winTournament),
   };
 }

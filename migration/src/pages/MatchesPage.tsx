@@ -721,7 +721,7 @@ function FixtureRow({
             </div>
           )}
 
-          {pred && (
+          {pred && !played && !evalDone.has(fixture.id) && (
             <ContextEditor
               key={context?.updated_at ?? 'new'}
               fixture={fixture}
@@ -1454,6 +1454,7 @@ export function MatchesPage() {
   const [search, setSearch]             = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(TODAY);
+  const [openGroups, setOpenGroups]     = useState<Set<string>>(new Set());
 
   const playedMap = wcPlayedMap;
 
@@ -2022,34 +2023,101 @@ export function MatchesPage() {
             </Card>
           );
         })() : (
-          /* Todos: mini-grid 2×col */
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          /* Todos: collapsible accordion by group */
+          <div className="space-y-2">
             {groups.map(group => {
-              const groupFixtures = fixtures.filter(f => f.group_name === group.name);
+              const key = group.name;
+              const isOpen = openGroups.has(key);
+              const groupFixtures = fixtures
+                .filter(f => f.group_name === key)
+                .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''));
               const standings = computeGroupStandings(group.team_ids, groupFixtures, playedMap, fifaMap);
-              const played = groupFixtures.filter(f => playedMap.has(f.id)).length;
+              const playedCount = groupFixtures.filter(f => playedMap.has(f.id)).length;
               return (
-                <button
-                  key={group.name}
-                  onClick={() => setSelectedGroup(group.name)}
-                  className="text-left bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:border-wc-navy/40 hover:shadow-md active:scale-[0.97] active:brightness-95 transition-all"
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-sm font-black text-wc-navy">Grupo {group.name}</span>
-                    <span className="text-[10px] text-gray-400 font-medium">{played}/{groupFixtures.length}</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {standings.map((row, i) => (
-                      <div key={row.id} className="flex items-center gap-1.5">
-                        <FlagImg id={row.id} className={`w-5 h-3.5 object-cover rounded-[2px] shrink-0 ${i >= 2 ? 'opacity-40' : ''}`} />
-                        <span className={`flex-1 text-xs truncate ${i < 2 ? 'font-semibold text-gray-800' : 'text-gray-400'}`}>
-                          {teamMap.get(row.id)?.name ?? row.id}
-                        </span>
-                        <span className={`text-xs font-black tabular-nums ${i < 2 ? 'text-wc-navy' : 'text-gray-300'}`}>{row.pts}</span>
+                <Card key={key}>
+                  {/* Group header — always visible, clickable to toggle */}
+                  <button
+                    onClick={() => setOpenGroups(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; })}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left rounded-xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-black text-wc-navy">Grupo {key}</span>
+                      <div className="flex items-center gap-1.5">
+                        {standings.slice(0, 4).map((row, i) => (
+                          <FlagImg key={row.id} id={row.id} className={`w-5 h-3.5 object-cover rounded-[2px] shrink-0 ${i >= 2 ? 'opacity-40' : ''}`} />
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </button>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-gray-400 font-medium">{playedCount}/{groupFixtures.length}</span>
+                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {/* Match list — only visible when open */}
+                  {isOpen && (
+                    <div className="border-t border-gray-100">
+                      <div className="divide-y divide-gray-50">
+                        {groupFixtures.map(f => {
+                          const result = playedMap.get(f.id);
+                          const fHomeName = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
+                          const fAwayName = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                          const liveG = getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id);
+                          const isLive = liveG?.status === 'IN_PLAY' || liveG?.status === 'PAUSED';
+                          const isFinishedLive = !result && liveG?.status === 'FINISHED';
+                          return (
+                            <div key={f.id} className="px-4 py-2.5 flex items-center gap-2">
+                              {result ? (
+                                <>
+                                  <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
+                                  <FlagImg id={f.home_team_id} />
+                                  <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{fHomeName}</span>
+                                  <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{result.home_goals}–{result.away_goals}</span>
+                                  <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{fAwayName}</span>
+                                  <FlagImg id={f.away_team_id} />
+                                  {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                                </>
+                              ) : isLive ? (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                                  <FlagImg id={f.home_team_id} />
+                                  <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{fHomeName}</span>
+                                  <span className="text-sm font-black text-red-600 shrink-0 tabular-nums">
+                                    {liveG.homeGoals ?? 0}–{liveG.awayGoals ?? 0}
+                                    {liveG.minute ? <span className="text-[10px] font-normal text-red-400 ml-0.5">{liveG.minute}'</span> : null}
+                                  </span>
+                                  <span className="flex-1 text-xs font-semibold text-gray-800 truncate text-right">{fAwayName}</span>
+                                  <FlagImg id={f.away_team_id} />
+                                </>
+                              ) : isFinishedLive ? (
+                                <>
+                                  <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
+                                  <FlagImg id={f.home_team_id} />
+                                  <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{fHomeName}</span>
+                                  <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{liveG.homeGoals ?? 0}–{liveG.awayGoals ?? 0}</span>
+                                  <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{fAwayName}</span>
+                                  <FlagImg id={f.away_team_id} />
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-gray-300 text-[10px] shrink-0">○</span>
+                                  <FlagImg id={f.home_team_id} />
+                                  <span className="flex-1 text-xs font-medium text-gray-500 truncate">{fHomeName}</span>
+                                  <span className="text-[11px] text-gray-400 shrink-0 font-medium tabular-nums">
+                                    {f.kickoff_utc ? kickoffART(f.kickoff_utc) : 'vs'}
+                                  </span>
+                                  <span className="flex-1 text-xs font-medium text-gray-500 truncate text-right">{fAwayName}</span>
+                                  <FlagImg id={f.away_team_id} />
+                                  {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </Card>
               );
             })}
           </div>
