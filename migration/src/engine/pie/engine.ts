@@ -487,12 +487,14 @@ export function computePIEFromRecords(
   const awayForm = cachedForm(fixture.away_team_id);
   const formAdj = (homeForm - awayForm) / 2500;
   const pDiff = pH - pA;
-  // Base lambdas calibrated to WC ~2.4 goals/game after ~8% player-noise boost.
-  // Lower coefficients vs earlier iterations prevent 2-0 from dominating moderate
-  // favorites: 1-0 is the Poisson mode when λh < ~1.8, which holds for pDiff < 0.45.
-  // Strong favorites (pDiff ≥ 0.45) still land on 2-0; lopsided matches on 2-0/3-0.
-  const base_λh = Math.max(0.35, Math.min(4.0, 1.2 + pDiff * 1.3 + formAdj));
-  const base_λa = Math.max(0.35, Math.min(4.0, 1.0 - pDiff * 1.3 - formAdj));
+  // Base lambdas — asymmetric scaling so λa drops slowly with pDiff.
+  // This keeps λa > 1 for moderate favorites, letting 2-1 beat 2-0 when
+  // the losing team is expected to score (historically 2-1 17.8% > 2-0 14.1%).
+  // λh grows faster than λa shrinks → goal gap widens without killing loser goals.
+  // Total at equal teams: 2.2 base → ~2.4 after player-noise boost (near WC avg 2.5).
+  // λa = 1 crossover at pDiff ≈ 0.29 → moderate favs get 2-1, strong favs get 2-0.
+  const base_λh = Math.max(0.35, Math.min(4.0, 1.1 + pDiff * 1.4 + formAdj));
+  const base_λa = Math.max(0.35, Math.min(4.0, 1.1 - pDiff * 0.35 - formAdj));
   let sumLH = 0, sumLA = 0, sumLW = 0;
   for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     const i = topIdx[k];
