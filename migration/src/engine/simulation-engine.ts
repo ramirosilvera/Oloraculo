@@ -22,7 +22,15 @@ import { PredictionEngine } from './prediction-engine';
 import { poissonScoreline, sampleScore, eloExpectation } from './probability-helper';
 
 // ---------------------------------------------------------------------------
-// Bracket definition (WorldCup2026Bracket.cs)
+// Bracket definition — FIFA WC 2026 official structure
+//
+// 12 groups (A–L). R32 crossings are NOT simple adjacent pairs — they follow
+// the official draw that keeps the 3 hosts (Mexico=A, Canada=B, USA=D) apart
+// and places Argentina (J) vs Spain (H), NOT vs France/Norway (I).
+//
+// GroupThird slots list which groups may contribute a qualifying 3rd-place team
+// to that match. Per-simulation deduplication (assignedThirds) ensures each
+// team is assigned to at most one R32 slot.
 // ---------------------------------------------------------------------------
 type SlotKind = 'GroupWinner' | 'GroupRunnerUp' | 'GroupThird' | 'WinnerOf';
 
@@ -30,7 +38,7 @@ interface BracketSlot {
   kind: SlotKind;
   group?: string;
   tieId?: number;
-  thirdOptions?: string[];
+  thirdOptions?: string[]; // GroupThird: eligible source groups
 }
 
 interface BracketTie {
@@ -40,51 +48,53 @@ interface BracketTie {
   away: BracketSlot;
 }
 
-const W = (group: string): BracketSlot => ({ kind: 'GroupWinner', group });
-const R = (group: string): BracketSlot => ({ kind: 'GroupRunnerUp', group });
-const T = (...groups: string[]): BracketSlot => ({ kind: 'GroupThird', thirdOptions: groups });
-const WO = (tieId: number): BracketSlot => ({ kind: 'WinnerOf', tieId });
+const W  = (group: string):           BracketSlot => ({ kind: 'GroupWinner',   group });
+const R  = (group: string):           BracketSlot => ({ kind: 'GroupRunnerUp', group });
+const T  = (...groups: string[]):     BracketSlot => ({ kind: 'GroupThird',    thirdOptions: groups });
+const WO = (tieId: number):           BracketSlot => ({ kind: 'WinnerOf',      tieId });
 
+// Official R32 — group winners / runners-up / T3 assignments per FIFA draw
 const ROUND_OF_32: BracketTie[] = [
-  { id: 73,  stage: 'R32', home: R('A'),  away: R('B') },
-  { id: 74,  stage: 'R32', home: W('E'),  away: T('A','B','C','D','F') },
-  { id: 75,  stage: 'R32', home: W('F'),  away: R('C') },
-  { id: 76,  stage: 'R32', home: W('C'),  away: R('F') },
-  { id: 77,  stage: 'R32', home: W('I'),  away: T('C','D','F','G','H') },
-  { id: 78,  stage: 'R32', home: R('E'),  away: R('I') },
-  { id: 79,  stage: 'R32', home: W('A'),  away: T('C','E','F','H','I') },
-  { id: 80,  stage: 'R32', home: W('L'),  away: T('E','H','I','J','K') },
-  { id: 81,  stage: 'R32', home: W('D'),  away: T('B','E','F','I','J') },
-  { id: 82,  stage: 'R32', home: W('G'),  away: T('A','E','H','I','J') },
-  { id: 83,  stage: 'R32', home: R('K'),  away: R('L') },
-  { id: 84,  stage: 'R32', home: W('H'),  away: R('J') },
-  { id: 85,  stage: 'R32', home: W('B'),  away: T('E','F','G','I','J') },
-  { id: 86,  stage: 'R32', home: W('J'),  away: R('H') },
-  { id: 87,  stage: 'R32', home: W('K'),  away: T('D','E','I','J','L') },
-  { id: 88,  stage: 'R32', home: R('D'),  away: R('G') },
+  { id: 73, stage: 'R32', home: R('A'), away: R('B') },                  // 2A vs 2B
+  { id: 74, stage: 'R32', home: W('E'), away: T('A','B','C','D','F') },  // 1E vs T3
+  { id: 75, stage: 'R32', home: W('F'), away: R('C') },                  // 1F vs 2C
+  { id: 76, stage: 'R32', home: W('C'), away: R('F') },                  // 1C vs 2F
+  { id: 77, stage: 'R32', home: W('I'), away: T('C','D','F','G','H') },  // 1I vs T3
+  { id: 78, stage: 'R32', home: R('E'), away: R('I') },                  // 2E vs 2I
+  { id: 79, stage: 'R32', home: W('A'), away: T('C','E','F','H','I') },  // 1A(Mexico) vs T3
+  { id: 80, stage: 'R32', home: W('L'), away: T('E','H','I','J','K') },  // 1L vs T3
+  { id: 81, stage: 'R32', home: W('D'), away: T('B','E','F','I','J') },  // 1D(USA) vs T3
+  { id: 82, stage: 'R32', home: W('G'), away: T('A','E','H','I','J') },  // 1G vs T3
+  { id: 83, stage: 'R32', home: R('K'), away: R('L') },                  // 2K vs 2L
+  { id: 84, stage: 'R32', home: W('H'), away: R('J') },                  // 1H(Spain) vs 2J(Argentina?)
+  { id: 85, stage: 'R32', home: W('B'), away: T('E','F','G','I','J') },  // 1B(Canada) vs T3
+  { id: 86, stage: 'R32', home: W('J'), away: R('H') },                  // 1J(Argentina?) vs 2H(Spain?)
+  { id: 87, stage: 'R32', home: W('K'), away: T('D','E','I','J','L') },  // 1K vs T3
+  { id: 88, stage: 'R32', home: R('D'), away: R('G') },                  // 2D(USA?) vs 2G
 ];
 
+// R16: pairings per official bracket side
 const ROUND_OF_16: BracketTie[] = [
-  { id: 89, stage: 'R16', home: WO(74),  away: WO(77) },
-  { id: 90, stage: 'R16', home: WO(73),  away: WO(75) },
-  { id: 91, stage: 'R16', home: WO(76),  away: WO(78) },
-  { id: 92, stage: 'R16', home: WO(79),  away: WO(80) },
-  { id: 93, stage: 'R16', home: WO(83),  away: WO(84) },
-  { id: 94, stage: 'R16', home: WO(81),  away: WO(82) },
-  { id: 95, stage: 'R16', home: WO(86),  away: WO(88) },
-  { id: 96, stage: 'R16', home: WO(85),  away: WO(87) },
+  { id: 89, stage: 'R16', home: WO(74), away: WO(77) }, // E-winner/T3 vs I-winner/T3
+  { id: 90, stage: 'R16', home: WO(73), away: WO(75) }, // 2A/2B vs F/C side
+  { id: 91, stage: 'R16', home: WO(76), away: WO(78) }, // C/F side vs 2E/2I
+  { id: 92, stage: 'R16', home: WO(79), away: WO(80) }, // A/L side (Mexico/England area)
+  { id: 93, stage: 'R16', home: WO(83), away: WO(84) }, // 2K/2L vs H/J side (Spain/Argentina)
+  { id: 94, stage: 'R16', home: WO(81), away: WO(82) }, // D/G side (USA area)
+  { id: 95, stage: 'R16', home: WO(86), away: WO(88) }, // J-winner(Argentina)/2D vs 2G
+  { id: 96, stage: 'R16', home: WO(85), away: WO(87) }, // B/K side (Canada/Portugal area)
 ];
 
 const QUARTER_FINALS: BracketTie[] = [
-  { id: 97,  stage: 'QF', home: WO(89), away: WO(90) },
-  { id: 98,  stage: 'QF', home: WO(93), away: WO(94) },
-  { id: 99,  stage: 'QF', home: WO(91), away: WO(92) },
-  { id: 100, stage: 'QF', home: WO(95), away: WO(96) },
+  { id: 97,  stage: 'QF', home: WO(89), away: WO(90) }, // E/I-winner + A/B/C/F side
+  { id: 98,  stage: 'QF', home: WO(93), away: WO(94) }, // H/J(Spain/Argentina) + D/G(USA) side
+  { id: 99,  stage: 'QF', home: WO(91), away: WO(92) }, // C/E/F/I + A/L side
+  { id: 100, stage: 'QF', home: WO(95), away: WO(96) }, // J-winner(Argentina) + B/K side
 ];
 
 const SEMI_FINALS: BracketTie[] = [
-  { id: 101, stage: 'SF', home: WO(97),  away: WO(98) },
-  { id: 102, stage: 'SF', home: WO(99),  away: WO(100) },
+  { id: 101, stage: 'SF', home: WO(97), away: WO(99) },  // E/I/C/A side
+  { id: 102, stage: 'SF', home: WO(98), away: WO(100) }, // H/J/D/G/B/K side (Argentina)
 ];
 
 const FINAL: BracketTie = { id: 104, stage: 'Final', home: WO(101), away: WO(102) };
@@ -363,13 +373,24 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
     const thirdByGroup = new Map(best8Thirds.map(t => [t.group, t.teamId]));
     const winners = new Map<number, string>();
+    // Track which T3 teams have already been placed in a slot this simulation
+    // to prevent the same team from appearing in two R32 matches.
+    const assignedThirds = new Set<string>();
 
-    function resolve(tie: BracketTie, slot: BracketSlot): string {
-      if (slot.kind === 'GroupWinner') return groupSlots.get(slot.group!)!.winner;
+    function resolve(_tie: BracketTie, slot: BracketSlot): string {
+      if (slot.kind === 'GroupWinner')   return groupSlots.get(slot.group!)!.winner;
       if (slot.kind === 'GroupRunnerUp') return groupSlots.get(slot.group!)!.runnerUp;
       if (slot.kind === 'GroupThird') {
-        const g = (slot.thirdOptions ?? []).find(g => thirdByGroup.has(g));
-        return g ? thirdByGroup.get(g)! : best8Thirds[0].teamId;
+        // Find the first allowed group whose T3 qualifier hasn't been placed yet
+        const g = (slot.thirdOptions ?? []).find(g => {
+          const id = thirdByGroup.get(g);
+          return id !== undefined && !assignedThirds.has(id);
+        });
+        const teamId = g
+          ? thirdByGroup.get(g)!
+          : (best8Thirds.find(t => !assignedThirds.has(t.teamId))?.teamId ?? best8Thirds[0].teamId);
+        assignedThirds.add(teamId);
+        return teamId;
       }
       return winners.get(slot.tieId!)!;
     }
