@@ -93,8 +93,10 @@ const QUARTER_FINALS: BracketTie[] = [
 ];
 
 const SEMI_FINALS: BracketTie[] = [
-  { id: 101, stage: 'SF', home: WO(97), away: WO(99) },  // E/I/C/A side
-  { id: 102, stage: 'SF', home: WO(98), away: WO(100) }, // H/J/D/G/B/K side (Argentina)
+  // LEFT half: QF97 (Germany/France/2A-2B/F-C area) vs QF98 (Spain/Arg-runner-up + USA/Belgium area)
+  { id: 101, stage: 'SF', home: WO(97), away: WO(98) },
+  // RIGHT half: QF99 (Brazil/Netherlands/Mexico/England area) vs QF100 (Argentina winner + Canada/Portugal area)
+  { id: 102, stage: 'SF', home: WO(99), away: WO(100) },
 ];
 
 const FINAL: BracketTie = { id: 104, stage: 'Final', home: WO(101), away: WO(102) };
