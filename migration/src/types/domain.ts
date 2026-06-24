@@ -274,6 +274,7 @@ export interface TournamentProjection {
   modelName: string;
   inputSummaryHash: string;
   teams: TeamTournamentProbability[];
+  slotOccupancy?: Record<number, Record<string, number>>;
 }
 
 // ---------------------------------------------------------------------------

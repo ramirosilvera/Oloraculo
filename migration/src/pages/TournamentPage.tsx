@@ -7,6 +7,7 @@ import type { SimulationInput } from '../engine/simulation-engine';
 import { Button, Badge, Card, CardHeader, Skeleton, Tooltip } from '../components/ui';
 import { TeamJourneyPanel } from '../components/TeamJourneyPanel';
 import { ProbTable } from '../components/ProbTable';
+import { BracketView } from '../components/BracketView';
 import { Trophy, Play, Save, CheckCircle2, History, ChevronRight, Medal } from 'lucide-react';
 
 const SIMULATION_COUNT = 10_000;
@@ -221,6 +222,12 @@ export function TournamentPage() {
           </Card>
         </>
       )}
+
+      <BracketView
+        projection={projection}
+        teamMap={teamMap}
+        highlightTeamId={selectedTeam?.teamId}
+      />
 
       {!projection && !busy && (
         <Card className="p-8 text-center">

@@ -253,6 +253,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
   const allTeams = groups.flatMap(g => g.team_ids);
   const counters = new Map<string, Counter>(allTeams.map(t => [t, newCounter()]));
+  const slotOccupancy: Record<number, Record<string, number>> = {};
 
   // Each ordered (home, away) pairing is predicted once with the FULL ladder —
   // the same engine the Matches page uses. buildContext threads in Elo, recent
@@ -397,21 +398,25 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
       return winners.get(slot.tieId!)!;
     }
 
-    const playRound = (ties: BracketTie[], onResult: (winnerId: string, loserId: string) => void) => {
+    const playRound = (ties: BracketTie[], onResult: (winnerId: string, loserId: string, tieId: number, homeTeam: string, awayTeam: string) => void) => {
       for (const tie of ties) {
         const home = resolve(tie, tie.home);
         const away = resolve(tie, tie.away);
         const winner = knockoutWinner(home, away);
         winners.set(tie.id, winner);
-        onResult(winner, winner === home ? away : home);
+        onResult(winner, winner === home ? away : home, tie.id, home, away);
       }
     };
 
-    playRound(ROUND_OF_32, (w, l) => {
+    playRound(ROUND_OF_32, (w, l, tieId, home, away) => {
       counters.get(w)!.r16++;
       const wc = counters.get(w)!; const lc = counters.get(l)!;
       trackOpp(wc.r32Opps, wc.r32Wins, l, true);
       trackOpp(lc.r32Opps, lc.r32Wins, w, false);
+      // Track which teams occupy each R32 slot
+      if (!slotOccupancy[tieId]) slotOccupancy[tieId] = {};
+      slotOccupancy[tieId][home] = (slotOccupancy[tieId][home] ?? 0) + 1;
+      slotOccupancy[tieId][away] = (slotOccupancy[tieId][away] ?? 0) + 1;
     });
     playRound(ROUND_OF_16, (w, l) => {
       counters.get(w)!.qf++;
@@ -470,5 +475,6 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
     modelName: 'Final',
     inputSummaryHash: `sim:${simulations}:seed:${seed}:${_rKey}`,
     teams: teams.sort((a, b) => b.winTournament - a.winTournament),
+    slotOccupancy,
   };
 }
