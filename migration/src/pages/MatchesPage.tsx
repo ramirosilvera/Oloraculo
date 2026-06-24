@@ -22,6 +22,7 @@ import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
 import { PIECard } from '../components/PIECard';
 import { usePIEForFixture } from '../hooks/usePIE';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
+import { computeGroupStandingsDisplay } from '../utils/standings';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
@@ -71,85 +72,7 @@ function kickoffShortDate(utc: string): string {
   });
 }
 
-type StandingRow = { id: string; pj: number; w: number; d: number; l: number; gf: number; ga: number; gd: number; pts: number };
-
-// H2H mini-table: only matches between the given team IDs count.
-function h2hMiniTable(
-  teamIds: string[],
-  fixtures: Fixture[],
-  playedMap: Map<string, WcActualResult>,
-): Map<string, { pts: number; gd: number; gf: number }> {
-  const ids   = new Set(teamIds);
-  const stats = new Map(teamIds.map(id => [id, { pts: 0, gd: 0, gf: 0 }]));
-  for (const f of fixtures) {
-    if (!ids.has(f.home_team_id) || !ids.has(f.away_team_id)) continue;
-    const r = playedMap.get(f.id);
-    if (!r) continue;
-    const h = stats.get(f.home_team_id)!;
-    const a = stats.get(f.away_team_id)!;
-    h.gf += r.home_goals;  h.gd += r.home_goals - r.away_goals;
-    a.gf += r.away_goals;  a.gd += r.away_goals - r.home_goals;
-    if (r.home_goals > r.away_goals)        { h.pts += 3; }
-    else if (r.home_goals === r.away_goals) { h.pts++; a.pts++; }
-    else                                    { a.pts += 3; }
-  }
-  return stats;
-}
-
-// FIFA WC 2026 group sort: overall Pts → GD → GF, then H2H Pts → GD → GF for tied
-// sub-groups, then FIFA ranking (higher value = better) as final tiebreaker.
-function computeGroupStandings(
-  teamIds: string[],
-  groupFixtures: Fixture[],
-  playedMap: Map<string, WcActualResult>,
-  fifaMap?: Map<string, number>,
-): StandingRow[] {
-  const table = new Map<string, StandingRow>(
-    teamIds.map(id => [id, { id, pj: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }])
-  );
-  for (const f of groupFixtures) {
-    const r = playedMap.get(f.id);
-    if (!r) continue;
-    const h = table.get(f.home_team_id)!;
-    const a = table.get(f.away_team_id)!;
-    h.pj++; h.gf += r.home_goals; h.ga += r.away_goals;
-    a.pj++; a.gf += r.away_goals; a.ga += r.home_goals;
-    if (r.home_goals > r.away_goals)        { h.w++; h.pts += 3; a.l++; }
-    else if (r.home_goals === r.away_goals) { h.d++; h.pts++;    a.d++; a.pts++; }
-    else                                    { h.l++; a.w++;      a.pts += 3; }
-  }
-  const rows   = [...table.values()].map(r => ({ ...r, gd: r.gf - r.ga }));
-  const sorted = [...rows].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
-
-  // Resolve tied sub-groups with H2H then FIFA rank
-  const result: StandingRow[] = [];
-  let i = 0;
-  while (i < sorted.length) {
-    let j = i + 1;
-    while (
-      j < sorted.length &&
-      sorted[j].pts === sorted[i].pts &&
-      sorted[j].gd  === sorted[i].gd &&
-      sorted[j].gf  === sorted[i].gf
-    ) j++;
-    if (j - i === 1) {
-      result.push(sorted[i]);
-    } else {
-      const tied = sorted.slice(i, j);
-      const h2h  = h2hMiniTable(tied.map(t => t.id), groupFixtures, playedMap);
-      result.push(...[...tied].sort((a, b) => {
-        const ha = h2h.get(a.id)!;
-        const hb = h2h.get(b.id)!;
-        if (hb.pts !== ha.pts) return hb.pts - ha.pts;
-        if (hb.gd  !== ha.gd)  return hb.gd  - ha.gd;
-        if (hb.gf  !== ha.gf)  return hb.gf  - ha.gf;
-        return (fifaMap?.get(b.id) ?? 0) - (fifaMap?.get(a.id) ?? 0);
-      }));
-    }
-    i = j;
-  }
-  return result;
-}
+// StandingRow is imported from standings.ts via computeGroupStandingsDisplay
 
 // ---------------------------------------------------------------------------
 // ContextEditor — lets the user enter player availability context
@@ -1907,7 +1830,7 @@ export function MatchesPage() {
           const groupFixtures = fixtures
             .filter(f => f.group_name === selectedGroup)
             .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''));
-          const standings = computeGroupStandings(group.team_ids, groupFixtures, playedMap, fifaMap);
+          const standings = computeGroupStandingsDisplay(group.team_ids, groupFixtures, playedMap, fifaMap);
           const played = groupFixtures.filter(f => playedMap.has(f.id)).length;
           return (
             <Card key={selectedGroup}>
@@ -2031,7 +1954,7 @@ export function MatchesPage() {
               const groupFixtures = fixtures
                 .filter(f => f.group_name === key)
                 .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''));
-              const standings = computeGroupStandings(group.team_ids, groupFixtures, playedMap, fifaMap);
+              const standings = computeGroupStandingsDisplay(group.team_ids, groupFixtures, playedMap, fifaMap);
               const playedCount = groupFixtures.filter(f => playedMap.has(f.id)).length;
               return (
                 <Card key={key}>
