@@ -14,15 +14,17 @@ import {
 } from '../probability-helper';
 
 const DEFAULT_AVERAGE_GOALS = 1.25;
-const PRIOR_MATCHES = 2.0;
+const PRIOR_MATCHES = 1.5;
 const GOAL_SCALE = 1.10;
 const LOW_SCORE_RHO = -0.03;
 const HOME_ADVANTAGE_MULTIPLIER = 1.08;
 const MIN_TEAM_MATCHES = 3;
 const ITERATIONS = 8;
-// Elo-gap multiplier for lambda: at P(home)=0.95 (≈500pt gap), home λ ×1.45 and away λ ×0.55.
-// This prevents weak-data teams (like Haiti) from being treated as average defensively.
-const ELO_GOAL_SENSITIVITY = 1.0;
+// Elo-gap multiplier for lambda: at P(home)=0.95 (≈500pt gap), home λ ×1.60 and away λ ×0.40.
+// Increased from 1.0 → 1.3: WC2026 shows 3-0/3-1 at 18% combined (was 12% historical).
+// Poisson with old sensitivity over-produced 2-0/2-1 for clear mismatches; raising this shifts
+// probability mass from the "medium-dominant" zone into proper blowout territory.
+const ELO_GOAL_SENSITIVITY = 1.3;
 
 export interface GoalStrength {
   attack: number;
