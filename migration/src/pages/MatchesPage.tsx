@@ -1215,19 +1215,25 @@ function TodayFixtureItem({
             ? `~E ${(draw*100).toFixed(0)}%`
             : `E ${(draw*100).toFixed(0)}%`;
 
-          let pieScoreStr: string | null = null;
-          let piePickLabel = '';
-          let pieProbPct = '';
+          // PIE consenso (marcador más probable del top-K) + PIE campeón (pick del líder)
+          let consScoreStr: string | null = null;
+          let consPickLabel = '';
+          let consProbPct = '';
+          let champScoreStr: string | null = null;
+          let champPickLabel = '';
           if (pieResult && !pieResult.degraded && pieResult.leader) {
-            // Champion's own forecast (pick + score), consistent with the PIECard.
-            const ld = pieResult.leader;
-            pieScoreStr = `${ld.pickScore.home}-${ld.pickScore.away}`;
             const pp = pieResult.pick_probabilities;
-            const pieProbTop = ld.pick === 'Home' ? pp.home
-                             : ld.pick === 'Away' ? pp.away : pp.draw;
-            piePickLabel = ld.pick === 'Home' ? 'L'
-                         : ld.pick === 'Away' ? 'V' : 'E';
-            pieProbPct = `${(pieProbTop * 100).toFixed(0)}%`;
+            const labelOf = (pk: 'Home' | 'Draw' | 'Away') => pk === 'Home' ? 'L' : pk === 'Away' ? 'V' : 'E';
+            const probOf = (pk: 'Home' | 'Draw' | 'Away') => pk === 'Home' ? pp.home : pk === 'Away' ? pp.away : pp.draw;
+            // Consenso del torneo
+            if (pieResult.mostLikelyScore)
+              consScoreStr = `${pieResult.mostLikelyScore.home}-${pieResult.mostLikelyScore.away}`;
+            consPickLabel = labelOf(pieResult.most_probable_pick);
+            consProbPct = `${(probOf(pieResult.most_probable_pick) * 100).toFixed(0)}%`;
+            // Campeón (líder del torneo interno)
+            const ld = pieResult.leader;
+            champScoreStr = `${ld.pickScore.home}-${ld.pickScore.away}`;
+            champPickLabel = labelOf(ld.pick);
           }
 
           return (
@@ -1252,16 +1258,18 @@ function TodayFixtureItem({
                   </span>
                 )}
               </div>
-              {pieResult && !pieResult.degraded && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-black text-red-400 tracking-wider">PIE</span>
-                  <span className="text-[11px] leading-none" title="Pronóstico del campeón de prode">🏆</span>
-                  <span className="text-[11px] font-black text-wc-gold-light tabular-nums">
-                    {pieScoreStr ?? '—'}
-                  </span>
-                  <span className="text-[9px] font-semibold text-white/50 tabular-nums">
-                    {piePickLabel} {pieProbPct}
-                  </span>
+              {pieResult && !pieResult.degraded && pieResult.leader && (
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black text-red-400 tracking-wider">PIE consenso</span>
+                    <span className="text-[10px] font-bold text-white/80 tabular-nums">{consScoreStr ?? '—'}</span>
+                    <span className="text-[9px] font-semibold text-white/50 tabular-nums">{consPickLabel} {consProbPct}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black text-wc-gold-light tracking-wider" title="Pronóstico del campeón de prode">🏆 PIE campeón</span>
+                    <span className="text-[10px] font-black text-wc-gold-light tabular-nums">{champScoreStr ?? '—'}</span>
+                    <span className="text-[9px] font-semibold text-white/50 tabular-nums">{champPickLabel}</span>
+                  </div>
                 </div>
               )}
             </div>
