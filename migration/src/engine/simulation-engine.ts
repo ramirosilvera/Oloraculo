@@ -307,6 +307,26 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
     return score.home > score.away ? homeId : awayId;
   }
 
+  // Lock in real knockout results: fixture_id 'ko:*:m{N}' → { home_goals, away_goals }
+  // When a knockout match is played, its result is preserved across all simulations
+  // instead of being resampled. Draws (OT/pens) still get sampled (no penalty data).
+  const koPlayedMap = new Map<number, { home_goals: number; away_goals: number }>();
+  for (const r of wcResults) {
+    if (!r.fixture_id.startsWith('ko:')) continue;
+    const m = r.fixture_id.match(/:m(\d+)$/);
+    if (m) koPlayedMap.set(parseInt(m[1]), { home_goals: r.home_goals, away_goals: r.away_goals });
+  }
+
+  function knockoutWinnerWithLock(tieId: number, homeId: string, awayId: string): string {
+    const played = koPlayedMap.get(tieId);
+    if (played) {
+      if (played.home_goals > played.away_goals) return homeId;
+      if (played.away_goals > played.home_goals) return awayId;
+      // Draw after 90 min (went to pens) — sample using Elo since we don't have pen result
+    }
+    return knockoutWinner(homeId, awayId);
+  }
+
   for (let sim = 0; sim < simulations; sim++) {
     const groupSlots = new Map<string, { winner: string; runnerUp: string; third: string }>();
     const thirds: Standing[] = [];
@@ -402,7 +422,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
       for (const tie of ties) {
         const home = resolve(tie, tie.home);
         const away = resolve(tie, tie.away);
-        const winner = knockoutWinner(home, away);
+        const winner = knockoutWinnerWithLock(tie.id, home, away);
         winners.set(tie.id, winner);
         onResult(winner, winner === home ? away : home, tie.id, home, away);
       }
@@ -448,7 +468,7 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
 
     const finalistHome = resolve(FINAL, FINAL.home);
     const finalistAway = resolve(FINAL, FINAL.away);
-    const champion = knockoutWinner(finalistHome, finalistAway);
+    const champion = knockoutWinnerWithLock(FINAL.id, finalistHome, finalistAway);
     const runner = champion === finalistHome ? finalistAway : finalistHome;
     counters.get(champion)!.champion++;
     trackOpp(counters.get(champion)!.finOpps, counters.get(champion)!.finWins, runner, true);

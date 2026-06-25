@@ -5,6 +5,7 @@ import {
   loadStaticTeams,
   loadStaticGroups,
   loadStaticFixtures,
+  loadStaticKnockoutFixtures,
   loadStaticRatings,
   loadStaticResults,
   loadStaticFixtureContexts,
@@ -23,6 +24,7 @@ export function useAppData() {
   const teams          = useQuery({ queryKey: ['teams'],           queryFn: loadStaticTeams,            staleTime: FOREVER });
   const groups         = useQuery({ queryKey: ['groups'],          queryFn: loadStaticGroups,           staleTime: FOREVER });
   const fixtures       = useQuery({ queryKey: ['fixtures'],        queryFn: loadStaticFixtures,         staleTime: FOREVER });
+  const knockoutFx     = useQuery({ queryKey: ['knockout-fixtures'], queryFn: loadStaticKnockoutFixtures, staleTime: FOREVER });
   const results        = useQuery({ queryKey: ['results'],         queryFn: loadStaticResults,          staleTime: FOREVER });
   const ratings        = useQuery({ queryKey: ['ratings'],         queryFn: loadStaticRatings,          staleTime: FOREVER });
   // Auto-generated at build time from ESPN + OpenFootball (scripts/build-context.mjs)
@@ -51,14 +53,20 @@ export function useAppData() {
     return map;
   }, [staticContexts.data, contexts.data]);
 
+  // All fixtures: group stage + knockout (knockout empty until activation)
+  const allFixtures = useMemo(
+    () => [...(fixtures.data ?? []), ...(knockoutFx.data ?? [])],
+    [fixtures.data, knockoutFx.data],
+  );
+
   // Build wcResults from two sources, merged:
-  //   1. fixtures.json played matches (source of truth — updated at each deploy)
+  //   1. fixtures.json + knockout-fixtures.json played matches (source of truth — updated at each deploy)
   //   2. Supabase wc_actual_results (user-entered corrections, overrides static)
   // This ensures momentum/inflation always work even when Supabase is empty.
   const wcResults = useMemo<WcActualResult[]>(() => {
     const map = new Map<string, WcActualResult>();
 
-    for (const f of (fixtures.data ?? [])) {
+    for (const f of allFixtures) {
       if (f.is_played && f.home_goals != null && f.away_goals != null) {
         map.set(f.id, {
           id: 0,
@@ -75,7 +83,7 @@ export function useAppData() {
     }
 
     return [...map.values()];
-  }, [fixtures.data, supabaseWc.data]);
+  }, [allFixtures, supabaseWc.data]);
 
   const wcPlayedMap = useMemo(
     () => new Map<string, WcActualResult>(wcResults.map(r => [r.fixture_id, r])),
@@ -114,7 +122,7 @@ export function useAppData() {
   return {
     teams:      teams.data    ?? [],
     groups:     groups.data   ?? [],
-    fixtures:   fixtures.data ?? [],
+    fixtures:   allFixtures,
     results:    results.data  ?? [],
     ratings:    ratingsList,
     contexts:   contexts.data ?? [],

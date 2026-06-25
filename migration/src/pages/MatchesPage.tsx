@@ -1381,6 +1381,14 @@ export function MatchesPage() {
 
   const playedMap = wcPlayedMap;
 
+  // Knockout rounds
+  const KO_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'FINAL'] as const;
+  type KORound = typeof KO_ROUNDS[number];
+  const KO_LABEL: Record<KORound, string> = { R32: 'R32', R16: 'Octavos', QF: 'Cuartos', SF: 'Semis', FINAL: 'Final' };
+  const isKoRound = (r: string | null): r is KORound => KO_ROUNDS.includes(r as KORound);
+  const knockoutFixtures = useMemo(() => fixtures.filter(f => f.id.startsWith('ko:')), [fixtures]);
+  const hasKnockout = knockoutFixtures.length > 0;
+
   const dailySignal = useMemo(
     () => detectDailyPattern(wcResults ?? [], fixtures, TODAY),
     [wcResults, fixtures],
@@ -1817,14 +1825,54 @@ export function MatchesPage() {
               {g.name}
             </button>
           ))}
+          {hasKnockout && (
+            <>
+              <span className="border-l border-gray-200 h-5 mx-0.5 self-center shrink-0" />
+              {KO_ROUNDS.map(round => {
+                const count = knockoutFixtures.filter(f => f.group_name === round).length;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={round}
+                    onClick={() => setSelectedGroup(selectedGroup === round ? null : round)}
+                    className={`shrink-0 px-2.5 h-8 rounded-lg text-xs font-bold transition-all active:scale-95 active:brightness-90 ${selectedGroup === round ? 'bg-wc-gold text-wc-navy' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-200'}`}
+                  >
+                    {KO_LABEL[round]}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* GRUPOS: mini-grid (Todos) o detalle con clasificación + partidos    */}
+      {/* GRUPOS / ELIMINATORIAS: detalle o accordion                         */}
       {/* ------------------------------------------------------------------ */}
       {!isSearching && (
-        selectedGroup ? (() => {
+        isKoRound(selectedGroup) ? (() => {
+          const roundFixtures = knockoutFixtures
+            .filter(f => f.group_name === selectedGroup)
+            .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''));
+          const playedCount = roundFixtures.filter(f => playedMap.has(f.id)).length;
+          return (
+            <Card key={selectedGroup}>
+              <CardHeader className="bg-wc-navy/5 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    {KO_LABEL[selectedGroup]} · {roundFixtures.length} partidos
+                  </span>
+                  <span className="text-[10px] text-gray-400">{playedCount}/{roundFixtures.length} jugados</span>
+                </div>
+              </CardHeader>
+              <div className="divide-y divide-gray-100">
+                {roundFixtures.map(f => (
+                  <FixtureRow key={f.id} {...fixtureRowProps(f)} />
+                ))}
+              </div>
+            </Card>
+          );
+        })() : selectedGroup ? (() => {
           const group = groups.find(g => g.name === selectedGroup);
           if (!group) return null;
           const groupFixtures = fixtures
@@ -2043,6 +2091,87 @@ export function MatchesPage() {
                 </Card>
               );
             })}
+
+            {/* Eliminatorias accordion — aparece debajo de los grupos cuando hay fixtures ko */}
+            {hasKnockout && (
+              <div className="space-y-2 pt-1">
+                <div className="px-1 pt-2 pb-0.5">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fase Eliminatoria</span>
+                </div>
+                {KO_ROUNDS.map(round => {
+                  const roundFixtures = knockoutFixtures
+                    .filter(f => f.group_name === round)
+                    .sort((a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''));
+                  if (roundFixtures.length === 0) return null;
+                  const isOpen = openGroups.has(round);
+                  const playedCount = roundFixtures.filter(f => playedMap.has(f.id)).length;
+                  return (
+                    <Card key={round}>
+                      <button
+                        onClick={() => setOpenGroups(prev => { const next = new Set(prev); next.has(round) ? next.delete(round) : next.add(round); return next; })}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left rounded-xl"
+                      >
+                        <span className="text-sm font-black text-wc-navy">{KO_LABEL[round]}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-gray-400 font-medium">{playedCount}/{roundFixtures.length}</span>
+                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                      </button>
+                      {isOpen && (
+                        <div className="border-t border-gray-100 divide-y divide-gray-50">
+                          {roundFixtures.map(f => {
+                            const result = playedMap.get(f.id);
+                            const fHome = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
+                            const fAway = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                            const liveG = getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id);
+                            const isLive = liveG?.status === 'IN_PLAY' || liveG?.status === 'PAUSED';
+                            return (
+                              <div key={f.id} className="px-4 py-2.5 flex items-center gap-2">
+                                {result ? (
+                                  <>
+                                    <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
+                                    <FlagImg id={f.home_team_id} />
+                                    <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{fHome}</span>
+                                    <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{result.home_goals}–{result.away_goals}</span>
+                                    <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{fAway}</span>
+                                    <FlagImg id={f.away_team_id} />
+                                    {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                                  </>
+                                ) : isLive ? (
+                                  <>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                                    <FlagImg id={f.home_team_id} />
+                                    <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{fHome}</span>
+                                    <span className="text-sm font-black text-red-600 shrink-0 tabular-nums">
+                                      {liveG.homeGoals ?? 0}–{liveG.awayGoals ?? 0}
+                                      {liveG.minute ? <span className="text-[10px] font-normal text-red-400 ml-0.5">{liveG.minute}'</span> : null}
+                                    </span>
+                                    <span className="flex-1 text-xs font-semibold text-gray-800 truncate text-right">{fAway}</span>
+                                    <FlagImg id={f.away_team_id} />
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-gray-300 text-[10px] shrink-0">○</span>
+                                    <FlagImg id={f.home_team_id} />
+                                    <span className="flex-1 text-xs font-medium text-gray-500 truncate">{fHome}</span>
+                                    <span className="text-[11px] text-gray-400 shrink-0 font-medium tabular-nums">
+                                      {f.kickoff_utc ? kickoffART(f.kickoff_utc) : 'vs'}
+                                    </span>
+                                    <span className="flex-1 text-xs font-medium text-gray-500 truncate text-right">{fAway}</span>
+                                    <FlagImg id={f.away_team_id} />
+                                    {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )
       )}
