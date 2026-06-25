@@ -96,9 +96,13 @@ const QUARTER_FINALS: BracketTie[] = [
   { id: 100, stage: 'QF', home: WO(95), away: WO(96) }, // W(M95) vs W(M96)
 ];
 
+// SF must keep each half of the draw intact. QF97 & QF99 are both LEFT-bracket
+// quarters (their R32 feeders are Llaves 1-8); QF98 & QF100 are both RIGHT-bracket
+// (Llaves 9-16). Pairing (97,98)/(99,100) crossed the halves, letting two same-side
+// teams reach the final and merging the brackets one round too early.
 const SEMI_FINALS: BracketTie[] = [
-  { id: 101, stage: 'SF', home: WO(97),  away: WO(98)  }, // W(QF97) vs W(QF98)
-  { id: 102, stage: 'SF', home: WO(99),  away: WO(100) }, // W(QF99) vs W(QF100)
+  { id: 101, stage: 'SF', home: WO(97),  away: WO(99)  }, // SF A (left):  W(QF97) vs W(QF99)
+  { id: 102, stage: 'SF', home: WO(98),  away: WO(100) }, // SF B (right): W(QF98) vs W(QF100)
 ];
 
 const FINAL: BracketTie = { id: 104, stage: 'Final', home: WO(101), away: WO(102) };

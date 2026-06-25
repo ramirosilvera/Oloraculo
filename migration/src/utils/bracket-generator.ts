@@ -61,8 +61,8 @@ const QF_PAIRINGS = [
 ] as const;
 
 const SF_PAIRINGS = [
-  ['ko:sf:m101', 'ko:qf:m97',  'ko:qf:m98',  '2026-07-14T23:00:00Z'],
-  ['ko:sf:m102', 'ko:qf:m99',  'ko:qf:m100', '2026-07-15T23:00:00Z'],
+  ['ko:sf:m101', 'ko:qf:m97',  'ko:qf:m99',  '2026-07-14T23:00:00Z'],  // SF A: left QFs
+  ['ko:sf:m102', 'ko:qf:m98',  'ko:qf:m100', '2026-07-15T23:00:00Z'],  // SF B: right QFs
 ] as const;
 
 const FINAL = ['ko:final:m104', 'ko:sf:m101', 'ko:sf:m102', '2026-07-19T23:00:00Z'] as const;
