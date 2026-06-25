@@ -107,6 +107,54 @@ const SEMI_FINALS: BracketTie[] = [
 
 const FINAL: BracketTie = { id: 104, stage: 'Final', home: WO(101), away: WO(102) };
 
+// T3 slot eligibility map (R32 match ID → groups whose T3 may be placed there).
+// Derived directly from the ROUND_OF_32 thirdOptions arrays above.
+// Used by assignT3Slots() to guarantee a valid per-simulation assignment.
+const T3_ELIGIBILITY: Record<number, readonly string[]> = {
+  74: ['A','B','C','D','F'],
+  77: ['C','D','F','G','H'],
+  79: ['C','E','F','H','I'],
+  80: ['E','H','I','J','K'],
+  81: ['B','E','F','I','J'],
+  82: ['A','E','H','I','J'],
+  85: ['E','F','G','I','J'],
+  87: ['D','E','I','J','L'],
+};
+
+// Assign each of the 8 best T3 teams to one R32 T3-slot using most-constrained-first
+// greedy. The naive slot-order greedy can strand Group L's T3 (only eligible for M87)
+// if another team is placed in M87 first. Sorting slots by eligible-group count
+// (ascending) assigns the most constrained slots before the flexible ones, guaranteeing
+// a valid matching whenever one exists.
+function assignT3Slots(best8Thirds: Standing[]): Map<number, string> {
+  const teamByGroup = new Map(best8Thirds.map(t => [t.group, t.teamId]));
+  const qualifiedGroups = new Set(best8Thirds.map(t => t.group));
+
+  const slotEligible: [number, string[]][] = (
+    Object.entries(T3_ELIGIBILITY) as [string, readonly string[]][]
+  ).map(([id, groups]) => [parseInt(id), groups.filter(g => qualifiedGroups.has(g))]);
+
+  // Most-constrained first (fewest eligible qualified groups)
+  slotEligible.sort((a, b) => a[1].length - b[1].length);
+
+  const assignment = new Map<number, string>();
+  const usedGroups = new Set<string>();
+
+  for (const [slotId, eligible] of slotEligible) {
+    const group = eligible.find(g => !usedGroups.has(g));
+    if (group) {
+      assignment.set(slotId, teamByGroup.get(group)!);
+      usedGroups.add(group);
+    } else {
+      // Fallback: any unassigned qualified T3 (safety net — should not be reached)
+      const fb = best8Thirds.find(t => !usedGroups.has(t.group));
+      if (fb) { assignment.set(slotId, fb.teamId); usedGroups.add(fb.group); }
+    }
+  }
+
+  return assignment;
+}
+
 // ---------------------------------------------------------------------------
 // Seeded deterministic RNG (Mulberry32 — fast, seedable)
 // ---------------------------------------------------------------------------
@@ -420,27 +468,16 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
     }
     for (const t of best8Thirds) counters.get(t.teamId)!.qualify++;
 
-    const thirdByGroup = new Map(best8Thirds.map(t => [t.group, t.teamId]));
+    // Pre-assign all T3 teams to their R32 slots once, using most-constrained-first
+    // greedy. This avoids the per-slot greedy race that could leave Group L's T3
+    // (eligible only for M87) without a valid slot.
+    const t3SlotMap = assignT3Slots(best8Thirds);
     const winners = new Map<number, string>();
-    // Track which T3 teams have already been placed in a slot this simulation
-    // to prevent the same team from appearing in two R32 matches.
-    const assignedThirds = new Set<string>();
 
-    function resolve(_tie: BracketTie, slot: BracketSlot): string {
+    function resolve(tie: BracketTie, slot: BracketSlot): string {
       if (slot.kind === 'GroupWinner')   return groupSlots.get(slot.group!)!.winner;
       if (slot.kind === 'GroupRunnerUp') return groupSlots.get(slot.group!)!.runnerUp;
-      if (slot.kind === 'GroupThird') {
-        // Find the first allowed group whose T3 qualifier hasn't been placed yet
-        const g = (slot.thirdOptions ?? []).find(g => {
-          const id = thirdByGroup.get(g);
-          return id !== undefined && !assignedThirds.has(id);
-        });
-        const teamId = g
-          ? thirdByGroup.get(g)!
-          : (best8Thirds.find(t => !assignedThirds.has(t.teamId))?.teamId ?? best8Thirds[0].teamId);
-        assignedThirds.add(teamId);
-        return teamId;
-      }
+      if (slot.kind === 'GroupThird')    return t3SlotMap.get(tie.id) ?? best8Thirds[0].teamId;
       return winners.get(slot.tieId!)!;
     }
 
