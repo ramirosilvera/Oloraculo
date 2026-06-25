@@ -11,25 +11,27 @@ const CONN_W   = 22;          // px — SVG connector column width
 const LINE_CLR = '#d1d5db';   // gray-300
 
 // ─── Static bracket order (top → bottom within each round) ──────────────────
-// LEFT half (slots 0-7) → feeds SF m101; RIGHT half (slots 8-15) → feeds SF m102
-const R32_ORDER = [74, 77, 73, 75, 83, 84, 81, 82,  76, 78, 79, 80, 86, 88, 85, 87];
-const R16_ORDER = [89, 90, 93, 94,  91, 92, 95, 96];
+// Bracket is sequential: M73-M80 (top 8 R32) → M89-M92 (top 4 R16) → M97-M98 (top 2 QF) → M101 (SF) → M104
+//                        M81-M88 (bot 8 R32) → M93-M96 (bot 4 R16) → M99-M100 (bot 2 QF) → M102 (SF) → M104
+const R32_ORDER = [73, 74, 75, 76, 77, 78, 79, 80,  81, 82, 83, 84, 85, 86, 87, 88];
+const R16_ORDER = [89, 90, 91, 92,  93, 94, 95, 96];
 const QF_ORDER  = [97, 98,  99, 100];
 const SF_ORDER  = [101, 102];
 const FINAL_ID  = 104;
 
 // ─── Slot labels (shown pre-simulation or as tooltip suffix) ─────────────────
+// Matches bracket-generator.ts FIXED_R32_SLOTS (simple adjacent pairs: 1A vs 2B, 1B vs 2A, …)
 const SLOT_LABELS: Record<number, [string, string]> = {
-  // R32
-  73: ['2A','2B'],   74: ['1E','T3'],   75: ['1F','2C'],   76: ['1C','2F'],
-  77: ['1I','T3'],   78: ['2E','2I'],   79: ['1A','T3'],   80: ['1L','T3'],
-  81: ['1D','T3'],   82: ['1G','T3'],   83: ['2K','2L'],   84: ['1H','2J'],
-  85: ['1B','T3'],   86: ['1J','2H'],   87: ['1K','T3'],   88: ['2D','2G'],
+  // R32 — fixed pairs (M73-M84) + T3 slots (M85-M88)
+  73: ['1A','2B'],  74: ['1B','2A'],  75: ['1C','2D'],  76: ['1D','2C'],
+  77: ['1E','2F'],  78: ['1F','2E'],  79: ['1G','2H'],  80: ['1H','2G'],
+  81: ['1I','2J'],  82: ['1J','2I'],  83: ['1K','2L'],  84: ['1L','2K'],
+  85: ['T3','T3'],  86: ['T3','T3'],  87: ['T3','T3'],  88: ['T3','T3'],
   // R16
-  89: ['W74','W77'], 90: ['W73','W75'], 91: ['W76','W78'], 92: ['W79','W80'],
-  93: ['W83','W84'], 94: ['W81','W82'], 95: ['W86','W88'], 96: ['W85','W87'],
+  89: ['W73','W74'], 90: ['W75','W76'], 91: ['W77','W78'], 92: ['W79','W80'],
+  93: ['W81','W82'], 94: ['W83','W84'], 95: ['W85','W86'], 96: ['W87','W88'],
   // QF
-  97: ['W89','W90'], 98: ['W93','W94'], 99: ['W91','W92'], 100: ['W95','W96'],
+  97: ['W89','W90'], 98: ['W91','W92'], 99: ['W93','W94'], 100: ['W95','W96'],
   // SF
   101: ['W97','W98'], 102: ['W99','W100'],
   // Final

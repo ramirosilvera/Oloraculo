@@ -53,50 +53,50 @@ const R  = (group: string):           BracketSlot => ({ kind: 'GroupRunnerUp', g
 const T  = (...groups: string[]):     BracketSlot => ({ kind: 'GroupThird',    thirdOptions: groups });
 const WO = (tieId: number):           BracketSlot => ({ kind: 'WinnerOf',      tieId });
 
-// Official R32 — group winners / runners-up / T3 assignments per FIFA draw
+// Simple adjacent pairs: 1A vs 2B, 1B vs 2A, 1C vs 2D, ... 1L vs 2K (matches bracket-generator.ts)
+// M85-M88: best 8 thirds in rank order (approx. for simulation; exact per FIFA Annex C post-groups)
+const ALL_GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'] as const;
 const ROUND_OF_32: BracketTie[] = [
-  { id: 73, stage: 'R32', home: R('A'), away: R('B') },                  // 2A vs 2B
-  { id: 74, stage: 'R32', home: W('E'), away: T('A','B','C','D','F') },  // 1E vs T3
-  { id: 75, stage: 'R32', home: W('F'), away: R('C') },                  // 1F vs 2C
-  { id: 76, stage: 'R32', home: W('C'), away: R('F') },                  // 1C vs 2F
-  { id: 77, stage: 'R32', home: W('I'), away: T('C','D','F','G','H') },  // 1I vs T3
-  { id: 78, stage: 'R32', home: R('E'), away: R('I') },                  // 2E vs 2I
-  { id: 79, stage: 'R32', home: W('A'), away: T('C','E','F','H','I') },  // 1A(Mexico) vs T3
-  { id: 80, stage: 'R32', home: W('L'), away: T('E','H','I','J','K') },  // 1L vs T3
-  { id: 81, stage: 'R32', home: W('D'), away: T('B','E','F','I','J') },  // 1D(USA) vs T3
-  { id: 82, stage: 'R32', home: W('G'), away: T('A','E','H','I','J') },  // 1G vs T3
-  { id: 83, stage: 'R32', home: R('K'), away: R('L') },                  // 2K vs 2L
-  { id: 84, stage: 'R32', home: W('H'), away: R('J') },                  // 1H(Spain) vs 2J(Argentina?)
-  { id: 85, stage: 'R32', home: W('B'), away: T('E','F','G','I','J') },  // 1B(Canada) vs T3
-  { id: 86, stage: 'R32', home: W('J'), away: R('H') },                  // 1J(Argentina?) vs 2H(Spain?)
-  { id: 87, stage: 'R32', home: W('K'), away: T('D','E','I','J','L') },  // 1K vs T3
-  { id: 88, stage: 'R32', home: R('D'), away: R('G') },                  // 2D(USA?) vs 2G
+  { id: 73, stage: 'R32', home: W('A'), away: R('B') },  // 1A vs 2B
+  { id: 74, stage: 'R32', home: W('B'), away: R('A') },  // 1B vs 2A
+  { id: 75, stage: 'R32', home: W('C'), away: R('D') },  // 1C vs 2D
+  { id: 76, stage: 'R32', home: W('D'), away: R('C') },  // 1D vs 2C
+  { id: 77, stage: 'R32', home: W('E'), away: R('F') },  // 1E vs 2F
+  { id: 78, stage: 'R32', home: W('F'), away: R('E') },  // 1F vs 2E
+  { id: 79, stage: 'R32', home: W('G'), away: R('H') },  // 1G vs 2H
+  { id: 80, stage: 'R32', home: W('H'), away: R('G') },  // 1H vs 2G
+  { id: 81, stage: 'R32', home: W('I'), away: R('J') },  // 1I vs 2J
+  { id: 82, stage: 'R32', home: W('J'), away: R('I') },  // 1J vs 2I
+  { id: 83, stage: 'R32', home: W('K'), away: R('L') },  // 1K vs 2L
+  { id: 84, stage: 'R32', home: W('L'), away: R('K') },  // 1L vs 2K
+  { id: 85, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-1 vs T3-2
+  { id: 86, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-3 vs T3-4
+  { id: 87, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-5 vs T3-6
+  { id: 88, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-7 vs T3-8
 ];
 
-// R16: pairings per official bracket side
+// R16: winners of adjacent R32 pairs face each other
 const ROUND_OF_16: BracketTie[] = [
-  { id: 89, stage: 'R16', home: WO(74), away: WO(77) }, // E-winner/T3 vs I-winner/T3
-  { id: 90, stage: 'R16', home: WO(73), away: WO(75) }, // 2A/2B vs F/C side
-  { id: 91, stage: 'R16', home: WO(76), away: WO(78) }, // C/F side vs 2E/2I
-  { id: 92, stage: 'R16', home: WO(79), away: WO(80) }, // A/L side (Mexico/England area)
-  { id: 93, stage: 'R16', home: WO(83), away: WO(84) }, // 2K/2L vs H/J side (Spain/Argentina)
-  { id: 94, stage: 'R16', home: WO(81), away: WO(82) }, // D/G side (USA area)
-  { id: 95, stage: 'R16', home: WO(86), away: WO(88) }, // J-winner(Argentina)/2D vs 2G
-  { id: 96, stage: 'R16', home: WO(85), away: WO(87) }, // B/K side (Canada/Portugal area)
+  { id: 89, stage: 'R16', home: WO(73), away: WO(74) }, // W(1A/2B) vs W(1B/2A)
+  { id: 90, stage: 'R16', home: WO(75), away: WO(76) }, // W(1C/2D) vs W(1D/2C)
+  { id: 91, stage: 'R16', home: WO(77), away: WO(78) }, // W(1E/2F) vs W(1F/2E)
+  { id: 92, stage: 'R16', home: WO(79), away: WO(80) }, // W(1G/2H) vs W(1H/2G)
+  { id: 93, stage: 'R16', home: WO(81), away: WO(82) }, // W(1I/2J) vs W(1J/2I)
+  { id: 94, stage: 'R16', home: WO(83), away: WO(84) }, // W(1K/2L) vs W(1L/2K)
+  { id: 95, stage: 'R16', home: WO(85), away: WO(86) }, // T3 bracket left
+  { id: 96, stage: 'R16', home: WO(87), away: WO(88) }, // T3 bracket right
 ];
 
 const QUARTER_FINALS: BracketTie[] = [
-  { id: 97,  stage: 'QF', home: WO(89), away: WO(90) }, // E/I-winner + A/B/C/F side
-  { id: 98,  stage: 'QF', home: WO(93), away: WO(94) }, // H/J(Spain/Argentina) + D/G(USA) side
-  { id: 99,  stage: 'QF', home: WO(91), away: WO(92) }, // C/E/F/I + A/L side
-  { id: 100, stage: 'QF', home: WO(95), away: WO(96) }, // J-winner(Argentina) + B/K side
+  { id: 97,  stage: 'QF', home: WO(89), away: WO(90) }, // W(M89) vs W(M90)
+  { id: 98,  stage: 'QF', home: WO(91), away: WO(92) }, // W(M91) vs W(M92)
+  { id: 99,  stage: 'QF', home: WO(93), away: WO(94) }, // W(M93) vs W(M94)
+  { id: 100, stage: 'QF', home: WO(95), away: WO(96) }, // W(M95) vs W(M96)
 ];
 
 const SEMI_FINALS: BracketTie[] = [
-  // LEFT half: QF97 (Germany/France/2A-2B/F-C area) vs QF98 (Spain/Arg-runner-up + USA/Belgium area)
-  { id: 101, stage: 'SF', home: WO(97), away: WO(98) },
-  // RIGHT half: QF99 (Brazil/Netherlands/Mexico/England area) vs QF100 (Argentina winner + Canada/Portugal area)
-  { id: 102, stage: 'SF', home: WO(99), away: WO(100) },
+  { id: 101, stage: 'SF', home: WO(97),  away: WO(98)  }, // W(QF97) vs W(QF98)
+  { id: 102, stage: 'SF', home: WO(99),  away: WO(100) }, // W(QF99) vs W(QF100)
 ];
 
 const FINAL: BracketTie = { id: 104, stage: 'Final', home: WO(101), away: WO(102) };
