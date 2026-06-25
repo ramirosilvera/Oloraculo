@@ -1255,8 +1255,12 @@ function TodayFixtureItem({
               {pieResult && !pieResult.degraded && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] font-black text-red-400 tracking-wider">PIE</span>
-                  <span className="text-[9px] font-semibold text-white/60 tabular-nums">
-                    {pieScoreStr ? `${pieScoreStr} · ` : ''}{piePickLabel} {pieProbPct}
+                  <span className="text-[11px] leading-none" title="Pronóstico del campeón de prode">🏆</span>
+                  <span className="text-[11px] font-black text-wc-gold-light tabular-nums">
+                    {pieScoreStr ?? '—'}
+                  </span>
+                  <span className="text-[9px] font-semibold text-white/50 tabular-nums">
+                    {piePickLabel} {pieProbPct}
                   </span>
                 </div>
               )}
