@@ -20,12 +20,12 @@ const SF_ORDER  = [101, 102];
 const FINAL_ID  = 104;
 
 // ─── Slot labels (shown pre-simulation or as tooltip suffix) ─────────────────
-// Matches bracket-generator.ts FIXED_R32_SLOTS (simple adjacent pairs: 1A vs 2B, 1B vs 2A, …)
+// Matches bracket-generator.ts FIXED_R32_SLOTS — official FIFA WC 2026 draw
 const SLOT_LABELS: Record<number, [string, string]> = {
   // R32 — fixed pairs (M73-M84) + T3 slots (M85-M88)
   73: ['1A','2B'],  74: ['1B','2A'],  75: ['1C','2D'],  76: ['1D','2C'],
-  77: ['1E','2F'],  78: ['1F','2E'],  79: ['1G','2H'],  80: ['1H','2G'],
-  81: ['1I','2J'],  82: ['1J','2I'],  83: ['1K','2L'],  84: ['1L','2K'],
+  77: ['1E','2F'],  78: ['1F','2E'],  79: ['1G','2I'],  80: ['1I','2G'],
+  81: ['1H','2J'],  82: ['1J','2H'],  83: ['1K','2L'],  84: ['1L','2K'],
   85: ['T3','T3'],  86: ['T3','T3'],  87: ['T3','T3'],  88: ['T3','T3'],
   // R16
   89: ['W73','W74'], 90: ['W75','W76'], 91: ['W77','W78'], 92: ['W79','W80'],

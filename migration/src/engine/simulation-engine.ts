@@ -53,7 +53,8 @@ const R  = (group: string):           BracketSlot => ({ kind: 'GroupRunnerUp', g
 const T  = (...groups: string[]):     BracketSlot => ({ kind: 'GroupThird',    thirdOptions: groups });
 const WO = (tieId: number):           BracketSlot => ({ kind: 'WinnerOf',      tieId });
 
-// Simple adjacent pairs: 1A vs 2B, 1B vs 2A, 1C vs 2D, ... 1L vs 2K (matches bracket-generator.ts)
+// Official FIFA WC 2026 R32 draw: A-B, C-D, E-F, G-I, H-J, K-L pairs
+// G crosses with I, H crosses with J (NOT simple adjacent pairs for those groups)
 // M85-M88: best 8 thirds in rank order (approx. for simulation; exact per FIFA Annex C post-groups)
 const ALL_GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'] as const;
 const ROUND_OF_32: BracketTie[] = [
@@ -63,10 +64,10 @@ const ROUND_OF_32: BracketTie[] = [
   { id: 76, stage: 'R32', home: W('D'), away: R('C') },  // 1D vs 2C
   { id: 77, stage: 'R32', home: W('E'), away: R('F') },  // 1E vs 2F
   { id: 78, stage: 'R32', home: W('F'), away: R('E') },  // 1F vs 2E
-  { id: 79, stage: 'R32', home: W('G'), away: R('H') },  // 1G vs 2H
-  { id: 80, stage: 'R32', home: W('H'), away: R('G') },  // 1H vs 2G
-  { id: 81, stage: 'R32', home: W('I'), away: R('J') },  // 1I vs 2J
-  { id: 82, stage: 'R32', home: W('J'), away: R('I') },  // 1J vs 2I
+  { id: 79, stage: 'R32', home: W('G'), away: R('I') },  // 1G vs 2I
+  { id: 80, stage: 'R32', home: W('I'), away: R('G') },  // 1I vs 2G
+  { id: 81, stage: 'R32', home: W('H'), away: R('J') },  // 1H vs 2J
+  { id: 82, stage: 'R32', home: W('J'), away: R('H') },  // 1J vs 2H
   { id: 83, stage: 'R32', home: W('K'), away: R('L') },  // 1K vs 2L
   { id: 84, stage: 'R32', home: W('L'), away: R('K') },  // 1L vs 2K
   { id: 85, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-1 vs T3-2
