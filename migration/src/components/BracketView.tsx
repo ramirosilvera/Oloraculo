@@ -203,8 +203,27 @@ function R32Card({
   );
 }
 
+// Slot labels for R16 and beyond
+const KNOCKOUT_LABELS: Record<number, [string, string]> = {
+  89:  ['W(M74)', 'W(M77)'],
+  90:  ['W(M73)', 'W(M75)'],
+  91:  ['W(M76)', 'W(M78)'],
+  92:  ['W(M79)', 'W(M80)'],
+  93:  ['W(M83)', 'W(M84)'],
+  94:  ['W(M81)', 'W(M82)'],
+  95:  ['W(M86)', 'W(M88)'],
+  96:  ['W(M85)', 'W(M87)'],
+  97:  ['W(M89)', 'W(M90)'],
+  98:  ['W(M93)', 'W(M94)'],
+  99:  ['W(M91)', 'W(M92)'],
+  100: ['W(M95)', 'W(M96)'],
+  101: ['W(M97)', 'W(M98)'],
+  102: ['W(M99)', 'W(M100)'],
+  104: ['W(M101)', 'W(M102)'],
+};
+
 // ---------------------------------------------------------------------------
-// Knockout round card (R16, QF, SF, Final) — resolved from projection.teams
+// Knockout round card (R16, QF, SF, Final) — resolved from slotOccupancy
 // ---------------------------------------------------------------------------
 function KnockoutCard({
   matchId,
@@ -217,12 +236,22 @@ function KnockoutCard({
   highlightTeamId?: string;
   teamMap: Map<string, Team>;
 }) {
-  // For later rounds we don't have per-slot occupancy yet; show placeholder
+  const [homeLabel, awayLabel] = KNOCKOUT_LABELS[matchId] ?? ['TBD', 'TBD'];
+  const teams = projection
+    ? getSlotTeams(matchId, projection.slotOccupancy, projection.simulations)
+    : [];
+  const home = teams[0];
+  const away = teams[1];
+
   return (
     <MatchCard
       matchId={matchId}
-      homeLabel="TBD"
-      awayLabel="TBD"
+      homeLabel={homeLabel}
+      awayLabel={awayLabel}
+      homeTeam={home?.teamId}
+      awayTeam={away?.teamId}
+      homeProb={home?.prob}
+      awayProb={away?.prob}
       highlightTeamId={highlightTeamId}
       teamMap={teamMap}
     />
