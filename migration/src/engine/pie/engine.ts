@@ -224,9 +224,15 @@ function wcFormBonus(
     if (!isHome && !isAway) continue;
     const gf = isHome ? r.home_goals : r.away_goals;
     const ga = isHome ? r.away_goals : r.home_goals;
-    if      (gf > ga)   bonus += 25;
-    else if (gf === ga) bonus += 5;
-    else                bonus -= 15;
+    // Result component (W/D/L) + margin component. A prode champion weighs HOW a team
+    // won, not just that it won: beating someone 4-1 signals more than a 1-0. The margin
+    // term (±, capped at 3 goals × 9) lets dominant in-tournament form override a stale
+    // pre-tournament Elo gap — e.g. USA (4-1, 2-0) climbing past higher-Elo Turkey (0-2),
+    // or hot Germany (7-1, 2-1) pulling clear of an equal-Elo Ecuador.
+    if      (gf > ga)   bonus += 22;
+    else if (gf === ga) bonus += 4;
+    else                bonus -= 14;
+    bonus += Math.max(-3, Math.min(3, gf - ga)) * 9;
   }
   return bonus;
 }
@@ -489,14 +495,20 @@ export function computePIEFromRecords(
   const homeForm = cachedForm(fixture.home_team_id);
   const awayForm = cachedForm(fixture.away_team_id);
   const formAdj = (homeForm - awayForm) / 2500;
-  const pDiff = pH - pA;
-  // Base lambdas — WC2026 shows 3-0/3-1 at 18% (vs 12% historical) and 2-0/2-1 at 14%
-  // (vs 32% historical), meaning mismatches are more decisive than old coefficients implied.
-  // Raised λh coefficient 1.4→1.65 and λa coefficient 0.35→0.60 to widen the goal gap
-  // for strong favorites without over-correcting balanced matchups.
-  // λa = 1 crossover at pDiff ≈ 0.17 (was 0.29) → moderate favs now more often get 2-0.
-  const base_λh = Math.max(0.35, Math.min(4.0, 1.1 + pDiff * 1.65 + formAdj));
-  const base_λa = Math.max(0.35, Math.min(4.0, 1.1 - pDiff * 0.60 - formAdj));
+  // Neutral venue: anchor the asymmetric coefficients to the FAVORITE, not the home slot.
+  // |pDiff| measures the gap; favIsHome routes the strong (1.65) coefficient toward the
+  // stronger team and the weak (0.60) coefficient toward the underdog, so an away-favorite
+  // gets the same scoreline distribution a home-favorite of equal gap would. Previously the
+  // 1.65 coefficient was keyed to the home slot, so away-favorites were capped at 0-1.
+  // WC2026 shows 3-0/3-1 at 18% and 2-0/2-1 at 14%, so mismatches are decisive: the
+  // favorite's λ scales at 1.65 while the underdog's λ drops at 0.60 (crossover ≈ 0.17).
+  const absDiff = Math.abs(pH - pA);
+  const signedForm = favIsHome ? formAdj : -formAdj; // orient form toward the favorite
+  const base_λfav = Math.max(0.35, Math.min(4.0, 1.1 + absDiff * 1.65 + signedForm));
+  const base_λdog = Math.max(0.35, Math.min(4.0, 1.1 - absDiff * 0.60 - signedForm));
+  // Map favorite/underdog lambdas back to home/away slots
+  const base_λh = favIsHome ? base_λfav : base_λdog;
+  const base_λa = favIsHome ? base_λdog : base_λfav;
   let sumLH = 0, sumLA = 0, sumLW = 0;
   for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     const i = topIdx[k];
