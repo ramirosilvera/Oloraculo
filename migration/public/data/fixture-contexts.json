@@ -211,17 +211,17 @@
   },
   {
     "fixture_id": "grp:F:japan:sweden",
-    "unavailable_home_players": 3,
-    "unavailable_home_attack_impact": 0.065,
-    "unavailable_home_defense_impact": 0.023,
-    "unavailable_away_players": 3,
-    "unavailable_away_attack_impact": 0.039,
-    "unavailable_away_defense_impact": 0.035,
+    "unavailable_home_players": 1,
+    "unavailable_home_attack_impact": 0.035,
+    "unavailable_home_defense_impact": 0.003,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "japan: Endo Wataru (foot injury), Ayase Ueda (injury), Hidemasa Morita (injury) | sweden: Dejan Kulusevski (Knee injury), Emil Holm (Muscle injury), Gustav Lundgren (Injured during warm-up)",
-    "updated_at": "2026-06-16T17:08:11.781Z"
+    "notes": "japan: Mitoma (injury)",
+    "updated_at": "2026-06-25T10:31:54.368Z"
   },
   {
     "fixture_id": "grp:G:belgium:egypt",
