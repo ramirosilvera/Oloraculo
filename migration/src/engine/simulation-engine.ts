@@ -269,6 +269,18 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
   // the expensive buildContext + predict call on repeated pairings.
   const predCache = new Map<string, ScorelineDistribution>();
 
+  // Lock real group-stage results from wcResults (Supabase actual results).
+  // fixtures.is_played handles static JSON; this handles user-entered corrections.
+  // Key: "homeTeamId|awayTeamId" → { hg, ag } where home/away matches the fixture record.
+  const fixtureById = new Map<string, Fixture>(fixtures.map(f => [f.id, f]));
+  const groupResultMap = new Map<string, { hg: number; ag: number }>();
+  for (const r of wcResults) {
+    if (r.fixture_id.startsWith('ko:')) continue;
+    const f = fixtureById.get(r.fixture_id);
+    if (!f) continue;
+    groupResultMap.set(`${f.home_team_id}|${f.away_team_id}`, { hg: r.home_goals, ag: r.away_goals });
+  }
+
   function pairingDistribution(homeId: string, awayId: string): ScorelineDistribution {
     const fixture: Fixture = {
       id: `sim:${homeId}:${awayId}`,
@@ -346,6 +358,10 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
               ((f.home_team_id === a && f.away_team_id === b) ||
                (f.home_team_id === b && f.away_team_id === a)),
           );
+          // Fall back to wcResults (Supabase real results) if the static fixture isn't marked played
+          const wcKnown = !known
+            ? (groupResultMap.get(`${a}|${b}`) ?? groupResultMap.get(`${b}|${a}`))
+            : undefined;
 
           let scoreA: number, scoreB: number;
           if (known && known.home_goals != null && known.away_goals != null) {
@@ -354,6 +370,10 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
             } else {
               scoreA = known.away_goals; scoreB = known.home_goals;
             }
+          } else if (wcKnown) {
+            const aIsHome = groupResultMap.has(`${a}|${b}`);
+            scoreA = aIsHome ? wcKnown.hg : wcKnown.ag;
+            scoreB = aIsHome ? wcKnown.ag : wcKnown.hg;
           } else {
             const s = sampleMatchScore(a, b);
             scoreA = s.home; scoreB = s.away;
