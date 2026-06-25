@@ -11,11 +11,22 @@ const CONN_W   = 22;          // px — SVG connector column width
 const LINE_CLR = '#d1d5db';   // gray-300
 
 // ─── Static bracket order (top → bottom within each round) ──────────────────
-// Bracket is sequential: M73-M80 (top 8 R32) → M89-M92 (top 4 R16) → M97-M98 (top 2 QF) → M101 (SF) → M104
-//                        M81-M88 (bot 8 R32) → M93-M96 (bot 4 R16) → M99-M100 (bot 2 QF) → M102 (SF) → M104
-const R32_ORDER = [73, 74, 75, 76, 77, 78, 79, 80,  81, 82, 83, 84, 85, 86, 87, 88];
-const R16_ORDER = [89, 90, 91, 92,  93, 94, 95, 96];
-const QF_ORDER  = [97, 98,  99, 100];
+// Each pair of adjacent positions feeds the same next-round match.
+// The FIFA draw has non-sequential R32→R16 connections (e.g. M74 pairs with M77,
+// not with M73 or M75), so ordering must group feeders of the same R16/QF/SF match.
+//
+// Left half (top 8 R32 → top 4 R16 → top 2 QF → SF A):
+//   R32: [73,75] → M90  [74,77] → M89  [76,78] → M91  [79,80] → M92
+//   R16: [90,89] → M97  [91,92] → M98
+//   QF:  [97,99] → M101 (SF A)
+//
+// Right half (bot 8 R32 → bot 4 R16 → bot 2 QF → SF B):
+//   R32: [81,82] → M94  [83,84] → M93  [85,87] → M96  [86,88] → M95
+//   R16: [94,93] → M99  [96,95] → M100
+//   QF:  [98,100] → M102 (SF B)
+const R32_ORDER = [73, 75, 74, 77, 76, 78, 79, 80,  81, 82, 83, 84, 85, 87, 86, 88];
+const R16_ORDER = [90, 89, 91, 92,  94, 93, 96, 95];
+const QF_ORDER  = [97, 99,  98, 100];
 const SF_ORDER  = [101, 102];
 const FINAL_ID  = 104;
 
