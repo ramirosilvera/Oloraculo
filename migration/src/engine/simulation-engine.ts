@@ -53,39 +53,40 @@ const R  = (group: string):           BracketSlot => ({ kind: 'GroupRunnerUp', g
 const T  = (...groups: string[]):     BracketSlot => ({ kind: 'GroupThird',    thirdOptions: groups });
 const WO = (tieId: number):           BracketSlot => ({ kind: 'WinnerOf',      tieId });
 
-// Official FIFA WC 2026 R32 draw: A-B, C-D, E-F, G-I, H-J, K-L pairs
-// G crosses with I, H crosses with J (NOT simple adjacent pairs for those groups)
-// M85-M88: best 8 thirds in rank order (approx. for simulation; exact per FIFA Annex C post-groups)
-const ALL_GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'] as const;
+// Official FIFA WC 2026 R32 draw (confirmed from FIFA schedule):
+// 4 Runner×Runner pairs: M73(2A×2B), M78(2E×2I), M83(2K×2L), M88(2D×2G)
+// 4 Winner×RunnerUp crosses: M75(1F×2C), M76(1C×2F), M84(1H×2J), M86(1J×2H)
+// 8 Winner×T3 matches: M74(1E), M77(1I), M79(1A), M80(1L), M81(1D), M82(1G), M85(1B), M87(1K)
+// T3 group eligibility lists: per Annex C slot assignments from FIFA draw
 const ROUND_OF_32: BracketTie[] = [
-  { id: 73, stage: 'R32', home: W('A'), away: R('B') },  // 1A vs 2B
-  { id: 74, stage: 'R32', home: W('B'), away: R('A') },  // 1B vs 2A
-  { id: 75, stage: 'R32', home: W('C'), away: R('D') },  // 1C vs 2D
-  { id: 76, stage: 'R32', home: W('D'), away: R('C') },  // 1D vs 2C
-  { id: 77, stage: 'R32', home: W('E'), away: R('F') },  // 1E vs 2F
-  { id: 78, stage: 'R32', home: W('F'), away: R('E') },  // 1F vs 2E
-  { id: 79, stage: 'R32', home: W('G'), away: R('I') },  // 1G vs 2I
-  { id: 80, stage: 'R32', home: W('I'), away: R('G') },  // 1I vs 2G
-  { id: 81, stage: 'R32', home: W('H'), away: R('J') },  // 1H vs 2J
-  { id: 82, stage: 'R32', home: W('J'), away: R('H') },  // 1J vs 2H
-  { id: 83, stage: 'R32', home: W('K'), away: R('L') },  // 1K vs 2L
-  { id: 84, stage: 'R32', home: W('L'), away: R('K') },  // 1L vs 2K
-  { id: 85, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-1 vs T3-2
-  { id: 86, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-3 vs T3-4
-  { id: 87, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-5 vs T3-6
-  { id: 88, stage: 'R32', home: T(...ALL_GROUPS), away: T(...ALL_GROUPS) },  // T3-7 vs T3-8
+  { id: 73, stage: 'R32', home: R('A'), away: R('B') },                     // 2A vs 2B
+  { id: 74, stage: 'R32', home: W('E'), away: T('A','B','C','D','F') },      // 1E vs T3
+  { id: 75, stage: 'R32', home: W('F'), away: R('C') },                      // 1F vs 2C
+  { id: 76, stage: 'R32', home: W('C'), away: R('F') },                      // 1C vs 2F
+  { id: 77, stage: 'R32', home: W('I'), away: T('C','D','F','G','H') },      // 1I vs T3
+  { id: 78, stage: 'R32', home: R('E'), away: R('I') },                      // 2E vs 2I
+  { id: 79, stage: 'R32', home: W('A'), away: T('C','E','F','H','I') },      // 1A vs T3
+  { id: 80, stage: 'R32', home: W('L'), away: T('E','H','I','J','K') },      // 1L vs T3
+  { id: 81, stage: 'R32', home: W('D'), away: T('B','E','F','I','J') },      // 1D vs T3
+  { id: 82, stage: 'R32', home: W('G'), away: T('A','E','H','I','J') },      // 1G vs T3
+  { id: 83, stage: 'R32', home: R('K'), away: R('L') },                      // 2K vs 2L
+  { id: 84, stage: 'R32', home: W('H'), away: R('J') },                      // 1H vs 2J
+  { id: 85, stage: 'R32', home: W('B'), away: T('E','F','G','I','J') },      // 1B vs T3
+  { id: 86, stage: 'R32', home: W('J'), away: R('H') },                      // 1J vs 2H
+  { id: 87, stage: 'R32', home: W('K'), away: T('D','E','I','J','L') },      // 1K vs T3
+  { id: 88, stage: 'R32', home: R('D'), away: R('G') },                      // 2D vs 2G
 ];
 
-// R16: winners of adjacent R32 pairs face each other
+// R16: confirmed pairings from FIFA schedule (source: worldcupkickofftimes.com, wikipedia)
 const ROUND_OF_16: BracketTie[] = [
-  { id: 89, stage: 'R16', home: WO(73), away: WO(74) }, // W(1A/2B) vs W(1B/2A)
-  { id: 90, stage: 'R16', home: WO(75), away: WO(76) }, // W(1C/2D) vs W(1D/2C)
-  { id: 91, stage: 'R16', home: WO(77), away: WO(78) }, // W(1E/2F) vs W(1F/2E)
-  { id: 92, stage: 'R16', home: WO(79), away: WO(80) }, // W(1G/2H) vs W(1H/2G)
-  { id: 93, stage: 'R16', home: WO(81), away: WO(82) }, // W(1I/2J) vs W(1J/2I)
-  { id: 94, stage: 'R16', home: WO(83), away: WO(84) }, // W(1K/2L) vs W(1L/2K)
-  { id: 95, stage: 'R16', home: WO(85), away: WO(86) }, // T3 bracket left
-  { id: 96, stage: 'R16', home: WO(87), away: WO(88) }, // T3 bracket right
+  { id: 89, stage: 'R16', home: WO(74), away: WO(77) }, // W(1E/T3) vs W(1I/T3)
+  { id: 90, stage: 'R16', home: WO(73), away: WO(75) }, // W(2A/2B) vs W(1F/2C)
+  { id: 91, stage: 'R16', home: WO(76), away: WO(78) }, // W(1C/2F) vs W(2E/2I)
+  { id: 92, stage: 'R16', home: WO(79), away: WO(80) }, // W(1A/T3) vs W(1L/T3)
+  { id: 93, stage: 'R16', home: WO(83), away: WO(84) }, // W(2K/2L) vs W(1H/2J)
+  { id: 94, stage: 'R16', home: WO(81), away: WO(82) }, // W(1D/T3) vs W(1G/T3)
+  { id: 95, stage: 'R16', home: WO(86), away: WO(88) }, // W(1J/2H) vs W(2D/2G)
+  { id: 96, stage: 'R16', home: WO(85), away: WO(87) }, // W(1B/T3) vs W(1K/T3)
 ];
 
 const QUARTER_FINALS: BracketTie[] = [
