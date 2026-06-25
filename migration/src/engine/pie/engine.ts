@@ -25,10 +25,11 @@ import type { Fixture, WcActualResult } from '../../types/domain';
 
 type ScoreEntry = { home: number; away: number; w: number };
 
+// WC2026 shows 3-0/3-1 at ~18% combined vs 12% historical → shift weight from 2-0/2-1.
 const POOL_HOME_EQ: ScoreEntry[] = [
-  { home: 1, away: 0, w: 34 }, { home: 2, away: 0, w: 22 },
-  { home: 2, away: 1, w: 20 }, { home: 3, away: 0, w:  8 },
-  { home: 3, away: 1, w:  7 }, { home: 4, away: 0, w:  3 },
+  { home: 1, away: 0, w: 28 }, { home: 2, away: 0, w: 20 },
+  { home: 2, away: 1, w: 17 }, { home: 3, away: 0, w: 13 },
+  { home: 3, away: 1, w: 12 }, { home: 4, away: 0, w:  4 },
   { home: 3, away: 2, w:  4 }, { home: 4, away: 1, w:  2 },
 ];
 const POOL_DRAW_EQ: ScoreEntry[] = [
@@ -36,23 +37,25 @@ const POOL_DRAW_EQ: ScoreEntry[] = [
   { home: 2, away: 2, w:  8 }, { home: 3, away: 3, w:  2 },
 ];
 const POOL_AWAY_EQ: ScoreEntry[] = [
-  { home: 0, away: 1, w: 34 }, { home: 0, away: 2, w: 22 },
-  { home: 1, away: 2, w: 20 }, { home: 0, away: 3, w:  8 },
-  { home: 1, away: 3, w:  7 }, { home: 0, away: 4, w:  3 },
+  { home: 0, away: 1, w: 28 }, { home: 0, away: 2, w: 20 },
+  { home: 1, away: 2, w: 17 }, { home: 0, away: 3, w: 13 },
+  { home: 1, away: 3, w: 12 }, { home: 0, away: 4, w:  4 },
   { home: 2, away: 3, w:  4 }, { home: 1, away: 4, w:  2 },
 ];
 const POOL_HOME_FAV: ScoreEntry[] = [
-  { home: 1, away: 0, w: 28 }, { home: 2, away: 0, w: 24 },
-  { home: 2, away: 1, w: 16 }, { home: 3, away: 0, w: 16 },
-  { home: 3, away: 1, w: 12 }, { home: 4, away: 0, w:  4 },
+  { home: 1, away: 0, w: 23 }, { home: 2, away: 0, w: 22 },
+  { home: 2, away: 1, w: 14 }, { home: 3, away: 0, w: 18 },
+  { home: 3, away: 1, w: 14 }, { home: 4, away: 0, w:  5 },
+  { home: 4, away: 1, w:  3 }, { home: 5, away: 0, w:  1 },
 ];
 const POOL_DRAW_FAV: ScoreEntry[] = [
   { home: 1, away: 1, w: 70 }, { home: 0, away: 0, w: 20 }, { home: 2, away: 2, w: 10 },
 ];
 const POOL_AWAY_FAV: ScoreEntry[] = [
-  { home: 0, away: 1, w: 28 }, { home: 0, away: 2, w: 24 },
-  { home: 1, away: 2, w: 16 }, { home: 0, away: 3, w: 16 },
-  { home: 1, away: 3, w: 12 }, { home: 0, away: 4, w:  4 },
+  { home: 0, away: 1, w: 23 }, { home: 0, away: 2, w: 22 },
+  { home: 1, away: 2, w: 14 }, { home: 0, away: 3, w: 18 },
+  { home: 1, away: 3, w: 14 }, { home: 0, away: 4, w:  5 },
+  { home: 1, away: 4, w:  3 }, { home: 0, away: 5, w:  1 },
 ];
 const POOL_HOME_SOR: ScoreEntry[] = [
   { home: 1, away: 0, w: 50 }, { home: 2, away: 1, w: 30 },
@@ -487,14 +490,13 @@ export function computePIEFromRecords(
   const awayForm = cachedForm(fixture.away_team_id);
   const formAdj = (homeForm - awayForm) / 2500;
   const pDiff = pH - pA;
-  // Base lambdas — asymmetric scaling so λa drops slowly with pDiff.
-  // This keeps λa > 1 for moderate favorites, letting 2-1 beat 2-0 when
-  // the losing team is expected to score (historically 2-1 17.8% > 2-0 14.1%).
-  // λh grows faster than λa shrinks → goal gap widens without killing loser goals.
-  // Total at equal teams: 2.2 base → ~2.4 after player-noise boost (near WC avg 2.5).
-  // λa = 1 crossover at pDiff ≈ 0.29 → moderate favs get 2-1, strong favs get 2-0.
-  const base_λh = Math.max(0.35, Math.min(4.0, 1.1 + pDiff * 1.4 + formAdj));
-  const base_λa = Math.max(0.35, Math.min(4.0, 1.1 - pDiff * 0.35 - formAdj));
+  // Base lambdas — WC2026 shows 3-0/3-1 at 18% (vs 12% historical) and 2-0/2-1 at 14%
+  // (vs 32% historical), meaning mismatches are more decisive than old coefficients implied.
+  // Raised λh coefficient 1.4→1.65 and λa coefficient 0.35→0.60 to widen the goal gap
+  // for strong favorites without over-correcting balanced matchups.
+  // λa = 1 crossover at pDiff ≈ 0.17 (was 0.29) → moderate favs now more often get 2-0.
+  const base_λh = Math.max(0.35, Math.min(4.0, 1.1 + pDiff * 1.65 + formAdj));
+  const base_λa = Math.max(0.35, Math.min(4.0, 1.1 - pDiff * 0.60 - formAdj));
   let sumLH = 0, sumLA = 0, sumLW = 0;
   for (let k = 0; k < K && topIdx[k] !== -1; k++) {
     const i = topIdx[k];
