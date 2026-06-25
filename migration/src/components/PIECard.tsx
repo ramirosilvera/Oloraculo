@@ -131,21 +131,23 @@ export function PIECard({ result, homeName, awayName, onClose, looWinnerAcc, loo
 
       <div className="p-5 space-y-5">
 
-        {/* Leader hero */}
+        {/* Campeón de Prode — el jugador #1 del torneo interno y SU pronóstico propio
+            (pick + marcador coherentes, no el del consenso) */}
         <section className={`rounded-xl border px-4 py-3.5 ${
           result.contrarian_signal > 0.15
-            ? 'border-amber-200 bg-amber-50/60'
-            : 'border-wc-navy/10 bg-wc-navy/3'
+            ? 'border-amber-300 bg-amber-50/70'
+            : 'border-wc-gold/50 bg-wc-gold/5'
         }`}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-1.5 mb-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-                  Líder del torneo interno
+                <span className="text-base">🏆</span>
+                <p className="text-[11px] font-black uppercase tracking-widest text-wc-gold">
+                  Campeón de Prode
                 </p>
               </div>
-              <p className="text-[9px] text-gray-300 mb-1.5 leading-tight">
-                Score acumulado en los {leader.total} partidos ya jugados · no es la eficacia del modelo
+              <p className="text-[9px] text-gray-400 mb-1.5 leading-tight">
+                El #1 de {result.sample_size.toLocaleString()} jugadores por aciertos en los {leader.total} partidos ya jugados
               </p>
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="text-lg">{leaderMeta.emoji}</span>
@@ -155,14 +157,14 @@ export function PIECard({ result, homeName, awayName, onClose, looWinnerAcc, loo
                   <span className="text-[10px] font-semibold text-amber-600 ml-1">⚡ va contra la mayoría</span>
                 )}
               </div>
-              <p className="text-[10px] text-gray-400 mb-2">{leaderMeta.desc}</p>
+              <p className="text-[10px] text-gray-400">{leaderMeta.desc}</p>
             </div>
             {leaderAcc !== null && (
               <div className="text-right shrink-0 space-y-0.5">
                 <p className="text-xl font-black tabular-nums text-wc-navy leading-none">
                   {leader.correct}<span className="text-sm font-normal text-gray-400">/{leader.total}</span>
                 </p>
-                <p className="text-[10px] text-gray-400 tabular-nums">{pctInt(leaderAcc)} · torneo</p>
+                <p className="text-[10px] text-gray-400 tabular-nums">{pctInt(leaderAcc)} aciertos</p>
                 {leader.exactCorrect >= 0.5 && (
                   <p className="text-xs font-bold text-purple-700 tabular-nums">
                     {Math.round(leader.exactCorrect * 10) / 10} exactos 🎯
@@ -172,34 +174,35 @@ export function PIECard({ result, homeName, awayName, onClose, looWinnerAcc, loo
             )}
           </div>
 
-          {/* Consensus pick for this fixture */}
-          <div className="flex items-center gap-3 mt-1 pt-3 border-t border-wc-navy/10">
+          {/* El pronóstico del campeón para ESTE partido */}
+          <div className="flex items-center gap-3 mt-1 pt-3 border-t border-wc-gold/40">
             <div className="flex-1">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">
-                Consenso top-{result.consensus_k}
+                Su pronóstico
               </p>
-              <p className={`text-base font-black ${pickColor(result.most_probable_pick)}`}>
-                {pickLabel(result.most_probable_pick, homeName, awayName)}
+              <p className={`text-base font-black ${pickColor(leader.pick)}`}>
+                {pickLabel(leader.pick, homeName, awayName)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Marcador · líder</p>
-              {result.mostLikelyScore ? (
-                <p className="text-2xl font-black tabular-nums text-wc-navy leading-none">
-                  {result.mostLikelyScore.home} – {result.mostLikelyScore.away}
-                </p>
-              ) : (
-                <p className="text-sm text-gray-400">—</p>
-              )}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">Marcador</p>
+              <p className="text-2xl font-black tabular-nums text-wc-navy leading-none">
+                {leader.pickScore.home} – {leader.pickScore.away}
+              </p>
             </div>
           </div>
 
-          {/* Consensus support */}
-          <div className="mt-2 pt-2 border-t border-wc-navy/10">
+          {/* Relación con el consenso del torneo */}
+          <div className="mt-2 pt-2 border-t border-wc-gold/40">
             <p className="text-[10px] text-gray-400">
+              Consenso top-{result.consensus_k}:{' '}
+              <span className={`font-semibold ${pickColor(result.most_probable_pick)}`}>
+                {pickLabel(result.most_probable_pick, homeName, awayName)}
+              </span>
+              {' · '}
               <span className="font-semibold text-wc-navy">
                 {Math.round(result.leader_support * result.consensus_k)}/{result.consensus_k}
-              </span> de los mejores {result.consensus_k} coinciden con el consenso
+              </span> de los mejores coinciden
             </p>
           </div>
         </section>
