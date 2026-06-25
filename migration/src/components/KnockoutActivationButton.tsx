@@ -90,25 +90,48 @@ export function KnockoutActivationButton({ fixtures, wcPlayedMap, teamMap }: Pro
 
   function copyText() {
     const groups = 'ABCDEFGHIJKL'.split('');
-    const PAIRS: [string, string][] = [['A','B'],['B','A'],['C','D'],['D','C'],['E','F'],['F','E'],['G','H'],['H','G'],['I','J'],['J','I'],['K','L'],['L','K']];
+    // Correct R32 pairings — official FIFA WC 2026 draw
+    // Format: [matchId, homeSlot, awaySlot]  ('T3(X/Y/Z)' = best third from those groups)
+    const R32: [string, string, string][] = [
+      ['M73', '2A', '2B'],
+      ['M74', '1E', 'T3(A/B/C/D/F)'],
+      ['M75', '1F', '2C'],
+      ['M76', '1C', '2F'],
+      ['M77', '1I', 'T3(C/D/F/G/H)'],
+      ['M78', '2E', '2I'],
+      ['M79', '1A', 'T3(C/E/F/H/I)'],
+      ['M80', '1L', 'T3(E/H/I/J/K)'],
+      ['M81', '1D', 'T3(B/E/F/I/J)'],
+      ['M82', '1G', 'T3(A/E/H/I/J)'],
+      ['M83', '2K', '2L'],
+      ['M84', '1H', '2J'],
+      ['M85', '1B', 'T3(E/F/G/I/J)'],
+      ['M86', '1J', '2H'],
+      ['M87', '1K', 'T3(D/E/I/J/L)'],
+      ['M88', '2D', '2G'],
+    ];
+    function resolveSlotName(slot: string): string {
+      const m = slot.match(/^([12])([A-L])$/);
+      if (!m) return slot; // T3 label — pass through
+      const teamId = standings[m[2]]?.[parseInt(m[1]) - 1]?.teamId;
+      return teamId ? name(teamId) : slot;
+    }
     const lines = ['=== ACTIVAR KNOCKOUT WC 2026 ===', ''];
-    lines.push('R32 FIJOS:');
-    for (const [w, ru] of PAIRS) {
-      const h = name(standings[w]?.[0]?.teamId ?? '');
-      const a = name(standings[ru]?.[1]?.teamId ?? '');
-      lines.push(`  1${w} vs 2${ru}: ${h} vs ${a}`);
+    lines.push('R32 CRUCES:');
+    for (const [id, hl, al] of R32) {
+      lines.push(`  ${id}: ${hl}(${resolveSlotName(hl)}) vs ${al}(${resolveSlotName(al)})`);
     }
     lines.push('', 'POSICIONES FINALES:');
     for (const g of groups) {
       const s = standings[g];
       if (!s) continue;
-      lines.push(`  Grupo ${g}: 1º${name(s[0]?.teamId??'')}  2º${name(s[1]?.teamId??'')}  3º${name(s[2]?.teamId??'')}(${s[2]?.points}pts ${s[2]?.goalDiff??0 >= 0?'+':''}${s[2]?.goalDiff??0}GD)`);
+      lines.push(`  Grupo ${g}: 1º${name(s[0]?.teamId??'')}  2º${name(s[1]?.teamId??'')}  3º${name(s[2]?.teamId??'')}(${s[2]?.points}pts ${(s[2]?.goalDiff??0)>=0?'+':''}${s[2]?.goalDiff??0}GD)`);
     }
     lines.push('', 'MEJORES 8 TERCEROS:');
     bestThirds.forEach((t, i) =>
       lines.push(`  ${i+1}. [${t.groupName}] ${name(t.teamId)} — ${t.points}pts ${t.goalDiff>=0?'+':''}${t.goalDiff}GD ${t.goalsFor}GF`),
     );
-    lines.push('', '→ Verificar slots M85-M88 en tabla FIFA Anexo C y llamar generateKnockoutFixtures().');
+    lines.push('', '→ Verificar slots T3 (M74,M77,M79,M80,M81,M82,M85,M87) con tabla FIFA Anexo C y llamar generateKnockoutFixtures().');
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -240,7 +263,7 @@ export function KnockoutActivationButton({ fixtures, wcPlayedMap, teamMap }: Pro
               <div className="text-[11px] text-gray-500 bg-gray-50 rounded-xl px-3 py-2.5 space-y-1">
                 <p className="font-semibold text-gray-700">¿Qué hace esto?</p>
                 <p>Envía una señal a Supabase que Claude detecta al iniciar la próxima sesión.</p>
-                <p>Claude calculará los clasificados, pedirá la tabla oficial de FIFA para los 8 terceros (M85-M88), y generará los 32 fixtures del bracket.</p>
+                <p>Claude calculará los clasificados, pedirá la tabla oficial de FIFA para los 8 slots de terceros (M74,M77,M79,M80,M81,M82,M85,M87), y generará los 32 fixtures del bracket.</p>
               </div>
 
             </div>
