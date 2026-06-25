@@ -418,23 +418,32 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
       slotOccupancy[tieId][home] = (slotOccupancy[tieId][home] ?? 0) + 1;
       slotOccupancy[tieId][away] = (slotOccupancy[tieId][away] ?? 0) + 1;
     });
-    playRound(ROUND_OF_16, (w, l) => {
+    playRound(ROUND_OF_16, (w, l, tieId, home, away) => {
       counters.get(w)!.qf++;
       const wc = counters.get(w)!; const lc = counters.get(l)!;
       trackOpp(wc.r16Opps, wc.r16Wins, l, true);
       trackOpp(lc.r16Opps, lc.r16Wins, w, false);
+      if (!slotOccupancy[tieId]) slotOccupancy[tieId] = {};
+      slotOccupancy[tieId][home] = (slotOccupancy[tieId][home] ?? 0) + 1;
+      slotOccupancy[tieId][away] = (slotOccupancy[tieId][away] ?? 0) + 1;
     });
-    playRound(QUARTER_FINALS, (w, l) => {
+    playRound(QUARTER_FINALS, (w, l, tieId, home, away) => {
       counters.get(w)!.sf++;
       const wc = counters.get(w)!; const lc = counters.get(l)!;
       trackOpp(wc.qfOpps, wc.qfWins, l, true);
       trackOpp(lc.qfOpps, lc.qfWins, w, false);
+      if (!slotOccupancy[tieId]) slotOccupancy[tieId] = {};
+      slotOccupancy[tieId][home] = (slotOccupancy[tieId][home] ?? 0) + 1;
+      slotOccupancy[tieId][away] = (slotOccupancy[tieId][away] ?? 0) + 1;
     });
-    playRound(SEMI_FINALS, (w, l) => {
+    playRound(SEMI_FINALS, (w, l, tieId, home, away) => {
       counters.get(w)!.final++;
       const wc = counters.get(w)!; const lc = counters.get(l)!;
       trackOpp(wc.sfOpps, wc.sfWins, l, true);
       trackOpp(lc.sfOpps, lc.sfWins, w, false);
+      if (!slotOccupancy[tieId]) slotOccupancy[tieId] = {};
+      slotOccupancy[tieId][home] = (slotOccupancy[tieId][home] ?? 0) + 1;
+      slotOccupancy[tieId][away] = (slotOccupancy[tieId][away] ?? 0) + 1;
     });
 
     const finalistHome = resolve(FINAL, FINAL.home);
@@ -444,6 +453,9 @@ export function runSimulation(input: SimulationInput): TournamentProjection {
     counters.get(champion)!.champion++;
     trackOpp(counters.get(champion)!.finOpps, counters.get(champion)!.finWins, runner, true);
     trackOpp(counters.get(runner)!.finOpps,   counters.get(runner)!.finWins,   champion, false);
+    if (!slotOccupancy[FINAL.id]) slotOccupancy[FINAL.id] = {};
+    slotOccupancy[FINAL.id][finalistHome] = (slotOccupancy[FINAL.id][finalistHome] ?? 0) + 1;
+    slotOccupancy[FINAL.id][finalistAway] = (slotOccupancy[FINAL.id][finalistAway] ?? 0) + 1;
   }
 
   const teams: TeamTournamentProbability[] = allTeams.map(teamId => {
