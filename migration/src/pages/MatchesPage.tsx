@@ -420,15 +420,15 @@ function FixtureRow({
                     homeLabel={homeName}
                     awayLabel={awayName}
                   />
-                  {pieResult.mostLikelyScore && (
+                  {pieResult.leader && (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-500">Pronóstico líder:</span>
+                      <span className="text-gray-500">Pronóstico del campeón:</span>
                       <span className="font-black text-wc-navy tabular-nums">
-                        {pieResult.mostLikelyScore.home}–{pieResult.mostLikelyScore.away}
+                        {pieResult.leader.pickScore.home}–{pieResult.leader.pickScore.away}
                       </span>
                       <span className="text-gray-400">
-                        ({pieResult.most_probable_pick === 'Home' ? homeName
-                          : pieResult.most_probable_pick === 'Away' ? awayName
+                        ({pieResult.leader.pick === 'Home' ? homeName
+                          : pieResult.leader.pick === 'Away' ? awayName
                           : 'Empate'})
                       </span>
                     </div>
@@ -1218,14 +1218,15 @@ function TodayFixtureItem({
           let pieScoreStr: string | null = null;
           let piePickLabel = '';
           let pieProbPct = '';
-          if (pieResult && !pieResult.degraded) {
-            if (pieResult.mostLikelyScore)
-              pieScoreStr = `${pieResult.mostLikelyScore.home}-${pieResult.mostLikelyScore.away}`;
+          if (pieResult && !pieResult.degraded && pieResult.leader) {
+            // Champion's own forecast (pick + score), consistent with the PIECard.
+            const ld = pieResult.leader;
+            pieScoreStr = `${ld.pickScore.home}-${ld.pickScore.away}`;
             const pp = pieResult.pick_probabilities;
-            const pieProbTop = pieResult.most_probable_pick === 'Home' ? pp.home
-                             : pieResult.most_probable_pick === 'Away' ? pp.away : pp.draw;
-            piePickLabel = pieResult.most_probable_pick === 'Home' ? 'L'
-                         : pieResult.most_probable_pick === 'Away' ? 'V' : 'E';
+            const pieProbTop = ld.pick === 'Home' ? pp.home
+                             : ld.pick === 'Away' ? pp.away : pp.draw;
+            piePickLabel = ld.pick === 'Home' ? 'L'
+                         : ld.pick === 'Away' ? 'V' : 'E';
             pieProbPct = `${(pieProbTop * 100).toFixed(0)}%`;
           }
 
