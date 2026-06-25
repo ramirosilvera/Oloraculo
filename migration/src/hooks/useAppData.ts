@@ -98,8 +98,14 @@ export function useAppData() {
   // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
   // need it (Historial, Rendimientos) don't block waiting for it to download.
   // The engine becomes available asynchronously; pages handle engine === null gracefully.
+  // Page-level loading: only blocks on static data (fast, local JSON).
+  // supabaseWc is supplemental — failures or slow network must not freeze the whole UI.
   const isLoading =
-    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading || supabaseWc.isLoading;
+    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
+
+  // Simulation-level guard: wait for Supabase WC results before allowing a run,
+  // so the engine uses up-to-date match corrections, not stale/empty data.
+  const isWcResultsLoading = supabaseWc.isLoading;
 
   const error =
     teams.error ?? groups.error ?? fixtures.error ??
@@ -122,6 +128,7 @@ export function useAppData() {
     wcResults,
     wcPlayedMap,
     isLoading,
+    isWcResultsLoading,
     error,
   };
 }

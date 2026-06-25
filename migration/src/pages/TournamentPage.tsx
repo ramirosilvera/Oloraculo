@@ -15,6 +15,7 @@ const SIMULATION_SEED  = 2026;
 
 export function TournamentPage() {
   const { groups, fixtures, results, ratings, teams, teamMap, wcResults, isLoading,
+          isWcResultsLoading,
           squadStrengthData, tacticalProfilesData } = useAppData();
   const [projection, setProjection]     = useState<TournamentProjection | null>(null);
   const [busy, setBusy]                 = useState(false);
@@ -130,7 +131,8 @@ export function TournamentPage() {
         {!busy ? (
           <button
             onClick={runSimulation}
-            disabled={groups.length === 0}
+            disabled={groups.length === 0 || isWcResultsLoading}
+            title={isWcResultsLoading ? 'Cargando resultados actuales…' : undefined}
             className="inline-flex items-center gap-2.5 px-7 py-3.5 bg-white text-wc-navy font-black rounded-xl shadow hover:shadow-lg hover:bg-wc-cream transition-all text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Play className="w-5 h-5 fill-wc-navy" />
