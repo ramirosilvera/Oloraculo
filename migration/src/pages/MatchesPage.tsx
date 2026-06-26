@@ -383,9 +383,22 @@ function FixtureRow({
           </span>
         ) : liveMatch?.status === 'FINISHED' ? (
           <Badge color="green">{liveMatch.homeGoals ?? 0}–{liveMatch.awayGoals ?? 0}</Badge>
-        ) : pred ? (
-          <Badge color="blue">calculado</Badge>
-        ) : null}
+        ) : pred ? (() => {
+          const pick = topPick(pred.bestPrediction.outcome);
+          const { homeWin, draw, awayWin } = pred.bestPrediction.outcome;
+          const prob = pick === 'Home' ? homeWin : pick === 'Away' ? awayWin : draw;
+          const label = pick === 'Home' ? 'L' : pick === 'Away' ? 'V' : 'E';
+          const cls = pick === 'Home'
+            ? 'text-wc-navy bg-blue-50 border-blue-200'
+            : pick === 'Away'
+            ? 'text-wc-red bg-red-50 border-red-200'
+            : 'text-gray-600 bg-gray-50 border-gray-200';
+          return (
+            <span className={`text-[11px] font-black tabular-nums border px-1.5 py-0.5 rounded-full shrink-0 ${cls}`}>
+              {label} {Math.round(prob * 100)}%
+            </span>
+          );
+        })() : null}
         <span className="text-gray-400 ml-1 shrink-0">
           {isExpanding
             ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -1228,10 +1241,12 @@ function TodayFixtureItem({
         </div>
         {/* Prediction strip — only for unplayed fixtures */}
         {!played && pred ? (() => {
-          const plantelPred  = pred.predictions.find(p => p.predictorName === 'Potencial del plantel' && !p.degraded);
-          const momentumPred = pred.predictions.find(p => p.predictorName === 'Momentum del Mundial'  && !p.degraded);
-          const probSrc  = plantelPred  ?? momentumPred ?? pred.bestPrediction;
-          const scoreSrc = momentumPred ?? plantelPred  ?? pred.bestPrediction;
+          // Use the performance-weighted ensemble as probability source.
+          // For score string, prefer a model with a scoreline (Patrón de Grupo → Momentum → ensemble).
+          const probSrc = pred.bestPrediction;
+          const scoreSrc = pred.predictions.find(p => p.predictorName === 'Patrón de Grupo' && !p.degraded && p.scoreline)
+            ?? pred.predictions.find(p => p.predictorName === 'Momentum del Mundial' && !p.degraded && p.scoreline)
+            ?? pred.bestPrediction;
           const { homeWin, draw, awayWin } = probSrc.outcome;
           const topPickResult = topPick(probSrc.outcome);
           const isMarginDraw = topPickResult === 'Draw' && draw < Math.max(homeWin, awayWin);
@@ -1252,25 +1267,18 @@ function TodayFixtureItem({
             ? `~E ${(draw*100).toFixed(0)}%`
             : `E ${(draw*100).toFixed(0)}%`;
 
-          // PIE consenso (marcador más probable del top-K) + PIE campeón (pick del líder)
+          // PIE consenso strip (mostLikelyScore del top-K weighted)
           let consScoreStr: string | null = null;
           let consPickLabel = '';
           let consProbPct = '';
-          let champScoreStr: string | null = null;
-          let champPickLabel = '';
-          if (pieResult && !pieResult.degraded && pieResult.leader) {
+          if (pieResult && !pieResult.degraded) {
             const pp = pieResult.pick_probabilities;
             const labelOf = (pk: 'Home' | 'Draw' | 'Away') => pk === 'Home' ? 'L' : pk === 'Away' ? 'V' : 'E';
             const probOf = (pk: 'Home' | 'Draw' | 'Away') => pk === 'Home' ? pp.home : pk === 'Away' ? pp.away : pp.draw;
-            // Consenso del torneo
             if (pieResult.mostLikelyScore)
               consScoreStr = `${pieResult.mostLikelyScore.home}-${pieResult.mostLikelyScore.away}`;
             consPickLabel = labelOf(pieResult.most_probable_pick);
             consProbPct = `${(probOf(pieResult.most_probable_pick) * 100).toFixed(0)}%`;
-            // Campeón (líder del torneo interno)
-            const ld = pieResult.leader;
-            champScoreStr = `${ld.pickScore.home}-${ld.pickScore.away}`;
-            champPickLabel = labelOf(ld.pick);
           }
 
           return (
@@ -1295,18 +1303,11 @@ function TodayFixtureItem({
                   </span>
                 )}
               </div>
-              {pieResult && !pieResult.degraded && pieResult.leader && (
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black text-red-400 tracking-wider">PIE consenso</span>
-                    <span className="text-[10px] font-bold text-white/80 tabular-nums">{consScoreStr ?? '—'}</span>
-                    <span className="text-[9px] font-semibold text-white/50 tabular-nums">{consPickLabel} {consProbPct}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black text-wc-gold-light tracking-wider" title="Pronóstico del campeón de prode">🏆 PIE campeón</span>
-                    <span className="text-[10px] font-black text-wc-gold-light tabular-nums">{champScoreStr ?? '—'}</span>
-                    <span className="text-[9px] font-semibold text-white/50 tabular-nums">{champPickLabel}</span>
-                  </div>
+              {pieResult && !pieResult.degraded && (consScoreStr || consPickLabel) && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black text-red-400 tracking-wider">PIE</span>
+                  <span className="text-[10px] font-bold text-white/80 tabular-nums">{consScoreStr ?? '—'}</span>
+                  <span className="text-[9px] font-semibold text-white/50 tabular-nums">{consPickLabel} {consProbPct}</span>
                 </div>
               )}
             </div>
