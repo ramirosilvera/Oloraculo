@@ -4,48 +4,48 @@ import { FlagImg } from './ui';
 import type { Team, TournamentProjection } from '../types/domain';
 
 // ─── Layout constants ────────────────────────────────────────────────────────
-const CARD_W   = 80;          // px — card width
-const CARD_H   = 38;          // px — card height (2 team rows × 18px + 2px border)
-const SLOT_H   = 46;          // px — slot height (card + top/bottom breathing room)
-const CONN_W   = 22;          // px — SVG connector column width
-const LINE_CLR = '#d1d5db';   // gray-300
+const CARD_W   = 78;          // px — card width
+const CARD_H   = 36;          // px — card height (2 rows × 18px)
+const SLOT_H   = 46;          // px — slot height per R32 match
+const CONN_W   = 18;          // px — SVG connector column width
+const LABEL_H  = 20;          // px — round label row height
+const LINE_CLR = 'rgba(255,255,255,0.3)';
+const TOTAL_H  = 8 * SLOT_H; // 368px — total bracket height (8 R32 slots per side)
 
-// ─── Static bracket order (top → bottom within each round) ──────────────────
-// Each pair of adjacent positions feeds the same next-round match.
-// The FIFA draw has non-sequential R32→R16 connections (e.g. M74 pairs with M77,
-// not with M73 or M75), so ordering must group feeders of the same R16/QF/SF match.
-//
-// Left half (top 8 R32 → top 4 R16 → top 2 QF → SF A):
-//   R32: [73,75] → M90  [74,77] → M89  [76,78] → M91  [79,80] → M92
-//   R16: [90,89] → M97  [91,92] → M98
-//   QF:  [97,99] → M101 (SF A)
-//
-// Right half (bot 8 R32 → bot 4 R16 → bot 2 QF → SF B):
-//   R32: [81,82] → M94  [83,84] → M93  [85,87] → M96  [86,88] → M95
-//   R16: [94,93] → M99  [96,95] → M100
-//   QF:  [98,100] → M102 (SF B)
-const R32_ORDER = [73, 75, 74, 77, 76, 78, 79, 80,  81, 82, 83, 84, 85, 87, 86, 88];
-const R16_ORDER = [90, 89, 91, 92,  94, 93, 96, 95];
-const QF_ORDER  = [97, 99,  98, 100];
-const SF_ORDER  = [101, 102];
+// ─── Butterfly bracket match groups ──────────────────────────────────────────
+// Left half → SF101 → Final; right half → SF102 → Final.
+// Adjacent pairs in each array feed the same next-round match.
+
+// Left half (feeds SF101)
+// R32 pairs: (73,75)→M90  (74,77)→M89  (81,82)→M94  (83,84)→M93
+const LEFT_R32  = [73, 75, 74, 77, 81, 82, 83, 84];
+// R16 pairs: (90,89)→M97  (94,93)→M99
+const LEFT_R16  = [90, 89, 94, 93];
+// QF pair: (97,99)→M101
+const LEFT_QF   = [97, 99];
+const LEFT_SF   = [101];
+
+// Right half (feeds SF102)
+const RIGHT_SF  = [102];
+// QF pair: (98,100)→M102
+const RIGHT_QF  = [98, 100];
+// R16 pairs: (91,92)→M98  (96,95)→M100
+const RIGHT_R16 = [91, 92, 96, 95];
+// R32 pairs: (76,78)→M91  (79,80)→M92  (85,87)→M96  (86,88)→M95
+const RIGHT_R32 = [76, 78, 79, 80, 85, 87, 86, 88];
+
 const FINAL_ID  = 104;
 
-// ─── Slot labels (shown pre-simulation or as tooltip suffix) ─────────────────
-// Official FIFA WC 2026 draw (confirmed from FIFA schedule)
+// ─── Slot labels ─────────────────────────────────────────────────────────────
 const SLOT_LABELS: Record<number, [string, string]> = {
-  // R32 — confirmed pairings
   73: ['2A','2B'],  74: ['1E','T3'],   75: ['1F','2C'],  76: ['1C','2F'],
   77: ['1I','T3'],  78: ['2E','2I'],   79: ['1A','T3'],  80: ['1L','T3'],
   81: ['1D','T3'],  82: ['1G','T3'],   83: ['2K','2L'],  84: ['1H','2J'],
   85: ['1B','T3'],  86: ['1J','2H'],   87: ['1K','T3'],  88: ['2D','2G'],
-  // R16
   89: ['W74','W77'], 90: ['W73','W75'], 91: ['W76','W78'], 92: ['W79','W80'],
   93: ['W83','W84'], 94: ['W81','W82'], 95: ['W86','W88'], 96: ['W85','W87'],
-  // QF
   97: ['W89','W90'], 98: ['W91','W92'], 99: ['W93','W94'], 100: ['W95','W96'],
-  // SF
   101: ['W97','W99'], 102: ['W98','W100'],
-  // Final
   104: ['W101','W102'],
 };
 
@@ -67,13 +67,13 @@ function getSlotTeams(
     .slice(0, 2);
 }
 
-// ─── MiniTeamRow — one team line inside a card ───────────────────────────────
+// ─── MiniTeamRow ─────────────────────────────────────────────────────────────
 function MiniTeamRow({
   teamId, label, winProb, highlighted, teamMap,
 }: {
   teamId?: string;
   label: string;
-  winProb?: number;       // probability of WINNING THE TOURNAMENT (from projection.teams)
+  winProb?: number;
   highlighted: boolean;
   teamMap: Map<string, Team>;
 }) {
@@ -123,7 +123,7 @@ function MiniTeamRow({
   );
 }
 
-// ─── MiniCard — compact match card ───────────────────────────────────────────
+// ─── MiniCard ────────────────────────────────────────────────────────────────
 function MiniCard({
   matchId, slotTeams, projMap, highlightTeamId, teamMap,
 }: {
@@ -164,29 +164,37 @@ function MiniCard({
   );
 }
 
-// ─── ConnectorSvg — L-shaped lines between consecutive rounds ─────────────────
-// Draws `pairs` L-connectors. Each pair occupies 2 × srcSlotH px vertically.
-// Total SVG height = pairs × 2 × srcSlotH.
-function ConnectorSvg({ pairs, srcSlotH }: { pairs: number; srcSlotH: number }) {
-  const h = pairs * 2 * srcSlotH;
+// ─── ConnectorSvg ─────────────────────────────────────────────────────────────
+// Draws `pairs` L-connectors. flipped=true mirrors horizontally (for right half).
+// Each pair occupies 2 × srcSlotH px vertically.
+function ConnectorSvg({
+  pairs, srcSlotH, flipped = false,
+}: {
+  pairs: number;
+  srcSlotH: number;
+  flipped?: boolean;
+}) {
+  const h  = pairs * 2 * srcSlotH;
   const mx = CONN_W / 2;
   return (
-    <svg
-      width={CONN_W}
-      height={h}
-      className="shrink-0"
-      style={{ display: 'block' }}
-    >
+    <svg width={CONN_W} height={h} className="shrink-0" style={{ display: 'block' }}>
       {Array.from({ length: pairs }, (_, i) => {
-        const topY = (i * 2 + 0.5) * srcSlotH;   // centre of top source slot
-        const botY = (i * 2 + 1.5) * srcSlotH;   // centre of bottom source slot
-        const midY = (i * 2 + 1.0) * srcSlotH;   // centre of merged target slot
-        return (
+        const topY = (i * 2 + 0.5) * srcSlotH;
+        const botY = (i * 2 + 1.5) * srcSlotH;
+        const midY = (i * 2 + 1.0) * srcSlotH;
+        return flipped ? (
           <g key={i} stroke={LINE_CLR} strokeWidth={1} fill="none">
-            <line x1={0}   y1={topY} x2={mx}      y2={topY} />  {/* top arm in    */}
-            <line x1={mx}  y1={topY} x2={mx}      y2={botY} />  {/* vertical bar  */}
-            <line x1={0}   y1={botY} x2={mx}      y2={botY} />  {/* bottom arm in */}
-            <line x1={mx}  y1={midY} x2={CONN_W}  y2={midY} />  {/* output arm   */}
+            <line x1={CONN_W} y1={topY} x2={mx}     y2={topY} />
+            <line x1={mx}     y1={topY} x2={mx}     y2={botY} />
+            <line x1={CONN_W} y1={botY} x2={mx}     y2={botY} />
+            <line x1={mx}     y1={midY} x2={0}      y2={midY} />
+          </g>
+        ) : (
+          <g key={i} stroke={LINE_CLR} strokeWidth={1} fill="none">
+            <line x1={0}   y1={topY} x2={mx}     y2={topY} />
+            <line x1={mx}  y1={topY} x2={mx}     y2={botY} />
+            <line x1={0}   y1={botY} x2={mx}     y2={botY} />
+            <line x1={mx}  y1={midY} x2={CONN_W} y2={midY} />
           </g>
         );
       })}
@@ -194,7 +202,30 @@ function ConnectorSvg({ pairs, srcSlotH }: { pairs: number; srcSlotH: number }) 
   );
 }
 
-// ─── RoundColumn — one round's cards aligned in equal-height slots ────────────
+// ─── StraightConnector ────────────────────────────────────────────────────────
+// Horizontal line connecting SF to the center Final card.
+function StraightConnector({ flipped = false }: { flipped?: boolean }) {
+  const midY = TOTAL_H / 2;
+  return (
+    <svg
+      width={CONN_W}
+      height={TOTAL_H}
+      className="shrink-0"
+      style={{ display: 'block', marginTop: LABEL_H }}
+    >
+      <line
+        x1={flipped ? CONN_W : 0}
+        y1={midY}
+        x2={flipped ? 0 : CONN_W}
+        y2={midY}
+        stroke={LINE_CLR}
+        strokeWidth={1}
+      />
+    </svg>
+  );
+}
+
+// ─── RoundColumn ─────────────────────────────────────────────────────────────
 function RoundColumn({
   label, matchIds, slotH, occ, sims, projMap, highlightTeamId, teamMap,
 }: {
@@ -209,14 +240,12 @@ function RoundColumn({
 }) {
   return (
     <div className="shrink-0 flex flex-col" style={{ width: CARD_W }}>
-      {/* Round label */}
       <div
-        className="text-center font-bold text-gray-400 uppercase tracking-widest"
-        style={{ fontSize: 8, marginBottom: 4 }}
+        className="text-center font-bold text-blue-300 uppercase tracking-widest"
+        style={{ fontSize: 8, height: LABEL_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         {label}
       </div>
-      {/* Cards in equal-height slots */}
       {matchIds.map(id => (
         <div
           key={id}
@@ -236,6 +265,51 @@ function RoundColumn({
   );
 }
 
+// ─── FinalCenter ─────────────────────────────────────────────────────────────
+// Center column: trophy icon, label, and Final match card — all vertically centered.
+function FinalCenter({
+  occ, sims, projMap, highlightTeamId, teamMap,
+}: {
+  occ: Record<number, Record<string, number>> | undefined;
+  sims: number;
+  projMap: Map<string, { winTournament: number }>;
+  highlightTeamId?: string;
+  teamMap: Map<string, Team>;
+}) {
+  return (
+    <div
+      className="shrink-0 flex flex-col items-center"
+      style={{ width: CARD_W + 28, height: TOTAL_H + LABEL_H }}
+    >
+      <div style={{ height: LABEL_H }} />
+      <div className="flex-1 flex flex-col items-center justify-center gap-1">
+        <Trophy className="w-5 h-5 text-yellow-400" />
+        <div
+          className="text-center font-bold text-white uppercase tracking-widest leading-tight"
+          style={{ fontSize: 7 }}
+        >
+          Final
+        </div>
+        <div
+          className="text-center leading-tight"
+          style={{ fontSize: 6.5, color: 'rgba(255,255,255,0.55)' }}
+        >
+          19 Jul · MetLife NJ
+        </div>
+        <div className="mt-0.5">
+          <MiniCard
+            matchId={FINAL_ID}
+            slotTeams={getSlotTeams(FINAL_ID, occ, sims)}
+            projMap={projMap}
+            highlightTeamId={highlightTeamId}
+            teamMap={teamMap}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── BracketView ─────────────────────────────────────────────────────────────
 export interface BracketViewProps {
   projection: TournamentProjection | null;
@@ -249,80 +323,96 @@ export function BracketView({ projection, teamMap, highlightTeamId }: BracketVie
   const occ  = projection?.slotOccupancy;
   const sims = projection?.simulations ?? 1;
 
-  // O(1) win-probability lookup
   const projMap = useMemo(
     () => new Map(projection?.teams.map(t => [t.teamId, { winTournament: t.winTournament }]) ?? []),
     [projection],
   );
 
-  // Heights: R32 slot = SLOT_H; each round doubles
-  const totalBracketH = 16 * SLOT_H;   // = 736px
-
   const colProps = { occ, sims, projMap, highlightTeamId, teamMap };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+    <div className="bg-[#0c1a3b] rounded-xl shadow-sm border border-blue-900/50">
       {/* ── Toggle header ── */}
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-5 py-4 text-left"
       >
-        <span className="font-bold text-wc-navy flex items-center gap-2 text-sm">
-          <Trophy className="w-4 h-4 text-wc-gold" />
+        <span className="font-bold text-white flex items-center gap-2 text-sm">
+          <Trophy className="w-4 h-4 text-yellow-400" />
           Bracket del torneo
           {projection && (
-            <span className="font-normal text-gray-400 ml-1" style={{ fontSize: 11 }}>
+            <span className="font-normal text-blue-300 ml-1" style={{ fontSize: 11 }}>
               · {(sims / 1000).toFixed(0)}k sims
             </span>
           )}
           {!projection && (
-            <span className="font-normal text-gray-300 ml-1" style={{ fontSize: 11 }}>
+            <span className="font-normal ml-1" style={{ fontSize: 11, color: 'rgba(147,197,253,0.5)' }}>
               · corré la simulación para ver equipos
             </span>
           )}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-blue-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
       {/* ── Bracket body ── */}
       {open && (
-        <div className="border-t border-gray-100 overflow-x-auto">
+        <div className="border-t border-blue-900/50 overflow-x-auto">
           <div
-            className="flex p-3 gap-0"
-            style={{ minWidth: 'max-content', height: totalBracketH + 32 /* header row */ }}
+            className="flex p-3 gap-0 items-start"
+            style={{ minWidth: 'max-content', height: TOTAL_H + LABEL_H + 24 }}
           >
-            {/* R32 */}
-            <RoundColumn label="R32"     matchIds={R32_ORDER} slotH={SLOT_H * 1}  {...colProps} />
-            {/* R32→R16 connector: 8 pairs, each pair = 2×SLOT_H */}
-            <div style={{ paddingTop: 20 }}>
-              <ConnectorSvg pairs={8} srcSlotH={SLOT_H * 1} />
+            {/* ══ LEFT HALF ══ */}
+
+            {/* R32 left */}
+            <RoundColumn label="16avos" matchIds={LEFT_R32} slotH={SLOT_H}     {...colProps} />
+            <div style={{ paddingTop: LABEL_H }}>
+              <ConnectorSvg pairs={4} srcSlotH={SLOT_H} />
             </div>
 
-            {/* R16 */}
-            <RoundColumn label="R16"     matchIds={R16_ORDER} slotH={SLOT_H * 2}  {...colProps} />
-            {/* R16→QF: 4 pairs */}
-            <div style={{ paddingTop: 20 }}>
-              <ConnectorSvg pairs={4} srcSlotH={SLOT_H * 2} />
+            {/* R16 left */}
+            <RoundColumn label="8avos"  matchIds={LEFT_R16} slotH={SLOT_H * 2} {...colProps} />
+            <div style={{ paddingTop: LABEL_H }}>
+              <ConnectorSvg pairs={2} srcSlotH={SLOT_H * 2} />
             </div>
 
-            {/* QF */}
-            <RoundColumn label="Cuartos" matchIds={QF_ORDER}  slotH={SLOT_H * 4}  {...colProps} />
-            {/* QF→SF: 2 pairs */}
-            <div style={{ paddingTop: 20 }}>
-              <ConnectorSvg pairs={2} srcSlotH={SLOT_H * 4} />
+            {/* QF left */}
+            <RoundColumn label="4tos"   matchIds={LEFT_QF}  slotH={SLOT_H * 4} {...colProps} />
+            <div style={{ paddingTop: LABEL_H }}>
+              <ConnectorSvg pairs={1} srcSlotH={SLOT_H * 4} />
             </div>
 
-            {/* SF */}
-            <RoundColumn label="Semis"   matchIds={SF_ORDER}  slotH={SLOT_H * 8}  {...colProps} />
-            {/* SF→Final: 1 pair */}
-            <div style={{ paddingTop: 20 }}>
-              <ConnectorSvg pairs={1} srcSlotH={SLOT_H * 8} />
+            {/* SF left */}
+            <RoundColumn label="Semis"  matchIds={LEFT_SF}  slotH={SLOT_H * 8} {...colProps} />
+            <StraightConnector />
+
+            {/* ══ CENTER: FINAL ══ */}
+            <FinalCenter {...colProps} />
+
+            {/* ══ RIGHT HALF ══ */}
+
+            {/* SF right */}
+            <StraightConnector flipped />
+            <RoundColumn label="Semis"  matchIds={RIGHT_SF}  slotH={SLOT_H * 8} {...colProps} />
+            <div style={{ paddingTop: LABEL_H }}>
+              <ConnectorSvg pairs={1} srcSlotH={SLOT_H * 4} flipped />
             </div>
 
-            {/* Final */}
-            <RoundColumn label="Final"   matchIds={[FINAL_ID]} slotH={SLOT_H * 16} {...colProps} />
+            {/* QF right */}
+            <RoundColumn label="4tos"   matchIds={RIGHT_QF}  slotH={SLOT_H * 4} {...colProps} />
+            <div style={{ paddingTop: LABEL_H }}>
+              <ConnectorSvg pairs={2} srcSlotH={SLOT_H * 2} flipped />
+            </div>
+
+            {/* R16 right */}
+            <RoundColumn label="8avos"  matchIds={RIGHT_R16} slotH={SLOT_H * 2} {...colProps} />
+            <div style={{ paddingTop: LABEL_H }}>
+              <ConnectorSvg pairs={4} srcSlotH={SLOT_H} flipped />
+            </div>
+
+            {/* R32 right */}
+            <RoundColumn label="16avos" matchIds={RIGHT_R32} slotH={SLOT_H}     {...colProps} />
           </div>
         </div>
       )}
