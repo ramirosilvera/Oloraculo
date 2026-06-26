@@ -280,7 +280,9 @@
     "away_team_id": "united-states",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-26T02:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 2
   },
   {
     "id": "grp:D:paraguay:australia",
@@ -289,7 +291,9 @@
     "away_team_id": "australia",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-26T02:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 1
   },
   {
     "id": "grp:E:germany:curacao",
@@ -350,7 +354,9 @@
     "away_team_id": "germany",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-25T20:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 3
   },
   {
     "id": "grp:E:curacao:ivory-coast",
@@ -359,7 +365,9 @@
     "away_team_id": "ivory-coast",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-25T20:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 2
   },
   {
     "id": "grp:F:netherlands:japan",
@@ -422,7 +430,9 @@
     "kickoff_utc": "2026-06-25T23:00:00Z",
     "venue": "Arrowhead Stadium",
     "city": "Kansas City",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 3
   },
   {
     "id": "grp:F:japan:sweden",
@@ -433,7 +443,9 @@
     "kickoff_utc": "2026-06-25T23:00:00Z",
     "venue": "AT&T Stadium",
     "city": "Arlington",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 2,
+    "away_goals": 0
   },
   {
     "id": "grp:G:belgium:egypt",
@@ -490,7 +502,9 @@
     "away_team_id": "iran",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T03:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 0
   },
   {
     "id": "grp:G:new-zealand:belgium",
@@ -499,7 +513,9 @@
     "away_team_id": "belgium",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T03:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 0
   },
   {
     "id": "grp:H:spain:cape-verde",
@@ -560,7 +576,9 @@
     "away_team_id": "spain",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T00:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 0
   },
   {
     "id": "grp:H:cape-verde:saudi-arabia",
@@ -569,7 +587,9 @@
     "away_team_id": "saudi-arabia",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T00:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 0
   },
   {
     "id": "grp:I:france:senegal",
@@ -628,7 +648,9 @@
     "away_team_id": "france",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-26T19:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 1
   },
   {
     "id": "grp:I:senegal:iraq",
@@ -637,7 +659,9 @@
     "away_team_id": "iraq",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-26T19:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 0
   },
   {
     "id": "grp:J:argentina:algeria",
@@ -698,7 +722,9 @@
     "kickoff_utc": "2026-06-28T02:00:00Z",
     "venue": "AT&T Stadium",
     "city": "Arlington",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 2
   },
   {
     "id": "grp:J:algeria:austria",
@@ -709,7 +735,9 @@
     "kickoff_utc": "2026-06-28T02:00:00Z",
     "venue": "Arrowhead Stadium",
     "city": "Kansas City",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 1
   },
   {
     "id": "grp:K:portugal:congo-dr",
@@ -768,7 +796,9 @@
     "away_team_id": "portugal",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T23:30:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 1,
+    "away_goals": 1
   },
   {
     "id": "grp:K:congo-dr:uzbekistan",
@@ -777,7 +807,9 @@
     "away_team_id": "uzbekistan",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T23:30:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 1,
+    "away_goals": 0
   },
   {
     "id": "grp:L:england:croatia",
@@ -836,7 +868,9 @@
     "away_team_id": "england",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T21:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 2
   },
   {
     "id": "grp:L:croatia:ghana",
@@ -845,6 +879,8 @@
     "away_team_id": "ghana",
     "neutral_venue": true,
     "kickoff_utc": "2026-06-27T21:00:00Z",
-    "is_played": false
+    "is_played": true,
+    "home_goals": 0,
+    "away_goals": 2
   }
 ]

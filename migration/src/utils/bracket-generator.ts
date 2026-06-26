@@ -22,23 +22,31 @@ import {
 // R32 confirmed crossings — official FIFA WC 2026 draw
 // Format: [homeSlot, awaySlot, matchId, kickoffUTC, venue, city]
 // homeSlot/awaySlot: '1X'=winner, '2X'=runner-up, 'T3'=best 3rd (assigned post-groups)
+// Dates match the official FIFA WC 2026 R32 schedule (Argentina local day = UTC-3).
+// Each day has 2-3 matches at 17:00, 20:00, 23:00 UTC (= 14:00, 17:00, 20:00 ART).
 const FIXED_R32_SLOTS = [
-  ['2A', '2B', 'ko:r32:m73', '2026-06-28T23:00:00Z', 'Gillette Stadium',     'Foxborough'    ],
-  ['1E', 'T3', 'ko:r32:m74', '2026-06-29T02:00:00Z', 'AT&T Stadium',         'Arlington'     ],  // T3 from A/B/C/D/F
-  ['1F', '2C', 'ko:r32:m75', '2026-06-29T19:00:00Z', 'Estadio BBVA',         'Monterrey'     ],
-  ['1C', '2F', 'ko:r32:m76', '2026-06-30T02:00:00Z', 'NRG Stadium',          'Houston'       ],
-  ['1I', 'T3', 'ko:r32:m77', '2026-06-30T19:00:00Z', 'Estadio Azteca',       'Ciudad de México'],  // T3 from C/D/F/G/H
-  ['2E', '2I', 'ko:r32:m78', '2026-07-01T02:00:00Z', 'Mercedes-Benz Stadium','Atlanta'       ],
-  ['1A', 'T3', 'ko:r32:m79', '2026-07-01T19:00:00Z', "Levi's Stadium",       'Santa Clara'   ],  // T3 from C/E/F/H/I
-  ['1L', 'T3', 'ko:r32:m80', '2026-07-02T02:00:00Z', 'Lumen Field',          'Seattle'       ],  // T3 from E/H/I/J/K
-  ['1D', 'T3', 'ko:r32:m81', '2026-07-02T19:00:00Z', 'BMO Field',            'Toronto'       ],  // T3 from B/E/F/I/J
-  ['1G', 'T3', 'ko:r32:m82', '2026-07-03T02:00:00Z', 'Hard Rock Stadium',    'Miami Gardens' ],  // T3 from A/E/H/I/J
-  ['2K', '2L', 'ko:r32:m83', '2026-07-03T19:00:00Z', 'Arrowhead Stadium',    'Kansas City'   ],
-  ['1H', '2J', 'ko:r32:m84', '2026-07-04T02:00:00Z', 'SoFi Stadium',         'Inglewood'     ],
-  ['1B', 'T3', 'ko:r32:m85', '2026-07-04T19:00:00Z', 'TBD',                  'TBD'           ],  // T3 from E/F/G/I/J
-  ['1J', '2H', 'ko:r32:m86', '2026-07-05T02:00:00Z', 'TBD',                  'TBD'           ],
-  ['1K', 'T3', 'ko:r32:m87', '2026-07-05T19:00:00Z', 'TBD',                  'TBD'           ],  // T3 from D/E/I/J/L
-  ['2D', '2G', 'ko:r32:m88', '2026-07-06T02:00:00Z', 'TBD',                  'TBD'           ],
+  // Domingo 28 junio
+  ['2A', '2B', 'ko:r32:m73', '2026-06-28T17:00:00Z', 'Gillette Stadium',      'Foxborough'    ],
+  ['1F', '2C', 'ko:r32:m75', '2026-06-28T20:00:00Z', 'Estadio BBVA',          'Monterrey'     ],
+  ['2K', '2L', 'ko:r32:m83', '2026-06-28T23:00:00Z', 'Arrowhead Stadium',     'Kansas City'   ],
+  // Lunes 29 junio
+  ['1E', 'T3', 'ko:r32:m74', '2026-06-29T20:00:00Z', 'AT&T Stadium',          'Arlington'     ],  // T3 from A/B/C/D/F
+  ['1C', '2F', 'ko:r32:m76', '2026-06-29T23:00:00Z', 'NRG Stadium',           'Houston'       ],
+  // Martes 30 junio
+  ['1I', 'T3', 'ko:r32:m77', '2026-06-30T17:00:00Z', 'Estadio Azteca',        'Ciudad de México'],  // T3 from C/D/F/G/H
+  ['2E', '2I', 'ko:r32:m78', '2026-06-30T20:00:00Z', 'Mercedes-Benz Stadium', 'Atlanta'       ],
+  ['1A', 'T3', 'ko:r32:m79', '2026-06-30T23:00:00Z', "Levi's Stadium",        'Santa Clara'   ],  // T3 from C/E/F/H/I
+  // Miércoles 1 julio
+  ['1L', 'T3', 'ko:r32:m80', '2026-07-01T17:00:00Z', 'Lumen Field',           'Seattle'       ],  // T3 from E/H/I/J/K
+  ['1D', 'T3', 'ko:r32:m81', '2026-07-01T20:00:00Z', 'BMO Field',             'Toronto'       ],  // T3 from B/E/F/I/J
+  ['1G', 'T3', 'ko:r32:m82', '2026-07-01T23:00:00Z', 'Hard Rock Stadium',     'Miami Gardens' ],  // T3 from A/E/H/I/J
+  // Jueves 2 julio
+  ['1H', '2J', 'ko:r32:m84', '2026-07-02T20:00:00Z', 'SoFi Stadium',          'Inglewood'     ],
+  ['1B', 'T3', 'ko:r32:m85', '2026-07-02T23:00:00Z', 'TBD',                   'TBD'           ],  // T3 from E/F/G/I/J
+  // Viernes 3 julio
+  ['1J', '2H', 'ko:r32:m86', '2026-07-03T17:00:00Z', 'TBD',                   'TBD'           ],
+  ['1K', 'T3', 'ko:r32:m87', '2026-07-03T20:00:00Z', 'TBD',                   'TBD'           ],  // T3 from D/E/I/J/L
+  ['2D', '2G', 'ko:r32:m88', '2026-07-03T23:00:00Z', 'TBD',                   'TBD'           ],
 ] as const;
 
 // R16 pairings: confirmed from FIFA schedule (source: worldcupkickofftimes.com, wikipedia)
