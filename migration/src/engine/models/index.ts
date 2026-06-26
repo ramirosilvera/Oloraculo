@@ -304,3 +304,5 @@ export { detectDailyPattern, PATTERN_MODIFIERS } from './daily-pattern';
 export { squadStrengthModelPredict, buildSquadStrengthMap } from './squad-strength-model';
 export { tacticalMatchupPredict, buildTacticalMap } from './tactical-matchup-model';
 export type { TacticalProfile, BuildupStyle } from './tactical-matchup-model';
+export { groupPatternPredict } from './group-pattern-model';
+export { eloTournamentPredict } from './elo-tournament-model';

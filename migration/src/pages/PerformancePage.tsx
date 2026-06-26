@@ -24,13 +24,14 @@ import {
 const ALL_MODELS = [
   'Base',
   'Elo',
+  'Elo del Torneo',
   'Forma reciente',
   'Modelo de goles (Poisson)',
   'Potencial del plantel',
   'Goles + contexto reciente',
   'Momentum del Mundial',
+  'Patrón de Grupo',
   'PIE Consenso',
-  'PIE Campeón',
 ];
 
 // Archived models: removed from active ensemble but historical evaluations preserved
@@ -38,6 +39,7 @@ const ARCHIVED_MODELS = [
   'Ranking FIFA',    // L1 — removed: 0.82 correlation with Elo (redundant)
   'Estilo de Juego', // L7 — removed: static profiles, no empirical validation
   'PIE',             // renamed to 'PIE Consenso' — old rows kept for history
+  'PIE Campeón',     // 22% winner — below random, champion archetype bias
 ];
 
 interface ModelStats {

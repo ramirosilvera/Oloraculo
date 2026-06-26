@@ -23,6 +23,8 @@ import {
   goalContextModelPredict,
   GoalModel,
   tournamentMomentumPredict,
+  groupPatternPredict,
+  eloTournamentPredict,
   squadStrengthModelPredict,
   buildSquadStrengthMap,
   buildTacticalMap,
@@ -155,6 +157,103 @@ export class PredictionEngine {
     return Math.max(0.5, Math.min(3.0, +(wcAvgPerTeam / historicalAvg).toFixed(3)));
   }
 
+  private computeGroupContext(
+    fixture: import('../types/domain').Fixture,
+    wcResults: WcActualResult[],
+    allFixtures: Fixture[],
+  ): import('../types/domain').GroupContext | null {
+    if (!fixture.group_name || fixture.id.startsWith('ko:')) return null;
+    const groupFixtures = allFixtures.filter(
+      f => f.group_name === fixture.group_name && !f.id.startsWith('ko:'),
+    );
+    if (groupFixtures.length === 0) return null;
+
+    const sorted = [...groupFixtures].sort(
+      (a, b) => (a.kickoff_utc ?? '').localeCompare(b.kickoff_utc ?? ''),
+    );
+    const fixtureIdx = sorted.findIndex(f => f.id === fixture.id);
+    if (fixtureIdx < 0) return null;
+
+    const matchDay = (fixtureIdx < 2 ? 1 : fixtureIdx < 4 ? 2 : 3) as 1 | 2 | 3;
+
+    const playedMap = new Map<string, WcActualResult>(wcResults.map(r => [r.fixture_id, r]));
+    const teamIds = [...new Set(sorted.flatMap(f => [f.home_team_id, f.away_team_id]))];
+    const pts = new Map<string, number>(teamIds.map(t => [t, 0]));
+    const playedCount = new Map<string, number>(teamIds.map(t => [t, 0]));
+
+    for (const f of sorted) {
+      if (f.id === fixture.id) continue;
+      const r = playedMap.get(f.id);
+      if (!r) continue;
+      playedCount.set(f.home_team_id, (playedCount.get(f.home_team_id) ?? 0) + 1);
+      playedCount.set(f.away_team_id, (playedCount.get(f.away_team_id) ?? 0) + 1);
+      if (r.home_goals > r.away_goals) {
+        pts.set(f.home_team_id, (pts.get(f.home_team_id) ?? 0) + 3);
+      } else if (r.home_goals === r.away_goals) {
+        pts.set(f.home_team_id, (pts.get(f.home_team_id) ?? 0) + 1);
+        pts.set(f.away_team_id, (pts.get(f.away_team_id) ?? 0) + 1);
+      } else {
+        pts.set(f.away_team_id, (pts.get(f.away_team_id) ?? 0) + 3);
+      }
+    }
+
+    const homeId = fixture.home_team_id;
+    const awayId = fixture.away_team_id;
+    const sortedByPts = [...teamIds].sort((a, b) => (pts.get(b) ?? 0) - (pts.get(a) ?? 0));
+    const homePosition = sortedByPts.indexOf(homeId) + 1;
+    const awayPosition = sortedByPts.indexOf(awayId) + 1;
+    const homePoints = pts.get(homeId) ?? 0;
+    const awayPoints = pts.get(awayId) ?? 0;
+    const homePlayed = playedCount.get(homeId) ?? 0;
+    const awayPlayed = playedCount.get(awayId) ?? 0;
+
+    const secondPlacePts = pts.get(sortedByPts[1]) ?? 0;
+    const homeQualified = homePoints >= 6 && homePlayed >= 2;
+    const awayQualified = awayPoints >= 6 && awayPlayed >= 2;
+    const homeIsEliminated = matchDay === 3 && homePosition > 2 && homePoints + 3 < secondPlacePts;
+    const awayIsEliminated = matchDay === 3 && awayPosition > 2 && awayPoints + 3 < secondPlacePts;
+    const bothAdvanceWithDraw = matchDay === 3 && homePosition <= 2 && awayPosition <= 2;
+    const homeMustWin = matchDay >= 2 && homePosition >= 3 && !homeQualified;
+    const awayMustWin = matchDay >= 2 && awayPosition >= 3 && !awayQualified;
+    const isDead = (homeQualified && awayQualified) || (homeIsEliminated && awayIsEliminated);
+
+    return {
+      matchDay, homePosition, awayPosition,
+      homeMustWin, awayMustWin, bothAdvanceWithDraw,
+      homeIsEliminated, awayIsEliminated, isDead,
+    };
+  }
+
+  private computeAllTournamentElos(
+    wcResults: WcActualResult[],
+    allFixtures: Fixture[],
+    ratings: Rating[],
+    K = 32,
+  ): Map<string, number> {
+    const latestElo = new Map<string, number>();
+    const latestDate = new Map<string, string>();
+    for (const r of ratings) {
+      if (r.type !== 'elo') continue;
+      const d = latestDate.get(r.team_id) ?? '';
+      if (r.as_of > d) { latestElo.set(r.team_id, r.value); latestDate.set(r.team_id, r.as_of); }
+    }
+    const tournamentElo = new Map(latestElo);
+    const fixtureMap = new Map(allFixtures.map(f => [f.id, f]));
+    const sorted = [...wcResults].sort((a, b) => a.played_at.localeCompare(b.played_at));
+    for (const r of sorted) {
+      const f = fixtureMap.get(r.fixture_id);
+      if (!f) continue;
+      const hElo = tournamentElo.get(f.home_team_id) ?? 1500;
+      const aElo = tournamentElo.get(f.away_team_id) ?? 1500;
+      const expected = 1 / (1 + Math.pow(10, (aElo - hElo) / 400));
+      const actual = r.home_goals > r.away_goals ? 1 : r.home_goals === r.away_goals ? 0.5 : 0;
+      const delta = K * (actual - expected);
+      tournamentElo.set(f.home_team_id, hElo + delta);
+      tournamentElo.set(f.away_team_id, aElo - delta);
+    }
+    return tournamentElo;
+  }
+
   buildContext(
     fixture: Fixture,
     teams: Map<string, Team>,
@@ -182,6 +281,10 @@ export class PredictionEngine {
     const recentResults = (teamId: string): MatchResult[] =>
       (this.teamResultsMap.get(teamId) ?? []).slice(0, RECENT_RESULT_COUNT);
 
+    const tournamentEloMap = (wcResults && allFixtures && wcResults.length > 0)
+      ? this.computeAllTournamentElos(wcResults, allFixtures, ratings)
+      : null;
+
     return {
       fixture,
       homeTeam,
@@ -205,6 +308,11 @@ export class PredictionEngine {
       // computed in MatchesPage for display (TournamentPace widget) but does not
       // influence L6 predictions.
       dailyPatternSignal: null,
+      groupContext: (wcResults && allFixtures)
+        ? this.computeGroupContext(fixture, wcResults, allFixtures)
+        : null,
+      homeTournamentElo: tournamentEloMap?.get(fixture.home_team_id) ?? null,
+      awayTournamentElo: tournamentEloMap?.get(fixture.away_team_id) ?? null,
     };
   }
 
@@ -215,11 +323,13 @@ export class PredictionEngine {
     const ladder: MatchPrediction[] = [
       nullModelPredict(ctx),
       eloModelPredict(ctx),
+      eloTournamentPredict(ctx),
       recentFormModelPredict(ctx),
       this.goalModel.predict(ctx),
       squadPred,
       goalContextModelPredict(ctx, this.goalModel),
       tournamentMomentumPredict(ctx, this.goalModel),
+      groupPatternPredict(ctx, this.goalModel),
     ];
 
     return {

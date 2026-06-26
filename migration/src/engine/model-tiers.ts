@@ -73,6 +73,20 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     desc: 'L4 + inflación WC + momentum en torneo',
     how: 'Fase 1: escala goles según el ritmo goleador del Mundial actual vs histórico. Fase 2: agrega push de momentum basado en forma dentro del torneo (victorias, goles, bonus por sorpresas). La racha diaria fue desactivada — con la cantidad de partidos por día en grupos, el umbral de 3 días consecutivos raramente confirma.',
   },
+  'Elo del Torneo': {
+    tier: 'L2.5',
+    shortName: 'EloWC',
+    color: 'text-blue-500',
+    desc: 'Elo actualizado partido a partido dentro del torneo',
+    how: 'Toma el Elo pre-torneo de cada equipo y lo ajusta con K=32 tras cada partido del Mundial jugado. Converge en ~4-5 partidos: un equipo que ganó dos partidos importante sube ~60 puntos sobre su rating base.',
+  },
+  'Patrón de Grupo': {
+    tier: 'L6.5',
+    shortName: 'Grupo',
+    color: 'text-emerald-600',
+    desc: 'L4 + inflación WC + contexto de fase de grupos',
+    how: 'Detecta el día de partido (MD1/2/3) y la posición del equipo en el grupo. Si ambos clasifican con empate (MD3), comprime las lambdas hacia el promedio. Si un equipo necesita ganar, aumenta 14% su ataque. En partidos sin consecuencias, reduce la intensidad global. Degradado en knockout.',
+  },
   'Estilo de Juego': {
     tier: 'L7',
     shortName: 'Táctico',

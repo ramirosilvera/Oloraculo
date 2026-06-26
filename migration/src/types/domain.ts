@@ -215,6 +215,18 @@ export interface TournamentFormStats {
   upsetBonus: number;     // cumulative upset-win extra score
 }
 
+export interface GroupContext {
+  matchDay: 1 | 2 | 3;
+  homePosition: number;
+  awayPosition: number;
+  homeMustWin: boolean;
+  awayMustWin: boolean;
+  bothAdvanceWithDraw: boolean;
+  homeIsEliminated: boolean;
+  awayIsEliminated: boolean;
+  isDead: boolean;
+}
+
 export interface MatchContext {
   fixture: Fixture;
   homeTeam: Team;
@@ -230,6 +242,9 @@ export interface MatchContext {
   awayTournamentForm: TournamentFormStats | null;
   tournamentGoalInflation: number | null;
   dailyPatternSignal: DailyPatternSignal | null;
+  groupContext: GroupContext | null;
+  homeTournamentElo: number | null;
+  awayTournamentElo: number | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -14,10 +14,12 @@ const MIN_EVALS_FOR_WEIGHT = 5;
 // Calibrated on WC historical data: Goals/Momentum is the strongest signal,
 // Squad Quality adds market-value grounding, Elo/Form provide stability.
 const STATIC_FALLBACK_WEIGHTS = new Map<string, number>([
-  ['Momentum del Mundial', 0.40],
-  ['Potencial del plantel', 0.20],
-  ['Elo',                  0.25],
-  ['Forma reciente',       0.15],
+  ['Patrón de Grupo',      0.35],
+  ['Momentum del Mundial', 0.30],
+  ['Potencial del plantel',0.15],
+  ['Modelo de goles (Poisson)', 0.10],
+  ['Forma reciente',       0.06],
+  ['Elo del Torneo',       0.04],
 ]);
 
 /**
