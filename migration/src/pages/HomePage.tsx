@@ -23,15 +23,17 @@ import {
 // Escalera de predicción
 // ---------------------------------------------------------------------------
 const ladder: { level: string; model: string; signal: string; color: 'gray' | 'blue' | 'green' | 'gold' | 'red' | 'navy'; pie?: boolean }[] = [
-  { level: 'L0',    model: 'Base',                       signal: 'probabilidad uniforme',                          color: 'gray'  },
-  { level: 'L2',    model: 'Elo',                        signal: 'fortaleza de largo plazo',                       color: 'blue'  },
-  { level: 'L3',    model: 'Forma reciente',              signal: 'resultados de corto plazo',                     color: 'green' },
-  { level: 'L4',    model: 'Goles (Poisson)',             signal: 'marcadores Dixon-Coles, 8 años',                color: 'gold'  },
-  { level: 'L4.5',  model: 'Potencial del plantel',      signal: 'valor de mercado, top-5 ligas',                 color: 'gold'  },
-  { level: 'L5',    model: 'Goles + contexto',           signal: 'disponibilidad de jugadores',                   color: 'red'   },
-  { level: 'L6',    model: 'Momentum del Mundial',       signal: 'inflación WC + momentum en torneo',             color: 'navy'  },
-  { level: 'PIE',   model: 'Prode Intelligence Engine',  signal: '100.000 pronosticadores virtuales · consenso top-K adaptativo · arquetipo Híbrido domina el panel',  color: 'red',  pie: true },
-  { level: 'Final', model: 'Oráculo',                    signal: 'ensemble calibrado por historial',               color: 'navy'  },
+  { level: 'L0',    model: 'Base',                        signal: 'probabilidad uniforme',                                      color: 'gray'  },
+  { level: 'L2',    model: 'Elo',                         signal: 'fortaleza de largo plazo',                                   color: 'blue'  },
+  { level: 'L2.5',  model: 'Elo del Torneo',              signal: 'Elo recalibrado partido a partido en el Mundial · K=32',     color: 'blue'  },
+  { level: 'L3',    model: 'Forma reciente',               signal: 'resultados de corto plazo',                                  color: 'green' },
+  { level: 'L4',    model: 'Modelo de goles (Poisson)',    signal: 'marcadores Dixon-Coles, 8 años',                             color: 'gold'  },
+  { level: 'L4.5',  model: 'Potencial del plantel',       signal: 'valor de mercado, top-5 ligas',                              color: 'gold'  },
+  { level: 'L5',    model: 'Goles + contexto reciente',   signal: 'disponibilidad de jugadores',                                color: 'red'   },
+  { level: 'L6',    model: 'Momentum del Mundial',        signal: 'inflación WC + momentum en torneo',                          color: 'navy'  },
+  { level: 'L6.5',  model: 'Patrón de Grupo',             signal: 'jornada · posición en tabla · escenario táctico',            color: 'navy'  },
+  { level: 'PIE',   model: 'PIE Consenso',                signal: '100.000 pronosticadores virtuales · consenso top-K adaptativo', color: 'red', pie: true },
+  { level: 'Final', model: 'Oráculo',                     signal: 'ensemble calibrado por historial de acierto',                color: 'navy'  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -241,9 +243,6 @@ export function HomePage() {
                     </td>
                     <td className="px-3 py-3 font-semibold text-gray-800">
                       {row.model}
-                      {row.pie && (
-                        <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded">nuevo</span>
-                      )}
                     </td>
                     <td className="px-3 py-3 text-gray-500 hidden sm:table-cell">{row.signal}</td>
                   </tr>

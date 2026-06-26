@@ -27,13 +27,14 @@ function pct(n: number) { return `${(n * 100).toFixed(1)}%`; }
 const ladder = [
   { name: 'L0',   label: 'Base',              signal: 'probabilidad uniforme' },
   { name: 'L2',   label: 'Elo',               signal: 'fortaleza de largo plazo' },
+  { name: 'L2.5', label: 'Elo del Torneo',    signal: 'Elo recalibrado partido a partido dentro del Mundial (K=32)' },
   { name: 'L3',   label: 'Forma reciente',    signal: 'resultados de corto plazo' },
   { name: 'L4',   label: 'Goles',             signal: 'marcadores Poisson' },
   { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5 ligas' },
   { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
   { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
-  { name: 'PIE',  label: 'PIE Consenso',       signal: '100 000 pronosticadores virtuales · consenso top-K adaptativo' },
-  { name: 'PIE',  label: 'PIE Campeón',        signal: 'pronosticador #1 del panel · marcador y dirección propios' },
+  { name: 'L6.5', label: 'Patrón de Grupo',   signal: 'jornada · posición en la tabla · escenario táctico (ambos clasifican, must-win, partido muerto)' },
+  { name: 'PIE',  label: 'PIE Consenso',      signal: '100 000 pronosticadores virtuales · consenso top-K adaptativo' },
 ];
 
 export function OracleLabPage() {
