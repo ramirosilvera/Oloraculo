@@ -34,6 +34,9 @@ export interface Fixture {
   home_goals?: number | null;
   away_goals?: number | null;
   source?: string;
+  // Knockout-only: original slot labels (e.g. "1F", "2C", "T3", "W(ko:r32:m73)")
+  home_slot?: string | null;
+  away_slot?: string | null;
 }
 
 export interface MatchResult {

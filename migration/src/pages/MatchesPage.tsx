@@ -354,7 +354,20 @@ function FixtureRow({
       >
         <FlagImg id={fixture.home_team_id} />
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{homeName}</span>
-        <span className="text-xs text-gray-400 font-medium px-1 shrink-0">vs</span>
+        <div className="flex flex-col items-center shrink-0 px-1">
+          {played ? null : fixture.kickoff_utc && fixture.id.startsWith('ko:') ? (
+            <>
+              <span className="text-[11px] text-gray-400 font-medium tabular-nums leading-tight">
+                {kickoffART(fixture.kickoff_utc)}
+              </span>
+              <span className="text-[9px] text-gray-300 leading-tight">
+                {kickoffShortDate(fixture.kickoff_utc)}
+              </span>
+            </>
+          ) : (
+            <span className="text-xs text-gray-400 font-medium">vs</span>
+          )}
+        </div>
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate text-right">{awayName}</span>
         <FlagImg id={fixture.away_team_id} />
         {played ? (
@@ -1397,10 +1410,36 @@ export function MatchesPage() {
   // Knockout rounds
   const KO_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'FINAL'] as const;
   type KORound = typeof KO_ROUNDS[number];
-  const KO_LABEL: Record<KORound, string> = { R32: 'R32', R16: 'Octavos', QF: 'Cuartos', SF: 'Semis', FINAL: 'Final' };
+  const KO_LABEL: Record<KORound, string> = { R32: '16avos', R16: 'Octavos', QF: 'Cuartos', SF: 'Semis', FINAL: 'Final' };
   const isKoRound = (r: string | null): r is KORound => KO_ROUNDS.includes(r as KORound);
   const knockoutFixtures = useMemo(() => fixtures.filter(f => f.id.startsWith('ko:')), [fixtures]);
   const hasKnockout = knockoutFixtures.length > 0;
+
+  // Track which groups have completed all 6 group-stage matches (MD3 done)
+  const groupCompletedMD3 = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const g of groups) {
+      const gf = fixtures.filter(f => f.group_name === g.name);
+      map.set(g.name, gf.length > 0 && gf.every(f => f.is_played || playedMap.has(f.id)));
+    }
+    return map;
+  }, [groups, fixtures, playedMap]);
+
+  // Given a knockout slot label (e.g. "1F", "2A", "T3", "W(ko:r32:m73)") and a team ID,
+  // return the display name: slot label when the source group isn't done yet.
+  const resolveKoName = useCallback((teamId: string, slot: string | null | undefined, fallback: string): string => {
+    if (!slot) return fallback;
+    // W(…) slots: upstream match not resolved yet
+    if (slot.startsWith('W(')) return slot;
+    // T3 slot: never resolved until bracket activation assigns a specific team
+    if (slot === 'T3') return 'T3';
+    // "1A", "2B" etc: check if source group is done
+    const groupLetter = slot.length >= 2 ? slot[1] : '';
+    if (groupLetter && !groupCompletedMD3.get(groupLetter)) return slot;
+    // Group done: use the actual team name if available
+    if (!teamId) return slot;
+    return teamMap.get(teamId)?.name ?? slot;
+  }, [groupCompletedMD3, teamMap]);
 
   const dailySignal = useMemo(
     () => detectDailyPattern(wcResults ?? [], fixtures, TODAY),
@@ -1599,8 +1638,8 @@ export function MatchesPage() {
     onResultAway: setResultAway,
     onContextSaved: (ctx: FixtureContext) => handleContextSaved(fixture, ctx),
     onRecordLiveResult: (hg: number, ag: number) => recordLiveResult(fixture, hg, ag),
-    homeName: teamMap.get(fixture.home_team_id)?.name ?? fixture.home_team_id,
-    awayName: teamMap.get(fixture.away_team_id)?.name ?? fixture.away_team_id,
+    homeName: resolveKoName(fixture.home_team_id, fixture.home_slot, teamMap.get(fixture.home_team_id)?.name ?? fixture.home_team_id),
+    awayName: resolveKoName(fixture.away_team_id, fixture.away_slot, teamMap.get(fixture.away_team_id)?.name ?? fixture.away_team_id),
     context: contextMap.get(fixture.id) ?? null,
     compact,
     bestModelName: bestWinnerModelName,
@@ -2134,8 +2173,10 @@ export function MatchesPage() {
                         <div className="border-t border-gray-100 divide-y divide-gray-50">
                           {roundFixtures.map(f => {
                             const result = playedMap.get(f.id);
-                            const fHome = teamMap.get(f.home_team_id)?.name ?? f.home_team_id;
-                            const fAway = teamMap.get(f.away_team_id)?.name ?? f.away_team_id;
+                            const fHome = resolveKoName(f.home_team_id, f.home_slot, teamMap.get(f.home_team_id)?.name ?? f.home_team_id);
+                            const fAway = resolveKoName(f.away_team_id, f.away_slot, teamMap.get(f.away_team_id)?.name ?? f.away_team_id);
+                            const homeConfirmed = fHome === (teamMap.get(f.home_team_id)?.name ?? f.home_team_id) && !!f.home_team_id;
+                            const awayConfirmed = fAway === (teamMap.get(f.away_team_id)?.name ?? f.away_team_id) && !!f.away_team_id;
                             const liveG = getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id);
                             const isLive = liveG?.status === 'IN_PLAY' || liveG?.status === 'PAUSED';
                             return (
@@ -2143,36 +2184,40 @@ export function MatchesPage() {
                                 {result ? (
                                   <>
                                     <span className="text-green-500 text-[10px] font-bold shrink-0">✓</span>
-                                    <FlagImg id={f.home_team_id} />
+                                    {homeConfirmed && <FlagImg id={f.home_team_id} />}
                                     <span className="flex-1 text-xs font-semibold text-gray-700 truncate">{fHome}</span>
                                     <span className="text-sm font-black text-wc-navy shrink-0 tabular-nums">{result.home_goals}–{result.away_goals}</span>
                                     <span className="flex-1 text-xs font-semibold text-gray-700 truncate text-right">{fAway}</span>
-                                    <FlagImg id={f.away_team_id} />
+                                    {awayConfirmed && <FlagImg id={f.away_team_id} />}
                                     {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
                                   </>
                                 ) : isLive ? (
                                   <>
                                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
-                                    <FlagImg id={f.home_team_id} />
+                                    {homeConfirmed && <FlagImg id={f.home_team_id} />}
                                     <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{fHome}</span>
                                     <span className="text-sm font-black text-red-600 shrink-0 tabular-nums">
-                                      {liveG.homeGoals ?? 0}–{liveG.awayGoals ?? 0}
-                                      {liveG.minute ? <span className="text-[10px] font-normal text-red-400 ml-0.5">{liveG.minute}'</span> : null}
+                                      {liveG!.homeGoals ?? 0}–{liveG!.awayGoals ?? 0}
+                                      {liveG!.minute ? <span className="text-[10px] font-normal text-red-400 ml-0.5">{liveG!.minute}'</span> : null}
                                     </span>
                                     <span className="flex-1 text-xs font-semibold text-gray-800 truncate text-right">{fAway}</span>
-                                    <FlagImg id={f.away_team_id} />
+                                    {awayConfirmed && <FlagImg id={f.away_team_id} />}
                                   </>
                                 ) : (
                                   <>
                                     <span className="text-gray-300 text-[10px] shrink-0">○</span>
-                                    <FlagImg id={f.home_team_id} />
-                                    <span className="flex-1 text-xs font-medium text-gray-500 truncate">{fHome}</span>
-                                    <span className="text-[11px] text-gray-400 shrink-0 font-medium tabular-nums">
-                                      {f.kickoff_utc ? kickoffART(f.kickoff_utc) : 'vs'}
-                                    </span>
-                                    <span className="flex-1 text-xs font-medium text-gray-500 truncate text-right">{fAway}</span>
-                                    <FlagImg id={f.away_team_id} />
-                                    {f.kickoff_utc && <span className="text-[10px] text-gray-400 shrink-0 ml-1">{kickoffShortDate(f.kickoff_utc)}</span>}
+                                    {homeConfirmed && <FlagImg id={f.home_team_id} />}
+                                    <span className={`flex-1 text-xs truncate ${homeConfirmed ? 'font-medium text-gray-500' : 'font-bold text-gray-400 italic'}`}>{fHome}</span>
+                                    <div className="flex flex-col items-center shrink-0">
+                                      <span className="text-[11px] text-gray-400 font-medium tabular-nums leading-tight">
+                                        {f.kickoff_utc ? kickoffART(f.kickoff_utc) : 'vs'}
+                                      </span>
+                                      {f.kickoff_utc && (
+                                        <span className="text-[9px] text-gray-300 leading-tight">{kickoffShortDate(f.kickoff_utc)}</span>
+                                      )}
+                                    </div>
+                                    <span className={`flex-1 text-xs truncate text-right ${awayConfirmed ? 'font-medium text-gray-500' : 'font-bold text-gray-400 italic'}`}>{fAway}</span>
+                                    {awayConfirmed && <FlagImg id={f.away_team_id} />}
                                   </>
                                 )}
                               </div>
