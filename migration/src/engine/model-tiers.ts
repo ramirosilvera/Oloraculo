@@ -87,6 +87,13 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     desc: 'L4 + inflación WC + contexto de fase de grupos',
     how: 'Detecta el día de partido (MD1/2/3) y la posición del equipo en el grupo. Si ambos clasifican con empate (MD3), comprime las lambdas hacia el promedio. Si un equipo necesita ganar, aumenta 14% su ataque. En partidos sin consecuencias, reduce la intensidad global. Degradado en knockout.',
   },
+  'Fase de Eliminación': {
+    tier: 'L6.8',
+    shortName: 'KO',
+    color: 'text-amber-600',
+    desc: 'L4 + inflación WC + dinámica de fase eliminatoria',
+    how: 'Solo activo en partidos de knockout (R32 a Final). Aplica compresión base de goles (KO históricamente tiene ~15% menos goles que la fase de grupos). La profundidad de ronda comprime más en QF/SF/Final. La asimetría de forma del torneo amplifica el equipo con mejor momentum (sin segunda oportunidad). Mayor rho en Dixon-Coles para reflejar el mayor índice de empates al 90 min en knockout. Degradado en fase de grupos.',
+  },
   'Estilo de Juego': {
     tier: 'L7',
     shortName: 'Táctico',

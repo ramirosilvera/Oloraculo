@@ -306,3 +306,4 @@ export { tacticalMatchupPredict, buildTacticalMap } from './tactical-matchup-mod
 export type { TacticalProfile, BuildupStyle } from './tactical-matchup-model';
 export { groupPatternPredict } from './group-pattern-model';
 export { eloTournamentPredict } from './elo-tournament-model';
+export { knockoutPatternPredict } from './knockout-pattern-model';

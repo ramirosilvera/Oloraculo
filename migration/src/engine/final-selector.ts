@@ -13,13 +13,17 @@ const MIN_EVALS_FOR_WEIGHT = 5;
 // Static fallback ensemble weights (used when Brier history is too sparse).
 // Calibrated on WC historical data: Goals/Momentum is the strongest signal,
 // Squad Quality adds market-value grounding, Elo/Form provide stability.
+// Patrón de Grupo and Fase de Eliminación are mutually exclusive (each degrades
+// when the other is active), so their weights are effectively phase-specific:
+// the active one's weight is renormalized with the remaining models.
 const STATIC_FALLBACK_WEIGHTS = new Map<string, number>([
-  ['Patrón de Grupo',      0.35],
-  ['Momentum del Mundial', 0.30],
-  ['Potencial del plantel',0.15],
-  ['Modelo de goles (Poisson)', 0.10],
-  ['Forma reciente',       0.06],
-  ['Elo del Torneo',       0.04],
+  ['Patrón de Grupo',       0.25],  // group stage only
+  ['Fase de Eliminación',   0.25],  // knockout only
+  ['Momentum del Mundial',  0.22],
+  ['Potencial del plantel', 0.13],
+  ['Modelo de goles (Poisson)', 0.07],
+  ['Forma reciente',        0.05],
+  ['Elo del Torneo',        0.03],
 ]);
 
 /**

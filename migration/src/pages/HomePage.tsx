@@ -32,6 +32,7 @@ const ladder: { level: string; model: string; signal: string; color: 'gray' | 'b
   { level: 'L5',    model: 'Goles + contexto reciente',   signal: 'disponibilidad de jugadores',                                color: 'red'   },
   { level: 'L6',    model: 'Momentum del Mundial',        signal: 'inflación WC + momentum en torneo',                          color: 'navy'  },
   { level: 'L6.5',  model: 'Patrón de Grupo',             signal: 'jornada · posición en tabla · escenario táctico',            color: 'navy'  },
+  { level: 'L6.8',  model: 'Fase de Eliminación',        signal: 'compresión KO + profundidad de ronda + forma diferencial',    color: 'navy'  },
   { level: 'PIE',   model: 'PIE Consenso',                signal: '100.000 pronosticadores virtuales · consenso top-K adaptativo', color: 'red', pie: true },
   { level: 'Final', model: 'Oráculo',                     signal: 'ensemble calibrado por historial de acierto',                color: 'navy'  },
 ];

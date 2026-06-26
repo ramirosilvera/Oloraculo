@@ -34,6 +34,7 @@ const ladder = [
   { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
   { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
   { name: 'L6.5', label: 'Patrón de Grupo',   signal: 'jornada · posición en la tabla · escenario táctico (ambos clasifican, must-win, partido muerto)' },
+  { name: 'L6.8', label: 'Fase de Eliminación', signal: 'compresión KO · profundidad de ronda (R32→Final) · forma diferencial del torneo' },
   { name: 'PIE',  label: 'PIE Consenso',      signal: '100 000 pronosticadores virtuales · consenso top-K adaptativo' },
 ];
 

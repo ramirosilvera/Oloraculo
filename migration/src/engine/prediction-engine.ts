@@ -25,6 +25,7 @@ import {
   tournamentMomentumPredict,
   groupPatternPredict,
   eloTournamentPredict,
+  knockoutPatternPredict,
   squadStrengthModelPredict,
   buildSquadStrengthMap,
   buildTacticalMap,
@@ -330,6 +331,7 @@ export class PredictionEngine {
       goalContextModelPredict(ctx, this.goalModel),
       tournamentMomentumPredict(ctx, this.goalModel),
       groupPatternPredict(ctx, this.goalModel),
+      knockoutPatternPredict(ctx, this.goalModel),
     ];
 
     return {

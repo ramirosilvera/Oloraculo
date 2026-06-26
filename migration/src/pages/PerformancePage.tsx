@@ -31,6 +31,7 @@ const ALL_MODELS = [
   'Goles + contexto reciente',
   'Momentum del Mundial',
   'Patrón de Grupo',
+  'Fase de Eliminación',
   'PIE Consenso',
 ];
 
