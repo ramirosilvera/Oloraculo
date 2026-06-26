@@ -32,7 +32,8 @@ const ladder = [
   { name: 'L4.5', label: 'Plantel',           signal: 'valor de mercado, top-5 ligas' },
   { name: 'L5',   label: 'Contexto',          signal: 'disponibilidad de jugadores' },
   { name: 'L6',   label: 'Momentum',          signal: 'inflación WC + momentum en torneo' },
-  { name: 'PIE',  label: 'PIE',                signal: '100 000 pronosticadores virtuales · consenso top-K adaptativo · marcador del mejor jugador que coincide' },
+  { name: 'PIE',  label: 'PIE Consenso',       signal: '100 000 pronosticadores virtuales · consenso top-K adaptativo' },
+  { name: 'PIE',  label: 'PIE Campeón',        signal: 'pronosticador #1 del panel · marcador y dirección propios' },
 ];
 
 export function OracleLabPage() {
@@ -73,7 +74,7 @@ export function OracleLabPage() {
   const { data: evalsData } = useQuery({ queryKey: ['evaluations'], queryFn: loadEvaluations, staleTime: 60_000 });
   const modelWeights = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
   const pieLooMetrics = useMemo(() => {
-    const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE');
+    const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE Consenso' || e.model_name === 'PIE');
     if (pieEvals.length === 0) return null;
     const winner = { correct: pieEvals.filter(e => e.top_pick_correct).length, total: pieEvals.length };
     const withExact = pieEvals.filter(e => e.exact_score_correct != null);

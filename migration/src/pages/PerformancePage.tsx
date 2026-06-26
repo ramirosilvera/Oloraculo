@@ -29,13 +29,15 @@ const ALL_MODELS = [
   'Potencial del plantel',
   'Goles + contexto reciente',
   'Momentum del Mundial',
-  'PIE',
+  'PIE Consenso',
+  'PIE Campeón',
 ];
 
 // Archived models: removed from active ensemble but historical evaluations preserved
 const ARCHIVED_MODELS = [
-  'Ranking FIFA',   // L1 — removed: 0.82 correlation with Elo (redundant)
+  'Ranking FIFA',    // L1 — removed: 0.82 correlation with Elo (redundant)
   'Estilo de Juego', // L7 — removed: static profiles, no empirical validation
+  'PIE',             // renamed to 'PIE Consenso' — old rows kept for history
 ];
 
 interface ModelStats {
@@ -278,8 +280,8 @@ export function PerformancePage() {
       )}
 
       <p className="text-xs text-gray-400 -mt-2">
-        Recalcular evalúa todos los partidos jugados con los modelos actuales. PIE usa
-        evaluación leave-one-out (sin data leakage): cada partido se predice sin conocer su propio resultado.
+        Recalcular evalúa todos los partidos jugados con los modelos actuales. PIE Consenso y PIE Campeón
+        usan evaluación leave-one-out (sin data leakage): cada partido se predice sin conocer su propio resultado.
       </p>
 
       {/* ------------------------------------------------------------------ */}
@@ -407,7 +409,7 @@ export function PerformancePage() {
                           {tier && (
                             <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>
                           )}
-                          {!tier && row.name === 'PIE' && (
+                          {!tier && (row.name === 'PIE Consenso' || row.name === 'PIE Campeón') && (
                             <span className="ml-1.5 text-[10px] font-black uppercase tracking-widest text-wc-navy">PIE</span>
                           )}
                         </div>

@@ -1353,7 +1353,7 @@ export function MatchesPage() {
   const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
   const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
   const pieLooMetrics = useMemo(() => {
-    const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE');
+    const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE Consenso' || e.model_name === 'PIE');
     if (pieEvals.length === 0) return null;
     const winner = { correct: pieEvals.filter(e => e.top_pick_correct).length, total: pieEvals.length };
     const withExact = pieEvals.filter(e => e.exact_score_correct != null);

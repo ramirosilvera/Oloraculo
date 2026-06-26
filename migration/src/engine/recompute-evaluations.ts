@@ -157,8 +157,10 @@ export async function recomputePIELOO(
           awayWin: pieResult.pick_probabilities.away,
         };
         const act = actual(r.home_goals, r.away_goals);
+
+        // PIE Consenso — weighted top-K consensus
         rows.push({
-          model_name: 'PIE',
+          model_name: 'PIE Consenso',
           fixture_id: fixture.id,
           home_team_id: fixture.home_team_id,
           away_team_id: fixture.away_team_id,
@@ -179,6 +181,38 @@ export async function recomputePIELOO(
           predicted_away_goals: pieResult.mostLikelyScore?.away ?? null,
         });
         fixtureIds.push(r.fixture_id);
+
+        // PIE Campeón — the #1-ranked individual player's personal pick
+        if (pieResult.leader) {
+          const leaderPick = pieResult.leader.pick;
+          // Soft probability: 0.70 for the picked direction, 0.15 for each other
+          const chProbs = {
+            homeWin: leaderPick === 'Home' ? 0.70 : 0.15,
+            draw:    leaderPick === 'Draw' ? 0.70 : 0.15,
+            awayWin: leaderPick === 'Away' ? 0.70 : 0.15,
+          };
+          rows.push({
+            model_name: 'PIE Campeón',
+            fixture_id: fixture.id,
+            home_team_id: fixture.home_team_id,
+            away_team_id: fixture.away_team_id,
+            home_goals: r.home_goals,
+            away_goals: r.away_goals,
+            home_win: chProbs.homeWin,
+            draw: chProbs.draw,
+            away_win: chProbs.awayWin,
+            actual: act,
+            brier_score: brierScore(chProbs, act),
+            ranked_probability_score: rankedProbabilityScore(chProbs, act),
+            log_loss: logLoss(chProbs, act),
+            top_pick_correct: leaderPick === act,
+            exact_score_correct: pieResult.leader.pickScore != null
+              ? pieResult.leader.pickScore.home === r.home_goals && pieResult.leader.pickScore.away === r.away_goals
+              : null,
+            predicted_home_goals: pieResult.leader.pickScore?.home ?? null,
+            predicted_away_goals: pieResult.leader.pickScore?.away ?? null,
+          });
+        }
       }
     }
 
