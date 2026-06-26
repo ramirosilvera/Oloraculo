@@ -327,6 +327,8 @@ interface FixtureRowProps {
   wcResultsForPIE: WcActualResult[];
   pieLooWinner?: { correct: number; total: number } | null;
   pieLooExact?: { correct: number; total: number } | null;
+  modelWeights?: Map<string, number>;
+  modelEvalStats?: Map<string, ModelStats>;
 }
 
 function FixtureRow({
@@ -335,6 +337,7 @@ function FixtureRow({
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
   ratings, allFixtures, wcResultsForPIE, pieLooWinner, pieLooExact,
+  modelWeights, modelEvalStats,
 }: FixtureRowProps) {
   const [selectedModelDetail, setSelectedModelDetail] = useState<MatchPrediction | null>(null);
   const [showPIEDetail, setShowPIEDetail] = useState(false);
@@ -491,17 +494,23 @@ function FixtureRow({
 
               {/* ── Modelos de referencia ───────────────────────────────────────── */}
               {(() => {
+                const hasWeights = modelWeights && modelWeights.size >= 2;
                 const topModels = pred.predictions
                   .filter(p => !p.degraded)
-                  .sort((a, b) => b.predictorPriority - a.predictorPriority)
-                  .slice(0, 4);
+                  .sort((a, b) => {
+                    const wa = modelWeights?.get(a.predictorName) ?? 0;
+                    const wb = modelWeights?.get(b.predictorName) ?? 0;
+                    if (Math.abs(wa - wb) > 0.001) return wb - wa;
+                    return b.predictorPriority - a.predictorPriority;
+                  })
+                  .slice(0, 5);
                 const picks = topModels.map(p => topPick(p.outcome));
                 const allAgree = picks.length >= 2 && picks.every(pk => pk === picks[0]);
                 return (
                   <div className="rounded-xl border border-gray-100 overflow-hidden">
                     <div className="px-3 py-1.5 bg-gray-50/60 border-b border-gray-50 flex items-center gap-2">
                       <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-1">
-                        Modelos de referencia
+                        {hasWeights ? 'Modelos · por peso histórico' : 'Modelos de referencia'}
                       </span>
                       {allAgree && (
                         <span className="text-[10px] font-bold text-emerald-700">
@@ -509,7 +518,7 @@ function FixtureRow({
                         </span>
                       )}
                     </div>
-                    {topModels.map(p => {
+                    {topModels.map((p, idx) => {
                       const pick = topPick(p.outcome);
                       const isBest = p.predictorName === bestModelName;
                       const prob = pick === 'Home' ? p.outcome.homeWin : pick === 'Away' ? p.outcome.awayWin : p.outcome.draw;
@@ -518,22 +527,38 @@ function FixtureRow({
                       const isSelected = selectedModelDetail?.predictorName === p.predictorName;
                       const tierInfo = MODEL_TIERS[p.predictorName];
                       const shortName = tierInfo?.shortName ?? p.predictorName;
+                      const st = modelEvalStats?.get(p.predictorName);
+                      const wt = modelWeights?.get(p.predictorName);
+                      const accBadge = st && st.n >= 5 ? (() => {
+                        const acc = Math.round(st.winnerAcc * 100);
+                        const cls = acc >= 60
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                          : acc >= 45
+                            ? 'text-amber-700 bg-amber-50 border-amber-200'
+                            : 'text-red-600 bg-red-50 border-red-200';
+                        return <span className={`text-[9px] font-bold px-1 py-0 rounded border tabular-nums shrink-0 ${cls}`}>{acc}%</span>;
+                      })() : null;
                       return (
                         <button
                           key={p.predictorName}
                           onClick={() => { setShowPIEDetail(false); setSelectedModelDetail(isSelected ? null : p); }}
-                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left transition-all ${isBest ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-gray-50'} ${isSelected ? 'bg-blue-50/60' : ''}`}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-50 last:border-0 text-left transition-all ${isBest ? 'bg-amber-50/60 hover:bg-amber-50' : idx === 0 && hasWeights ? 'bg-wc-cream/30 hover:bg-wc-cream/50' : 'hover:bg-gray-50'} ${isSelected ? 'bg-blue-50/60' : ''}`}
                         >
                           {isBest
                             ? <span className="text-amber-400 shrink-0 text-[10px]">★</span>
-                            : <span className="w-3 shrink-0" />}
-                          <span className="w-16 font-semibold text-gray-700 truncate shrink-0">{shortName}</span>
+                            : idx === 0 && hasWeights
+                              ? <span className="text-emerald-500 shrink-0 text-[10px]">▲</span>
+                              : <span className="w-3 shrink-0" />}
+                          <span className="font-semibold text-gray-700 truncate shrink-0 max-w-[4rem]">{shortName}</span>
+                          {accBadge}
                           <MiniBar home={p.outcome.homeWin} draw={p.outcome.draw} away={p.outcome.awayWin} />
                           <span className={`font-black tabular-nums text-sm ${pickColor} w-5 text-center shrink-0`}>{pickLabel}</span>
                           <span className="text-gray-400 tabular-nums w-9 text-right shrink-0">{Math.round(prob * 100)}%</span>
-                          {p.mostLikelyScore
-                            ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{p.mostLikelyScore.home}-{p.mostLikelyScore.away}</span>
-                            : <span className="w-7 shrink-0" />}
+                          {wt != null
+                            ? <span className="text-gray-300 tabular-nums text-[9px] w-7 text-right shrink-0">{Math.round(wt * 100)}%w</span>
+                            : p.mostLikelyScore
+                              ? <span className="text-gray-300 tabular-nums text-[10px] w-7 text-right shrink-0">{p.mostLikelyScore.home}-{p.mostLikelyScore.away}</span>
+                              : <span className="w-7 shrink-0" />}
                           <span className="text-gray-300 text-[10px] shrink-0">›</span>
                         </button>
                       );
@@ -675,9 +700,8 @@ function FixtureRow({
 
 // ---------------------------------------------------------------------------
 // modelStats — winner + exact-score accuracy for a single model from history.
-// Used to show track-record badges in the gradient card header.
+// Used to show track-record badges in the gradient card header and model rows.
 // ---------------------------------------------------------------------------
-
 interface ModelStats { winnerAcc: number; exactAcc: number; n: number }
 
 function modelStats(evals: PredictionEvaluation[], modelName: string): ModelStats {
@@ -1352,6 +1376,13 @@ export function MatchesPage() {
   const modelWeights  = useMemo(() => computeModelWeights(evalsData ?? []), [evalsData]);
   const plantelStats  = useMemo(() => modelStats(evalsData ?? [], 'Potencial del plantel'),  [evalsData]);
   const momentumStats = useMemo(() => modelStats(evalsData ?? [], 'Momentum del Mundial'), [evalsData]);
+  const modelEvalStats = useMemo(() => {
+    const map = new Map<string, ModelStats>();
+    for (const e of (evalsData ?? [])) {
+      if (!map.has(e.model_name)) map.set(e.model_name, modelStats(evalsData!, e.model_name));
+    }
+    return map;
+  }, [evalsData]);
   const pieLooMetrics = useMemo(() => {
     const pieEvals = (evalsData ?? []).filter(e => e.model_name === 'PIE Consenso' || e.model_name === 'PIE');
     if (pieEvals.length === 0) return null;
@@ -1664,6 +1695,8 @@ export function MatchesPage() {
     compact,
     bestModelName: bestWinnerModelName,
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
+    modelWeights,
+    modelEvalStats,
     liveMatch: getLiveForFixture(resolvedLiveByKey, fixture.home_team_id, fixture.away_team_id),
     goals: goalsByFixture.get(fixture.id),
     ratings: ratingsList,
