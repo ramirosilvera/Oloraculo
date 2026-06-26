@@ -60,9 +60,16 @@ export function recomputeEvaluations(deps: RecomputeDeps): RecomputeResult {
     const fixture = fixtureById.get(r.fixture_id);
     if (!fixture) { matchesSkipped++; continue; }
 
+    // Only use results available BEFORE this match was played (no data leakage).
+    // This is the statistical-model equivalent of PIE's leave-one-out: models that
+    // use in-tournament signals (form, goal inflation, tournament Elo, group context)
+    // can only see information that would have been available at prediction time.
+    // Using strict < also excludes same-day parallel matches (correct for MD3 pairs).
+    const priorResults = wcResults.filter(x => x.played_at < r.played_at);
+
     // Per-model ladder predictions are independent of the ensemble weighting,
     // so we predict without weights for a clean, deterministic per-model eval.
-    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, wcResults, fixtures);
+    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, priorResults, fixtures);
     const result = engine.predict(ctx);
 
     const built = buildEvaluationRows(result.predictions, fixture, r.home_goals, r.away_goals);
