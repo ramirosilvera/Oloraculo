@@ -119,7 +119,10 @@ export async function saveWcActualResult(
 ): Promise<WcActualResult> {
   const { data, error } = await supabase
     .from('wc_actual_results')
-    .upsert({ ...result, played_at: new Date().toISOString() })
+    .upsert(
+      { ...result, played_at: new Date().toISOString() },
+      { onConflict: 'fixture_id' },
+    )
     .select()
     .single();
   if (error) throw error;
@@ -146,4 +149,109 @@ export async function loadEvaluations(): Promise<PredictionEvaluation[]> {
     .order('predicted_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
+}
+
+/** Bulk insert evaluation rows (used by the recompute / refresh flow). */
+export async function saveEvaluations(
+  evaluations: Omit<PredictionEvaluation, 'id' | 'predicted_at'>[],
+): Promise<void> {
+  if (evaluations.length === 0) return;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('prediction_evaluations')
+    .insert(evaluations.map(e => ({ ...e, predicted_at: now })));
+  if (error) throw error;
+}
+
+/** Delete all evaluation rows for the given fixtures (recompute clears stale rows first). */
+export async function deleteEvaluationsForFixtures(fixtureIds: string[]): Promise<void> {
+  if (fixtureIds.length === 0) return;
+  const { error } = await supabase
+    .from('prediction_evaluations')
+    .delete()
+    .in('fixture_id', fixtureIds);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// App Events — generic signals (e.g. KNOCKOUT_ACTIVATION_REQUESTED)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Match Goals — goal scorer data populated by the update-goal-scorers Edge Fn
+// ---------------------------------------------------------------------------
+
+export interface MatchGoal {
+  id:          number;
+  fixture_id:  string;
+  team_id:     string;
+  player_name: string;
+  minute:      number | null;
+  goal_type:   'normal' | 'penalty' | 'own_goal';
+}
+
+export async function loadAllMatchGoals(): Promise<MatchGoal[]> {
+  const { data, error } = await supabase
+    .from('match_goals')
+    .select('*')
+    .order('fixture_id')
+    .order('minute', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Gemini Analysis — calls the gemini-analysis Edge Function with condensed
+// snapshot data and returns a markdown string.
+// ---------------------------------------------------------------------------
+export interface GeminiCondensedSnapshot {
+  fecha:        string;
+  simulaciones: number;
+  top15: {
+    equipo:    string;
+    grupo:     string;
+    clasifica: number;
+    semis:     number;
+    final:     number;
+    campeon:   number;
+  }[];
+}
+
+export async function callGeminiAnalysis(
+  snapshots: GeminiCondensedSnapshot[],
+): Promise<string> {
+  const res = await fetch('/api/gemini-analysis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snapshots }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+    const parts = [`HTTP ${res.status}`, err.error, err.detail].filter(Boolean);
+    throw new Error(parts.join(' — '));
+  }
+  const data = await res.json() as { analysis?: string };
+  if (typeof data.analysis !== 'string') throw new Error('empty-response');
+  return data.analysis;
+}
+
+export async function writeAppEvent(eventType: string, payload: unknown = {}): Promise<void> {
+  const { error } = await supabase
+    .from('app_events')
+    .insert({ event_type: eventType, payload });
+  if (error) throw error;
+}
+
+export async function checkPendingAppEvent(
+  eventType: string,
+): Promise<{ id: number; payload: unknown; created_at: string } | null> {
+  const { data, error } = await supabase
+    .from('app_events')
+    .select('id, payload, created_at')
+    .eq('event_type', eventType)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return data as { id: number; payload: unknown; created_at: string } | null;
 }

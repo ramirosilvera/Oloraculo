@@ -1,359 +1,463 @@
-import { useQuery } from '@tanstack/react-query';
-import { BarChart2, TrendingDown, CheckCircle2, Zap, AlertTriangle, Info } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Trophy, BarChart2, Target, CheckCircle2, HelpCircle, RefreshCw, Loader2, X } from 'lucide-react';
 import { useAppData } from '../hooks/useAppData';
-import { loadEvaluations } from '../services/supabase-client';
-import type { ModelPerformanceRow, PredictionEvaluation, WcActualResult } from '../types/domain';
 import {
+  loadEvaluations,
+  saveEvaluations,
+  deleteEvaluationsForFixtures,
+} from '../services/supabase-client';
+import { recomputeEvaluations, recomputePIELOO } from '../engine/recompute-evaluations';
+import { MODEL_TIERS } from '../engine/model-tiers';
+import type { PredictionEvaluation } from '../types/domain';
+import {
+  Button,
   Card,
   CardHeader,
-  StatCard,
   Badge,
-  Tooltip,
   SectionTitle,
   SkeletonCard,
   Skeleton,
 } from '../components/ui';
 
-function groupEvaluations(evals: PredictionEvaluation[]): ModelPerformanceRow[] {
+// Active ladder models — shown even if they have no evaluations yet
+const ALL_MODELS = [
+  'Base',
+  'Elo',
+  'Elo del Torneo',
+  'Forma reciente',
+  'Modelo de goles (Poisson)',
+  'Potencial del plantel',
+  'Goles + contexto reciente',
+  'Momentum del Mundial',
+  'Patrón de Grupo',
+  'Fase de Eliminación',
+  'PIE Consenso',
+];
+
+// Archived models: removed from active ensemble but historical evaluations preserved
+const ARCHIVED_MODELS = [
+  'Ranking FIFA',    // L1 — removed: 0.82 correlation with Elo (redundant)
+  'Estilo de Juego', // L7 — removed: static profiles, no empirical validation
+  'PIE',             // renamed to 'PIE Consenso' — old rows kept for history
+  'PIE Campeón',     // 22% winner — below random, champion archetype bias
+];
+
+interface ModelStats {
+  name: string;
+  n: number;
+  winnerCorrect: number;
+  exactCorrect: number | null;
+  exactTotal: number;
+  hasExactData: boolean;
+}
+
+function buildModelStats(evals: PredictionEvaluation[], includeArchived = false): ModelStats[] {
   const byModel = new Map<string, PredictionEvaluation[]>();
   for (const e of evals) {
     const arr = byModel.get(e.model_name) ?? [];
     arr.push(e);
     byModel.set(e.model_name, arr);
   }
-  return [...byModel.entries()].map(([modelName, rows]) => ({
-    modelName,
-    count: rows.length,
-    topPickAccuracy: rows.filter(r => r.top_pick_correct).length / rows.length,
-    avgBrierScore: rows.reduce((s, r) => s + r.brier_score, 0) / rows.length,
-    avgRps: rows.reduce((s, r) => s + r.ranked_probability_score, 0) / rows.length,
-    avgLogLoss: rows.reduce((s, r) => s + r.log_loss, 0) / rows.length,
-  })).sort((a, b) => a.avgBrierScore - b.avgBrierScore);
+
+  const models = includeArchived
+    ? [...ALL_MODELS, ...ARCHIVED_MODELS.filter(a => byModel.has(a))]
+    : ALL_MODELS;
+
+  return models.map(name => {
+    const rows = byModel.get(name) ?? [];
+    if (rows.length === 0) return { name, n: 0, winnerCorrect: 0, exactCorrect: null, exactTotal: 0, hasExactData: false };
+    const winnerCorrect = rows.filter(r => r.top_pick_correct).length;
+    const rowsWithExact = rows.filter(r => r.exact_score_correct != null);
+    const hasExactData = rowsWithExact.length > 0;
+    const exactCorrect = hasExactData ? rowsWithExact.filter(r => r.exact_score_correct).length : null;
+    const exactTotal = rowsWithExact.length;
+    return { name, n: rows.length, winnerCorrect, exactCorrect, exactTotal, hasExactData };
+  });
 }
 
-const WC_HISTORICAL_GOALS_PER_MATCH = 2.50;
-const BASE_BOOST = 0.28;  // keep in sync with tournament-momentum.ts
+function pct(correct: number, total: number): string {
+  if (total === 0) return '—';
+  return `${((correct / total) * 100).toFixed(0)}%`;
+}
 
-// ---------------------------------------------------------------------------
-// CalibrationCard — analyzes actual WC results vs model predictions
-// to show if BOOST needs tuning
-// ---------------------------------------------------------------------------
-function CalibrationCard({ evals, wcResults }: { evals: PredictionEvaluation[]; wcResults: WcActualResult[] }) {
-  if (evals.length < 3) {
-    return (
-      <div className="p-5 text-center text-gray-400 text-sm">
-        Necesitás al menos 3 resultados evaluados para ver la calibración.
-      </div>
-    );
-  }
-
-  const n = evals.length;
-
-  // Actual WC goals
-  const totalActualGoals = wcResults.reduce((s, r) => s + r.home_goals + r.away_goals, 0);
-  const evalTotalGoals = evals.reduce((s, e) => s + e.home_goals + e.away_goals, 0);
-  const evalN = wcResults.length > 0 ? wcResults.length : n;
-  const actualGoalsPerMatch = wcResults.length > 0
-    ? totalActualGoals / wcResults.length
-    : evalTotalGoals / n;
-  const inflationFactor = actualGoalsPerMatch / WC_HISTORICAL_GOALS_PER_MATCH;
-
-  // Draw calibration
-  const actualDrawRate = evals.filter(e => e.actual === 'Draw').length / n;
-  const avgModelDrawProb = evals.reduce((s, e) => s + e.draw, 0) / n;
-  const drawBias = actualDrawRate - avgModelDrawProb;
-
-  // Goal margin calibration
-  const avgActualMargin = evals.reduce((s, e) => s + Math.abs(e.home_goals - e.away_goals), 0) / n;
-
-  // Dynamic boost (mirror of tournament-momentum.ts logic)
-  const currentDynamicBoost = Math.min(0.88, Math.max(0.28, BASE_BOOST * Math.sqrt(inflationFactor)));
-
-  // BOOST recommendation
-  let boostSignal: 'ok' | 'high' | 'low' = 'ok';
-  let boostMessage = '';
-  if (drawBias > 0.06) {
-    boostSignal = 'high';
-    boostMessage = `El modelo predice muy pocos empates (${(avgModelDrawProb * 100).toFixed(1)}%) vs los reales (${(actualDrawRate * 100).toFixed(1)}%). El momentum es demasiado agresivo.`;
-  } else if (drawBias < -0.06) {
-    boostSignal = 'low';
-    boostMessage = `El modelo predice demasiados empates (${(avgModelDrawProb * 100).toFixed(1)}%) vs los reales (${(actualDrawRate * 100).toFixed(1)}%). El momentum es muy conservador.`;
-  } else {
-    boostMessage = `Tasa de empates calibrada: real ${(actualDrawRate * 100).toFixed(1)}% vs modelo ${(avgModelDrawProb * 100).toFixed(1)}%.`;
-  }
-
-  const rows = [
-    {
-      label: 'Goles por partido (WC2026)',
-      value: actualGoalsPerMatch.toFixed(2),
-      sub: `${evalN} partidos · histórico 2.50`,
-      highlight: inflationFactor >= 1.3 ? 'text-orange-600' : inflationFactor <= 0.9 ? 'text-blue-600' : 'text-gray-800',
-    },
-    {
-      label: 'Factor de inflación',
-      value: `×${inflationFactor.toFixed(2)}`,
-      sub: inflationFactor >= 1.5 ? '🔥 Mundial muy goleador' : inflationFactor >= 1.15 ? '⚡ Ritmo alto' : inflationFactor >= 0.9 ? '📊 Ritmo histórico' : '🧱 Ritmo defensivo',
-      highlight: inflationFactor >= 1.3 ? 'text-orange-600' : 'text-gray-800',
-    },
-    {
-      label: 'Margen goleador promedio',
-      value: avgActualMargin.toFixed(2),
-      sub: '|goles local − goles visitante| real',
-      highlight: 'text-gray-800',
-    },
-    {
-      label: 'Empates reales vs predichos',
-      value: `${(actualDrawRate * 100).toFixed(1)}% vs ${(avgModelDrawProb * 100).toFixed(1)}%`,
-      sub: drawBias > 0.06 ? '↑ modelo subestima empates' : drawBias < -0.06 ? '↓ modelo sobrestima empates' : '✓ calibrado',
-      highlight: Math.abs(drawBias) > 0.06 ? 'text-amber-600' : 'text-green-700',
-    },
-    {
-      label: 'Boost dinámico actual (L6)',
-      value: `×${currentDynamicBoost.toFixed(2)}`,
-      sub: `BASE(${BASE_BOOST}) × √inflación(${inflationFactor.toFixed(2)})`,
-      highlight: 'text-wc-navy',
-    },
-  ];
-
+function WinnerBar({ correct, total }: { correct: number; total: number }) {
+  if (total === 0) return <span className="text-gray-300 text-sm">—</span>;
+  const p = correct / total;
+  const color = p >= 0.6 ? 'bg-green-500' : p >= 0.4 ? 'bg-amber-400' : 'bg-red-400';
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {rows.map(r => (
-          <div key={r.label} className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold mb-1">{r.label}</p>
-            <p className={`text-xl font-black tabular-nums ${r.highlight}`}>{r.value}</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">{r.sub}</p>
-          </div>
-        ))}
+    <div className="flex items-center gap-2">
+      <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${p * 100}%` }} />
       </div>
-
-      <div className={`flex items-start gap-3 p-4 rounded-xl ${
-        boostSignal === 'high' ? 'bg-amber-50 border border-amber-200' :
-        boostSignal === 'low' ? 'bg-blue-50 border border-blue-200' :
-        'bg-green-50 border border-green-200'
-      }`}>
-        {boostSignal === 'ok'
-          ? <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-          : <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-        }
-        <div>
-          <p className={`font-bold text-sm ${boostSignal === 'ok' ? 'text-green-700' : 'text-amber-700'}`}>
-            {boostSignal === 'ok' ? 'Momentum bien calibrado' : boostSignal === 'high' ? 'Momentum demasiado agresivo' : 'Momentum muy conservador'}
-          </p>
-          <p className="text-xs text-gray-600 mt-0.5">{boostMessage}</p>
-          {boostSignal !== 'ok' && n >= 5 && (
-            <p className="text-xs text-gray-500 mt-1">
-              Boost recomendado: ≈ ×{Math.min(0.88, Math.max(0.28, currentDynamicBoost * (avgModelDrawProb / Math.max(0.01, actualDrawRate)))).toFixed(2)}
-              {' '}(ajuste manual en <code className="bg-gray-100 px-1 rounded">tournament-momentum.ts → BASE_BOOST</code>)
-            </p>
-          )}
-        </div>
-      </div>
+      <span className={`text-sm font-bold tabular-nums ${p >= 0.6 ? 'text-green-700' : p >= 0.4 ? 'text-amber-600' : 'text-red-600'}`}>
+        {correct}/{total}
+      </span>
+      <span className="text-xs text-gray-400">{pct(correct, total)}</span>
     </div>
   );
 }
 
-function ScoreCell({ value, low = false }: { value: number; low?: boolean }) {
-  const color = low
-    ? value < 0.2 ? 'text-green-700' : value < 0.3 ? 'text-amber-600' : 'text-red-600'
-    : value > 0.7 ? 'text-green-700' : value > 0.5 ? 'text-amber-600' : 'text-red-600';
-  return <span className={`font-semibold tabular-nums ${color}`}>{value.toFixed(3)}</span>;
-}
-
 export function PerformancePage() {
-  const { teamMap, wcResults } = useAppData();
+  const { teamMap, wcResults, engine, fixtures, ratingsList, contextMap, squadStrengthData } = useAppData();
+  const qc = useQueryClient();
   const { data: evals, isLoading } = useQuery({
     queryKey: ['evaluations'],
     queryFn: loadEvaluations,
   });
 
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [progress, setProgress] = useState<{ phase: string; current: number; total: number } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  // Must be before any early return (React Rules of Hooks)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const stats = buildModelStats(evals ?? [], showArchived);
+  const selectedEvals = useMemo(() => {
+    if (!selectedModel || !evals) return [];
+    const hasExact = stats.find(s => s.name === selectedModel)?.hasExactData ?? false;
+    return evals
+      .filter(e => e.model_name === selectedModel)
+      .sort((a, b) => {
+        const winnerDiff = Number(b.top_pick_correct) - Number(a.top_pick_correct);
+        if (winnerDiff !== 0) return winnerDiff;
+        if (hasExact) return Number(b.exact_score_correct ?? false) - Number(a.exact_score_correct ?? false);
+        return 0;
+      });
+  }, [selectedModel, evals, stats]);
+
+  // Must be before any early return (React Rules of Hooks)
+  const validFixtureIds = useMemo(() => new Set(fixtures.map(f => f.id)), [fixtures]);
+  const totalMatches = useMemo(
+    () => wcResults.filter(r => validFixtureIds.has(r.fixture_id)).length,
+    [wcResults, validFixtureIds],
+  );
+
+  async function handleRecompute() {
+    if (!engine) {
+      setRecomputeMsg({ kind: 'err', text: 'El motor todavía se está cargando. Probá de nuevo en unos segundos.' });
+      return;
+    }
+    setRecomputing(true);
+    setRecomputeMsg(null);
+    setProgress(null);
+    try {
+      const deps = { engine, fixtures, teamMap, ratingsList, contextMap, wcResults, squadStrengthData };
+
+      // Phase 1 — statistical models (sync, fast)
+      setProgress({ phase: 'Modelos estadísticos', current: 0, total: wcResults.length });
+      const { rows: modelRows, fixtureIds, matchesProcessed, matchesSkipped } = recomputeEvaluations(deps);
+      if (matchesProcessed === 0) {
+        setRecomputeMsg({ kind: 'err', text: 'No hay partidos jugados para evaluar todavía.' });
+        return;
+      }
+      setProgress({ phase: 'Modelos estadísticos', current: wcResults.length, total: wcResults.length });
+
+      // Phase 2 — PIE leave-one-out (async, shows per-match progress)
+      const { rows: pieRows, fixtureIds: pieFixtureIds } = await recomputePIELOO(
+        deps,
+        ({ current, total }) => setProgress({
+          phase: 'PIE · leave-one-out',
+          current,
+          total,
+        }),
+      );
+
+      // Combine and persist
+      const allRows = [...modelRows, ...pieRows];
+      const allFixtureIds = [...new Set([...fixtureIds, ...pieFixtureIds])];
+
+      await deleteEvaluationsForFixtures(allFixtureIds);
+      await saveEvaluations(allRows);
+      await qc.invalidateQueries({ queryKey: ['evaluations'] });
+
+      const skip = matchesSkipped > 0 ? ` · ${matchesSkipped} omitido${matchesSkipped !== 1 ? 's' : ''}` : '';
+      setRecomputeMsg({
+        kind: 'ok',
+        text: `Recalculado: ${matchesProcessed} partido${matchesProcessed !== 1 ? 's' : ''}, ${allRows.length} evaluaciones${skip}.`,
+      });
+    } catch (e) {
+      setRecomputeMsg({ kind: 'err', text: `Error al recalcular: ${String(e)}` });
+    } finally {
+      setRecomputing(false);
+      setProgress(null);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <SectionTitle sub="Cargando evaluaciones…">Rendimiento del Modelo</SectionTitle>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+        <SectionTitle sub="Cargando evaluaciones…">Rendimiento</SectionTitle>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard />
         </div>
         <Card>
           <CardHeader><Skeleton className="h-4 w-40" /></CardHeader>
           <div className="p-5 space-y-3">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+            {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
           </div>
         </Card>
       </div>
     );
   }
 
-  if (!evals || evals.length === 0) {
-    return (
-      <div className="space-y-6">
-        <SectionTitle sub="Precisión de los modelos comparada con resultados reales.">
-          Rendimiento del Modelo
-        </SectionTitle>
-        <Card className="p-10 text-center">
-          <BarChart2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Aún no hay evaluaciones disponibles.</p>
-          <p className="text-sm text-gray-400 mt-1">
-            Registrá resultados reales en la página de <strong>Partidos</strong> para ver las métricas.
-          </p>
-        </Card>
-      </div>
-    );
-  }
+  const hasData = evals && evals.length > 0;
+  const totalEvals = evals?.length ?? 0;
+  const hasExactData = stats.some(s => s.hasExactData);
 
-  const rows = groupEvaluations(evals);
+  // Best model by absolute count of correct winner picks (min 3 evals).
+  const bestWinnerModel: string | null = stats
+    .filter(s => s.n >= 3)
+    .sort((a, b) => b.winnerCorrect - a.winnerCorrect)
+    [0]?.name ?? null;
 
-  const totalPreds = evals.length;
-  const avgBrier = evals.reduce((s, e) => s + e.brier_score, 0) / evals.length;
-  const avgRps = evals.reduce((s, e) => s + e.ranked_probability_score, 0) / evals.length;
-  const accuracy = evals.filter(e => e.top_pick_correct).length / evals.length;
+  // Best model by exact score accuracy (min 5 evals with exact data, at least 1 correct)
+  const exactEligible = stats.filter(
+    s => s.hasExactData && s.exactCorrect !== null && s.n >= 5 && s.exactCorrect > 0
+  );
+  const bestExactModel: string | null = exactEligible.length === 0
+    ? null
+    : exactEligible.sort((a, b) => (b.exactCorrect! / b.n) - (a.exactCorrect! / a.n))[0].name;
+
+  // Summary totals across all models
+  const overallWinner = hasData ? evals!.filter(e => e.top_pick_correct).length : 0;
+  const overallN = totalEvals;
+
+  const handleModelClick = (name: string) =>
+    setSelectedModel(prev => (prev === name ? null : name));
+  const selectedModelStats = selectedModel ? stats.find(s => s.name === selectedModel) ?? null : null;
 
   return (
     <div className="space-y-6">
-      <SectionTitle sub={`Precisión de los modelos comparada con ${evals.length} resultado${evals.length !== 1 ? 's' : ''} real${evals.length !== 1 ? 'es' : ''}.`}>
-        Rendimiento del Modelo
-      </SectionTitle>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard
-          label="Total predicciones"
-          value={totalPreds}
-          icon={<BarChart2 className="w-5 h-5" />}
-        />
-        <StatCard
-          label="Brier Score prom."
-          value={avgBrier.toFixed(3)}
-          icon={<TrendingDown className="w-5 h-5" />}
-          color={avgBrier < 0.2 ? 'text-green-600' : avgBrier < 0.3 ? 'text-amber-600' : 'text-wc-red'}
-        />
-        <StatCard
-          label="RPS promedio"
-          value={avgRps.toFixed(3)}
-          icon={<TrendingDown className="w-5 h-5" />}
-          color={avgRps < 0.2 ? 'text-green-600' : avgRps < 0.3 ? 'text-amber-600' : 'text-wc-red'}
-        />
-        <StatCard
-          label="Accuracy (top pick)"
-          value={`${(accuracy * 100).toFixed(1)}%`}
-          icon={<CheckCircle2 className="w-5 h-5" />}
-          color={accuracy > 0.6 ? 'text-green-600' : accuracy > 0.45 ? 'text-amber-600' : 'text-wc-red'}
-        />
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <SectionTitle sub={`Comparación de modelos · ${totalMatches} partido${totalMatches !== 1 ? 's' : ''} jugado${totalMatches !== 1 ? 's' : ''}`}>
+          Rendimiento
+        </SectionTitle>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleRecompute}
+          disabled={recomputing || !engine || totalMatches === 0}
+          className="shrink-0"
+        >
+          {recomputing
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> {progress?.phase ?? 'Iniciando…'}</>
+            : <><RefreshCw className="w-4 h-4" /> Recalcular evaluaciones</>}
+        </Button>
       </div>
 
+      {/* Progress bar — shown during recompute */}
+      {recomputing && progress && (
+        <div className="rounded-xl border border-wc-navy/10 bg-wc-navy/3 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-wc-navy">{progress.phase}</span>
+            <span className="text-xs tabular-nums text-gray-400">
+              {progress.current}/{progress.total}
+            </span>
+          </div>
+          <div className="h-2 bg-wc-navy/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-wc-navy rounded-full transition-all duration-100"
+              style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+            />
+          </div>
+          {progress.phase === 'PIE · leave-one-out' && (
+            <p className="text-[10px] text-gray-400">
+              Evaluando sin data leakage — cada partido se predice sin conocer su propio resultado.
+            </p>
+          )}
+        </div>
+      )}
+
+      {recomputeMsg && (
+        <div className={`flex items-start gap-2 p-3 rounded-xl text-sm border ${
+          recomputeMsg.kind === 'ok'
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          {recomputeMsg.kind === 'ok'
+            ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+            : <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+          <span>{recomputeMsg.text}</span>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 -mt-2">
+        Recalcular evalúa todos los partidos jugados con los modelos actuales. PIE Consenso y PIE Campeón
+        usan evaluación leave-one-out (sin data leakage): cada partido se predice sin conocer su propio resultado.
+      </p>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Summary chips                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-wc-navy/10 rounded-xl flex items-center justify-center shrink-0">
+            <BarChart2 className="w-5 h-5 text-wc-navy" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-wc-navy tabular-nums">{totalMatches}</p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Partidos</p>
+          </div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-green-700 tabular-nums">
+              {overallN > 0 ? `${((overallWinner / overallN) * 100).toFixed(0)}%` : '—'}
+            </p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Ganador (prom.)</p>
+          </div>
+        </div>
+        {/* Award 1: best winner/draw accuracy */}
+        <div className="bg-white border border-amber-100 rounded-2xl p-3 flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+            <Trophy className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-amber-700 truncate">
+              {bestWinnerModel ?? '—'}
+            </p>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">
+              Mejor Ganador
+            </p>
+          </div>
+        </div>
+        {/* Award 2: best exact score accuracy */}
+        <div className="bg-white border border-teal-100 rounded-2xl p-3 flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-teal-50 rounded-xl flex items-center justify-center shrink-0">
+            <Target className="w-4 h-4 text-teal-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-teal-700 truncate">
+              {bestExactModel ?? (hasExactData ? '—' : 'Sin datos')}
+            </p>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">
+              Mejor Exacto
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Model comparison table                                               */}
+      {/* ------------------------------------------------------------------ */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-wc-gold" />
-            <p className="font-semibold text-wc-navy">Calibración del Momentum (L6)</p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-wc-navy" />
+              <span className="font-semibold text-wc-navy text-sm">Comparación de modelos</span>
+            </div>
+            <button
+              onClick={() => setShowArchived(v => !v)}
+              className="text-[10px] font-semibold text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1 transition-colors shrink-0"
+            >
+              {showArchived ? 'Ocultar archivados' : 'Ver archivados'}
+            </button>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            Analiza si el boost de momentum está bien ajustado comparando empates reales vs predichos.
+            Aciertos de ganador (Local / Empate / Visitante) y marcador exacto por modelo.
           </p>
         </CardHeader>
-        <div className="p-4">
-          <CalibrationCard evals={evals} wcResults={wcResults} />
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <p className="font-semibold text-wc-navy">Métricas por modelo</p>
-          <p className="text-xs text-gray-400 mt-0.5">Brier Score y LogLoss: menor = mejor · Aciertos: mayor = mejor</p>
-        </CardHeader>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
               <tr>
-                <th className="text-left px-5 py-3 font-semibold">Modelo</th>
-                <th className="text-right px-4 py-3 font-semibold">N</th>
-                <th className="text-right px-4 py-3 font-semibold">Aciertos</th>
-                <th className="text-right px-4 py-3 font-semibold">
-                  <Tooltip text="Mide la calibración: diferencia al cuadrado entre prob. asignada y resultado. Rango 0–2, menor es mejor.">
-                    <span className="underline decoration-dotted cursor-help">Brier ↓</span>
-                  </Tooltip>
-                </th>
-                <th className="text-right px-4 py-3 font-semibold hidden sm:table-cell">
-                  <Tooltip text="Ranked Probability Score: penaliza errores de forma ordenada. Menor es mejor.">
-                    <span className="underline decoration-dotted cursor-help">RPS ↓</span>
-                  </Tooltip>
-                </th>
-                <th className="text-right px-5 py-3 font-semibold hidden sm:table-cell">
-                  <Tooltip text="Log Loss: penaliza fuertemente las probabilidades bajas asignadas al resultado correcto. Menor es mejor.">
-                    <span className="underline decoration-dotted cursor-help">LogLoss ↓</span>
-                  </Tooltip>
+                <th className="text-left px-5 py-3 font-semibold sticky left-0 bg-gray-50">Modelo</th>
+                <th className="text-center px-4 py-3 font-semibold whitespace-nowrap">Partidos</th>
+                <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Ganador ✓</th>
+                <th className="text-center px-4 py-3 font-semibold whitespace-nowrap">
+                  <span className="flex items-center gap-1 justify-center">
+                    Marcador exacto
+                    {!hasExactData && (
+                      <HelpCircle className="w-3 h-3 text-gray-300" />
+                    )}
+                  </span>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((row, i) => (
-                <tr key={row.modelName} className={`hover:bg-wc-cream/30 transition-colors ${i === 0 ? 'bg-green-50/40' : ''}`}>
-                  <td className="px-5 py-3 font-semibold text-gray-800 flex items-center gap-1.5">
-                    {i === 0 && <span className="text-amber-500">★</span>}
-                    {row.modelName}
-                    {i === 0 && <Badge color="green">mejor</Badge>}
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{row.count}</td>
-                  <td className="px-4 py-3 text-right"><ScoreCell value={row.topPickAccuracy} /></td>
-                  <td className="px-4 py-3 text-right"><ScoreCell value={row.avgBrierScore} low /></td>
-                  <td className="px-4 py-3 text-right hidden sm:table-cell"><ScoreCell value={row.avgRps} low /></td>
-                  <td className="px-5 py-3 text-right hidden sm:table-cell"><ScoreCell value={row.avgLogLoss} low /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <p className="font-semibold text-wc-navy">Detalle por partido</p>
-        </CardHeader>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-5 py-3 font-semibold">Partido</th>
-                <th className="text-left px-4 py-3 font-semibold">Resultado</th>
-                <th className="text-left px-4 py-3 font-semibold">Modelo</th>
-                <th className="text-right px-4 py-3 font-semibold">Prob. ganador</th>
-                <th className="text-right px-4 py-3 font-semibold">
-                  <Tooltip text="Brier Score: menor es mejor (rango 0–2).">
-                    <span className="underline decoration-dotted cursor-help">Brier</span>
-                  </Tooltip>
-                </th>
-                <th className="text-right px-4 py-3 font-semibold hidden sm:table-cell">
-                  <Tooltip text="Ranked Probability Score: menor es mejor.">
-                    <span className="underline decoration-dotted cursor-help">RPS</span>
-                  </Tooltip>
-                </th>
-                <th className="text-right px-5 py-3 font-semibold hidden sm:table-cell">
-                  <Tooltip text="Log Loss: penaliza probabilidades bajas al resultado correcto.">
-                    <span className="underline decoration-dotted cursor-help">LogLoss</span>
-                  </Tooltip>
-                </th>
-                <th className="text-center px-4 py-3 font-semibold">Top ✓</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {evals.map(e => {
-                const home = teamMap.get(e.home_team_id)?.name ?? e.home_team_id;
-                const away = teamMap.get(e.away_team_id)?.name ?? e.away_team_id;
-                const winProb = e.actual === 'Home' ? e.home_win : e.actual === 'Away' ? e.away_win : e.draw;
+              {stats.map(row => {
+                const tier = MODEL_TIERS[row.name];
+                const isArchived   = ARCHIVED_MODELS.includes(row.name);
+                const isWinnerBest = !isArchived && row.name === bestWinnerModel;
+                const isExactBest  = !isArchived && row.name === bestExactModel;
+                const isSelected   = row.name === selectedModel;
+                const awardBg = isWinnerBest && isExactBest ? 'bg-amber-50/40'
+                  : isWinnerBest ? 'bg-amber-50/60'
+                  : isExactBest  ? 'bg-teal-50/60'
+                  : isArchived   ? 'bg-gray-50/80'
+                  : '';
+                const rowBg = isSelected
+                  ? `ring-2 ring-inset ring-wc-navy/25 ${awardBg || 'bg-wc-navy/5'}`
+                  : awardBg || 'hover:bg-wc-cream/30';
+                const cellBg = isSelected
+                  ? (awardBg || 'bg-wc-navy/5')
+                  : (awardBg || 'bg-white');
                 return (
-                  <tr key={e.id} className="hover:bg-wc-cream/30 transition-colors">
-                    <td className="px-5 py-2.5 text-gray-800 font-medium whitespace-nowrap">{home} vs {away}</td>
-                    <td className="px-4 py-2.5 text-gray-600 font-semibold tabular-nums">{e.home_goals}–{e.away_goals}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge color="navy">{e.model_name}</Badge>
+                  <tr
+                    key={row.name}
+                    onClick={() => handleModelClick(row.name)}
+                    className={`transition-colors cursor-pointer ${rowBg} ${isArchived ? 'opacity-60' : ''}`}
+                  >
+                    <td className={`px-5 py-3 sticky left-0 ${cellBg}`}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isWinnerBest && <span className="text-amber-500 text-base leading-none">★</span>}
+                        {isExactBest  && <span className="text-teal-500 text-base leading-none">🎯</span>}
+                        <div>
+                          <span className={`font-semibold ${isArchived ? 'text-gray-400' : 'text-gray-800'}`}>{row.name}</span>
+                          {tier && (
+                            <span className="ml-1.5 text-xs text-gray-400 font-mono">{tier.tier}</span>
+                          )}
+                          {!tier && (row.name === 'PIE Consenso' || row.name === 'PIE Campeón') && (
+                            <span className="ml-1.5 text-[10px] font-black uppercase tracking-widest text-wc-navy">PIE</span>
+                          )}
+                        </div>
+                        {isWinnerBest && <Badge color="gold">Líder</Badge>}
+                        {isExactBest  && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-700">
+                            Exacto
+                          </span>
+                        )}
+                        {isArchived && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-200 text-gray-500 uppercase tracking-wide">
+                            Archivado
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-2.5 text-right text-gray-500 tabular-nums">{(winProb * 100).toFixed(1)}%</td>
-                    <td className="px-4 py-2.5 text-right"><ScoreCell value={e.brier_score} low /></td>
-                    <td className="px-4 py-2.5 text-right hidden sm:table-cell"><ScoreCell value={e.ranked_probability_score} low /></td>
-                    <td className="px-5 py-2.5 text-right hidden sm:table-cell"><ScoreCell value={e.log_loss} low /></td>
-                    <td className="px-4 py-2.5 text-center">
-                      {e.top_pick_correct
-                        ? <span className="text-green-600 font-bold">✓</span>
-                        : <span className="text-red-500">✗</span>}
+                    <td className="px-4 py-3 text-center">
+                      {row.n > 0 ? (
+                        <span className="font-semibold text-gray-700 tabular-nums">{row.n}</span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.name === 'Base' ? (
+                        <span className="text-xs text-gray-400 italic">Siempre degradado (uniforme)</span>
+                      ) : row.n > 0 ? (
+                        <WinnerBar correct={row.winnerCorrect} total={row.n} />
+                      ) : (
+                        <span className="text-gray-300 text-sm">Sin datos</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {!row.hasExactData ? (
+                        <span className="text-gray-300 text-xs">—</span>
+                      ) : (
+                        <span className={`font-bold tabular-nums text-sm ${
+                          (row.exactCorrect ?? 0) > 0 ? 'text-green-700' : 'text-gray-500'
+                        }`}>
+                          {row.exactCorrect ?? 0}/{row.n} {' '}
+                          <span className="text-xs font-normal text-gray-400">
+                            ({pct(row.exactCorrect ?? 0, row.n)})
+                          </span>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -361,7 +465,132 @@ export function PerformancePage() {
             </tbody>
           </table>
         </div>
+        {!hasExactData && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center gap-2">
+            <HelpCircle className="w-4 h-4 text-gray-300 shrink-0" />
+            <p className="text-xs text-gray-400">
+              Los aciertos de marcador exacto estarán disponibles al registrar nuevos resultados.
+            </p>
+          </div>
+        )}
       </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Match detail — collapsed until user taps a model row               */}
+      {/* ------------------------------------------------------------------ */}
+      {hasData && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-wc-navy text-sm">
+                  {selectedModel ? `Detalle · ${selectedModel}` : 'Detalle por partido'}
+                </p>
+                {selectedModel && selectedModelStats && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {selectedModelStats.winnerCorrect}/{selectedModelStats.n} ganador
+                    {selectedModelStats.hasExactData
+                      ? ` · ${selectedModelStats.exactCorrect ?? 0}/${selectedModelStats.exactTotal} exacto`
+                      : ''}
+                  </p>
+                )}
+              </div>
+              {selectedModel && (
+                <button
+                  onClick={() => setSelectedModel(null)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </CardHeader>
+
+          {!selectedModel ? (
+            <div className="px-5 py-8 text-center">
+              <Target className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Tocá un modelo para ver el detalle</p>
+            </div>
+          ) : selectedEvals.length === 0 ? (
+            <div className="px-5 py-6 text-center">
+              <p className="text-sm text-gray-400">Sin evaluaciones para este modelo.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[360px] text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-5 py-3 font-semibold">Partido</th>
+                    <th className="text-left px-4 py-3 font-semibold">Real</th>
+                    {selectedModelStats?.hasExactData && (
+                      <th className="text-center px-4 py-3 font-semibold">Predicho</th>
+                    )}
+                    <th className="text-center px-4 py-3 font-semibold">Dir ✓</th>
+                    {selectedModelStats?.hasExactData && (
+                      <th className="text-center px-4 py-3 font-semibold">Exact ✓</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {selectedEvals.map(e => {
+                    const home = teamMap.get(e.home_team_id)?.name ?? e.home_team_id;
+                    const away = teamMap.get(e.away_team_id)?.name ?? e.away_team_id;
+                    const hasPredScore = e.predicted_home_goals != null && e.predicted_away_goals != null;
+                    const rowColor = e.exact_score_correct
+                      ? 'bg-green-50/40 hover:bg-green-50/60'
+                      : e.top_pick_correct
+                        ? 'hover:bg-green-50/20'
+                        : 'hover:bg-wc-cream/30';
+                    return (
+                      <tr key={e.id} className={`transition-colors ${rowColor}`}>
+                        <td className="px-5 py-2.5 text-gray-800 font-medium text-xs">{home} vs {away}</td>
+                        <td className="px-4 py-2.5 text-gray-700 font-black tabular-nums text-sm">
+                          {e.home_goals}–{e.away_goals}
+                        </td>
+                        {selectedModelStats?.hasExactData && (
+                          <td className="px-4 py-2.5 text-center tabular-nums text-sm">
+                            {hasPredScore ? (
+                              <span className={`font-bold ${e.exact_score_correct ? 'text-green-700' : 'text-gray-400'}`}>
+                                {e.predicted_home_goals}–{e.predicted_away_goals}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-2.5 text-center">
+                          {e.top_pick_correct
+                            ? <span className="text-green-600 font-bold">✓</span>
+                            : <span className="text-red-400">✗</span>}
+                        </td>
+                        {selectedModelStats?.hasExactData && (
+                          <td className="px-4 py-2.5 text-center">
+                            {e.exact_score_correct == null
+                              ? <span className="text-gray-300">—</span>
+                              : e.exact_score_correct
+                                ? <span className="text-green-600 font-bold">✓</span>
+                                : <span className="text-red-400">✗</span>}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {!hasData && (
+        <Card className="p-10 text-center">
+          <BarChart2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">Aún no hay evaluaciones disponibles.</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Registrá resultados reales en la página de <strong>Partidos</strong> para ver las métricas.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

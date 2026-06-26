@@ -22,6 +22,8 @@
   "exclude": [
     "node_modules",
     "dist",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
     "src/workers/api-football.worker.ts",
     "src/workers/ranking-refresh.worker.ts",
     "src/workers/availability-news.worker.ts"

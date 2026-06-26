@@ -1,7 +1,44 @@
 // Componentes base reutilizables con estética WC2026
 
-import type { ReactNode, ButtonHTMLAttributes } from 'react';
+import { useState, useRef, useEffect, type ReactNode, type ButtonHTMLAttributes, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// FlagImg — cross-platform flag images via flagcdn.com
+// ---------------------------------------------------------------------------
+export const FLAG_ISO: Record<string, string> = {
+  'argentina': 'ar', 'brazil': 'br', 'france': 'fr', 'england': 'gb-eng',
+  'spain': 'es', 'germany': 'de', 'portugal': 'pt', 'netherlands': 'nl',
+  'belgium': 'be', 'colombia': 'co', 'uruguay': 'uy', 'mexico': 'mx',
+  'united-states': 'us', 'canada': 'ca', 'japan': 'jp', 'south-korea': 'kr',
+  'morocco': 'ma', 'senegal': 'sn', 'ecuador': 'ec', 'australia': 'au',
+  'croatia': 'hr', 'switzerland': 'ch', 'norway': 'no', 'sweden': 'se',
+  'austria': 'at', 'turkey': 'tr', 'iran': 'ir', 'egypt': 'eg',
+  'saudi-arabia': 'sa', 'south-africa': 'za', 'ghana': 'gh', 'tunisia': 'tn',
+  'algeria': 'dz', 'ivory-coast': 'ci', 'nigeria': 'ng', 'cameroon': 'cm',
+  'scotland': 'gb-sct', 'czechia': 'cz', 'poland': 'pl', 'serbia': 'rs',
+  'paraguay': 'py', 'haiti': 'ht', 'panama': 'pa', 'curacao': 'cw',
+  'jordan': 'jo', 'iraq': 'iq', 'new-zealand': 'nz', 'cape-verde': 'cv',
+  'uzbekistan': 'uz', 'congo-dr': 'cd', 'bosnia-and-herzegovina': 'ba',
+  'qatar': 'qa',
+};
+
+interface FlagImgProps { id: string; className?: string; }
+export function FlagImg({ id, className = 'w-6 h-4 object-cover rounded-[2px] shrink-0' }: FlagImgProps) {
+  const iso = FLAG_ISO[id];
+  if (!iso) return <span className="text-xl leading-none shrink-0">🏳️</span>;
+  return (
+    <img
+      src={`https://flagcdn.com/32x24/${iso}.png`}
+      srcSet={`https://flagcdn.com/64x48/${iso}.png 2x`}
+      width={32}
+      height={24}
+      alt={id}
+      className={className}
+    />
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Button
@@ -164,17 +201,158 @@ export function SkeletonCard() {
 }
 
 // ---------------------------------------------------------------------------
-// Tooltip simple
+// Tooltip — portal-based so overflow:hidden ancestors never clip it.
+// Tap/click to open, click-outside or scroll to close.
+// Computes fixed position from the trigger's bounding rect so it always
+// appears above the icon regardless of which card/table it lives in.
 // ---------------------------------------------------------------------------
 export function Tooltip({ text, children }: { text: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [pop, setPop] = useState<{ style: CSSProperties; arrow: number }>({ style: {}, arrow: 12 });
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const isHoverRef = useRef(false);
+
+  function computePosition() {
+    if (!triggerRef.current) return;
+    const r       = triggerRef.current.getBoundingClientRect();
+    const margin  = 12;
+    const w       = Math.min(256, window.innerWidth - margin * 2);
+    const centerX = r.left + r.width / 2;
+    const left    = Math.max(margin, Math.min(centerX - w / 2, window.innerWidth - w - margin));
+    const arrow   = Math.max(8, Math.min(centerX - left - 4, w - 16));
+    setPop({
+      style: { position: 'fixed', bottom: window.innerHeight - r.top + 8, left, width: w, zIndex: 9999 },
+      arrow,
+    });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function close(e: MouseEvent | TouchEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('touchstart', close, true);
+    window.addEventListener('scroll', () => setOpen(false), { passive: true, once: true });
+    return () => {
+      document.removeEventListener('mousedown', close, true);
+      document.removeEventListener('touchstart', close, true);
+    };
+  }, [open]);
+
+  function handleMouseEnter() {
+    isHoverRef.current = true;
+    computePosition();
+    setOpen(true);
+  }
+
+  function handleMouseLeave() {
+    isHoverRef.current = false;
+    setOpen(false);
+  }
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (isHoverRef.current) return; // desktop hover handles it
+    computePosition();
+    setOpen(o => !o);
+  }
+
   return (
-    <span className="relative group inline-flex items-center">
-      {children}
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-52 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg text-center leading-relaxed">
-        {text}
-        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+    <>
+      <span
+        ref={triggerRef}
+        className="inline-flex items-center cursor-pointer"
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        {children}
       </span>
-    </span>
+      {open && createPortal(
+        <div style={pop.style} className="px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl text-center leading-relaxed pointer-events-none">
+          {text}
+          <span style={{ left: pop.arrow }} className="absolute top-full border-4 border-transparent border-t-gray-900" />
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ScoreTriple — 3 marcadores coherentes con el outcome bar
+// ---------------------------------------------------------------------------
+import type { ScorelinePerOutcome } from '../engine/probability-helper';
+
+interface ScoreTripleProps {
+  scores: ScorelinePerOutcome;
+  homeLabel: string;
+  awayLabel: string;
+  /** "sm" para tarjetas de modelo; "md" para la predicción principal */
+  size?: 'sm' | 'md';
+}
+
+export function ScoreTriple({ scores, homeLabel, awayLabel, size = 'md' }: ScoreTripleProps) {
+  const cols = [
+    {
+      key: 'homeWin',
+      label: homeLabel,
+      score: scores.homeWin,
+      bg: 'bg-wc-navy/5',
+      textScore: 'text-wc-navy',
+      textLabel: 'text-wc-navy/70',
+      border: 'border-wc-navy/10',
+    },
+    {
+      key: 'draw',
+      label: 'Empate',
+      score: scores.draw,
+      bg: 'bg-gray-50',
+      textScore: 'text-gray-700',
+      textLabel: 'text-gray-400',
+      border: 'border-gray-100',
+    },
+    {
+      key: 'awayWin',
+      label: awayLabel,
+      score: scores.awayWin,
+      bg: 'bg-red-50/60',
+      textScore: 'text-wc-red',
+      textLabel: 'text-wc-red/60',
+      border: 'border-red-100',
+    },
+  ] as const;
+
+  const scoreText = size === 'sm' ? 'text-lg font-black' : 'text-2xl font-black';
+  const labelText = size === 'sm' ? 'text-[10px]' : 'text-xs';
+  const probText  = size === 'sm' ? 'text-[10px]' : 'text-xs';
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {cols.map(col => (
+        <div
+          key={col.key}
+          className={`${col.bg} border ${col.border} rounded-xl px-3 py-2.5 text-center`}
+        >
+          <p className={`${labelText} font-semibold ${col.textLabel} truncate mb-1`}>
+            {col.label}
+          </p>
+          {col.score ? (
+            <>
+              <p className={`${scoreText} ${col.textScore} leading-none`}>
+                {col.score.home}–{col.score.away}
+              </p>
+              <p className={`${probText} text-gray-400 mt-1`}>
+                {(col.score.prob * 100).toFixed(1)}%
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-300 text-sm font-bold">—</p>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

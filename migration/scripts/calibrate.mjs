@@ -33,8 +33,11 @@ if (existsSync(envFile)) {
   }
 }
 
-const SUPABASE_URL  = process.env.VITE_SUPABASE_URL  ?? '';
-const SUPABASE_ANON = process.env.VITE_SUPABASE_ANON_KEY ?? '';
+const SUPABASE_URL     = process.env.VITE_SUPABASE_URL  ?? '';
+const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_KEY ?? '';
+const SUPABASE_ANON    = process.env.VITE_SUPABASE_ANON_KEY ?? '';
+// Use service role if available (bypasses RLS, needed for prediction_evaluations)
+const SUPABASE_KEY  = SUPABASE_SERVICE || SUPABASE_ANON;
 const hasSupabase   = SUPABASE_URL && !SUPABASE_URL.includes('placeholder');
 
 const MIN_MATCHES          = 5;    // minimum WC results before calibrating inflation
@@ -104,7 +107,11 @@ async function main() {
   const fixtures = JSON.parse(readFileSync(FIXTURES_FILE, 'utf8'));
 
   // Create Supabase client once (reused for both wc_actual_results and snapshots)
-  const db = hasSupabase ? createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+  if (hasSupabase) {
+    const keyType = SUPABASE_SERVICE ? 'service_role' : 'anon';
+    console.log(`Supabase: ${keyType} key`);
+  }
+  const db = hasSupabase ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
   // Start with static results from fixtures.json
   const playedMap = new Map();
@@ -253,6 +260,95 @@ async function main() {
   writeFileSync(MOMENTUM_FILE, updated, 'utf8');
   console.log(`Guardado: ${MOMENTUM_FILE}`);
   console.log('\n[CALIBRADO] El deploy se activará automáticamente al hacer commit.');
+
+  // ── 8. Draw threshold grid search (requires prediction_evaluations) ─────────
+  if (!db) { console.log('\n[THRESHOLD ANALYSIS] Sin Supabase — omitido.'); return; }
+
+  console.log('\n=== Análisis de umbral de empate (grid search) ===');
+  const { data: evals, error: evalErr } = await db
+    .from('prediction_evaluations')
+    .select('model_name,actual,home_win,draw,away_win');
+
+  if (evalErr || !evals || evals.length === 0) {
+    console.log('Sin evaluaciones en Supabase — corré "Recalcular evaluaciones" primero.');
+    return;
+  }
+  console.log(`Evaluaciones cargadas: ${evals.length}`);
+
+  // Outcome distribution
+  const dist = { Home: 0, Draw: 0, Away: 0 };
+  for (const e of evals) dist[e.actual] = (dist[e.actual] ?? 0) + 1;
+  const total = evals.length;
+  console.log(`\nDistribución de resultados reales:`);
+  console.log(`  Local:    ${dist.Home}/${total} = ${(dist.Home/total*100).toFixed(1)}%`);
+  console.log(`  Empate:   ${dist.Draw}/${total} = ${(dist.Draw/total*100).toFixed(1)}%`);
+  console.log(`  Visitante:${dist.Away}/${total} = ${(dist.Away/total*100).toFixed(1)}%`);
+
+  // topPick at a given threshold
+  function pick(hw, dr, aw, thr) {
+    const best = Math.max(hw, aw);
+    if (best - dr < thr) return 'Draw';
+    return hw >= aw ? 'Home' : 'Away';
+  }
+
+  // Grid search over thresholds
+  const thresholds = [0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.15];
+  console.log('\nGrid search por umbral (todas las evaluaciones combinadas):');
+  console.log('Umbral | Global%  | Local%   | Empate%  | Visit%   | Pred.Emp% | DrawF1');
+  console.log('-------+----------+----------+----------+----------+-----------+-------');
+
+  let bestThreshold = 0, bestF1 = -1;
+  for (const thr of thresholds) {
+    let correct = 0, drawPred = 0, drawHit = 0;
+    const byActual = { Home: { c: 0, n: 0 }, Draw: { c: 0, n: 0 }, Away: { c: 0, n: 0 } };
+    for (const e of evals) {
+      const p = pick(e.home_win, e.draw, e.away_win, thr);
+      const hit = p === e.actual;
+      if (hit) correct++;
+      byActual[e.actual].n++;
+      if (hit) byActual[e.actual].c++;
+      if (p === 'Draw') drawPred++;
+      if (p === 'Draw' && e.actual === 'Draw') drawHit++;
+    }
+    const precision = drawPred > 0 ? drawHit / drawPred : 0;
+    const recall    = dist.Draw > 0 ? drawHit / dist.Draw : 0;
+    const f1        = (precision + recall) > 0 ? 2 * precision * recall / (precision + recall) : 0;
+    if (f1 > bestF1) { bestF1 = f1; bestThreshold = thr; }
+    const fmt = n => String(n).padStart(5);
+    const pct = v => `${(v*100).toFixed(1)}%`.padStart(8);
+    console.log(
+      `  ${String(thr.toFixed(2)).padStart(4)} | ${pct(correct/total)} | ${pct(byActual.Home.c/Math.max(1,byActual.Home.n))} | ${pct(byActual.Draw.c/Math.max(1,byActual.Draw.n))} | ${pct(byActual.Away.c/Math.max(1,byActual.Away.n))} | ${pct(drawPred/total)} | ${f1.toFixed(3)}`
+    );
+  }
+  console.log(`\n→ Mejor umbral por Draw-F1: ${bestThreshold} (F1=${bestF1.toFixed(3)})`);
+  console.log(`  Umbral actual en el código: 0.04`);
+  if (Math.abs(bestThreshold - 0.04) > 0.01) {
+    console.log(`  ⚠ Diferencia significativa — considera actualizar DRAW_MARGIN_THRESHOLD en probability-helper.ts`);
+  } else {
+    console.log(`  ✓ Umbral actual óptimo o cercano al óptimo.`);
+  }
+
+  // Per-model breakdown at the best threshold
+  console.log(`\nRendimiento por modelo con umbral=${bestThreshold}:`);
+  const models = [...new Set(evals.map(e => e.model_name))];
+  console.log('Modelo                       | N  | Global% | Empate% | DrawF1');
+  console.log('-----------------------------+----+---------+---------+-------');
+  for (const model of models) {
+    const rows = evals.filter(e => e.model_name === model);
+    const drawActual = rows.filter(r => r.actual === 'Draw').length;
+    let correct = 0, drawPred = 0, drawHit = 0;
+    for (const e of rows) {
+      const p = pick(e.home_win, e.draw, e.away_win, bestThreshold);
+      if (p === e.actual) correct++;
+      if (p === 'Draw') drawPred++;
+      if (p === 'Draw' && e.actual === 'Draw') drawHit++;
+    }
+    const prec = drawPred > 0 ? drawHit / drawPred : 0;
+    const rec  = drawActual > 0 ? drawHit / drawActual : 0;
+    const f1   = (prec + rec) > 0 ? 2*prec*rec/(prec+rec) : 0;
+    const name = model.slice(0, 28).padEnd(28);
+    console.log(`${name} | ${String(rows.length).padStart(2)} | ${(correct/rows.length*100).toFixed(1).padStart(6)}% | ${(drawHit/Math.max(1,drawActual)*100).toFixed(1).padStart(6)}% | ${f1.toFixed(3)}`);
+  }
 }
 
 main().catch(err => {

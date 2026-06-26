@@ -10,15 +10,21 @@ import {
   poissonScoreline,
   scorelineToOutcome,
   mostLikelyScore as getMostLikely,
+  eloExpectation,
 } from '../probability-helper';
 
 const DEFAULT_AVERAGE_GOALS = 1.25;
-const PRIOR_MATCHES = 2.0;
+const PRIOR_MATCHES = 1.5;
 const GOAL_SCALE = 1.10;
 const LOW_SCORE_RHO = -0.03;
 const HOME_ADVANTAGE_MULTIPLIER = 1.08;
 const MIN_TEAM_MATCHES = 3;
 const ITERATIONS = 8;
+// Elo-gap multiplier for lambda: at P(home)=0.95 (≈500pt gap), home λ ×1.60 and away λ ×0.40.
+// Increased from 1.0 → 1.3: WC2026 shows 3-0/3-1 at 18% combined (was 12% historical).
+// Poisson with old sensitivity over-produced 2-0/2-1 for clear mismatches; raising this shifts
+// probability mass from the "medium-dominant" zone into proper blowout territory.
+const ELO_GOAL_SENSITIVITY = 1.3;
 
 export interface GoalStrength {
   attack: number;
@@ -30,6 +36,24 @@ interface FitResult {
   strengths: Map<string, GoalStrength>;
   avgGoals: number;
   matchesUsed: number;
+}
+
+/**
+ * Weight multiplier by competition type so that World Cup / qualifier results
+ * inform the model more than low-stakes friendlies.
+ * Friendly: 0.5 × | Qualifier: 1.2 × | Major tournament: 1.5 × | Default: 1.0 ×
+ */
+export function matchTournamentWeight(tournament: string): number {
+  const t = (tournament ?? '').toLowerCase();
+  if (t.includes('world cup') || t.includes('copa del mundo') || t.includes('fifa world')) return 1.5;
+  if (t.includes('qualifier') || t.includes('qualification') || t.includes('eliminat')) return 1.2;
+  if (
+    t.includes('euro') || t.includes('copa america') || t.includes('african cup') ||
+    t.includes('gold cup') || t.includes('asian cup') || t.includes('nations cup')
+  ) return 1.3;
+  if (t.includes('nations league') || t.includes('liga de naciones')) return 1.1;
+  if (t.includes('friendly') || t.includes('amistoso') || t.includes('test match')) return 0.5;
+  return 1.0;
 }
 
 function shrinkToNeutral(value: number, weight: number): number {
@@ -69,7 +93,7 @@ export function fitGoalModel(results: MatchResult[], yearsWindow = 8): FitResult
 
   const weighted = window.map(r => {
     const yearsAgo = Math.max(0, (latest.getTime() - new Date(r.date).getTime()) / (365.25 * 86400_000));
-    return { result: r, weight: Math.pow(0.75, yearsAgo) };
+    return { result: r, weight: Math.pow(0.75, yearsAgo) * matchTournamentWeight(r.tournament) };
   });
 
   const totalWeight = weighted.reduce((s, { weight }) => s + weight, 0);
@@ -160,6 +184,18 @@ export class GoalModel {
     let homeGoals = this.avgGoals * h.attack * a.defenseVulnerability * GOAL_SCALE;
     let awayGoals = this.avgGoals * a.attack * h.defenseVulnerability * GOAL_SCALE;
     if (!ctx.fixture.neutral_venue) homeGoals *= HOME_ADVANTAGE_MULTIPLIER;
+
+    // Elo-gap adjustment: teams with large rating differences get proportionally
+    // more/fewer expected goals. This corrects for sparse-data teams (e.g. Haiti)
+    // that default to neutral attack/defense despite being heavily outclassed.
+    const homeEloVal = ctx.homeElo?.value ?? null;
+    const awayEloVal = ctx.awayElo?.value ?? null;
+    if (homeEloVal !== null && awayEloVal !== null) {
+      const eloP  = eloExpectation(homeEloVal, awayEloVal); // P(home wins) from Elo
+      const eloAdj = (eloP - 0.5) * ELO_GOAL_SENSITIVITY;  // 0 for equal, ±0.5 for max gap
+      homeGoals *= (1 + eloAdj);
+      awayGoals *= (1 - eloAdj);
+    }
 
     return {
       home: Math.max(0.1, Math.min(5.5, homeGoals)),

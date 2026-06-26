@@ -5,10 +5,13 @@ import {
   loadStaticTeams,
   loadStaticGroups,
   loadStaticFixtures,
+  loadStaticKnockoutFixtures,
   loadStaticRatings,
   loadStaticResults,
   loadStaticFixtureContexts,
   loadStaticSquads,
+  loadStaticSquadStrength,
+  loadStaticTacticalProfiles,
 } from '../services/static-data';
 import { loadAllFixtureContexts, loadWcActualResults } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
@@ -21,11 +24,14 @@ export function useAppData() {
   const teams          = useQuery({ queryKey: ['teams'],           queryFn: loadStaticTeams,            staleTime: FOREVER });
   const groups         = useQuery({ queryKey: ['groups'],          queryFn: loadStaticGroups,           staleTime: FOREVER });
   const fixtures       = useQuery({ queryKey: ['fixtures'],        queryFn: loadStaticFixtures,         staleTime: FOREVER });
+  const knockoutFx     = useQuery({ queryKey: ['knockout-fixtures'], queryFn: loadStaticKnockoutFixtures, staleTime: FOREVER });
   const results        = useQuery({ queryKey: ['results'],         queryFn: loadStaticResults,          staleTime: FOREVER });
   const ratings        = useQuery({ queryKey: ['ratings'],         queryFn: loadStaticRatings,          staleTime: FOREVER });
   // Auto-generated at build time from ESPN + OpenFootball (scripts/build-context.mjs)
-  const staticContexts = useQuery({ queryKey: ['static-contexts'], queryFn: loadStaticFixtureContexts, staleTime: FOREVER });
-  const squads         = useQuery({ queryKey: ['squads'],          queryFn: loadStaticSquads,           staleTime: FOREVER });
+  const staticContexts  = useQuery({ queryKey: ['static-contexts'],   queryFn: loadStaticFixtureContexts,  staleTime: FOREVER });
+  const squads             = useQuery({ queryKey: ['squads'],              queryFn: loadStaticSquads,             staleTime: FOREVER });
+  const squadStrength      = useQuery({ queryKey: ['squad-strength'],      queryFn: loadStaticSquadStrength,      staleTime: FOREVER });
+  const tacticalProfiles   = useQuery({ queryKey: ['tactical-profiles'],   queryFn: loadStaticTacticalProfiles,   staleTime: FOREVER });
   // Supabase: user-entered manual overrides (re-fetched every 60 s)
   const contexts       = useQuery({ queryKey: ['contexts'],        queryFn: loadAllFixtureContexts,     staleTime: 60_000 });
   // Supabase: manually-entered WC results (override for real-time corrections)
@@ -47,14 +53,20 @@ export function useAppData() {
     return map;
   }, [staticContexts.data, contexts.data]);
 
+  // All fixtures: group stage + knockout (knockout empty until activation)
+  const allFixtures = useMemo(
+    () => [...(fixtures.data ?? []), ...(knockoutFx.data ?? [])],
+    [fixtures.data, knockoutFx.data],
+  );
+
   // Build wcResults from two sources, merged:
-  //   1. fixtures.json played matches (source of truth — updated at each deploy)
+  //   1. fixtures.json + knockout-fixtures.json played matches (source of truth — updated at each deploy)
   //   2. Supabase wc_actual_results (user-entered corrections, overrides static)
   // This ensures momentum/inflation always work even when Supabase is empty.
   const wcResults = useMemo<WcActualResult[]>(() => {
     const map = new Map<string, WcActualResult>();
 
-    for (const f of (fixtures.data ?? [])) {
+    for (const f of allFixtures) {
       if (f.is_played && f.home_goals != null && f.away_goals != null) {
         map.set(f.id, {
           id: 0,
@@ -71,7 +83,7 @@ export function useAppData() {
     }
 
     return [...map.values()];
-  }, [fixtures.data, supabaseWc.data]);
+  }, [allFixtures, supabaseWc.data]);
 
   const wcPlayedMap = useMemo(
     () => new Map<string, WcActualResult>(wcResults.map(r => [r.fixture_id, r])),
@@ -80,18 +92,28 @@ export function useAppData() {
 
   // Cache the engine in React Query so it's built once per session, not on
   // every page navigation (each new component instance would re-run useMemo).
+  // Wait for all three data sources before building — squad/tactical models return
+  // degraded results if built with empty maps and staleTime:Infinity prevents a rebuild.
   const engineQuery = useQuery({
     queryKey: ['engine'],
-    queryFn: () => new PredictionEngine(results.data!),
+    queryFn: () => new PredictionEngine(results.data!, 8, squadStrength.data!, tacticalProfiles.data!),
     staleTime: Infinity,
     gcTime: Infinity,
-    enabled: !!results.data,
+    enabled: !!results.data && !!squadStrength.data && !!tacticalProfiles.data,
   });
   const engine = engineQuery.data ?? null;
 
+  // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
+  // need it (Historial, Rendimientos) don't block waiting for it to download.
+  // The engine becomes available asynchronously; pages handle engine === null gracefully.
+  // Page-level loading: only blocks on static data (fast, local JSON).
+  // supabaseWc is supplemental — failures or slow network must not freeze the whole UI.
   const isLoading =
-    teams.isLoading || groups.isLoading || fixtures.isLoading ||
-    results.isLoading || ratings.isLoading;
+    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
+
+  // Simulation-level guard: wait for Supabase WC results before allowing a run,
+  // so the engine uses up-to-date match corrections, not stale/empty data.
+  const isWcResultsLoading = supabaseWc.isLoading;
 
   const error =
     teams.error ?? groups.error ?? fixtures.error ??
@@ -100,11 +122,13 @@ export function useAppData() {
   return {
     teams:      teams.data    ?? [],
     groups:     groups.data   ?? [],
-    fixtures:   fixtures.data ?? [],
+    fixtures:   allFixtures,
     results:    results.data  ?? [],
     ratings:    ratingsList,
     contexts:   contexts.data ?? [],
     squads:     squads.data   ?? {},
+    squadStrengthData:    squadStrength.data   ?? {},
+    tacticalProfilesData: tacticalProfiles.data ?? {},
     teamMap,
     ratingsList,
     contextMap,
@@ -112,6 +136,7 @@ export function useAppData() {
     wcResults,
     wcPlayedMap,
     isLoading,
+    isWcResultsLoading,
     error,
   };
 }

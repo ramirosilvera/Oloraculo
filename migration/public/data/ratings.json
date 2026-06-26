@@ -1,1 +1,2732 @@
-[{"team_id":"spain","type":"elo","value":2157,"as_of":"2026-06-15"},{"team_id":"argentina","type":"elo","value":2115,"as_of":"2026-06-15"},{"team_id":"france","type":"elo","value":2063,"as_of":"2026-06-15"},{"team_id":"england","type":"elo","value":2024,"as_of":"2026-06-15"},{"team_id":"brazil","type":"elo","value":1991,"as_of":"2026-06-15"},{"team_id":"portugal","type":"elo","value":1989,"as_of":"2026-06-15"},{"team_id":"colombia","type":"elo","value":1982,"as_of":"2026-06-15"},{"team_id":"netherlands","type":"elo","value":1948,"as_of":"2026-06-15"},{"team_id":"ecuador","type":"elo","value":1938,"as_of":"2026-06-15"},{"team_id":"germany","type":"elo","value":1932,"as_of":"2026-06-15"},{"team_id":"norway","type":"elo","value":1914,"as_of":"2026-06-15"},{"team_id":"croatia","type":"elo","value":1912,"as_of":"2026-06-15"},{"team_id":"turkey","type":"elo","value":1911,"as_of":"2026-06-15"},{"team_id":"japan","type":"elo","value":1906,"as_of":"2026-06-15"},{"team_id":"belgium","type":"elo","value":1894,"as_of":"2026-06-15"},{"team_id":"uruguay","type":"elo","value":1892,"as_of":"2026-06-15"},{"team_id":"switzerland","type":"elo","value":1891,"as_of":"2026-06-15"},{"team_id":"mexico","type":"elo","value":1881,"as_of":"2026-06-15"},{"team_id":"denmark","type":"elo","value":1869,"as_of":"2026-06-15"},{"team_id":"italy","type":"elo","value":1869,"as_of":"2026-06-15"},{"team_id":"senegal","type":"elo","value":1860,"as_of":"2026-06-15"},{"team_id":"paraguay","type":"elo","value":1834,"as_of":"2026-06-15"},{"team_id":"austria","type":"elo","value":1830,"as_of":"2026-06-15"},{"team_id":"morocco","type":"elo","value":1827,"as_of":"2026-06-15"},{"team_id":"canada","type":"elo","value":1788,"as_of":"2026-06-15"},{"team_id":"south-korea","type":"elo","value":1786,"as_of":"2026-06-15"},{"team_id":"scotland","type":"elo","value":1782,"as_of":"2026-06-15"},{"team_id":"ukraine","type":"elo","value":1780,"as_of":"2026-06-15"},{"team_id":"australia","type":"elo","value":1777,"as_of":"2026-06-15"},{"team_id":"iran","type":"elo","value":1772,"as_of":"2026-06-15"},{"team_id":"algeria","type":"elo","value":1772,"as_of":"2026-06-15"},{"team_id":"russia","type":"elo","value":1772,"as_of":"2026-06-15"},{"team_id":"nigeria","type":"elo","value":1767,"as_of":"2026-06-15"},{"team_id":"greece","type":"elo","value":1744,"as_of":"2026-06-15"},{"team_id":"serbia","type":"elo","value":1734,"as_of":"2026-06-15"},{"team_id":"venezuela","type":"elo","value":1733,"as_of":"2026-06-15"},{"team_id":"panama","type":"elo","value":1730,"as_of":"2026-06-15"},{"team_id":"united-states","type":"elo","value":1726,"as_of":"2026-06-15"},{"team_id":"chile","type":"elo","value":1717,"as_of":"2026-06-15"},{"team_id":"kosovo","type":"elo","value":1715,"as_of":"2026-06-15"},{"team_id":"uzbekistan","type":"elo","value":1714,"as_of":"2026-06-15"},{"team_id":"czechia","type":"elo","value":1712,"as_of":"2026-06-15"},{"team_id":"sweden","type":"elo","value":1712,"as_of":"2026-06-15"},{"team_id":"hungary","type":"elo","value":1710,"as_of":"2026-06-15"},{"team_id":"poland","type":"elo","value":1710,"as_of":"2026-06-15"},{"team_id":"peru","type":"elo","value":1700,"as_of":"2026-06-15"},{"team_id":"ireland","type":"elo","value":1699,"as_of":"2026-06-15"},{"team_id":"egypt","type":"elo","value":1696,"as_of":"2026-06-15"},{"team_id":"ivory-coast","type":"elo","value":1695,"as_of":"2026-06-15"},{"team_id":"slovenia","type":"elo","value":1682,"as_of":"2026-06-15"},{"team_id":"wales","type":"elo","value":1682,"as_of":"2026-06-15"},{"team_id":"jordan","type":"elo","value":1680,"as_of":"2026-06-15"},{"team_id":"slovakia","type":"elo","value":1667,"as_of":"2026-06-15"},{"team_id":"georgia","type":"elo","value":1654,"as_of":"2026-06-15"},{"team_id":"congo-dr","type":"elo","value":1652,"as_of":"2026-06-15"},{"team_id":"israel","type":"elo","value":1647,"as_of":"2026-06-15"},{"team_id":"romania","type":"elo","value":1639,"as_of":"2026-06-15"},{"team_id":"tunisia","type":"elo","value":1628,"as_of":"2026-06-15"},{"team_id":"bolivia","type":"elo","value":1621,"as_of":"2026-06-15"},{"team_id":"albania","type":"elo","value":1616,"as_of":"2026-06-15"},{"team_id":"cameroon","type":"elo","value":1614,"as_of":"2026-06-15"},{"team_id":"costa-rica","type":"elo","value":1608,"as_of":"2026-06-15"},{"team_id":"iraq","type":"elo","value":1607,"as_of":"2026-06-15"},{"team_id":"northern-ireland","type":"elo","value":1605,"as_of":"2026-06-15"},{"team_id":"bosnia-and-herzegovina","type":"elo","value":1595,"as_of":"2026-06-15"},{"team_id":"north-macedonia","type":"elo","value":1589,"as_of":"2026-06-15"},{"team_id":"mali","type":"elo","value":1588,"as_of":"2026-06-15"},{"team_id":"cape-verde","type":"elo","value":1578,"as_of":"2026-06-15"},{"team_id":"saudi-arabia","type":"elo","value":1576,"as_of":"2026-06-15"},{"team_id":"honduras","type":"elo","value":1570,"as_of":"2026-06-15"},{"team_id":"iceland","type":"elo","value":1568,"as_of":"2026-06-15"},{"team_id":"new-zealand","type":"elo","value":1562,"as_of":"2026-06-15"},{"team_id":"haiti","type":"elo","value":1548,"as_of":"2026-06-15"},{"team_id":"angola","type":"elo","value":1542,"as_of":"2026-06-15"},{"team_id":"united-arab-emirates","type":"elo","value":1540,"as_of":"2026-06-15"},{"team_id":"finland","type":"elo","value":1536,"as_of":"2026-06-15"},{"team_id":"burkina-faso","type":"elo","value":1529,"as_of":"2026-06-15"},{"team_id":"jamaica","type":"elo","value":1527,"as_of":"2026-06-15"},{"team_id":"belarus","type":"elo","value":1522,"as_of":"2026-06-15"},{"team_id":"south-africa","type":"elo","value":1511,"as_of":"2026-06-15"},{"team_id":"ghana","type":"elo","value":1510,"as_of":"2026-06-15"},{"team_id":"guatemala","type":"elo","value":1504,"as_of":"2026-06-15"},{"team_id":"oman","type":"elo","value":1480,"as_of":"2026-06-15"},{"team_id":"syria","type":"elo","value":1479,"as_of":"2026-06-15"},{"team_id":"palestine","type":"elo","value":1465,"as_of":"2026-06-15"},{"team_id":"guinea","type":"elo","value":1463,"as_of":"2026-06-15"},{"team_id":"montenegro","type":"elo","value":1461,"as_of":"2026-06-15"},{"team_id":"bulgaria","type":"elo","value":1458,"as_of":"2026-06-15"},{"team_id":"northern-cyprus","type":"elo","value":1457,"as_of":"2026-06-15"},{"team_id":"luxembourg","type":"elo","value":1450,"as_of":"2026-06-15"},{"team_id":"curacao","type":"elo","value":1434,"as_of":"2026-06-15"},{"team_id":"suriname","type":"elo","value":1431,"as_of":"2026-06-15"},{"team_id":"kazakhstan","type":"elo","value":1428,"as_of":"2026-06-15"},{"team_id":"kurdistan","type":"elo","value":1425,"as_of":"2026-06-15"},{"team_id":"china","type":"elo","value":1424,"as_of":"2026-06-15"},{"team_id":"qatar","type":"elo","value":1421,"as_of":"2026-06-15"},{"team_id":"libya","type":"elo","value":1420,"as_of":"2026-06-15"},{"team_id":"gambia","type":"elo","value":1419,"as_of":"2026-06-15"},{"team_id":"bahrain","type":"elo","value":1414,"as_of":"2026-06-15"},{"team_id":"benin","type":"elo","value":1405,"as_of":"2026-06-15"},{"team_id":"gabon","type":"elo","value":1401,"as_of":"2026-06-15"},{"team_id":"uganda","type":"elo","value":1394,"as_of":"2026-06-15"},{"team_id":"trinidad-and-tobago","type":"elo","value":1386,"as_of":"2026-06-15"},{"team_id":"faroe-islands","type":"elo","value":1386,"as_of":"2026-06-15"},{"team_id":"niger","type":"elo","value":1382,"as_of":"2026-06-15"},{"team_id":"equatorial-guinea","type":"elo","value":1380,"as_of":"2026-06-15"},{"team_id":"madagascar","type":"elo","value":1380,"as_of":"2026-06-15"},{"team_id":"togo","type":"elo","value":1379,"as_of":"2026-06-15"},{"team_id":"thailand","type":"elo","value":1376,"as_of":"2026-06-15"},{"team_id":"comoros","type":"elo","value":1374,"as_of":"2026-06-15"},{"team_id":"north-korea","type":"elo","value":1373,"as_of":"2026-06-15"},{"team_id":"armenia","type":"elo","value":1373,"as_of":"2026-06-15"},{"team_id":"indonesia","type":"elo","value":1372,"as_of":"2026-06-15"},{"team_id":"zimbabwe","type":"elo","value":1372,"as_of":"2026-06-15"},{"team_id":"zambia","type":"elo","value":1371,"as_of":"2026-06-15"},{"team_id":"kenya","type":"elo","value":1363,"as_of":"2026-06-15"},{"team_id":"estonia","type":"elo","value":1360,"as_of":"2026-06-15"},{"team_id":"vietnam","type":"elo","value":1351,"as_of":"2026-06-15"},{"team_id":"sudan","type":"elo","value":1350,"as_of":"2026-06-15"},{"team_id":"reunion","type":"elo","value":1346,"as_of":"2026-06-15"},{"team_id":"mozambique","type":"elo","value":1342,"as_of":"2026-06-15"},{"team_id":"el-salvador","type":"elo","value":1342,"as_of":"2026-06-15"},{"team_id":"sierra-leone","type":"elo","value":1341,"as_of":"2026-06-15"},{"team_id":"guadeloupe","type":"elo","value":1338,"as_of":"2026-06-15"},{"team_id":"rwanda","type":"elo","value":1336,"as_of":"2026-06-15"},{"team_id":"nicaragua","type":"elo","value":1333,"as_of":"2026-06-15"},{"team_id":"kuwait","type":"elo","value":1332,"as_of":"2026-06-15"},{"team_id":"mauritania","type":"elo","value":1329,"as_of":"2026-06-15"},{"team_id":"zanzibar","type":"elo","value":1326,"as_of":"2026-06-15"},{"team_id":"azerbaijan","type":"elo","value":1322,"as_of":"2026-06-15"},{"team_id":"cyprus","type":"elo","value":1314,"as_of":"2026-06-15"},{"team_id":"tanzania","type":"elo","value":1313,"as_of":"2026-06-15"},{"team_id":"martinique","type":"elo","value":1312,"as_of":"2026-06-15"},{"team_id":"liberia","type":"elo","value":1304,"as_of":"2026-06-15"},{"team_id":"namibia","type":"elo","value":1303,"as_of":"2026-06-15"},{"team_id":"kyrgyzstan","type":"elo","value":1295,"as_of":"2026-06-15"},{"team_id":"malaysia","type":"elo","value":1293,"as_of":"2026-06-15"},{"team_id":"guyana","type":"elo","value":1292,"as_of":"2026-06-15"},{"team_id":"lebanon","type":"elo","value":1288,"as_of":"2026-06-15"},{"team_id":"latvia","type":"elo","value":1288,"as_of":"2026-06-15"},{"team_id":"ethiopia","type":"elo","value":1287,"as_of":"2026-06-15"},{"team_id":"new-caledonia","type":"elo","value":1286,"as_of":"2026-06-15"},{"team_id":"tajikistan","type":"elo","value":1285,"as_of":"2026-06-15"},{"team_id":"burundi","type":"elo","value":1285,"as_of":"2026-06-15"},{"team_id":"dominican-republic","type":"elo","value":1283,"as_of":"2026-06-15"},{"team_id":"lithuania","type":"elo","value":1279,"as_of":"2026-06-15"},{"team_id":"moldova","type":"elo","value":1270,"as_of":"2026-06-15"},{"team_id":"botswana","type":"elo","value":1267,"as_of":"2026-06-15"},{"team_id":"malta","type":"elo","value":1255,"as_of":"2026-06-15"},{"team_id":"guinea-bissau","type":"elo","value":1248,"as_of":"2026-06-15"},{"team_id":"cuba","type":"elo","value":1239,"as_of":"2026-06-15"},{"team_id":"malawi","type":"elo","value":1239,"as_of":"2026-06-15"},{"team_id":"central-african-republic","type":"elo","value":1236,"as_of":"2026-06-15"},{"team_id":"french-guiana","type":"elo","value":1221,"as_of":"2026-06-15"},{"team_id":"mayotte","type":"elo","value":1217,"as_of":"2026-06-15"},{"team_id":"turkmenistan","type":"elo","value":1209,"as_of":"2026-06-15"},{"team_id":"congo","type":"elo","value":1206,"as_of":"2026-06-15"},{"team_id":"eritrea","type":"elo","value":1201,"as_of":"2026-06-15"},{"team_id":"lesotho","type":"elo","value":1198,"as_of":"2026-06-15"},{"team_id":"yemen","type":"elo","value":1195,"as_of":"2026-06-15"},{"team_id":"tahiti","type":"elo","value":1179,"as_of":"2026-06-15"},{"team_id":"philippines","type":"elo","value":1179,"as_of":"2026-06-15"},{"team_id":"eswatini","type":"elo","value":1148,"as_of":"2026-06-15"},{"team_id":"saint-vincent-and-the-grenadines","type":"elo","value":1141,"as_of":"2026-06-15"},{"team_id":"papua-new-guinea","type":"elo","value":1136,"as_of":"2026-06-15"},{"team_id":"puerto-rico","type":"elo","value":1135,"as_of":"2026-06-15"},{"team_id":"singapore","type":"elo","value":1134,"as_of":"2026-06-15"},{"team_id":"india","type":"elo","value":1128,"as_of":"2026-06-15"},{"team_id":"vanuatu","type":"elo","value":1118,"as_of":"2026-06-15"},{"team_id":"bermuda","type":"elo","value":1117,"as_of":"2026-06-15"},{"team_id":"south-sudan","type":"elo","value":1109,"as_of":"2026-06-15"},{"team_id":"fiji","type":"elo","value":1104,"as_of":"2026-06-15"},{"team_id":"hong-kong","type":"elo","value":1101,"as_of":"2026-06-15"},{"team_id":"grenada","type":"elo","value":1098,"as_of":"2026-06-15"},{"team_id":"andorra","type":"elo","value":1080,"as_of":"2026-06-15"},{"team_id":"belize","type":"elo","value":1073,"as_of":"2026-06-15"},{"team_id":"mauritius","type":"elo","value":1073,"as_of":"2026-06-15"},{"team_id":"chad","type":"elo","value":1073,"as_of":"2026-06-15"},{"team_id":"solomon-islands","type":"elo","value":1054,"as_of":"2026-06-15"},{"team_id":"saint-martin","type":"elo","value":1042,"as_of":"2026-06-15"},{"team_id":"sao-tome-e-principe","type":"elo","value":1035,"as_of":"2026-06-15"},{"team_id":"saint-kitts-and-nevis","type":"elo","value":1029,"as_of":"2026-06-15"},{"team_id":"gibraltar","type":"elo","value":1011,"as_of":"2026-06-15"},{"team_id":"saint-lucia","type":"elo","value":1003,"as_of":"2026-06-15"},{"team_id":"somaliland","type":"elo","value":1002,"as_of":"2026-06-15"},{"team_id":"western-sahara","type":"elo","value":996,"as_of":"2026-06-15"},{"team_id":"myanmar","type":"elo","value":984,"as_of":"2026-06-15"},{"team_id":"somalia","type":"elo","value":979,"as_of":"2026-06-15"},{"team_id":"aruba","type":"elo","value":978,"as_of":"2026-06-15"},{"team_id":"sint-maarten","type":"elo","value":975,"as_of":"2026-06-15"},{"team_id":"montserrat","type":"elo","value":972,"as_of":"2026-06-15"},{"team_id":"afghanistan","type":"elo","value":961,"as_of":"2026-06-15"},{"team_id":"greenland","type":"elo","value":946,"as_of":"2026-06-15"},{"team_id":"bangladesh","type":"elo","value":942,"as_of":"2026-06-15"},{"team_id":"djibouti","type":"elo","value":940,"as_of":"2026-06-15"},{"team_id":"dominica","type":"elo","value":934,"as_of":"2026-06-15"},{"team_id":"pakistan","type":"elo","value":909,"as_of":"2026-06-15"},{"team_id":"monaco","type":"elo","value":903,"as_of":"2026-06-15"},{"team_id":"barbados","type":"elo","value":898,"as_of":"2026-06-15"},{"team_id":"liechtenstein","type":"elo","value":895,"as_of":"2026-06-15"},{"team_id":"antigua-and-barbuda","type":"elo","value":894,"as_of":"2026-06-15"},{"team_id":"nepal","type":"elo","value":893,"as_of":"2026-06-15"},{"team_id":"cambodia","type":"elo","value":871,"as_of":"2026-06-15"},{"team_id":"seychelles","type":"elo","value":853,"as_of":"2026-06-15"},{"team_id":"sri-lanka","type":"elo","value":836,"as_of":"2026-06-15"},{"team_id":"san-marino","type":"elo","value":825,"as_of":"2026-06-15"},{"team_id":"chinese-taipei","type":"elo","value":822,"as_of":"2026-06-15"},{"team_id":"bonaire","type":"elo","value":817,"as_of":"2026-06-15"},{"team_id":"maldives","type":"elo","value":801,"as_of":"2026-06-15"},{"team_id":"cayman-islands","type":"elo","value":800,"as_of":"2026-06-15"},{"team_id":"chagos-islands","type":"elo","value":785,"as_of":"2026-06-15"},{"team_id":"sint-eustatius","type":"elo","value":757,"as_of":"2026-06-15"},{"team_id":"tuvalu","type":"elo","value":756,"as_of":"2026-06-15"},{"team_id":"british-virgin-islands","type":"elo","value":743,"as_of":"2026-06-15"},{"team_id":"laos","type":"elo","value":734,"as_of":"2026-06-15"},{"team_id":"timor-leste","type":"elo","value":734,"as_of":"2026-06-15"},{"team_id":"samoa","type":"elo","value":730,"as_of":"2026-06-15"},{"team_id":"mongolia","type":"elo","value":726,"as_of":"2026-06-15"},{"team_id":"saint-barthelemy","type":"elo","value":725,"as_of":"2026-06-15"},{"team_id":"guam","type":"elo","value":706,"as_of":"2026-06-15"},{"team_id":"wallis-and-futuna","type":"elo","value":701,"as_of":"2026-06-15"},{"team_id":"vatican","type":"elo","value":692,"as_of":"2026-06-15"},{"team_id":"bahamas","type":"elo","value":685,"as_of":"2026-06-15"},{"team_id":"saint-pierre-and-miquelon","type":"elo","value":677,"as_of":"2026-06-15"},{"team_id":"saba","type":"elo","value":671,"as_of":"2026-06-15"},{"team_id":"turks-and-caicos","type":"elo","value":658,"as_of":"2026-06-15"},{"team_id":"anguilla","type":"elo","value":646,"as_of":"2026-06-15"},{"team_id":"tibet","type":"elo","value":630,"as_of":"2026-06-15"},{"team_id":"us-virgin-islands","type":"elo","value":628,"as_of":"2026-06-15"},{"team_id":"bhutan","type":"elo","value":623,"as_of":"2026-06-15"},{"team_id":"cook-islands","type":"elo","value":623,"as_of":"2026-06-15"},{"team_id":"macau","type":"elo","value":589,"as_of":"2026-06-15"},{"team_id":"brunei","type":"elo","value":572,"as_of":"2026-06-15"},{"team_id":"falkland-islands","type":"elo","value":571,"as_of":"2026-06-15"},{"team_id":"micronesia","type":"elo","value":564,"as_of":"2026-06-15"},{"team_id":"marshall-islands","type":"elo","value":559,"as_of":"2026-06-15"},{"team_id":"kiribati","type":"elo","value":545,"as_of":"2026-06-15"},{"team_id":"tonga","type":"elo","value":521,"as_of":"2026-06-15"},{"team_id":"niue","type":"elo","value":496,"as_of":"2026-06-15"},{"team_id":"northern-mariana-islands","type":"elo","value":432,"as_of":"2026-06-15"},{"team_id":"palau","type":"elo","value":403,"as_of":"2026-06-15"},{"team_id":"american-samoa","type":"elo","value":369,"as_of":"2026-06-15"},{"team_id":"argentina","type":"fifa","value":1877.27,"as_of":"2026-06-11"},{"team_id":"spain","type":"fifa","value":1874.71,"as_of":"2026-06-11"},{"team_id":"france","type":"fifa","value":1870.7,"as_of":"2026-06-11"},{"team_id":"england","type":"fifa","value":1828.02,"as_of":"2026-06-11"},{"team_id":"portugal","type":"fifa","value":1767.85,"as_of":"2026-06-11"},{"team_id":"brazil","type":"fifa","value":1765.86,"as_of":"2026-06-11"},{"team_id":"morocco","type":"fifa","value":1755.1,"as_of":"2026-06-11"},{"team_id":"netherlands","type":"fifa","value":1753.57,"as_of":"2026-06-11"},{"team_id":"belgium","type":"fifa","value":1742.24,"as_of":"2026-06-11"},{"team_id":"germany","type":"fifa","value":1735.77,"as_of":"2026-06-11"},{"team_id":"croatia","type":"fifa","value":1714.87,"as_of":"2026-06-11"},{"team_id":"italy","type":"fifa","value":1704.73,"as_of":"2026-06-11"},{"team_id":"colombia","type":"fifa","value":1698.35,"as_of":"2026-06-11"},{"team_id":"mexico","type":"fifa","value":1687.48,"as_of":"2026-06-11"},{"team_id":"senegal","type":"fifa","value":1684.07,"as_of":"2026-06-11"},{"team_id":"uruguay","type":"fifa","value":1673.07,"as_of":"2026-06-11"},{"team_id":"united-states","type":"fifa","value":1671.23,"as_of":"2026-06-11"},{"team_id":"japan","type":"fifa","value":1661.58,"as_of":"2026-06-11"},{"team_id":"switzerland","type":"fifa","value":1650.06,"as_of":"2026-06-11"},{"team_id":"iran","type":"fifa","value":1619.58,"as_of":"2026-06-11"},{"team_id":"denmark","type":"fifa","value":1619.47,"as_of":"2026-06-11"},{"team_id":"turkey","type":"fifa","value":1605.73,"as_of":"2026-06-11"},{"team_id":"ecuador","type":"fifa","value":1598.52,"as_of":"2026-06-11"},{"team_id":"austria","type":"fifa","value":1597.4,"as_of":"2026-06-11"},{"team_id":"south-korea","type":"fifa","value":1591.63,"as_of":"2026-06-11"},{"team_id":"nigeria","type":"fifa","value":1585.02,"as_of":"2026-06-11"},{"team_id":"australia","type":"fifa","value":1579.34,"as_of":"2026-06-11"},{"team_id":"algeria","type":"fifa","value":1571.03,"as_of":"2026-06-11"},{"team_id":"egypt","type":"fifa","value":1562.37,"as_of":"2026-06-11"},{"team_id":"canada","type":"fifa","value":1559.48,"as_of":"2026-06-11"},{"team_id":"norway","type":"fifa","value":1557.44,"as_of":"2026-06-11"},{"team_id":"ukraine","type":"fifa","value":1549.29,"as_of":"2026-06-11"},{"team_id":"ivory-coast","type":"fifa","value":1540.87,"as_of":"2026-06-11"},{"team_id":"panama","type":"fifa","value":1539.16,"as_of":"2026-06-11"},{"team_id":"russia","type":"fifa","value":1529.6,"as_of":"2026-06-11"},{"team_id":"poland","type":"fifa","value":1526.18,"as_of":"2026-06-11"},{"team_id":"wales","type":"fifa","value":1516.95,"as_of":"2026-06-11"},{"team_id":"sweden","type":"fifa","value":1509.79,"as_of":"2026-06-11"},{"team_id":"hungary","type":"fifa","value":1506.39,"as_of":"2026-06-11"},{"team_id":"czechia","type":"fifa","value":1505.74,"as_of":"2026-06-11"},{"team_id":"paraguay","type":"fifa","value":1505.35,"as_of":"2026-06-11"},{"team_id":"scotland","type":"fifa","value":1503.34,"as_of":"2026-06-11"},{"team_id":"serbia","type":"fifa","value":1502.13,"as_of":"2026-06-11"},{"team_id":"cameroon","type":"fifa","value":1481.24,"as_of":"2026-06-11"},{"team_id":"tunisia","type":"fifa","value":1476.41,"as_of":"2026-06-11"},{"team_id":"congo-dr","type":"fifa","value":1474.43,"as_of":"2026-06-11"},{"team_id":"slovakia","type":"fifa","value":1473.66,"as_of":"2026-06-11"},{"team_id":"greece","type":"fifa","value":1473.19,"as_of":"2026-06-11"},{"team_id":"venezuela","type":"fifa","value":1469.18,"as_of":"2026-06-11"},{"team_id":"uzbekistan","type":"fifa","value":1458.73,"as_of":"2026-06-11"},{"team_id":"chile","type":"fifa","value":1458.2,"as_of":"2026-06-11"},{"team_id":"peru","type":"fifa","value":1457.69,"as_of":"2026-06-11"},{"team_id":"costa-rica","type":"fifa","value":1456.03,"as_of":"2026-06-11"},{"team_id":"romania","type":"fifa","value":1455.89,"as_of":"2026-06-11"},{"team_id":"mali","type":"fifa","value":1455.59,"as_of":"2026-06-11"},{"team_id":"qatar","type":"fifa","value":1450.31,"as_of":"2026-06-11"},{"team_id":"iraq","type":"fifa","value":1446.28,"as_of":"2026-06-11"},{"team_id":"republic-of-ireland","type":"fifa","value":1441.1,"as_of":"2026-06-11"},{"team_id":"slovenia","type":"fifa","value":1441.09,"as_of":"2026-06-11"},{"team_id":"south-africa","type":"fifa","value":1428.38,"as_of":"2026-06-11"},{"team_id":"saudi-arabia","type":"fifa","value":1423.88,"as_of":"2026-06-11"},{"team_id":"burkina-faso","type":"fifa","value":1406.99,"as_of":"2026-06-11"},{"team_id":"jordan","type":"fifa","value":1387.74,"as_of":"2026-06-11"},{"team_id":"bosnia-and-herzegovina","type":"fifa","value":1387.22,"as_of":"2026-06-11"},{"team_id":"honduras","type":"fifa","value":1378.97,"as_of":"2026-06-11"},{"team_id":"albania","type":"fifa","value":1376.03,"as_of":"2026-06-11"},{"team_id":"cabo-verde","type":"fifa","value":1371.11,"as_of":"2026-06-11"},{"team_id":"united-arab-emirates","type":"fifa","value":1370.47,"as_of":"2026-06-11"},{"team_id":"north-macedonia","type":"fifa","value":1369.16,"as_of":"2026-06-11"},{"team_id":"northern-ireland","type":"fifa","value":1365.3,"as_of":"2026-06-11"},{"team_id":"jamaica","type":"fifa","value":1357.84,"as_of":"2026-06-11"},{"team_id":"georgia","type":"fifa","value":1355.26,"as_of":"2026-06-11"},{"team_id":"ghana","type":"fifa","value":1346.88,"as_of":"2026-06-11"},{"team_id":"iceland","type":"fifa","value":1342.77,"as_of":"2026-06-11"},{"team_id":"finland","type":"fifa","value":1341.92,"as_of":"2026-06-11"},{"team_id":"israel","type":"fifa","value":1333.9,"as_of":"2026-06-11"},{"team_id":"bolivia","type":"fifa","value":1326.0,"as_of":"2026-06-11"},{"team_id":"kosovo","type":"fifa","value":1319.12,"as_of":"2026-06-11"},{"team_id":"oman","type":"fifa","value":1306.9,"as_of":"2026-06-11"},{"team_id":"montenegro","type":"fifa","value":1301.98,"as_of":"2026-06-11"},{"team_id":"guinea","type":"fifa","value":1295.6,"as_of":"2026-06-11"},{"team_id":"curacao","type":"fifa","value":1294.77,"as_of":"2026-06-11"},{"team_id":"haiti","type":"fifa","value":1293.1,"as_of":"2026-06-11"},{"team_id":"syria","type":"fifa","value":1283.05,"as_of":"2026-06-11"},{"team_id":"aotearoa-new-zealand","type":"fifa","value":1275.58,"as_of":"2026-06-11"},{"team_id":"gabon","type":"fifa","value":1272.51,"as_of":"2026-06-11"},{"team_id":"bulgaria","type":"fifa","value":1271.68,"as_of":"2026-06-11"},{"team_id":"angola","type":"fifa","value":1265.58,"as_of":"2026-06-11"},{"team_id":"uganda","type":"fifa","value":1264.09,"as_of":"2026-06-11"},{"team_id":"zambia","type":"fifa","value":1255.82,"as_of":"2026-06-11"},{"team_id":"china-pr","type":"fifa","value":1254.81,"as_of":"2026-06-11"},{"team_id":"bahrain","type":"fifa","value":1254.41,"as_of":"2026-06-11"},{"team_id":"benin","type":"fifa","value":1252.17,"as_of":"2026-06-11"},{"team_id":"thailand","type":"fifa","value":1250.8,"as_of":"2026-06-11"},{"team_id":"palestine","type":"fifa","value":1243.71,"as_of":"2026-06-11"},{"team_id":"belarus","type":"fifa","value":1242.88,"as_of":"2026-06-11"},{"team_id":"guatemala","type":"fifa","value":1238.74,"as_of":"2026-06-11"},{"team_id":"luxembourg","type":"fifa","value":1232.82,"as_of":"2026-06-11"},{"team_id":"vietnam","type":"fifa","value":1225.68,"as_of":"2026-06-11"},{"team_id":"el-salvador","type":"fifa","value":1225.34,"as_of":"2026-06-11"},{"team_id":"tajikistan","type":"fifa","value":1224.19,"as_of":"2026-06-11"},{"team_id":"trinidad-and-tobago","type":"fifa","value":1219.59,"as_of":"2026-06-11"},{"team_id":"mozambique","type":"fifa","value":1218.62,"as_of":"2026-06-11"},{"team_id":"madagascar","type":"fifa","value":1202.69,"as_of":"2026-06-11"},{"team_id":"equatorial-guinea","type":"fifa","value":1195.2,"as_of":"2026-06-11"},{"team_id":"kyrgyz-republic","type":"fifa","value":1192.16,"as_of":"2026-06-11"},{"team_id":"armenia","type":"fifa","value":1189.63,"as_of":"2026-06-11"},{"team_id":"comoros","type":"fifa","value":1187.91,"as_of":"2026-06-11"},{"team_id":"kenya","type":"fifa","value":1185.08,"as_of":"2026-06-11"},{"team_id":"libya","type":"fifa","value":1182.08,"as_of":"2026-06-11"},{"team_id":"kazakhstan","type":"fifa","value":1180.78,"as_of":"2026-06-11"},{"team_id":"tanzania","type":"fifa","value":1180.27,"as_of":"2026-06-11"},{"team_id":"mauritania","type":"fifa","value":1176.68,"as_of":"2026-06-11"},{"team_id":"niger","type":"fifa","value":1175.33,"as_of":"2026-06-11"},{"team_id":"lebanon","type":"fifa","value":1172.22,"as_of":"2026-06-11"},{"team_id":"the-gambia","type":"fifa","value":1159.64,"as_of":"2026-06-11"},{"team_id":"sudan","type":"fifa","value":1157.22,"as_of":"2026-06-11"},{"team_id":"indonesia","type":"fifa","value":1157.14,"as_of":"2026-06-11"},{"team_id":"togo","type":"fifa","value":1152.76,"as_of":"2026-06-11"},{"team_id":"korea-dpr","type":"fifa","value":1151.05,"as_of":"2026-06-11"},{"team_id":"namibia","type":"fifa","value":1148.84,"as_of":"2026-06-11"},{"team_id":"sierra-leone","type":"fifa","value":1147.56,"as_of":"2026-06-11"},{"team_id":"faroe-islands","type":"fifa","value":1136.59,"as_of":"2026-06-11"},{"team_id":"cyprus","type":"fifa","value":1133.25,"as_of":"2026-06-11"},{"team_id":"suriname","type":"fifa","value":1132.43,"as_of":"2026-06-11"},{"team_id":"azerbaijan","type":"fifa","value":1132.0,"as_of":"2026-06-11"},{"team_id":"estonia","type":"fifa","value":1130.64,"as_of":"2026-06-11"},{"team_id":"rwanda","type":"fifa","value":1126.62,"as_of":"2026-06-11"},{"team_id":"malawi","type":"fifa","value":1122.05,"as_of":"2026-06-11"},{"team_id":"zimbabwe","type":"fifa","value":1119.78,"as_of":"2026-06-11"},{"team_id":"nicaragua","type":"fifa","value":1114.63,"as_of":"2026-06-11"},{"team_id":"guinea-bissau","type":"fifa","value":1108.38,"as_of":"2026-06-11"},{"team_id":"kuwait","type":"fifa","value":1106.47,"as_of":"2026-06-11"},{"team_id":"congo","type":"fifa","value":1105.96,"as_of":"2026-06-11"},{"team_id":"philippines","type":"fifa","value":1100.95,"as_of":"2026-06-11"},{"team_id":"malaysia","type":"fifa","value":1086.22,"as_of":"2026-06-11"},{"team_id":"latvia","type":"fifa","value":1085.66,"as_of":"2026-06-11"},{"team_id":"india","type":"fifa","value":1084.93,"as_of":"2026-06-11"},{"team_id":"central-african-republic","type":"fifa","value":1080.82,"as_of":"2026-06-11"},{"team_id":"liberia","type":"fifa","value":1080.44,"as_of":"2026-06-11"},{"team_id":"turkmenistan","type":"fifa","value":1078.65,"as_of":"2026-06-11"},{"team_id":"burundi","type":"fifa","value":1078.01,"as_of":"2026-06-11"},{"team_id":"ethiopia","type":"fifa","value":1077.52,"as_of":"2026-06-11"},{"team_id":"dominican-republic","type":"fifa","value":1076.5,"as_of":"2026-06-11"},{"team_id":"yemen","type":"fifa","value":1065.24,"as_of":"2026-06-11"},{"team_id":"lesotho","type":"fifa","value":1064.29,"as_of":"2026-06-11"},{"team_id":"botswana","type":"fifa","value":1063.63,"as_of":"2026-06-11"},{"team_id":"singapore","type":"fifa","value":1057.95,"as_of":"2026-06-11"},{"team_id":"lithuania","type":"fifa","value":1056.85,"as_of":"2026-06-11"},{"team_id":"guyana","type":"fifa","value":1049.32,"as_of":"2026-06-11"},{"team_id":"new-caledonia","type":"fifa","value":1036.95,"as_of":"2026-06-11"},{"team_id":"st-kitts-and-nevis","type":"fifa","value":1036.33,"as_of":"2026-06-11"},{"team_id":"solomon-islands","type":"fifa","value":1031.89,"as_of":"2026-06-11"},{"team_id":"puerto-rico","type":"fifa","value":1024.3,"as_of":"2026-06-11"},{"team_id":"fiji","type":"fifa","value":1024.17,"as_of":"2026-06-11"},{"team_id":"hong-kong-china","type":"fifa","value":1024.16,"as_of":"2026-06-11"},{"team_id":"tahiti","type":"fifa","value":1019.04,"as_of":"2026-06-11"},{"team_id":"myanmar","type":"fifa","value":1010.91,"as_of":"2026-06-11"},{"team_id":"moldova","type":"fifa","value":1008.24,"as_of":"2026-06-11"},{"team_id":"vanuatu","type":"fifa","value":1002.53,"as_of":"2026-06-11"},{"team_id":"malta","type":"fifa","value":992.79,"as_of":"2026-06-11"},{"team_id":"antigua-and-barbuda","type":"fifa","value":986.58,"as_of":"2026-06-11"},{"team_id":"grenada","type":"fifa","value":981.82,"as_of":"2026-06-11"},{"team_id":"cuba","type":"fifa","value":981.42,"as_of":"2026-06-11"},{"team_id":"eswatini","type":"fifa","value":979.01,"as_of":"2026-06-11"},{"team_id":"st-lucia","type":"fifa","value":976.71,"as_of":"2026-06-11"},{"team_id":"bermuda","type":"fifa","value":975.05,"as_of":"2026-06-11"},{"team_id":"papua-new-guinea","type":"fifa","value":974.9,"as_of":"2026-06-11"},{"team_id":"south-sudan","type":"fifa","value":970.94,"as_of":"2026-06-11"},{"team_id":"st-vincent-and-the-grenadines","type":"fifa","value":968.27,"as_of":"2026-06-11"},{"team_id":"afghanistan","type":"fifa","value":968.07,"as_of":"2026-06-11"},{"team_id":"andorra","type":"fifa","value":946.43,"as_of":"2026-06-11"},{"team_id":"maldives","type":"fifa","value":943.92,"as_of":"2026-06-11"},{"team_id":"chinese-taipei","type":"fifa","value":923.78,"as_of":"2026-06-11"},{"team_id":"cambodia","type":"fifa","value":922.32,"as_of":"2026-06-11"},{"team_id":"montserrat","type":"fifa","value":916.75,"as_of":"2026-06-11"},{"team_id":"nepal","type":"fifa","value":914.54,"as_of":"2026-06-11"},{"team_id":"mauritius","type":"fifa","value":911.49,"as_of":"2026-06-11"},{"team_id":"barbados","type":"fifa","value":909.89,"as_of":"2026-06-11"},{"team_id":"belize","type":"fifa","value":907.0,"as_of":"2026-06-11"},{"team_id":"bangladesh","type":"fifa","value":902.93,"as_of":"2026-06-11"},{"team_id":"dominica","type":"fifa","value":897.69,"as_of":"2026-06-11"},{"team_id":"chad","type":"fifa","value":896.65,"as_of":"2026-06-11"},{"team_id":"eritrea","type":"fifa","value":887.06,"as_of":"2026-06-11"},{"team_id":"laos","type":"fifa","value":885.03,"as_of":"2026-06-11"},{"team_id":"cook-islands","type":"fifa","value":877.53,"as_of":"2026-06-11"},{"team_id":"sri-lanka","type":"fifa","value":876.86,"as_of":"2026-06-11"},{"team_id":"samoa","type":"fifa","value":876.41,"as_of":"2026-06-11"},{"team_id":"aruba","type":"fifa","value":875.61,"as_of":"2026-06-11"},{"team_id":"mongolia","type":"fifa","value":874.47,"as_of":"2026-06-11"},{"team_id":"american-samoa","type":"fifa","value":871.61,"as_of":"2026-06-11"},{"team_id":"bhutan","type":"fifa","value":870.81,"as_of":"2026-06-11"},{"team_id":"macau","type":"fifa","value":858.03,"as_of":"2026-06-11"},{"team_id":"brunei-darussalam","type":"fifa","value":857.73,"as_of":"2026-06-11"},{"team_id":"sao-tome-and-principe","type":"fifa","value":855.44,"as_of":"2026-06-11"},{"team_id":"djibouti","type":"fifa","value":853.58,"as_of":"2026-06-11"},{"team_id":"cayman-islands","type":"fifa","value":850.06,"as_of":"2026-06-11"},{"team_id":"pakistan","type":"fifa","value":840.28,"as_of":"2026-06-11"},{"team_id":"somalia","type":"fifa","value":839.17,"as_of":"2026-06-11"},{"team_id":"tonga","type":"fifa","value":835.64,"as_of":"2026-06-11"},{"team_id":"timor-leste","type":"fifa","value":831.0,"as_of":"2026-06-11"},{"team_id":"gibraltar","type":"fifa","value":820.26,"as_of":"2026-06-11"},{"team_id":"guam","type":"fifa","value":819.54,"as_of":"2026-06-11"},{"team_id":"seychelles","type":"fifa","value":804.16,"as_of":"2026-06-11"},{"team_id":"turks-and-caicos-islands","type":"fifa","value":803.98,"as_of":"2026-06-11"},{"team_id":"liechtenstein","type":"fifa","value":797.7,"as_of":"2026-06-11"},{"team_id":"bahamas","type":"fifa","value":786.82,"as_of":"2026-06-11"},{"team_id":"us-virgin-islands","type":"fifa","value":779.76,"as_of":"2026-06-11"},{"team_id":"british-virgin-islands","type":"fifa","value":777.41,"as_of":"2026-06-11"},{"team_id":"anguilla","type":"fifa","value":760.25,"as_of":"2026-06-11"},{"team_id":"san-marino","type":"fifa","value":721.2,"as_of":"2026-06-11"}]
+[
+  {
+    "team_id": "spain",
+    "type": "elo",
+    "value": 2157,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "argentina",
+    "type": "elo",
+    "value": 2115,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "france",
+    "type": "elo",
+    "value": 2063,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "england",
+    "type": "elo",
+    "value": 2024,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "brazil",
+    "type": "elo",
+    "value": 1991,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "portugal",
+    "type": "elo",
+    "value": 1989,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "colombia",
+    "type": "elo",
+    "value": 1982,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "netherlands",
+    "type": "elo",
+    "value": 1948,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "ecuador",
+    "type": "elo",
+    "value": 1938,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "germany",
+    "type": "elo",
+    "value": 1932,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "norway",
+    "type": "elo",
+    "value": 1914,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "croatia",
+    "type": "elo",
+    "value": 1912,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "turkey",
+    "type": "elo",
+    "value": 1911,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "japan",
+    "type": "elo",
+    "value": 1906,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "belgium",
+    "type": "elo",
+    "value": 1894,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "uruguay",
+    "type": "elo",
+    "value": 1892,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "switzerland",
+    "type": "elo",
+    "value": 1891,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mexico",
+    "type": "elo",
+    "value": 1881,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "denmark",
+    "type": "elo",
+    "value": 1869,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "italy",
+    "type": "elo",
+    "value": 1869,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "senegal",
+    "type": "elo",
+    "value": 1860,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "paraguay",
+    "type": "elo",
+    "value": 1834,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "austria",
+    "type": "elo",
+    "value": 1830,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "morocco",
+    "type": "elo",
+    "value": 1827,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "canada",
+    "type": "elo",
+    "value": 1788,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "south-korea",
+    "type": "elo",
+    "value": 1786,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "scotland",
+    "type": "elo",
+    "value": 1782,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "ukraine",
+    "type": "elo",
+    "value": 1780,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "australia",
+    "type": "elo",
+    "value": 1777,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "iran",
+    "type": "elo",
+    "value": 1772,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "algeria",
+    "type": "elo",
+    "value": 1772,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "russia",
+    "type": "elo",
+    "value": 1772,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "nigeria",
+    "type": "elo",
+    "value": 1767,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "greece",
+    "type": "elo",
+    "value": 1744,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "serbia",
+    "type": "elo",
+    "value": 1734,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "venezuela",
+    "type": "elo",
+    "value": 1733,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "panama",
+    "type": "elo",
+    "value": 1730,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "united-states",
+    "type": "elo",
+    "value": 1726,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "chile",
+    "type": "elo",
+    "value": 1717,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kosovo",
+    "type": "elo",
+    "value": 1715,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "uzbekistan",
+    "type": "elo",
+    "value": 1714,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "czechia",
+    "type": "elo",
+    "value": 1712,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sweden",
+    "type": "elo",
+    "value": 1712,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "hungary",
+    "type": "elo",
+    "value": 1710,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "poland",
+    "type": "elo",
+    "value": 1710,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "peru",
+    "type": "elo",
+    "value": 1700,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "ireland",
+    "type": "elo",
+    "value": 1699,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "egypt",
+    "type": "elo",
+    "value": 1696,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "ivory-coast",
+    "type": "elo",
+    "value": 1695,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "slovenia",
+    "type": "elo",
+    "value": 1682,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "wales",
+    "type": "elo",
+    "value": 1682,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "jordan",
+    "type": "elo",
+    "value": 1680,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "slovakia",
+    "type": "elo",
+    "value": 1667,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "georgia",
+    "type": "elo",
+    "value": 1654,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "congo-dr",
+    "type": "elo",
+    "value": 1652,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "israel",
+    "type": "elo",
+    "value": 1647,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "romania",
+    "type": "elo",
+    "value": 1639,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tunisia",
+    "type": "elo",
+    "value": 1628,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bolivia",
+    "type": "elo",
+    "value": 1621,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "albania",
+    "type": "elo",
+    "value": 1616,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cameroon",
+    "type": "elo",
+    "value": 1614,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "costa-rica",
+    "type": "elo",
+    "value": 1608,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "iraq",
+    "type": "elo",
+    "value": 1607,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "northern-ireland",
+    "type": "elo",
+    "value": 1605,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bosnia-and-herzegovina",
+    "type": "elo",
+    "value": 1595,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "north-macedonia",
+    "type": "elo",
+    "value": 1589,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mali",
+    "type": "elo",
+    "value": 1588,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cape-verde",
+    "type": "elo",
+    "value": 1578,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saudi-arabia",
+    "type": "elo",
+    "value": 1576,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "honduras",
+    "type": "elo",
+    "value": 1570,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "iceland",
+    "type": "elo",
+    "value": 1568,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "new-zealand",
+    "type": "elo",
+    "value": 1562,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "haiti",
+    "type": "elo",
+    "value": 1548,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "angola",
+    "type": "elo",
+    "value": 1542,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "united-arab-emirates",
+    "type": "elo",
+    "value": 1540,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "finland",
+    "type": "elo",
+    "value": 1536,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "burkina-faso",
+    "type": "elo",
+    "value": 1529,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "jamaica",
+    "type": "elo",
+    "value": 1527,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "belarus",
+    "type": "elo",
+    "value": 1522,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "south-africa",
+    "type": "elo",
+    "value": 1511,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "ghana",
+    "type": "elo",
+    "value": 1510,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "guatemala",
+    "type": "elo",
+    "value": 1504,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "oman",
+    "type": "elo",
+    "value": 1480,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "syria",
+    "type": "elo",
+    "value": 1479,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "palestine",
+    "type": "elo",
+    "value": 1465,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "guinea",
+    "type": "elo",
+    "value": 1463,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "montenegro",
+    "type": "elo",
+    "value": 1461,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bulgaria",
+    "type": "elo",
+    "value": 1458,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "northern-cyprus",
+    "type": "elo",
+    "value": 1457,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "luxembourg",
+    "type": "elo",
+    "value": 1450,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "curacao",
+    "type": "elo",
+    "value": 1434,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "suriname",
+    "type": "elo",
+    "value": 1431,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kazakhstan",
+    "type": "elo",
+    "value": 1428,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kurdistan",
+    "type": "elo",
+    "value": 1425,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "china",
+    "type": "elo",
+    "value": 1424,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "qatar",
+    "type": "elo",
+    "value": 1421,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "libya",
+    "type": "elo",
+    "value": 1420,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "gambia",
+    "type": "elo",
+    "value": 1419,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bahrain",
+    "type": "elo",
+    "value": 1414,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "benin",
+    "type": "elo",
+    "value": 1405,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "gabon",
+    "type": "elo",
+    "value": 1401,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "uganda",
+    "type": "elo",
+    "value": 1394,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "trinidad-and-tobago",
+    "type": "elo",
+    "value": 1386,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "faroe-islands",
+    "type": "elo",
+    "value": 1386,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "niger",
+    "type": "elo",
+    "value": 1382,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "equatorial-guinea",
+    "type": "elo",
+    "value": 1380,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "madagascar",
+    "type": "elo",
+    "value": 1380,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "togo",
+    "type": "elo",
+    "value": 1379,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "thailand",
+    "type": "elo",
+    "value": 1376,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "comoros",
+    "type": "elo",
+    "value": 1374,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "north-korea",
+    "type": "elo",
+    "value": 1373,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "armenia",
+    "type": "elo",
+    "value": 1373,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "indonesia",
+    "type": "elo",
+    "value": 1372,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "zimbabwe",
+    "type": "elo",
+    "value": 1372,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "zambia",
+    "type": "elo",
+    "value": 1371,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kenya",
+    "type": "elo",
+    "value": 1363,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "estonia",
+    "type": "elo",
+    "value": 1360,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "vietnam",
+    "type": "elo",
+    "value": 1351,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sudan",
+    "type": "elo",
+    "value": 1350,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "reunion",
+    "type": "elo",
+    "value": 1346,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mozambique",
+    "type": "elo",
+    "value": 1342,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "el-salvador",
+    "type": "elo",
+    "value": 1342,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sierra-leone",
+    "type": "elo",
+    "value": 1341,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "guadeloupe",
+    "type": "elo",
+    "value": 1338,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "rwanda",
+    "type": "elo",
+    "value": 1336,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "nicaragua",
+    "type": "elo",
+    "value": 1333,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kuwait",
+    "type": "elo",
+    "value": 1332,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mauritania",
+    "type": "elo",
+    "value": 1329,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "zanzibar",
+    "type": "elo",
+    "value": 1326,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "azerbaijan",
+    "type": "elo",
+    "value": 1322,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cyprus",
+    "type": "elo",
+    "value": 1314,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tanzania",
+    "type": "elo",
+    "value": 1313,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "martinique",
+    "type": "elo",
+    "value": 1312,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "liberia",
+    "type": "elo",
+    "value": 1304,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "namibia",
+    "type": "elo",
+    "value": 1303,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kyrgyzstan",
+    "type": "elo",
+    "value": 1295,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "malaysia",
+    "type": "elo",
+    "value": 1293,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "guyana",
+    "type": "elo",
+    "value": 1292,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "lebanon",
+    "type": "elo",
+    "value": 1288,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "latvia",
+    "type": "elo",
+    "value": 1288,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "ethiopia",
+    "type": "elo",
+    "value": 1287,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "new-caledonia",
+    "type": "elo",
+    "value": 1286,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tajikistan",
+    "type": "elo",
+    "value": 1285,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "burundi",
+    "type": "elo",
+    "value": 1285,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "dominican-republic",
+    "type": "elo",
+    "value": 1283,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "lithuania",
+    "type": "elo",
+    "value": 1279,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "moldova",
+    "type": "elo",
+    "value": 1270,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "botswana",
+    "type": "elo",
+    "value": 1267,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "malta",
+    "type": "elo",
+    "value": 1255,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "guinea-bissau",
+    "type": "elo",
+    "value": 1248,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cuba",
+    "type": "elo",
+    "value": 1239,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "malawi",
+    "type": "elo",
+    "value": 1239,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "central-african-republic",
+    "type": "elo",
+    "value": 1236,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "french-guiana",
+    "type": "elo",
+    "value": 1221,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mayotte",
+    "type": "elo",
+    "value": 1217,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "turkmenistan",
+    "type": "elo",
+    "value": 1209,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "congo",
+    "type": "elo",
+    "value": 1206,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "eritrea",
+    "type": "elo",
+    "value": 1201,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "lesotho",
+    "type": "elo",
+    "value": 1198,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "yemen",
+    "type": "elo",
+    "value": 1195,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tahiti",
+    "type": "elo",
+    "value": 1179,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "philippines",
+    "type": "elo",
+    "value": 1179,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "eswatini",
+    "type": "elo",
+    "value": 1148,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saint-vincent-and-the-grenadines",
+    "type": "elo",
+    "value": 1141,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "papua-new-guinea",
+    "type": "elo",
+    "value": 1136,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "puerto-rico",
+    "type": "elo",
+    "value": 1135,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "singapore",
+    "type": "elo",
+    "value": 1134,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "india",
+    "type": "elo",
+    "value": 1128,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "vanuatu",
+    "type": "elo",
+    "value": 1118,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bermuda",
+    "type": "elo",
+    "value": 1117,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "south-sudan",
+    "type": "elo",
+    "value": 1109,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "fiji",
+    "type": "elo",
+    "value": 1104,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "hong-kong",
+    "type": "elo",
+    "value": 1101,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "grenada",
+    "type": "elo",
+    "value": 1098,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "andorra",
+    "type": "elo",
+    "value": 1080,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "belize",
+    "type": "elo",
+    "value": 1073,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mauritius",
+    "type": "elo",
+    "value": 1073,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "chad",
+    "type": "elo",
+    "value": 1073,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "solomon-islands",
+    "type": "elo",
+    "value": 1054,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saint-martin",
+    "type": "elo",
+    "value": 1042,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sao-tome-e-principe",
+    "type": "elo",
+    "value": 1035,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saint-kitts-and-nevis",
+    "type": "elo",
+    "value": 1029,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "gibraltar",
+    "type": "elo",
+    "value": 1011,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saint-lucia",
+    "type": "elo",
+    "value": 1003,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "somaliland",
+    "type": "elo",
+    "value": 1002,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "western-sahara",
+    "type": "elo",
+    "value": 996,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "myanmar",
+    "type": "elo",
+    "value": 984,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "somalia",
+    "type": "elo",
+    "value": 979,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "aruba",
+    "type": "elo",
+    "value": 978,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sint-maarten",
+    "type": "elo",
+    "value": 975,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "montserrat",
+    "type": "elo",
+    "value": 972,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "afghanistan",
+    "type": "elo",
+    "value": 961,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "greenland",
+    "type": "elo",
+    "value": 946,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bangladesh",
+    "type": "elo",
+    "value": 942,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "djibouti",
+    "type": "elo",
+    "value": 940,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "dominica",
+    "type": "elo",
+    "value": 934,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "pakistan",
+    "type": "elo",
+    "value": 909,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "monaco",
+    "type": "elo",
+    "value": 903,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "barbados",
+    "type": "elo",
+    "value": 898,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "liechtenstein",
+    "type": "elo",
+    "value": 895,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "antigua-and-barbuda",
+    "type": "elo",
+    "value": 894,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "nepal",
+    "type": "elo",
+    "value": 893,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cambodia",
+    "type": "elo",
+    "value": 871,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "seychelles",
+    "type": "elo",
+    "value": 853,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sri-lanka",
+    "type": "elo",
+    "value": 836,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "san-marino",
+    "type": "elo",
+    "value": 825,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "chinese-taipei",
+    "type": "elo",
+    "value": 822,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bonaire",
+    "type": "elo",
+    "value": 817,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "maldives",
+    "type": "elo",
+    "value": 801,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cayman-islands",
+    "type": "elo",
+    "value": 800,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "chagos-islands",
+    "type": "elo",
+    "value": 785,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "sint-eustatius",
+    "type": "elo",
+    "value": 757,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tuvalu",
+    "type": "elo",
+    "value": 756,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "british-virgin-islands",
+    "type": "elo",
+    "value": 743,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "laos",
+    "type": "elo",
+    "value": 734,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "timor-leste",
+    "type": "elo",
+    "value": 734,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "samoa",
+    "type": "elo",
+    "value": 730,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "mongolia",
+    "type": "elo",
+    "value": 726,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saint-barthelemy",
+    "type": "elo",
+    "value": 725,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "guam",
+    "type": "elo",
+    "value": 706,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "wallis-and-futuna",
+    "type": "elo",
+    "value": 701,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "vatican",
+    "type": "elo",
+    "value": 692,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bahamas",
+    "type": "elo",
+    "value": 685,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saint-pierre-and-miquelon",
+    "type": "elo",
+    "value": 677,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "saba",
+    "type": "elo",
+    "value": 671,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "turks-and-caicos",
+    "type": "elo",
+    "value": 658,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "anguilla",
+    "type": "elo",
+    "value": 646,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tibet",
+    "type": "elo",
+    "value": 630,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "us-virgin-islands",
+    "type": "elo",
+    "value": 628,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "bhutan",
+    "type": "elo",
+    "value": 623,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cook-islands",
+    "type": "elo",
+    "value": 623,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "macau",
+    "type": "elo",
+    "value": 589,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "brunei",
+    "type": "elo",
+    "value": 572,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "falkland-islands",
+    "type": "elo",
+    "value": 571,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "micronesia",
+    "type": "elo",
+    "value": 564,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "marshall-islands",
+    "type": "elo",
+    "value": 559,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "kiribati",
+    "type": "elo",
+    "value": 545,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "tonga",
+    "type": "elo",
+    "value": 521,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "niue",
+    "type": "elo",
+    "value": 496,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "northern-mariana-islands",
+    "type": "elo",
+    "value": 432,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "palau",
+    "type": "elo",
+    "value": 403,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "american-samoa",
+    "type": "elo",
+    "value": 369,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "argentina",
+    "type": "fifa",
+    "value": 1877.27,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "spain",
+    "type": "fifa",
+    "value": 1874.71,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "france",
+    "type": "fifa",
+    "value": 1870.7,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "england",
+    "type": "fifa",
+    "value": 1828.02,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "portugal",
+    "type": "fifa",
+    "value": 1767.85,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "brazil",
+    "type": "fifa",
+    "value": 1765.86,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "morocco",
+    "type": "fifa",
+    "value": 1755.1,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "netherlands",
+    "type": "fifa",
+    "value": 1753.57,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "belgium",
+    "type": "fifa",
+    "value": 1742.24,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "germany",
+    "type": "fifa",
+    "value": 1735.77,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "croatia",
+    "type": "fifa",
+    "value": 1714.87,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "italy",
+    "type": "fifa",
+    "value": 1704.73,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "colombia",
+    "type": "fifa",
+    "value": 1698.35,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "mexico",
+    "type": "fifa",
+    "value": 1687.48,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "senegal",
+    "type": "fifa",
+    "value": 1684.07,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "uruguay",
+    "type": "fifa",
+    "value": 1673.07,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "united-states",
+    "type": "fifa",
+    "value": 1671.23,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "japan",
+    "type": "fifa",
+    "value": 1661.58,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "switzerland",
+    "type": "fifa",
+    "value": 1650.06,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "iran",
+    "type": "fifa",
+    "value": 1619.58,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "denmark",
+    "type": "fifa",
+    "value": 1619.47,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "turkey",
+    "type": "fifa",
+    "value": 1605.73,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "ecuador",
+    "type": "fifa",
+    "value": 1598.52,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "austria",
+    "type": "fifa",
+    "value": 1597.4,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "south-korea",
+    "type": "fifa",
+    "value": 1591.63,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "nigeria",
+    "type": "fifa",
+    "value": 1585.02,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "australia",
+    "type": "fifa",
+    "value": 1579.34,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "algeria",
+    "type": "fifa",
+    "value": 1571.03,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "egypt",
+    "type": "fifa",
+    "value": 1562.37,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "canada",
+    "type": "fifa",
+    "value": 1559.48,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "norway",
+    "type": "fifa",
+    "value": 1557.44,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "ukraine",
+    "type": "fifa",
+    "value": 1549.29,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "ivory-coast",
+    "type": "fifa",
+    "value": 1540.87,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "panama",
+    "type": "fifa",
+    "value": 1539.16,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "russia",
+    "type": "fifa",
+    "value": 1529.6,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "poland",
+    "type": "fifa",
+    "value": 1526.18,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "wales",
+    "type": "fifa",
+    "value": 1516.95,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "sweden",
+    "type": "fifa",
+    "value": 1509.79,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "hungary",
+    "type": "fifa",
+    "value": 1506.39,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "czechia",
+    "type": "fifa",
+    "value": 1505.74,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "paraguay",
+    "type": "fifa",
+    "value": 1505.35,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "scotland",
+    "type": "fifa",
+    "value": 1503.34,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "serbia",
+    "type": "fifa",
+    "value": 1502.13,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cameroon",
+    "type": "fifa",
+    "value": 1481.24,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "tunisia",
+    "type": "fifa",
+    "value": 1476.41,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "congo-dr",
+    "type": "fifa",
+    "value": 1474.43,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "slovakia",
+    "type": "fifa",
+    "value": 1473.66,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "greece",
+    "type": "fifa",
+    "value": 1473.19,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "venezuela",
+    "type": "fifa",
+    "value": 1469.18,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "uzbekistan",
+    "type": "fifa",
+    "value": 1458.73,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "chile",
+    "type": "fifa",
+    "value": 1458.2,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "peru",
+    "type": "fifa",
+    "value": 1457.69,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "costa-rica",
+    "type": "fifa",
+    "value": 1456.03,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "romania",
+    "type": "fifa",
+    "value": 1455.89,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "mali",
+    "type": "fifa",
+    "value": 1455.59,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "qatar",
+    "type": "fifa",
+    "value": 1450.31,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "iraq",
+    "type": "fifa",
+    "value": 1446.28,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "republic-of-ireland",
+    "type": "fifa",
+    "value": 1441.1,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "slovenia",
+    "type": "fifa",
+    "value": 1441.09,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "south-africa",
+    "type": "fifa",
+    "value": 1428.38,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "saudi-arabia",
+    "type": "fifa",
+    "value": 1423.88,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "burkina-faso",
+    "type": "fifa",
+    "value": 1406.99,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "jordan",
+    "type": "fifa",
+    "value": 1387.74,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bosnia-and-herzegovina",
+    "type": "fifa",
+    "value": 1387.22,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "honduras",
+    "type": "fifa",
+    "value": 1378.97,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "albania",
+    "type": "fifa",
+    "value": 1376.03,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cabo-verde",
+    "type": "fifa",
+    "value": 1371.11,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "united-arab-emirates",
+    "type": "fifa",
+    "value": 1370.47,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "north-macedonia",
+    "type": "fifa",
+    "value": 1369.16,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "northern-ireland",
+    "type": "fifa",
+    "value": 1365.3,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "jamaica",
+    "type": "fifa",
+    "value": 1357.84,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "georgia",
+    "type": "fifa",
+    "value": 1355.26,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "ghana",
+    "type": "fifa",
+    "value": 1346.88,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "iceland",
+    "type": "fifa",
+    "value": 1342.77,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "finland",
+    "type": "fifa",
+    "value": 1341.92,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "israel",
+    "type": "fifa",
+    "value": 1333.9,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bolivia",
+    "type": "fifa",
+    "value": 1326,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "kosovo",
+    "type": "fifa",
+    "value": 1319.12,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "oman",
+    "type": "fifa",
+    "value": 1306.9,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "montenegro",
+    "type": "fifa",
+    "value": 1301.98,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "guinea",
+    "type": "fifa",
+    "value": 1295.6,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "curacao",
+    "type": "fifa",
+    "value": 1294.77,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "haiti",
+    "type": "fifa",
+    "value": 1293.1,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "syria",
+    "type": "fifa",
+    "value": 1283.05,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "aotearoa-new-zealand",
+    "type": "fifa",
+    "value": 1275.58,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "gabon",
+    "type": "fifa",
+    "value": 1272.51,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bulgaria",
+    "type": "fifa",
+    "value": 1271.68,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "angola",
+    "type": "fifa",
+    "value": 1265.58,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "uganda",
+    "type": "fifa",
+    "value": 1264.09,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "zambia",
+    "type": "fifa",
+    "value": 1255.82,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "china-pr",
+    "type": "fifa",
+    "value": 1254.81,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bahrain",
+    "type": "fifa",
+    "value": 1254.41,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "benin",
+    "type": "fifa",
+    "value": 1252.17,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "thailand",
+    "type": "fifa",
+    "value": 1250.8,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "palestine",
+    "type": "fifa",
+    "value": 1243.71,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "belarus",
+    "type": "fifa",
+    "value": 1242.88,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "guatemala",
+    "type": "fifa",
+    "value": 1238.74,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "luxembourg",
+    "type": "fifa",
+    "value": 1232.82,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "vietnam",
+    "type": "fifa",
+    "value": 1225.68,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "el-salvador",
+    "type": "fifa",
+    "value": 1225.34,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "tajikistan",
+    "type": "fifa",
+    "value": 1224.19,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "trinidad-and-tobago",
+    "type": "fifa",
+    "value": 1219.59,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "mozambique",
+    "type": "fifa",
+    "value": 1218.62,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "madagascar",
+    "type": "fifa",
+    "value": 1202.69,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "equatorial-guinea",
+    "type": "fifa",
+    "value": 1195.2,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "kyrgyz-republic",
+    "type": "fifa",
+    "value": 1192.16,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "armenia",
+    "type": "fifa",
+    "value": 1189.63,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "comoros",
+    "type": "fifa",
+    "value": 1187.91,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "kenya",
+    "type": "fifa",
+    "value": 1185.08,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "libya",
+    "type": "fifa",
+    "value": 1182.08,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "kazakhstan",
+    "type": "fifa",
+    "value": 1180.78,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "tanzania",
+    "type": "fifa",
+    "value": 1180.27,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "mauritania",
+    "type": "fifa",
+    "value": 1176.68,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "niger",
+    "type": "fifa",
+    "value": 1175.33,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "lebanon",
+    "type": "fifa",
+    "value": 1172.22,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "the-gambia",
+    "type": "fifa",
+    "value": 1159.64,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "sudan",
+    "type": "fifa",
+    "value": 1157.22,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "indonesia",
+    "type": "fifa",
+    "value": 1157.14,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "togo",
+    "type": "fifa",
+    "value": 1152.76,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "korea-dpr",
+    "type": "fifa",
+    "value": 1151.05,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "namibia",
+    "type": "fifa",
+    "value": 1148.84,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "sierra-leone",
+    "type": "fifa",
+    "value": 1147.56,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "faroe-islands",
+    "type": "fifa",
+    "value": 1136.59,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cyprus",
+    "type": "fifa",
+    "value": 1133.25,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "suriname",
+    "type": "fifa",
+    "value": 1132.43,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "azerbaijan",
+    "type": "fifa",
+    "value": 1132,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "estonia",
+    "type": "fifa",
+    "value": 1130.64,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "rwanda",
+    "type": "fifa",
+    "value": 1126.62,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "malawi",
+    "type": "fifa",
+    "value": 1122.05,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "zimbabwe",
+    "type": "fifa",
+    "value": 1119.78,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "nicaragua",
+    "type": "fifa",
+    "value": 1114.63,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "guinea-bissau",
+    "type": "fifa",
+    "value": 1108.38,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "kuwait",
+    "type": "fifa",
+    "value": 1106.47,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "congo",
+    "type": "fifa",
+    "value": 1105.96,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "philippines",
+    "type": "fifa",
+    "value": 1100.95,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "malaysia",
+    "type": "fifa",
+    "value": 1086.22,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "latvia",
+    "type": "fifa",
+    "value": 1085.66,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "india",
+    "type": "fifa",
+    "value": 1084.93,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "central-african-republic",
+    "type": "fifa",
+    "value": 1080.82,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "liberia",
+    "type": "fifa",
+    "value": 1080.44,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "turkmenistan",
+    "type": "fifa",
+    "value": 1078.65,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "burundi",
+    "type": "fifa",
+    "value": 1078.01,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "ethiopia",
+    "type": "fifa",
+    "value": 1077.52,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "dominican-republic",
+    "type": "fifa",
+    "value": 1076.5,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "yemen",
+    "type": "fifa",
+    "value": 1065.24,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "lesotho",
+    "type": "fifa",
+    "value": 1064.29,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "botswana",
+    "type": "fifa",
+    "value": 1063.63,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "singapore",
+    "type": "fifa",
+    "value": 1057.95,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "lithuania",
+    "type": "fifa",
+    "value": 1056.85,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "guyana",
+    "type": "fifa",
+    "value": 1049.32,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "new-caledonia",
+    "type": "fifa",
+    "value": 1036.95,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "st-kitts-and-nevis",
+    "type": "fifa",
+    "value": 1036.33,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "solomon-islands",
+    "type": "fifa",
+    "value": 1031.89,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "puerto-rico",
+    "type": "fifa",
+    "value": 1024.3,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "fiji",
+    "type": "fifa",
+    "value": 1024.17,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "hong-kong-china",
+    "type": "fifa",
+    "value": 1024.16,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "tahiti",
+    "type": "fifa",
+    "value": 1019.04,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "myanmar",
+    "type": "fifa",
+    "value": 1010.91,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "moldova",
+    "type": "fifa",
+    "value": 1008.24,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "vanuatu",
+    "type": "fifa",
+    "value": 1002.53,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "malta",
+    "type": "fifa",
+    "value": 992.79,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "antigua-and-barbuda",
+    "type": "fifa",
+    "value": 986.58,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "grenada",
+    "type": "fifa",
+    "value": 981.82,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cuba",
+    "type": "fifa",
+    "value": 981.42,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "eswatini",
+    "type": "fifa",
+    "value": 979.01,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "st-lucia",
+    "type": "fifa",
+    "value": 976.71,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bermuda",
+    "type": "fifa",
+    "value": 975.05,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "papua-new-guinea",
+    "type": "fifa",
+    "value": 974.9,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "south-sudan",
+    "type": "fifa",
+    "value": 970.94,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "st-vincent-and-the-grenadines",
+    "type": "fifa",
+    "value": 968.27,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "afghanistan",
+    "type": "fifa",
+    "value": 968.07,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "andorra",
+    "type": "fifa",
+    "value": 946.43,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "maldives",
+    "type": "fifa",
+    "value": 943.92,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "chinese-taipei",
+    "type": "fifa",
+    "value": 923.78,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cambodia",
+    "type": "fifa",
+    "value": 922.32,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "montserrat",
+    "type": "fifa",
+    "value": 916.75,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "nepal",
+    "type": "fifa",
+    "value": 914.54,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "mauritius",
+    "type": "fifa",
+    "value": 911.49,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "barbados",
+    "type": "fifa",
+    "value": 909.89,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "belize",
+    "type": "fifa",
+    "value": 907,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bangladesh",
+    "type": "fifa",
+    "value": 902.93,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "dominica",
+    "type": "fifa",
+    "value": 897.69,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "chad",
+    "type": "fifa",
+    "value": 896.65,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "eritrea",
+    "type": "fifa",
+    "value": 887.06,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "laos",
+    "type": "fifa",
+    "value": 885.03,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cook-islands",
+    "type": "fifa",
+    "value": 877.53,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "sri-lanka",
+    "type": "fifa",
+    "value": 876.86,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "samoa",
+    "type": "fifa",
+    "value": 876.41,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "aruba",
+    "type": "fifa",
+    "value": 875.61,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "mongolia",
+    "type": "fifa",
+    "value": 874.47,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "american-samoa",
+    "type": "fifa",
+    "value": 871.61,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bhutan",
+    "type": "fifa",
+    "value": 870.81,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "macau",
+    "type": "fifa",
+    "value": 858.03,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "brunei-darussalam",
+    "type": "fifa",
+    "value": 857.73,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "sao-tome-and-principe",
+    "type": "fifa",
+    "value": 855.44,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "djibouti",
+    "type": "fifa",
+    "value": 853.58,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "cayman-islands",
+    "type": "fifa",
+    "value": 850.06,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "pakistan",
+    "type": "fifa",
+    "value": 840.28,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "somalia",
+    "type": "fifa",
+    "value": 839.17,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "tonga",
+    "type": "fifa",
+    "value": 835.64,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "timor-leste",
+    "type": "fifa",
+    "value": 831,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "gibraltar",
+    "type": "fifa",
+    "value": 820.26,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "guam",
+    "type": "fifa",
+    "value": 819.54,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "seychelles",
+    "type": "fifa",
+    "value": 804.16,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "turks-and-caicos-islands",
+    "type": "fifa",
+    "value": 803.98,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "liechtenstein",
+    "type": "fifa",
+    "value": 797.7,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "bahamas",
+    "type": "fifa",
+    "value": 786.82,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "us-virgin-islands",
+    "type": "fifa",
+    "value": 779.76,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "british-virgin-islands",
+    "type": "fifa",
+    "value": 777.41,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "anguilla",
+    "type": "fifa",
+    "value": 760.25,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "san-marino",
+    "type": "fifa",
+    "value": 721.2,
+    "as_of": "2026-06-11"
+  },
+  {
+    "team_id": "new-zealand",
+    "type": "fifa",
+    "value": 1275.58,
+    "as_of": "2026-06-15"
+  },
+  {
+    "team_id": "cape-verde",
+    "type": "fifa",
+    "value": 1371.11,
+    "as_of": "2026-06-15"
+  }
+]

@@ -17,6 +17,7 @@ import type { MatchContext, MatchPrediction } from '../../types/domain';
 import {
   poissonScoreline,
   scorelineToOutcome,
+  mostLikelyScore as getMostLikely,
 } from '../probability-helper';
 import type { GoalModel } from './goal-model';
 
@@ -46,25 +47,48 @@ export function tournamentMomentumPredict(
   // (either team form OR a computed inflation factor from WC actual results)
   const degraded = goalDegraded || (bothNull && !hasInflation);
 
-  const homeTMS = homeTF?.momentumScore ?? 0;
-  const awayTMS = awayTF?.momentumScore ?? 0;
+  // upsetBonus accumulates eloDiff/1000 for each upset win in the tournament.
+  // Scale by 0.5 so a single major upset (+0.4 bonus) adds ~0.2 to effective momentum.
+  // Capped at 0.35 to prevent multiple upsets from dominating the signal.
+  const homeBonus = clamp((homeTF?.upsetBonus ?? 0) * 0.5, 0, 0.35);
+  const awayBonus = clamp((awayTF?.upsetBonus ?? 0) * 0.5, 0, 0.35);
+  const homeTMS = clamp((homeTF?.momentumScore ?? 0) + homeBonus, -1, 1);
+  const awayTMS = clamp((awayTF?.momentumScore ?? 0) + awayBonus, -1, 1);
   const netDiff = clamp(homeTMS - awayTMS, -1, 1);
   const inflation = clamp(ctx.tournamentGoalInflation ?? 1.0, 0.5, 3.0);
 
   // Phase 1: apply tournament inflation to the base goal model
+  // Cap inflation × goalMod compounding at 1.7× to avoid unrealistic λ
   const tournamentHome = baseHome * inflation;
   const tournamentAway = baseAway * inflation;
 
-  // Phase 2: additive momentum push in actual goal units
-  // dynamicBoost scales with sqrt(inflation) so stronger momentum push in high-scoring WCs
+  // Phase 2: additive momentum push in actual goal units.
+  // Blend form-based netDiff (50%) with in-tournament goals-per-game ratio (50%).
+  // The goals blend anchors the push to observed scoring pace — a team averaging
+  // 4 goals/game pushes significantly more than one averaging 1 goal/game, even
+  // if both won their matches.
+  const homeAvgGoals = homeTF && homeTF.played > 0 ? homeTF.goalsFor / homeTF.played : baseHome;
+  const awayAvgGoals = awayTF && awayTF.played > 0 ? awayTF.goalsFor / awayTF.played : baseAway;
+  const goalRatioPush = clamp((homeAvgGoals - awayAvgGoals) / 2.5, -1, 1);
+  const blendedDiff = clamp(netDiff * 0.5 + goalRatioPush * 0.5, -1, 1);
+
   const dynamicBoost = clamp(BASE_BOOST * Math.sqrt(inflation), BASE_BOOST, 0.88);
-  // Positive netDiff → home team has more in-tournament momentum → they get extra goals
-  const momentumPush = netDiff * inflation * dynamicBoost;
+  const momentumPush = blendedDiff * inflation * dynamicBoost;
 
-  let homeGoals = tournamentHome + momentumPush;
-  let awayGoals = tournamentAway - momentumPush;
+  // Phase 3 (pre-player): apply confirmed daily scoring streak modifiers.
+  // goalModifier scales overall goal volume; pushModifier amplifies directional spread.
+  const ps = ctx.dailyPatternSignal;
+  const rawGoalMod = ps?.isConfirmed ? ps.goalModifier : 1.0;
+  const pushMod = ps?.isConfirmed ? ps.pushModifier : 1.0;
+  // Cap the daily-streak amplification so inflation × goalMod stays ≤ 1.7×,
+  // but never let goalMod drop below 1.0 — the streak only amplifies; it must
+  // not silently shrink the legitimate tournament inflation factor.
+  const goalMod = Math.min(rawGoalMod, Math.max(1.0, 1.7 / inflation));
 
-  // Phase 3: player context (unavailability) applied after momentum
+  let homeGoals = tournamentHome * goalMod + momentumPush * pushMod;
+  let awayGoals = tournamentAway * goalMod - momentumPush * pushMod;
+
+  // Phase 4: player context (unavailability) applied after momentum + streak
   const fc = ctx.fixtureContext;
   let appliedContext = false;
   if (fc) {
@@ -87,19 +111,25 @@ export function tournamentMomentumPredict(
   homeGoals = Math.max(0.3, homeGoals);
   awayGoals = Math.max(0.3, awayGoals);
 
-  // Use maxGoals=10 to handle high-scoring predictions properly (WC2026 pace)
-  const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.03);
+  // Use maxGoals=10; rho=-0.08 (more aggressive than L4's -0.03) to reduce
+  // over-weighting of 0-0 and 1-1 and improve exact score calibration.
+  const scoreline = poissonScoreline(homeGoals, awayGoals, 10, -0.08);
 
-  // L6 uses round(expectedGoals) instead of the joint Poisson mode.
-  // The Poisson mode floors λ, so λ=0.97 → mode=0 (drops a predicted goal).
-  // Rounding: 0.97→1, 1.5→2, 2.09→2 — better represents the inflated expected result.
-  const best = { home: Math.round(homeGoals), away: Math.round(awayGoals) };
+  // Most-likely score = argmax of the joint Dixon-Coles matrix (the true MLE
+  // scoreline, maximizing exact-hit rate). This unifies the score shown in the
+  // consolidated card with the score measured by exact_score_correct — both now
+  // read from the same scoreline distribution rather than a Math.round heuristic.
+  const best = getMostLikely(scoreline);
 
   const pushSign = momentumPush >= 0 ? '+' : '';
   const drivers: string[] = [
     `Inflación goleadora: ×${inflation.toFixed(2)} (base: ${baseHome.toFixed(2)}-${baseAway.toFixed(2)} → torneo: ${tournamentHome.toFixed(2)}-${tournamentAway.toFixed(2)})`,
-    `Momentum: ${ctx.homeTeam.name} ${homeTMS.toFixed(2)} vs ${ctx.awayTeam.name} ${awayTMS.toFixed(2)} (diff ${netDiff.toFixed(2)}) → push ${pushSign}${momentumPush.toFixed(2)} goles [boost ×${dynamicBoost.toFixed(2)}]`,
+    `Momentum: diff forma ${netDiff.toFixed(2)} · diff goles/partido ${goalRatioPush.toFixed(2)} → blend ${blendedDiff.toFixed(2)} → push ${pushSign}${momentumPush.toFixed(2)} goles [boost ×${dynamicBoost.toFixed(2)}]`,
   ];
+
+  if (ps?.isConfirmed) {
+    drivers.push(`Racha diaria (${ps.streakDays}d): ${ps.currentStreak} → goles ×${goalMod.toFixed(2)}, push ×${pushMod.toFixed(2)}`);
+  }
 
   if (appliedContext && fc) {
     const hasRoleImpact = fc.unavailable_home_attack_impact > 0 || fc.unavailable_away_attack_impact > 0;
@@ -131,6 +161,11 @@ export function tournamentMomentumPredict(
     featuresMissing.push(`forma en torneo de ${ctx.awayTeam.name}`);
   }
   if (appliedContext) featuresUsed.push('Disponibilidad de jugadores');
+  if (ps?.isConfirmed) {
+    featuresUsed.push(`Racha diaria: ${ps.currentStreak} ×${ps.streakDays}d`);
+  } else {
+    featuresMissing.push('racha diaria confirmada (mínimo 2 días consecutivos)');
+  }
   if (goalDegraded) featuresMissing.push('datos requeridos por el modelo de goles');
 
   const pushNote = momentumPush !== 0

@@ -1,100 +1,34 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../hooks/useAppData';
 import { saveTournamentSnapshot } from '../services/supabase-client';
-import type { TournamentProjection } from '../types/domain';
+import type { TournamentProjection, TeamTournamentProbability } from '../types/domain';
 import type { SimulationInput } from '../engine/simulation-engine';
 import { Button, Badge, Card, CardHeader, Skeleton, Tooltip } from '../components/ui';
+import { TeamJourneyPanel } from '../components/TeamJourneyPanel';
+import { ProbTable } from '../components/ProbTable';
+import { BracketView } from '../components/BracketView';
 import { Trophy, Play, Save, CheckCircle2, History, ChevronRight, Medal } from 'lucide-react';
-
-const FLAGS: Record<string, string> = {
-  'argentina': '🇦🇷', 'brazil': '🇧🇷', 'france': '🇫🇷', 'england': '🇬🇧',
-  'spain': '🇪🇸', 'germany': '🇩🇪', 'portugal': '🇵🇹', 'netherlands': '🇳🇱',
-  'belgium': '🇧🇪', 'colombia': '🇨🇴', 'uruguay': '🇺🇾', 'mexico': '🇲🇽',
-  'united-states': '🇺🇸', 'canada': '🇨🇦', 'japan': '🇯🇵', 'south-korea': '🇰🇷',
-  'morocco': '🇲🇦', 'senegal': '🇸🇳', 'ecuador': '🇪🇨', 'australia': '🇦🇺',
-  'croatia': '🇭🇷', 'switzerland': '🇨🇭', 'norway': '🇳🇴', 'sweden': '🇸🇪',
-  'austria': '🇦🇹', 'turkey': '🇹🇷', 'iran': '🇮🇷', 'egypt': '🇪🇬',
-  'saudi-arabia': '🇸🇦', 'south-africa': '🇿🇦', 'ghana': '🇬🇭', 'tunisia': '🇹🇳',
-  'algeria': '🇩🇿', 'ivory-coast': '🇨🇮', 'nigeria': '🇳🇬', 'cameroon': '🇨🇲',
-  'scotland': '🏴󠁧󠁢󠁳󠁣󠁵󠁳󠁿', 'czechia': '🇨🇿', 'poland': '🇵🇱', 'serbia': '🇷🇸',
-  'paraguay': '🇵🇾', 'haiti': '🇭🇹', 'panama': '🇵🇦', 'curacao': '🇨🇼',
-  'jordan': '🇯🇴', 'iraq': '🇮🇶', 'new-zealand': '🇳🇿', 'cape-verde': '🇨🇻',
-  'uzbekistan': '🇺🇿', 'congo-dr': '🇨🇩', 'bosnia-and-herzegovina': '🇧🇦',
-  'qatar': '🇶🇦',
-};
 
 const SIMULATION_COUNT = 10_000;
 const SIMULATION_SEED  = 2026;
 
-function pct1(n: number) { return `${(n * 100).toFixed(1)}%`; }
-function pct0(n: number) { return `${(n * 100).toFixed(0)}%`;  }
-
-interface ProbTableProps {
-  teams: TournamentProjection['teams'];
-  getTeamName: (id: string) => string;
-}
-
-function ProbTable({ teams, getTeamName }: ProbTableProps) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-wc-navy text-white text-xs">
-            <th className="text-left px-3 py-3 font-semibold w-8">#</th>
-            <th className="text-left px-3 py-3 font-semibold">Equipo</th>
-            <th className="text-left px-3 py-3 font-semibold">Grp</th>
-            <th className="text-right px-3 py-3 font-semibold">Clasifica</th>
-            <th className="text-right px-3 py-3 font-semibold hidden sm:table-cell">16avos</th>
-            <th className="text-right px-3 py-3 font-semibold hidden sm:table-cell">Cuartos</th>
-            <th className="text-right px-3 py-3 font-semibold hidden sm:table-cell">Semis</th>
-            <th className="text-right px-3 py-3 font-semibold hidden sm:table-cell">Final</th>
-            <th className="text-right px-3 py-3 font-semibold bg-wc-navy pr-4">
-              <span className="text-wc-gold font-black">Campeón</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {teams.slice(0, 32).map((t, i) => {
-            const isTop8 = i < 8;
-            return (
-              <tr
-                key={t.teamId}
-                className={`transition-colors hover:bg-amber-50/60 ${isTop8 ? 'bg-amber-50/30' : 'bg-white'}`}
-              >
-                <td className="px-3 py-2.5 text-gray-400 text-xs font-medium">{i + 1}</td>
-                <td className="px-3 py-2.5">
-                  <span className="flex items-center gap-2 font-semibold text-gray-800">
-                    <span className="text-base leading-none">{FLAGS[t.teamId] ?? '🏳️'}</span>
-                    <span>{getTeamName(t.teamId)}</span>
-                  </span>
-                </td>
-                <td className="px-3 py-2.5 text-gray-500 text-xs font-medium">{t.group}</td>
-                <td className="px-3 py-2.5 text-right text-gray-600">{pct0(t.qualify)}</td>
-                <td className="px-3 py-2.5 text-right text-gray-500 hidden sm:table-cell">{pct0(t.reachRoundOf16)}</td>
-                <td className="px-3 py-2.5 text-right text-gray-500 hidden sm:table-cell">{pct0(t.reachQuarterFinal)}</td>
-                <td className="px-3 py-2.5 text-right text-gray-500 hidden sm:table-cell">{pct0(t.reachSemiFinal)}</td>
-                <td className="px-3 py-2.5 text-right text-gray-500 hidden sm:table-cell">{pct0(t.reachFinal)}</td>
-                <td className="px-3 py-2.5 text-right pr-4 bg-wc-navy/5">
-                  <span className="font-black text-wc-gold text-base">{pct1(t.winTournament)}</span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export function TournamentPage() {
-  const { groups, fixtures, results, ratings, teamMap, isLoading } = useAppData();
-  const [projection, setProjection] = useState<TournamentProjection | null>(null);
-  const [busy, setBusy]         = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError]       = useState('');
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const { groups, fixtures, results, ratings, teams, teamMap, wcResults, isLoading,
+          isWcResultsLoading,
+          squadStrengthData, tacticalProfilesData } = useAppData();
+  const [projection, setProjection]     = useState<TournamentProjection | null>(null);
+  const [busy, setBusy]                 = useState(false);
+  const [progress, setProgress]         = useState(0);
+  const [error, setError]               = useState('');
+  const [saving, setSaving]             = useState(false);
+  const [saved, setSaved]               = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<TeamTournamentProbability | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    return () => { workerRef.current?.terminate(); };
+  }, []);
 
   const getTeamName = (id: string) => teamMap.get(id)?.name ?? id;
 
@@ -115,22 +49,28 @@ export function TournamentPage() {
         fixtures,
         allResults: results,
         ratings,
+        teams,
+        wcResults,
         simulations: SIMULATION_COUNT,
         seed: SIMULATION_SEED,
+        squadStrengthData,
+        tacticalProfilesData,
       };
 
       const worker = new Worker(
         new URL('../workers/simulation.worker.ts', import.meta.url),
         { type: 'module' },
       );
+      workerRef.current = worker;
 
       const result = await new Promise<TournamentProjection>((resolve, reject) => {
         worker.onmessage = (e: MessageEvent<{ ok: boolean; result?: TournamentProjection; error?: string }>) => {
           worker.terminate();
+          workerRef.current = null;
           if (e.data.ok && e.data.result) resolve(e.data.result);
           else reject(new Error(e.data.error ?? 'Simulation failed'));
         };
-        worker.onerror = reject;
+        worker.onerror = (e) => { worker.terminate(); workerRef.current = null; reject(e); };
         worker.postMessage(input);
       });
 
@@ -143,7 +83,7 @@ export function TournamentPage() {
       clearInterval(ticker);
       setBusy(false);
     }
-  }, [groups, fixtures, results, ratings, busy]);
+  }, [groups, fixtures, results, ratings, teams, wcResults, busy, squadStrengthData, tacticalProfilesData]);
 
   const saveSnapshot = async () => {
     if (!projection) return;
@@ -191,7 +131,8 @@ export function TournamentPage() {
         {!busy ? (
           <button
             onClick={runSimulation}
-            disabled={groups.length === 0}
+            disabled={groups.length === 0 || isWcResultsLoading}
+            title={isWcResultsLoading ? 'Cargando resultados actuales…' : undefined}
             className="inline-flex items-center gap-2.5 px-7 py-3.5 bg-white text-wc-navy font-black rounded-xl shadow hover:shadow-lg hover:bg-wc-cream transition-all text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Play className="w-5 h-5 fill-wc-navy" />
@@ -279,10 +220,16 @@ export function TournamentPage() {
                 </span>
               </div>
             </CardHeader>
-            <ProbTable teams={projection.teams} getTeamName={getTeamName} />
+            <ProbTable teams={projection.teams} getTeamName={getTeamName} onSelectTeam={setSelectedTeam} />
           </Card>
         </>
       )}
+
+      <BracketView
+        projection={projection}
+        teamMap={teamMap}
+        highlightTeamId={selectedTeam?.teamId}
+      />
 
       {!projection && !busy && (
         <Card className="p-8 text-center">
@@ -298,12 +245,21 @@ export function TournamentPage() {
       <div className="flex justify-end">
         <Link
           to="/tournament/snapshots"
-          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-wc-navy transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-wc-navy transition-colors py-3 px-2"
         >
           <History className="w-3.5 h-3.5" />
           Ver historial de simulaciones
         </Link>
       </div>
+
+      {selectedTeam && projection && (
+        <TeamJourneyPanel
+          team={selectedTeam}
+          teamMap={teamMap}
+          simulations={projection.simulations}
+          onClose={() => setSelectedTeam(null)}
+        />
+      )}
     </div>
   );
 }

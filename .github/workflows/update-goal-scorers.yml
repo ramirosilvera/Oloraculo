@@ -1,0 +1,96 @@
+name: Actualizar goleadores
+
+# Actualiza la tabla de goleadores (match_goals → tarjeta "Bota de Oro")
+# invocando la Edge Function update-goal-scorers de Supabase.
+#
+# La función busca los goles de cada partido jugado (fase de grupos + knockout)
+# en este orden de fuentes: ESPN → SofaScore → Serper (Google Search).
+# Los partidos de knockout (ko:*) no están en wc_fixtures, así que este job lee
+# migration/public/data/knockout-fixtures.json (la fuente de verdad del bracket)
+# y le pasa los equipos ya resueltos a la función en el cuerpo del request.
+#
+# Corre todos los días a las 09:30 UTC (06:30 ART) — después de que se cargan
+# los resultados del día anterior. Se puede disparar manualmente con
+# workflow_dispatch. Se autodesactiva después de la final (2026-07-19).
+#
+# IMPORTANTE: los workflows con `schedule` solo corren desde la rama por defecto
+# (main). Este archivo debe llegar a main para activarse automáticamente.
+
+on:
+  schedule:
+    - cron: '30 9 * * *'   # 09:30 UTC = 06:30 ART, todos los días
+  workflow_dispatch:        # disparo manual
+
+env:
+  WC_FINAL_DATE: '2026-07-19'   # último día relevante
+  FN_URL: 'https://wyedmgxngqdgnxmbencl.supabase.co/functions/v1/update-goal-scorers'
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write        # para autodesactivar el cron tras la final
+
+    steps:
+      - name: Verificar vigencia (hasta la final del Mundial)
+        id: vigencia
+        run: |
+          TODAY=$(date -u +%F)
+          if [[ "$TODAY" > "$WC_FINAL_DATE" ]]; then
+            echo "El Mundial terminó el $WC_FINAL_DATE (hoy $TODAY). Desactivando el cron."
+            curl -sS -X PUT \
+              -H "Authorization: Bearer ${{ secrets.PAT_TOKEN || github.token }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/update-goal-scorers.yml/disable"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Vigente (hoy $TODAY ≤ $WC_FINAL_DATE). Continuando."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.vigencia.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Actualizar goleadores (ESPN → SofaScore → Serper)
+        if: steps.vigencia.outputs.skip != 'true'
+        env:
+          SERPER_API_KEY:         ${{ secrets.SERPER_API_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          KO_FILE="migration/public/data/knockout-fixtures.json"
+
+          # Bracket de knockout: solo los partidos con ambos equipos ya resueltos.
+          if [[ -f "$KO_FILE" ]]; then
+            KO=$(jq -c '[.[]
+              | select(.home_team_id != null and .away_team_id != null
+                       and .home_team_id != "" and .away_team_id != "")
+              | {id, home_team_id, away_team_id, kickoff_utc}]' "$KO_FILE")
+          else
+            KO='[]'
+          fi
+          echo "Partidos de knockout resueltos enviados: $(echo "$KO" | jq 'length')"
+
+          BODY=$(jq -n --argjson ko "$KO" '{koFixtures: $ko}')
+
+          HTTP_CODE=$(curl -sS -o response.json -w '%{http_code}' \
+            --retry 3 --retry-delay 10 --max-time 300 \
+            -X POST "$FN_URL" \
+            -H "Content-Type: application/json" \
+            -H "apikey: ${VITE_SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${VITE_SUPABASE_ANON_KEY}" \
+            -H "X-Serper-Key: ${SERPER_API_KEY}" \
+            -d "$BODY")
+
+          echo "HTTP $HTTP_CODE"
+          echo "Respuesta:"; cat response.json || true; echo
+
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::La Edge Function devolvió HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Resumen legible en el log del job.
+          jq -r '"Goles totales: \(.totalGoals)  ·  KO resueltos: \(.knockoutResolved)  ·  ESPN: \(.updatedFromEspn)  Sofa: \(.updatedFromSofa)  Serper: \(.updatedFromSerper)  ·  Sin datos: \(.skippedNoData)"' response.json || true
