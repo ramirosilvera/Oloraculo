@@ -1242,9 +1242,12 @@ function TodayFixtureItem({
         {/* Prediction strip — only for unplayed fixtures */}
         {!played && pred ? (() => {
           // Use the performance-weighted ensemble as probability source.
-          // For score string, prefer a model with a scoreline (Patrón de Grupo → Momentum → ensemble).
+          // For score string, prefer a phase-appropriate model with a scoreline.
+          // Patrón de Grupo (group) and Fase de Eliminación (knockout) are mutually
+          // exclusive — only one is non-degraded per match → Momentum → ensemble.
           const probSrc = pred.bestPrediction;
           const scoreSrc = pred.predictions.find(p => p.predictorName === 'Patrón de Grupo' && !p.degraded && p.scoreline)
+            ?? pred.predictions.find(p => p.predictorName === 'Fase de Eliminación' && !p.degraded && p.scoreline)
             ?? pred.predictions.find(p => p.predictorName === 'Momentum del Mundial' && !p.degraded && p.scoreline)
             ?? pred.bestPrediction;
           const { homeWin, draw, awayWin } = probSrc.outcome;
