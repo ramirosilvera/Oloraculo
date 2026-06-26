@@ -1,7 +1,12 @@
 // =============================================================================
 // Oloráculo — update-goal-scorers Edge Function
-// Runs daily at 08:00 UTC via pg_cron.
-// For every played group-stage fixture, syncs goal scorer data to match_goals.
+// Invoked daily by the .github/workflows/update-goal-scorers.yml GitHub Action.
+// For every PLAYED fixture (group stage AND knockout), syncs goal scorer data
+// to match_goals.
+//
+// Knockout fixtures (ko:*) are not in wc_fixtures, so their resolved teams +
+// kickoff date are passed in the request body as `koFixtures` (the caller reads
+// migration/public/data/knockout-fixtures.json — the bracket source of truth).
 //
 // Source priority (per fixture):
 //   1. ESPN scoreboard (?dates=YYYYMMDD) — free, no key, rich events
@@ -405,18 +410,34 @@ async function fetchGoalScorersFromSerper(
 // ─────────────────────────────────────────────────────────────────────────────
 // Main handler
 // ─────────────────────────────────────────────────────────────────────────────
+interface KoFixtureInput { id: string; home_team_id: string; away_team_id: string; kickoff_utc: string; }
+
 Deno.serve(async (req) => {
   const SERPER_KEY = Deno.env.get('SERPER_API_KEY') || req.headers.get('X-Serper-Key') || '';
 
+  // Knockout bracket (resolved teams + kickoff) comes from the caller's request
+  // body, since ko:* fixtures don't exist in wc_fixtures. GET / empty body → [].
+  const body = await req.json().catch(() => ({})) as { koFixtures?: KoFixtureInput[] };
+  const koFixturesInput = Array.isArray(body.koFixtures) ? body.koFixtures : [];
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  // Load all played group-stage fixtures with their kickoff dates
+  // Load all played fixtures (group stage + knockout) with their kickoff dates
   const { data: results, error: rErr } = await supabase
     .from('wc_actual_results')
     .select('fixture_id, home_goals, away_goals');
   if (rErr) return new Response(JSON.stringify({ error: rErr.message }), { status: 500 });
 
-  const groupResults = (results ?? []).filter(r => !r.fixture_id.startsWith('ko:'));
+  const playedResults = results ?? [];
+
+  // Resolve knockout fixtures by id → { date, teams } from the request body.
+  const koById = new Map<string, { date: string; dbHome: string; dbAway: string }>();
+  for (const f of koFixturesInput) {
+    if (!f?.id || !f.home_team_id || !f.away_team_id || !f.kickoff_utc) continue;
+    const d = new Date(f.kickoff_utc);
+    const dateStr = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    koById.set(f.id, { date: dateStr, dbHome: f.home_team_id, dbAway: f.away_team_id });
+  }
 
   // Get kickoff dates from wc_fixtures for each group result
   const { data: fixtureRows, error: fErr } = await supabase
@@ -437,12 +458,20 @@ Deno.serve(async (req) => {
 
   // Organize fixtures by date for ESPN/SofaScore batching.
   // Use dbHome/dbAway (the real venue order) so ESPN/SofaScore home-team detection is correct.
+  // Resolve a played fixture to { date, teams }: knockout via koById (request
+  // body), group stage via the team-pair key (its id order can differ from
+  // wc_fixtures, so a direct id lookup would miss ~30% of group fixtures).
+  function resolveFixture(fixtureId: string): { date: string; dbHome: string; dbAway: string } | null {
+    if (fixtureId.startsWith('ko:')) return koById.get(fixtureId) ?? null;
+    const parts = fixtureId.split(':');
+    if (parts.length < 4) return null;
+    return fixtureByKey.get(`${parts[2]}:${parts[3]}`) ?? null;
+  }
+
   const fixturesByDate = new Map<string, Array<{ fixtureId: string; homeId: string; awayId: string }>>();
-  for (const r of groupResults) {
-    const parts = r.fixture_id.split(':');
-    if (parts.length < 4) continue;
-    const info = fixtureByKey.get(`${parts[2]}:${parts[3]}`);
-    if (!info) { console.warn(`[init] no wc_fixtures row for ${r.fixture_id}`); continue; }
+  for (const r of playedResults) {
+    const info = resolveFixture(r.fixture_id);
+    if (!info) { console.warn(`[init] no fixture mapping for ${r.fixture_id}`); continue; }
     const existing = fixturesByDate.get(info.date) ?? [];
     existing.push({ fixtureId: r.fixture_id, homeId: info.dbHome, awayId: info.dbAway });
     fixturesByDate.set(info.date, existing);
@@ -457,7 +486,7 @@ Deno.serve(async (req) => {
     const missing = fixtures.filter(f => {
       if (espnGoals.has(f.fixtureId)) return false;
       // 0-0 matches: no goals to find
-      const r = groupResults.find(gr => gr.fixture_id === f.fixtureId);
+      const r = playedResults.find(gr => gr.fixture_id === f.fixtureId);
       return r && (r.home_goals + r.away_goals) > 0;
     });
     if (missing.length > 0) stillMissingForSofa.set(date, missing);
@@ -469,7 +498,7 @@ Deno.serve(async (req) => {
     : new Map<string, GoalEntry[]>();
 
   // ── SOURCE 3: Serper (fallback for still-missing fixtures with goals) ──────
-  const stillMissingForSerper = groupResults.filter(r => {
+  const stillMissingForSerper = playedResults.filter(r => {
     if (r.home_goals + r.away_goals === 0) return false; // 0-0, skip
     if (espnGoals.has(r.fixture_id)) return false;
     if (sofaGoals.has(r.fixture_id)) return false;
@@ -479,12 +508,19 @@ Deno.serve(async (req) => {
   const serperGoals = new Map<string, GoalEntry[]>();
   if (stillMissingForSerper.length > 0 && SERPER_KEY) {
     for (const r of stillMissingForSerper) {
-      const parts = r.fixture_id.split(':');
-      if (parts.length < 4) continue;
-      // Use dbHome/dbAway from wc_fixtures (not fixture_id order) for correct team attribution
-      const info = fixtureByKey.get(`${parts[2]}:${parts[3]}`);
-      const homeId = info?.dbHome ?? parts[2];
-      const awayId = info?.dbAway ?? parts[3];
+      // Resolved teams (correct attribution): KO via bracket body, group via
+      // wc_fixtures; group falls back to the fixture_id team slugs if unmapped.
+      const info = resolveFixture(r.fixture_id);
+      let homeId: string, awayId: string;
+      if (info) {
+        homeId = info.dbHome; awayId = info.dbAway;
+      } else if (!r.fixture_id.startsWith('ko:')) {
+        const parts = r.fixture_id.split(':');
+        if (parts.length < 4) continue;
+        homeId = parts[2]; awayId = parts[3];
+      } else {
+        continue; // knockout fixture with no bracket mapping → can't attribute
+      }
       const goals = await fetchGoalScorersFromSerper(r.fixture_id, homeId, awayId, SERPER_KEY);
       if (goals.length > 0) serperGoals.set(r.fixture_id, goals);
       await new Promise(res => setTimeout(res, 1200));
@@ -510,12 +546,13 @@ Deno.serve(async (req) => {
   }
 
   const summary = {
-    processedFixtures: groupResults.length,
+    processedFixtures: playedResults.length,
+    knockoutResolved:  koById.size,
     updatedFromEspn:   espnGoals.size,
     updatedFromSofa:   sofaGoals.size,
     updatedFromSerper: serperGoals.size,
     totalGoals:        allGoals.length,
-    skippedNoData:     groupResults.filter(r => r.home_goals + r.away_goals > 0 && !allGoalsByFixture.has(r.fixture_id)).length,
+    skippedNoData:     playedResults.filter(r => r.home_goals + r.away_goals > 0 && !allGoalsByFixture.has(r.fixture_id)).length,
   };
   console.log('[update-goal-scorers] done', summary);
 

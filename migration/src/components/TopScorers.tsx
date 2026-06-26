@@ -20,16 +20,26 @@ interface PlayerRow {
 const RANK_COLOR = ['text-amber-500', 'text-gray-400', 'text-orange-400'];
 const VISIBLE_DEFAULT = 5;
 
+// Aggregation key: trimmed, accent-folded, case-folded. The feed delivers the
+// same scorer with varying strings across matches ("Müller"/"Muller", trailing
+// spaces); without this they split into separate rows and the tally is wrong.
+function normalizeName(n: string): string {
+  return n.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
+}
+
 export function TopScorers({ goals, teamMap, limit = 30 }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   const map = new Map<string, PlayerRow>();
   for (const g of goals) {
     if (g.goal_type === 'own_goal') continue;
-    const key = `${g.player_name}::${g.team_id}`;
-    const row = map.get(key) ?? { player_name: g.player_name, team_id: g.team_id, goals: 0, penalties: 0 };
+    const name = g.player_name.trim();
+    const key = `${normalizeName(name)}::${g.team_id}`;
+    const row = map.get(key) ?? { player_name: name, team_id: g.team_id, goals: 0, penalties: 0 };
     row.goals++;
     if (g.goal_type === 'penalty') row.penalties++;
+    // Keep the most complete display variant ("Lionel Messi" over "Messi").
+    if (name.length > row.player_name.length) row.player_name = name;
     map.set(key, row);
   }
 
