@@ -8,10 +8,11 @@
 // kickoff date are passed in the request body as `koFixtures` (the caller reads
 // migration/public/data/knockout-fixtures.json — the bracket source of truth).
 //
-// Source priority (per fixture):
-//   1. ESPN scoreboard (?dates=YYYYMMDD) — free, no key, rich events
-//   2. SofaScore incidents           — free, no key, server-side only
-//   3. Serper Google search          — fallback, key required
+// Source priority (per fixture): ESPN → SofaScore → Serper. A source is only
+// considered "enough" when its goal count reaches the KNOWN total
+// (home_goals + away_goals); otherwise the next source is tried and the most
+// complete result across all sources wins. Writes are monotonic per fixture:
+// a run never reduces a fixture's existing coverage.
 // =============================================================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -27,9 +28,9 @@ const SOFA_HEADERS = {
   'Accept':     'application/json, text/plain, */*',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // Team name lookup (fixture ID slug → search name)
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 const TEAM_NAMES: Record<string, string> = {
   'mexico': 'Mexico', 'south-africa': 'South Africa', 'south-korea': 'South Korea',
   'czechia': 'Czech Republic', 'canada': 'Canada', 'qatar': 'Qatar',
@@ -46,41 +47,54 @@ const TEAM_NAMES: Record<string, string> = {
   'cape-verde': 'Cape Verde', 'saudi-arabia': 'Saudi Arabia', 'ecuador': 'Ecuador',
   'tunisia': 'Tunisia', 'croatia': 'Croatia', 'iran': 'Iran', 'venezuela': 'Venezuela',
   'sweden': 'Sweden', 'ghana': 'Ghana', 'congo-dr': 'DR Congo',
-  'new-caledonia': 'New Caledonia', 'vietnam': 'Vietnam',
+  'iraq': 'Iraq', 'uzbekistan': 'Uzbekistan',
   'austria': 'Austria', 'chile': 'Chile', 'peru': 'Peru', 'costa-rica': 'Costa Rica',
 };
+
+// Feed-specific name variants that plain substring matching would miss.
+const TEAM_ALIASES: Record<string, string[]> = {
+  'turkey':       ['turkiye'],
+  'ivory-coast':  ['cote divoire', 'cote d ivoire'],
+  'czechia':      ['czech republic'],
+  'congo-dr':     ['congo dr', 'democratic republic congo'],
+  'cape-verde':   ['cabo verde'],
+  'south-korea':  ['korea republic', 'korea south'],
+  'united-states':['usa', 'united states of america'],
+};
+
+// Generic tokens that collide across teams (south-korea/south-africa,
+// new-zealand/new-caledonia, …). Dropped so matching relies on the
+// discriminating token (korea, africa, zealand, …).
+const GENERIC = new Set([
+  'south', 'north', 'new', 'united', 'republic', 'democratic',
+  'and', 'the', 'of', 'costa', 'saudi',
+]);
+
+// Accent/case fold: "Türkiye" → "turkiye", "Curaçao" → "curacao".
+function fold(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
 
 function teamName(id: string): string {
   return TEAM_NAMES[id] ?? id.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 }
 
-// Normalize a display name to a slug for reverse lookup.
-// "Ivory Coast" → "ivory-coast", "Saudi Arabia" → "saudi-arabia"
-function slugify(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '-');
+// Discriminating, accent-folded match tokens for a team id.
+function teamWords(id: string): string[] {
+  const display = TEAM_NAMES[id] ?? id.replace(/-/g, ' ');
+  const parts = [id.replace(/-/g, ' '), display, ...(TEAM_ALIASES[id] ?? [])].join(' ');
+  return [...new Set(fold(parts).split(/\s+/))].filter(w => w.length > 2 && !GENERIC.has(w));
 }
 
-// Build reverse map: slugified display name → our team ID
-const SLUG_TO_ID: Record<string, string> = {};
-for (const [id, display] of Object.entries(TEAM_NAMES)) {
-  SLUG_TO_ID[slugify(display)] = id;
+// Shift a YYYYMMDD date string by `delta` days (UTC).
+function shiftDate(d: string, delta: number): string {
+  const dt = new Date(Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8) + delta));
+  return `${dt.getUTCFullYear()}${String(dt.getUTCMonth() + 1).padStart(2, '0')}${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
-function resolveTeamId(displayName: string): string | null {
-  // Try exact slugify match first
-  const slug = slugify(displayName);
-  if (SLUG_TO_ID[slug]) return SLUG_TO_ID[slug];
-  // Try partial match on first word (e.g., "Ivory" → "ivory-coast")
-  const firstWord = displayName.split(' ')[0].toLowerCase();
-  for (const [id, name] of Object.entries(TEAM_NAMES)) {
-    if (id.startsWith(firstWord) || name.toLowerCase().startsWith(firstWord)) return id;
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // Types
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 interface GoalEntry {
   fixture_id:  string;
   team_id:     string;
@@ -97,9 +111,9 @@ interface SerperResponse {
   organic?: Array<{ snippet?: string }>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 function detectGoalType(raw: string): 'normal' | 'penalty' | 'own_goal' {
   const s = raw.toLowerCase();
   if (/pen(al(ty)?)?|p\.k\.|penal|\(p\)/.test(s))  return 'penalty';
@@ -113,19 +127,27 @@ function parseMinute(raw: string | undefined): number | null {
   return m ? parseInt(m[1], 10) : null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 1 — ESPN scoreboard (per date)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface EspnGoalResult {
-  fixtureKey: string; // "homeTeamId:awayTeamId"
-  goals: GoalEntry[];
+// Order-agnostic attribution: pick our team id whose words match a folded name.
+function attributeTeam(name: string, homeId: string, homeWords: string[], awayId: string, awayWords: string[]): string {
+  const n = fold(name);
+  if (homeWords.some(w => n.includes(w))) return homeId;
+  if (awayWords.some(w => n.includes(w))) return awayId;
+  return homeId; // last-resort fallback
 }
 
+// ----------------------------------------------------------------------------
+// SOURCE 1 — ESPN scoreboard (per date, ±1 day to absorb UTC boundary skew)
+// ----------------------------------------------------------------------------
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseEspnGoals(comp: any, fixtureId: string, homeId: string, awayId: string): GoalEntry[] {
+function parseEspnGoals(
+  comp: any, fixtureId: string, homeId: string, awayId: string, homeWords: string[], awayWords: string[],
+): GoalEntry[] {
+  // Map ESPN competitor id → folded display name, so we attribute by NAME
+  // (robust to home/away order differing from our fixture_id).
+  const espnName = new Map<string, string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const homeEspnId: string = (comp.competitors ?? []).find((c: any) => c.homeAway === 'home')?.team?.id ?? '';
+  for (const c of (comp.competitors ?? [])) espnName.set(c.team?.id ?? '', fold(c.team?.displayName ?? c.team?.name ?? ''));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const details: any[] = comp.details ?? [];
 
@@ -149,9 +171,8 @@ function parseEspnGoals(comp: any, fixtureId: string, homeId: string, awayId: st
     }
 
     const espnTeamId: string = d.team?.id ?? '';
-    const team_id = espnTeamId
-      ? (espnTeamId === homeEspnId ? homeId : awayId)
-      : homeId;
+    // Own goals count for the OTHER team; ESPN already attributes the event team.
+    const team_id = attributeTeam(espnName.get(espnTeamId) ?? '', homeId, homeWords, awayId, awayWords);
 
     return [{ fixture_id: fixtureId, team_id, player_name, minute: parseMinute(minuteStr), goal_type }];
   });
@@ -164,10 +185,12 @@ async function fetchGoalsFromESPN(
 
   for (const [date, fixtures] of fixturesByDate) {
     try {
-      const res = await fetch(`${ESPN_BASE}?dates=${date}`, {
+      // ±1 day range to catch matches ESPN files under a neighbouring UTC date.
+      const range = `${shiftDate(date, -1)}-${shiftDate(date, 1)}`;
+      const res = await fetch(`${ESPN_BASE}?dates=${range}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Oloraculo/1.0)' },
       });
-      if (!res.ok) { console.warn(`[espn] HTTP ${res.status} for date ${date}`); continue; }
+      if (!res.ok) { console.warn(`[espn] HTTP ${res.status} for ${range}`); continue; }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: any = await res.json();
@@ -175,54 +198,44 @@ async function fetchGoalsFromESPN(
       const events: any[] = body.events ?? [];
 
       for (const { fixtureId, homeId, awayId } of fixtures) {
-        const homeName = teamName(homeId).toLowerCase();
-        const awayName = teamName(awayId).toLowerCase();
+        const homeWords = teamWords(homeId);
+        const awayWords = teamWords(awayId);
 
-        // Match event by home+away team name
-        // Build word lists from both slug and display name for robust matching
-        // e.g. 'cape-verde' + 'Cape Verde' → ['cape','verde'] catches 'Cabo Verde' via 'verde'
-        const homeWords = [...homeId.split('-'), ...homeName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
-        const awayWords = [...awayId.split('-'), ...awayName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
-
+        // Order-agnostic: home matches one competitor, away the other.
         const ev = events.find(e => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const comps: any[] = e.competitions?.[0]?.competitors ?? [];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const h = comps.find((c: any) => c.homeAway === 'home');
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const a = comps.find((c: any) => c.homeAway === 'away');
-          const hn = (h?.team?.displayName ?? h?.team?.name ?? '').toLowerCase();
-          const an = (a?.team?.displayName ?? a?.team?.name ?? '').toLowerCase();
-          return homeWords.some(w => hn.includes(w)) && awayWords.some(w => an.includes(w));
+          if (comps.length < 2) return false;
+          const n0 = fold(comps[0]?.team?.displayName ?? comps[0]?.team?.name ?? '');
+          const n1 = fold(comps[1]?.team?.displayName ?? comps[1]?.team?.name ?? '');
+          const h0 = homeWords.some(w => n0.includes(w)), h1 = homeWords.some(w => n1.includes(w));
+          const a0 = awayWords.some(w => n0.includes(w)), a1 = awayWords.some(w => n1.includes(w));
+          return (h0 && a1) || (h1 && a0);
         });
 
-        if (!ev) { console.log(`[espn] no match found for ${fixtureId} on ${date}`); continue; }
+        if (!ev) { console.log(`[espn] no match for ${fixtureId} in ${range}`); continue; }
 
-        const statusName: string = ev.status?.type?.name ?? '';
-        if (!statusName.includes('FINAL') && !statusName.includes('FULL_TIME') && !statusName.includes('POST')) {
-          console.log(`[espn] ${fixtureId} not finished yet (${statusName})`);
-          continue;
-        }
+        const stType = ev.status?.type ?? {};
+        const done = stType.completed === true || /FINAL|FULL_TIME|POST/.test(stType.name ?? '');
+        if (!done) { console.log(`[espn] ${fixtureId} not finished (${stType.name})`); continue; }
 
         const comp = ev.competitions?.[0] ?? {};
-        const goals = parseEspnGoals(comp, fixtureId, homeId, awayId);
+        const goals = parseEspnGoals(comp, fixtureId, homeId, awayId, homeWords, awayWords);
         console.log(`[espn] ${fixtureId}: ${goals.length} goals`);
-        // Only mark covered if we got actual goal events; otherwise fall through to SofaScore/Serper
         if (goals.length > 0) result.set(fixtureId, goals);
       }
     } catch (e) {
       console.error(`[espn] error for date ${date}:`, e);
     }
-    // Small delay between date requests
     await new Promise(r => setTimeout(r, 300));
   }
 
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // SOURCE 2 — SofaScore (incidents by event search)
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 
 async function fetchGoalsFromSofa(
   fixturesByDate: Map<string, Array<{ fixtureId: string; homeId: string; awayId: string }>>,
@@ -230,7 +243,6 @@ async function fetchGoalsFromSofa(
   const result = new Map<string, GoalEntry[]>();
 
   for (const [date, fixtures] of fixturesByDate) {
-    // date is YYYYMMDD, SofaScore wants YYYY-MM-DD
     const sofaDate = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
     try {
       const res = await fetch(`${SOFA_BASE}/sport/football/scheduled-events/${sofaDate}`, { headers: SOFA_HEADERS });
@@ -241,7 +253,6 @@ async function fetchGoalsFromSofa(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = data.events ?? [];
 
-      // Filter FIFA World Cup events
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const wcEvents = events.filter((ev: any) => {
         const tName = (
@@ -253,23 +264,23 @@ async function fetchGoalsFromSofa(
       });
 
       for (const { fixtureId, homeId, awayId } of fixtures) {
-        const homeName = teamName(homeId).toLowerCase();
-        const awayName = teamName(awayId).toLowerCase();
-
-        const homeWordsSofa = [...homeId.split('-'), ...homeName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
-        const awayWordsSofa = [...awayId.split('-'), ...awayName.split(' ')].map(w => w.toLowerCase()).filter(w => w.length > 2);
+        const homeWords = teamWords(homeId);
+        const awayWords = teamWords(awayId);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ev = wcEvents.find((e: any) => {
-          const hn = (e.homeTeam?.name ?? '').toLowerCase();
-          const an = (e.awayTeam?.name ?? '').toLowerCase();
-          return homeWordsSofa.some(w => hn.includes(w)) && awayWordsSofa.some(w => an.includes(w));
+          const hn = fold(e.homeTeam?.name ?? ''), an = fold(e.awayTeam?.name ?? '');
+          const hH = homeWords.some(w => hn.includes(w)), hA = homeWords.some(w => an.includes(w));
+          const aH = awayWords.some(w => hn.includes(w)), aA = awayWords.some(w => an.includes(w));
+          return (hH && aA) || (hA && aH);
         });
 
         if (!ev) { console.log(`[sofa] no match for ${fixtureId} on ${sofaDate}`); continue; }
         if (ev.status?.type !== 'finished') { console.log(`[sofa] ${fixtureId} not finished`); continue; }
 
-        // Fetch incidents for this event
+        // Does Sofa's "home" correspond to OUR homeId? Used to map inc.isHome.
+        const sofaHomeIsOurHome = homeWords.some(w => fold(ev.homeTeam?.name ?? '').includes(w));
+
         try {
           const incRes = await fetch(`${SOFA_BASE}/event/${ev.id}/incidents`, { headers: SOFA_HEADERS });
           if (!incRes.ok) continue;
@@ -283,7 +294,7 @@ async function fetchGoalsFromSofa(
             if (iType !== 'goal') return [];
 
             let goal_type: 'normal' | 'penalty' | 'own_goal';
-            if      (iClass === 'owngoal' || iClass === 'own_goal' || iClass === 'ownGoal') goal_type = 'own_goal';
+            if      (iClass === 'owngoal' || iClass === 'own_goal' || iClass === 'owngoal') goal_type = 'own_goal';
             else if (iClass === 'penalty')                                                  goal_type = 'penalty';
             else                                                                            goal_type = 'normal';
 
@@ -292,13 +303,14 @@ async function fetchGoalsFromSofa(
 
             const addedTime: number | null = inc.addedTime ?? null;
             const minuteStr = `${inc.time ?? '?'}${addedTime ? '+' + addedTime : ''}'`;
-            const team_id = (inc.isHome ?? true) ? homeId : awayId;
+            const incIsHome = inc.isHome ?? true;
+            // Map Sofa's home/away to our ids accounting for venue order.
+            const team_id = incIsHome === sofaHomeIsOurHome ? homeId : awayId;
 
             return [{ fixture_id: fixtureId, team_id, player_name, minute: parseMinute(minuteStr), goal_type }];
           });
 
           console.log(`[sofa] ${fixtureId}: ${goals.length} goals`);
-          // Only mark covered if we got actual goal events; otherwise fall through to Serper
           if (goals.length > 0) result.set(fixtureId, goals);
         } catch (e) {
           console.error(`[sofa] incidents error for ${fixtureId}:`, e);
@@ -314,12 +326,16 @@ async function fetchGoalsFromSofa(
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // SOURCE 3 — Serper (Google search fallback)
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function parseStructuredGoals(
-  goals: SerperGoal[], fixtureId: string, homeId: string, awayId: string, homeName: string, awayName: string,
+  goals: SerperGoal[], fixtureId: string, homeId: string, awayId: string, homeWords: string[], awayWords: string[],
 ): GoalEntry[] {
   return goals.flatMap(g => {
     const raw = g.player ?? '';
@@ -327,9 +343,7 @@ function parseStructuredGoals(
     const min = typeof g.minute === 'number' ? g.minute
               : typeof g.minute === 'string' ? parseInt(g.minute, 10) || null : null;
     const goal_type = g.type ? detectGoalType(g.type) : 'normal';
-    const gTeam = (g.team ?? '').toLowerCase();
-    const team_id = gTeam.includes(homeName.toLowerCase().split(' ')[0]) ? homeId
-                  : gTeam.includes(awayName.toLowerCase().split(' ')[0]) ? awayId : homeId;
+    const team_id = attributeTeam(g.team ?? '', homeId, homeWords, awayId, awayWords);
     return [{ fixture_id: fixtureId, team_id, player_name: raw.trim(), minute: min ?? null, goal_type }];
   });
 }
@@ -339,12 +353,12 @@ function parseSnippetGoals(
 ): GoalEntry[] {
   const results: GoalEntry[] = [];
   if (!snippet) return results;
-  const text = snippet.replace(/’|‘/g, "'");
+  const text = snippet.replace(/[\u2018\u2019]/g, "'");
   let currentTeamId = homeId;
   const homeWords = homeName.toLowerCase().split(' ');
   const awayWords = awayName.toLowerCase().split(' ');
-  const goalRe = /([A-ZÀ-Ž][a-zà-ž]+(?:\s+[A-ZÀ-Ž][a-zà-ž']+)*)\s+(\d{1,3})'?(?:\s*[\+\+]\d+)?(?:\s*\(([^)]+)\))?/g;
-  const teamLabelRe = new RegExp(`(${homeName}|${awayName}|${homeWords[0]}|${awayWords[0]})\\s*[:\\-]`, 'gi');
+  const goalRe = /([A-Z\u00c0-\u017d][a-z\u00e0-\u017e]+(?:\s+[A-Z\u00c0-\u017d][a-z\u00e0-\u017e']+)*)\s+(\d{1,3})'?(?:\s*[\+\+]\d+)?(?:\s*\(([^)]+)\))?/g;
+  const teamLabelRe = new RegExp(`(${escapeRe(homeName)}|${escapeRe(awayName)}|${escapeRe(homeWords[0])}|${escapeRe(awayWords[0])})\\s*[:\\-]`, 'gi');
   const segments: Array<{ teamId: string; text: string }> = [];
   let lastIndex = 0;
   let teamLabelMatch: RegExpExecArray | null;
@@ -378,6 +392,8 @@ async function fetchGoalScorersFromSerper(
 ): Promise<GoalEntry[]> {
   const home = teamName(homeId);
   const away = teamName(awayId);
+  const homeWords = teamWords(homeId);
+  const awayWords = teamWords(awayId);
   const query = `${home} ${away} goals scorers FIFA World Cup 2026`;
   let res: Response;
   try {
@@ -395,7 +411,7 @@ async function fetchGoalScorersFromSerper(
   const data: SerperResponse = await res.json();
   const game = data.sportsResults?.games?.[0];
   if (game?.goals && game.goals.length > 0) {
-    const parsed = parseStructuredGoals(game.goals, fixtureId, homeId, awayId, home, away);
+    const parsed = parseStructuredGoals(game.goals, fixtureId, homeId, awayId, homeWords, awayWords);
     if (parsed.length > 0) {
       console.log(`[serper] ${fixtureId}: ${parsed.length} goals from sportsResults`);
       return parsed;
@@ -407,9 +423,9 @@ async function fetchGoalScorersFromSerper(
   return parsed;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // Main handler
-// ─────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 interface KoFixtureInput { id: string; home_team_id: string; away_team_id: string; kickoff_utc: string; }
 
 Deno.serve(async (req) => {
@@ -429,6 +445,12 @@ Deno.serve(async (req) => {
   if (rErr) return new Response(JSON.stringify({ error: rErr.message }), { status: 500 });
 
   const playedResults = results ?? [];
+
+  // Known goal total per fixture — drives source selection & completeness.
+  const expectedByFixture = new Map<string, number>();
+  for (const r of playedResults) expectedByFixture.set(r.fixture_id, r.home_goals + r.away_goals);
+  const expectedOf = (fid: string) => expectedByFixture.get(fid) ?? 0;
+  const lenOf = (m: Map<string, GoalEntry[]>, fid: string) => m.get(fid)?.length ?? 0;
 
   // Resolve knockout fixtures by id → { date, teams } from the request body.
   const koById = new Map<string, { date: string; dbHome: string; dbAway: string }>();
@@ -456,8 +478,6 @@ Deno.serve(async (req) => {
     fixtureByKey.set(`${f.away_team_id}:${f.home_team_id}`, entry); // reverse lookup
   }
 
-  // Organize fixtures by date for ESPN/SofaScore batching.
-  // Use dbHome/dbAway (the real venue order) so ESPN/SofaScore home-team detection is correct.
   // Resolve a played fixture to { date, teams }: knockout via koById (request
   // body), group stage via the team-pair key (its id order can differ from
   // wc_fixtures, so a direct id lookup would miss ~30% of group fixtures).
@@ -468,6 +488,8 @@ Deno.serve(async (req) => {
     return fixtureByKey.get(`${parts[2]}:${parts[3]}`) ?? null;
   }
 
+  // Organize fixtures by date for ESPN/SofaScore batching.
+  // Use dbHome/dbAway (the real venue order) so ESPN/SofaScore home-team detection is correct.
   const fixturesByDate = new Map<string, Array<{ fixtureId: string; homeId: string; awayId: string }>>();
   for (const r of playedResults) {
     const info = resolveFixture(r.fixture_id);
@@ -477,39 +499,36 @@ Deno.serve(async (req) => {
     fixturesByDate.set(info.date, existing);
   }
 
-  // ── SOURCE 1: ESPN ─────────────────────────────────────────────────────────
+  // -- SOURCE 1: ESPN ---------------------------------------------------------
   const espnGoals = await fetchGoalsFromESPN(fixturesByDate);
 
-  // Identify what ESPN didn't cover (fixtures with goals that still have no data)
+  // SofaScore: any fixture whose ESPN result is still short of the known total.
   const stillMissingForSofa = new Map<string, Array<{ fixtureId: string; homeId: string; awayId: string }>>();
   for (const [date, fixtures] of fixturesByDate) {
     const missing = fixtures.filter(f => {
-      if (espnGoals.has(f.fixtureId)) return false;
-      // 0-0 matches: no goals to find
-      const r = playedResults.find(gr => gr.fixture_id === f.fixtureId);
-      return r && (r.home_goals + r.away_goals) > 0;
+      const exp = expectedOf(f.fixtureId);
+      if (exp === 0) return false;                          // 0-0: nothing to find
+      return lenOf(espnGoals, f.fixtureId) < exp;           // incomplete → try Sofa
     });
     if (missing.length > 0) stillMissingForSofa.set(date, missing);
   }
 
-  // ── SOURCE 2: SofaScore ────────────────────────────────────────────────────
+  // -- SOURCE 2: SofaScore ----------------------------------------------------
   const sofaGoals = stillMissingForSofa.size > 0
     ? await fetchGoalsFromSofa(stillMissingForSofa)
     : new Map<string, GoalEntry[]>();
 
-  // ── SOURCE 3: Serper (fallback for still-missing fixtures with goals) ──────
+  // -- SOURCE 3: Serper — fixtures still short after ESPN+Sofa ----------------
   const stillMissingForSerper = playedResults.filter(r => {
-    if (r.home_goals + r.away_goals === 0) return false; // 0-0, skip
-    if (espnGoals.has(r.fixture_id)) return false;
-    if (sofaGoals.has(r.fixture_id)) return false;
-    return true;
+    const exp = expectedOf(r.fixture_id);
+    if (exp === 0) return false;
+    const best = Math.max(lenOf(espnGoals, r.fixture_id), lenOf(sofaGoals, r.fixture_id));
+    return best < exp;
   });
 
   const serperGoals = new Map<string, GoalEntry[]>();
   if (stillMissingForSerper.length > 0 && SERPER_KEY) {
     for (const r of stillMissingForSerper) {
-      // Resolved teams (correct attribution): KO via bracket body, group via
-      // wc_fixtures; group falls back to the fixture_id team slugs if unmapped.
       const info = resolveFixture(r.fixture_id);
       let homeId: string, awayId: string;
       if (info) {
@@ -519,7 +538,7 @@ Deno.serve(async (req) => {
         if (parts.length < 4) continue;
         homeId = parts[2]; awayId = parts[3];
       } else {
-        continue; // knockout fixture with no bracket mapping → can't attribute
+        continue;
       }
       const goals = await fetchGoalScorersFromSerper(r.fixture_id, homeId, awayId, SERPER_KEY);
       if (goals.length > 0) serperGoals.set(r.fixture_id, goals);
@@ -527,32 +546,66 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── Merge & upsert ─────────────────────────────────────────────────────────
-  const allGoalsByFixture = new Map<string, GoalEntry[]>([
-    ...espnGoals,
-    ...sofaGoals,
-    ...serperGoals,
-  ]);
+  // -- Reconcile: per fixture, keep the MOST COMPLETE result across sources ---
+  // (prefer a set that hits the expected total exactly, else the largest).
+  const allGoalsByFixture = new Map<string, GoalEntry[]>();
+  for (const fid of new Set([...espnGoals.keys(), ...sofaGoals.keys(), ...serperGoals.keys()])) {
+    const exp = expectedOf(fid);
+    const cands = [espnGoals.get(fid), sofaGoals.get(fid), serperGoals.get(fid)]
+      .filter((g): g is GoalEntry[] => !!g && g.length > 0);
+    if (cands.length === 0) continue;
+    cands.sort((a, b) => {
+      const ae = a.length === exp ? 1 : 0, be = b.length === exp ? 1 : 0;
+      if (ae !== be) return be - ae;
+      return b.length - a.length;
+    });
+    allGoalsByFixture.set(fid, cands[0]);
+  }
 
-  const updatedFixtures = [...allGoalsByFixture.keys()];
-  const allGoals = [...allGoalsByFixture.values()].flat();
-
-  if (updatedFixtures.length > 0) {
-    await supabase.from('match_goals').delete().in('fixture_id', updatedFixtures);
-    if (allGoals.length > 0) {
-      const { error: insErr } = await supabase.from('match_goals').insert(allGoals);
-      if (insErr) console.error('[update-goal-scorers] insert error:', insErr);
+  // -- Monotonic, per-fixture write: never reduce a fixture's coverage --------
+  const targetFixtures = [...allGoalsByFixture.keys()];
+  const existingCount = new Map<string, number>();
+  if (targetFixtures.length > 0) {
+    const { data: existingRows } = await supabase
+      .from('match_goals').select('fixture_id').in('fixture_id', targetFixtures);
+    for (const row of existingRows ?? []) {
+      existingCount.set(row.fixture_id, (existingCount.get(row.fixture_id) ?? 0) + 1);
     }
   }
+
+  let written = 0, skippedWorse = 0, insertedGoals = 0;
+  for (const [fid, goals] of allGoalsByFixture) {
+    const have = existingCount.get(fid) ?? 0;
+    const exp = expectedOf(fid);
+    if (goals.length < have)                       { skippedWorse++; continue; } // never reduce
+    if (have > 0 && exp > 0 && have >= exp)         continue;                     // already complete
+    if (goals.length === have && have > 0)          continue;                     // no improvement
+    const del = await supabase.from('match_goals').delete().eq('fixture_id', fid);
+    if (del.error) { console.error(`[del] ${fid}`, del.error); continue; }
+    const ins = await supabase.from('match_goals').insert(goals);
+    if (ins.error) { console.error(`[ins] ${fid}`, ins.error); continue; }
+    written++; insertedGoals += goals.length;
+  }
+
+  // Fixtures that still don't reach their known total after this run.
+  const stillIncomplete = playedResults.filter(r => {
+    const exp = expectedOf(r.fixture_id);
+    if (exp === 0) return false;
+    const best = Math.max(existingCount.get(r.fixture_id) ?? 0, lenOf(allGoalsByFixture, r.fixture_id));
+    return best < exp;
+  }).map(r => r.fixture_id);
 
   const summary = {
     processedFixtures: playedResults.length,
     knockoutResolved:  koById.size,
-    updatedFromEspn:   espnGoals.size,
-    updatedFromSofa:   sofaGoals.size,
-    updatedFromSerper: serperGoals.size,
-    totalGoals:        allGoals.length,
-    skippedNoData:     playedResults.filter(r => r.home_goals + r.away_goals > 0 && !allGoalsByFixture.has(r.fixture_id)).length,
+    fromEspn:   espnGoals.size,
+    fromSofa:   sofaGoals.size,
+    fromSerper: serperGoals.size,
+    fixturesWritten:   written,
+    skippedWorse,
+    insertedGoals,
+    stillIncompleteCount: stillIncomplete.length,
+    stillIncomplete:      stillIncomplete.slice(0, 30),
   };
   console.log('[update-goal-scorers] done', summary);
 
