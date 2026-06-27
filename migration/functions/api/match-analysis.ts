@@ -55,7 +55,12 @@ Reglas:
 - Español rioplatense, directo, sin relleno ni frases de cierre.
 - Fundamentá SIEMPRE con números del JSON (xG, goles recibidos, probabilidades, incentivos).
 - Nunca inventes datos, lesiones ni jugadores que no estén en el JSON.
-- No contradigas al ganador del consenso; sí podés precisar margen, goles o ambos-marcan.`;
+- No contradigas al ganador del consenso; sí podés precisar margen, goles o ambos-marcan.
+- Formato Mundial 2026: clasifican los 2 primeros de cada grupo MÁS los 8 mejores terceros.
+  Por eso un 3° puede estar YA clasificado, y dos equipos clasificados pueden estar jugando
+  por el 1° puesto (mejor cruce). Respetá el campo "incentivos": ya refleja esto. No digas
+  que un equipo "necesita ganar para no quedar eliminado" si su incentivo indica que ya
+  clasificó o clasifica como mejor tercero.`;
 
 // Gemini structured-output schema — forces the exact JSON shape we parse.
 const RESPONSE_SCHEMA = {
