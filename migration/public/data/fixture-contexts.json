@@ -281,17 +281,17 @@
   },
   {
     "fixture_id": "grp:G:egypt:iran",
-    "unavailable_home_players": 1,
-    "unavailable_home_attack_impact": 0.035,
-    "unavailable_home_defense_impact": 0.003,
-    "unavailable_away_players": 1,
-    "unavailable_away_attack_impact": 0.035,
-    "unavailable_away_defense_impact": 0.003,
+    "unavailable_home_players": 2,
+    "unavailable_home_attack_impact": 0.04,
+    "unavailable_home_defense_impact": 0,
+    "unavailable_away_players": 0,
+    "unavailable_away_attack_impact": 0,
+    "unavailable_away_defense_impact": 0,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "egypt: Islam Issa (ACL tear) | iran: Ali Gholizadeh (season-ending knee injury)",
-    "updated_at": "2026-06-16T17:08:11.781Z"
+    "notes": "egypt: Hossam Abdelmaguid (will miss), Mohamed Abdelmonem (injury)",
+    "updated_at": "2026-06-27T09:54:10.486Z"
   },
   {
     "fixture_id": "grp:G:belgium:new-zealand",
@@ -578,14 +578,14 @@
     "unavailable_home_players": 0,
     "unavailable_home_attack_impact": 0,
     "unavailable_home_defense_impact": 0,
-    "unavailable_away_players": 2,
-    "unavailable_away_attack_impact": 0.024,
-    "unavailable_away_defense_impact": 0.025,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.015,
+    "unavailable_away_defense_impact": 0.01,
     "has_lineups": false,
     "has_odds": false,
     "has_availability_news": true,
-    "notes": "ghana: Alexander Djiku (injury), Salisu (injury)",
-    "updated_at": "2026-06-16T17:08:11.781Z"
+    "notes": "ghana: Mohammed Kudus (Quadriceps injury)",
+    "updated_at": "2026-06-27T09:54:10.486Z"
   },
   {
     "fixture_id": "grp:A:south-africa:czechia",
@@ -642,5 +642,19 @@
     "has_availability_news": true,
     "notes": "canada: Alphonso Davies (Not in squad)",
     "updated_at": "2026-06-24T10:38:41.623Z"
+  },
+  {
+    "fixture_id": "grp:L:panama:england",
+    "unavailable_home_players": 0,
+    "unavailable_home_attack_impact": 0,
+    "unavailable_home_defense_impact": 0,
+    "unavailable_away_players": 1,
+    "unavailable_away_attack_impact": 0.004,
+    "unavailable_away_defense_impact": 0.025,
+    "has_lineups": false,
+    "has_odds": false,
+    "has_availability_news": true,
+    "notes": "england: Reece James (hamstring injury)",
+    "updated_at": "2026-06-27T09:54:10.486Z"
   }
 ]
