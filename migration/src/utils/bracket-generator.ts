@@ -19,62 +19,60 @@ import {
   rankThirdPlaceTeams,
 } from './standings';
 
-// R32 confirmed crossings — official FIFA WC 2026 draw
+// R32 confirmed crossings — official FIFA WC 2026 schedule.
 // Format: [homeSlot, awaySlot, matchId, kickoffUTC, venue, city]
 // homeSlot/awaySlot: '1X'=winner, '2X'=runner-up, 'T3'=best 3rd (assigned post-groups)
-// Dates match the official FIFA WC 2026 R32 schedule (Argentina local day = UTC-3).
-// Each day has 2-3 matches at 17:00, 20:00, 23:00 UTC (= 14:00, 17:00, 20:00 ART).
+// Dates/times/venues verified against the official FIFA WC2026 match schedule
+// (each numbered match has a fixed venue + kickoff regardless of qualifiers).
+// kickoff_utc derived from the venue's local kickoff: US/Canada on DST (ET=UTC-4,
+// CT=UTC-5, MT=UTC-6, PT=UTC-7), Mexico City no DST (UTC-6).
 const FIXED_R32_SLOTS = [
-  // Domingo 28 junio
-  ['2A', '2B', 'ko:r32:m73', '2026-06-28T17:00:00Z', 'Gillette Stadium',      'Foxborough'    ],
-  ['1F', '2C', 'ko:r32:m75', '2026-06-28T20:00:00Z', 'Estadio BBVA',          'Monterrey'     ],
-  ['2K', '2L', 'ko:r32:m83', '2026-06-28T23:00:00Z', 'Arrowhead Stadium',     'Kansas City'   ],
-  // Lunes 29 junio
-  ['1E', 'T3', 'ko:r32:m74', '2026-06-29T20:00:00Z', 'AT&T Stadium',          'Arlington'     ],  // T3 from A/B/C/D/F
-  ['1C', '2F', 'ko:r32:m76', '2026-06-29T23:00:00Z', 'NRG Stadium',           'Houston'       ],
-  // Martes 30 junio
-  ['1I', 'T3', 'ko:r32:m77', '2026-06-30T17:00:00Z', 'Estadio Azteca',        'Ciudad de México'],  // T3 from C/D/F/G/H
-  ['2E', '2I', 'ko:r32:m78', '2026-06-30T20:00:00Z', 'Mercedes-Benz Stadium', 'Atlanta'       ],
-  ['1A', 'T3', 'ko:r32:m79', '2026-06-30T23:00:00Z', "Levi's Stadium",        'Santa Clara'   ],  // T3 from C/E/F/H/I
-  // Miércoles 1 julio
-  ['1L', 'T3', 'ko:r32:m80', '2026-07-01T17:00:00Z', 'Lumen Field',           'Seattle'       ],  // T3 from E/H/I/J/K
-  ['1D', 'T3', 'ko:r32:m81', '2026-07-01T20:00:00Z', 'BMO Field',             'Toronto'       ],  // T3 from B/E/F/I/J
-  ['1G', 'T3', 'ko:r32:m82', '2026-07-01T23:00:00Z', 'Hard Rock Stadium',     'Miami Gardens' ],  // T3 from A/E/H/I/J
-  // Jueves 2 julio
-  ['1H', '2J', 'ko:r32:m84', '2026-07-02T20:00:00Z', 'SoFi Stadium',          'Inglewood'     ],
-  ['1B', 'T3', 'ko:r32:m85', '2026-07-02T23:00:00Z', 'TBD',                   'TBD'           ],  // T3 from E/F/G/I/J
-  // Viernes 3 julio
-  ['1J', '2H', 'ko:r32:m86', '2026-07-03T17:00:00Z', 'TBD',                   'TBD'           ],
-  ['1K', 'T3', 'ko:r32:m87', '2026-07-03T20:00:00Z', 'TBD',                   'TBD'           ],  // T3 from D/E/I/J/L
-  ['2D', '2G', 'ko:r32:m88', '2026-07-03T23:00:00Z', 'TBD',                   'TBD'           ],
+  ['2A', '2B', 'ko:r32:m73', '2026-06-28T19:00:00Z', 'SoFi Stadium',          'Inglewood'       ],
+  ['1C', '2F', 'ko:r32:m76', '2026-06-29T17:00:00Z', 'NRG Stadium',           'Houston'         ],
+  ['1E', 'T3', 'ko:r32:m74', '2026-06-29T20:30:00Z', 'Gillette Stadium',      'Foxborough'      ],  // T3 from A/B/C/D/F
+  ['1F', '2C', 'ko:r32:m75', '2026-06-30T01:00:00Z', 'Estadio BBVA',          'Monterrey'       ],
+  ['2E', '2I', 'ko:r32:m78', '2026-06-30T17:00:00Z', 'AT&T Stadium',          'Arlington'       ],
+  ['1I', 'T3', 'ko:r32:m77', '2026-06-30T21:00:00Z', 'MetLife Stadium',       'East Rutherford' ],  // T3 from C/D/F/G/H
+  ['1A', 'T3', 'ko:r32:m79', '2026-07-01T01:00:00Z', 'Estadio Azteca',        'Ciudad de México'],  // T3 from C/E/F/H/I
+  ['1L', 'T3', 'ko:r32:m80', '2026-07-01T16:00:00Z', 'Mercedes-Benz Stadium', 'Atlanta'         ],  // T3 from E/H/I/J/K
+  ['1G', 'T3', 'ko:r32:m82', '2026-07-01T20:00:00Z', 'Lumen Field',           'Seattle'         ],  // T3 from A/E/H/I/J
+  ['1D', 'T3', 'ko:r32:m81', '2026-07-02T00:00:00Z', "Levi's Stadium",        'Santa Clara'     ],  // T3 from B/E/F/I/J
+  ['1H', '2J', 'ko:r32:m84', '2026-07-02T19:00:00Z', 'SoFi Stadium',          'Inglewood'       ],
+  ['2K', '2L', 'ko:r32:m83', '2026-07-02T23:00:00Z', 'BMO Field',             'Toronto'         ],
+  ['1B', 'T3', 'ko:r32:m85', '2026-07-03T03:00:00Z', 'BC Place',              'Vancouver'       ],  // T3 from E/F/G/I/J — kickoff time to reconfirm
+  ['2D', '2G', 'ko:r32:m88', '2026-07-03T18:00:00Z', 'AT&T Stadium',          'Arlington'       ],  // kickoff time to reconfirm
+  ['1J', '2H', 'ko:r32:m86', '2026-07-03T21:00:00Z', 'Hard Rock Stadium',     'Miami Gardens'   ],  // kickoff time to reconfirm
+  ['1K', 'T3', 'ko:r32:m87', '2026-07-04T01:30:00Z', 'Arrowhead Stadium',     'Kansas City'     ],  // T3 from D/E/I/J/L
 ] as const;
 
-// R16 pairings: confirmed from FIFA schedule (source: worldcupkickofftimes.com, wikipedia)
+// R16 pairings — official FIFA WC2026 schedule. Format: [id, homeSrc, awaySrc, kickoffUTC, venue, city]
 const R16_PAIRINGS = [
-  ['ko:r16:m89', 'ko:r32:m74', 'ko:r32:m77', '2026-07-05T23:00:00Z'],  // W(1E/T3) vs W(1I/T3)
-  ['ko:r16:m90', 'ko:r32:m73', 'ko:r32:m75', '2026-07-06T02:00:00Z'],  // W(2A/2B) vs W(1F/2C)
-  ['ko:r16:m91', 'ko:r32:m76', 'ko:r32:m78', '2026-07-06T23:00:00Z'],  // W(1C/2F) vs W(2E/2I)
-  ['ko:r16:m92', 'ko:r32:m79', 'ko:r32:m80', '2026-07-07T02:00:00Z'],  // W(1A/T3) vs W(1L/T3)
-  ['ko:r16:m93', 'ko:r32:m83', 'ko:r32:m84', '2026-07-07T23:00:00Z'],  // W(2K/2L) vs W(1H/2J)
-  ['ko:r16:m94', 'ko:r32:m81', 'ko:r32:m82', '2026-07-08T02:00:00Z'],  // W(1D/T3) vs W(1G/T3)
-  ['ko:r16:m95', 'ko:r32:m86', 'ko:r32:m88', '2026-07-08T23:00:00Z'],  // W(1J/2H) vs W(2D/2G)
-  ['ko:r16:m96', 'ko:r32:m85', 'ko:r32:m87', '2026-07-09T02:00:00Z'],  // W(1B/T3) vs W(1K/T3)
+  ['ko:r16:m89', 'ko:r32:m74', 'ko:r32:m77', '2026-07-04T21:00:00Z', 'Lincoln Financial Field', 'Philadelphia'],
+  ['ko:r16:m90', 'ko:r32:m73', 'ko:r32:m75', '2026-07-04T17:00:00Z', 'NRG Stadium',             'Houston'],
+  ['ko:r16:m91', 'ko:r32:m76', 'ko:r32:m78', '2026-07-05T20:00:00Z', 'MetLife Stadium',         'East Rutherford'],
+  ['ko:r16:m92', 'ko:r32:m79', 'ko:r32:m80', '2026-07-06T00:00:00Z', 'Estadio Azteca',          'Ciudad de México'],
+  ['ko:r16:m93', 'ko:r32:m83', 'ko:r32:m84', '2026-07-06T19:00:00Z', 'AT&T Stadium',            'Arlington'],
+  ['ko:r16:m94', 'ko:r32:m81', 'ko:r32:m82', '2026-07-07T00:00:00Z', 'Lumen Field',             'Seattle'],
+  ['ko:r16:m95', 'ko:r32:m86', 'ko:r32:m88', '2026-07-07T16:00:00Z', 'Mercedes-Benz Stadium',   'Atlanta'],
+  ['ko:r16:m96', 'ko:r32:m85', 'ko:r32:m87', '2026-07-07T20:00:00Z', 'BC Place',                'Vancouver'],
 ] as const;
 
+// QF — feeders aligned to official FIFA match numbers (m98=W93×W94, m99=W91×W92).
 const QF_PAIRINGS = [
-  ['ko:qf:m97', 'ko:r16:m89', 'ko:r16:m90', '2026-07-10T23:00:00Z'],
-  ['ko:qf:m98', 'ko:r16:m91', 'ko:r16:m92', '2026-07-11T02:00:00Z'],
-  ['ko:qf:m99', 'ko:r16:m93', 'ko:r16:m94', '2026-07-11T23:00:00Z'],
-  ['ko:qf:m100','ko:r16:m95', 'ko:r16:m96', '2026-07-12T02:00:00Z'],
+  ['ko:qf:m97',  'ko:r16:m89', 'ko:r16:m90', '2026-07-09T20:00:00Z', 'Gillette Stadium',      'Foxborough'],
+  ['ko:qf:m98',  'ko:r16:m93', 'ko:r16:m94', '2026-07-10T19:00:00Z', 'SoFi Stadium',          'Inglewood'],
+  ['ko:qf:m99',  'ko:r16:m91', 'ko:r16:m92', '2026-07-11T21:00:00Z', 'Hard Rock Stadium',     'Miami Gardens'],
+  ['ko:qf:m100', 'ko:r16:m95', 'ko:r16:m96', '2026-07-12T01:00:00Z', 'Arrowhead Stadium',     'Kansas City'],
 ] as const;
 
+// SF — feeders aligned to official FIFA match numbers (m101=W97×W98, m102=W99×W100).
 const SF_PAIRINGS = [
-  ['ko:sf:m101', 'ko:qf:m97',  'ko:qf:m99',  '2026-07-14T23:00:00Z'],  // SF A: left QFs
-  ['ko:sf:m102', 'ko:qf:m98',  'ko:qf:m100', '2026-07-15T23:00:00Z'],  // SF B: right QFs
+  ['ko:sf:m101', 'ko:qf:m97',  'ko:qf:m98',  '2026-07-14T19:00:00Z', 'AT&T Stadium',          'Arlington'],
+  ['ko:sf:m102', 'ko:qf:m99',  'ko:qf:m100', '2026-07-15T19:00:00Z', 'Mercedes-Benz Stadium', 'Atlanta'],
 ] as const;
 
-const FINAL = ['ko:final:m104', 'ko:sf:m101', 'ko:sf:m102', '2026-07-19T23:00:00Z'] as const;
-const THIRD_PLACE = ['ko:3rdplace:m103', 'ko:sf:m101', 'ko:sf:m102', '2026-07-18T23:00:00Z'] as const;
+const FINAL = ['ko:final:m104', 'ko:sf:m101', 'ko:sf:m102', '2026-07-19T19:00:00Z', 'MetLife Stadium', 'East Rutherford'] as const;
+const THIRD_PLACE = ['ko:3rdplace:m103', 'ko:sf:m101', 'ko:sf:m102', '2026-07-18T21:00:00Z', 'Hard Rock Stadium', 'Miami Gardens'] as const;
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -157,34 +155,34 @@ export function generateKnockoutFixtures(
   }
 
   // ── R16 (8) ──────────────────────────────────────────────────
-  for (const [id, homeSource, awaySource, kickoff] of R16_PAIRINGS) {
+  for (const [id, homeSource, awaySource, kickoff, venue, city] of R16_PAIRINGS) {
     fixtures.push({
       id, group_name: 'R16', round: 'R16',
       home_slot: `W(${homeSource})`, away_slot: `W(${awaySource})`,
       home_team_id: '', away_team_id: '',
-      neutral_venue: true, kickoff_utc: kickoff, venue: 'TBD', city: 'TBD',
+      neutral_venue: true, kickoff_utc: kickoff, venue, city,
       is_played: false, home_goals: null, away_goals: null,
     });
   }
 
   // ── Quarterfinals (4) ─────────────────────────────────────────
-  for (const [id, homeSource, awaySource, kickoff] of QF_PAIRINGS) {
+  for (const [id, homeSource, awaySource, kickoff, venue, city] of QF_PAIRINGS) {
     fixtures.push({
       id, group_name: 'QF', round: 'QF',
       home_slot: `W(${homeSource})`, away_slot: `W(${awaySource})`,
       home_team_id: '', away_team_id: '',
-      neutral_venue: true, kickoff_utc: kickoff, venue: 'TBD', city: 'TBD',
+      neutral_venue: true, kickoff_utc: kickoff, venue, city,
       is_played: false, home_goals: null, away_goals: null,
     });
   }
 
   // ── Semifinals (2) ────────────────────────────────────────────
-  for (const [id, homeSource, awaySource, kickoff] of SF_PAIRINGS) {
+  for (const [id, homeSource, awaySource, kickoff, venue, city] of SF_PAIRINGS) {
     fixtures.push({
       id, group_name: 'SF', round: 'SF',
       home_slot: `W(${homeSource})`, away_slot: `W(${awaySource})`,
       home_team_id: '', away_team_id: '',
-      neutral_venue: true, kickoff_utc: kickoff, venue: 'TBD', city: 'TBD',
+      neutral_venue: true, kickoff_utc: kickoff, venue, city,
       is_played: false, home_goals: null, away_goals: null,
     });
   }
@@ -194,7 +192,7 @@ export function generateKnockoutFixtures(
     id: THIRD_PLACE[0], group_name: '3RDPLACE', round: '3RDPLACE',
     home_slot: `L(${THIRD_PLACE[1]})`, away_slot: `L(${THIRD_PLACE[2]})`,
     home_team_id: '', away_team_id: '',
-    neutral_venue: true, kickoff_utc: THIRD_PLACE[3], venue: 'TBD', city: 'TBD',
+    neutral_venue: true, kickoff_utc: THIRD_PLACE[3], venue: THIRD_PLACE[4], city: THIRD_PLACE[5],
     is_played: false, home_goals: null, away_goals: null,
   });
 
@@ -204,7 +202,7 @@ export function generateKnockoutFixtures(
     home_slot: `W(${FINAL[1]})`, away_slot: `W(${FINAL[2]})`,
     home_team_id: '', away_team_id: '',
     neutral_venue: true, kickoff_utc: FINAL[3],
-    venue: 'MetLife Stadium', city: 'East Rutherford',
+    venue: FINAL[4], city: FINAL[5],
     is_played: false, home_goals: null, away_goals: null,
   });
 
