@@ -15,8 +15,10 @@ import { computeGroupStandingsDisplay } from '../utils/standings';
 
 // ── Output (what Gemini returns) ─────────────────────────────────────────────
 export interface MatchAnalysis {
-  insight: string;
-  senal_clave: string;
+  senal_clave: string;          // header chip (≤6 words)
+  dato_clave: string;           // the single most decisive concrete fact/number
+  insight: string;              // the non-obvious "why"
+  pronostico_concreto: string;  // an actionable, specific call (score/goals line/BTTS/margin/value)
   confianza_lectura: 'alta' | 'media' | 'baja';
 }
 
@@ -35,6 +37,7 @@ export interface MatchAnalysisInput {
   modelos: Record<'plantel'|'forma'|'elo_wc'|'elo'|'poisson'|'contexto'|'grupo'|'momentum', ModelEntry>;
   consenso: { resultado: Pick; prob: number };
   probabilidades_1x2: { local: number; empate: number; visitante: number };
+  goles_esperados: { local: number; visitante: number } | null;
   pronostico_campeon: { marcador: string | null; ganador: string | null };
   datos_relevantes: string[];
 }
@@ -106,6 +109,14 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
     empate: +(cons.draw * 100).toFixed(1),
     visitante: +(cons.awayWin * 100).toFixed(1),
   };
+
+  // ── expected goals (xG) — enables over/under & BTTS calls ────────────────────
+  const xgSrc = pred.predictions.find(
+    p => p.predictorName === 'Modelo de goles (Poisson)' && p.expectedHomeGoals != null,
+  ) ?? pred.bestPrediction;
+  const goles_esperados = (xgSrc.expectedHomeGoals != null && xgSrc.expectedAwayGoals != null)
+    ? { local: +xgSrc.expectedHomeGoals.toFixed(2), visitante: +xgSrc.expectedAwayGoals.toFixed(2) }
+    : null;
 
   // ── champion / PIE scoreline ─────────────────────────────────────────────────
   const score = (pieResult && !pieResult.degraded ? pieResult.mostLikelyScore : null)
@@ -179,6 +190,7 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
     modelos,
     consenso,
     probabilidades_1x2,
+    goles_esperados,
     pronostico_campeon,
     datos_relevantes: datos.slice(0, 5),
   };
@@ -229,8 +241,9 @@ function topScorer(goals: MatchGoal[], teamId: string): { name: string; goals: n
 // Stable cache key — changes only when an input that affects the analysis changes.
 export function matchAnalysisCacheKey(input: MatchAnalysisInput): string {
   return JSON.stringify([
+    'v2', // bump when the prompt/output shape changes
     input.partido.local, input.partido.visitante, input.partido.jornada,
-    input.consenso, input.pronostico_campeon, input.tabla_grupo,
+    input.consenso, input.pronostico_campeon, input.goles_esperados, input.tabla_grupo,
     Object.values(input.modelos).map(m => [m.pick, m.prob]),
     input.datos_relevantes,
   ]);
@@ -255,7 +268,7 @@ export async function callMatchAnalysis(input: MatchAnalysisInput): Promise<Matc
       console.warn('[match-analysis] failed:', reason);
       return { error: reason };
     }
-    if (!body.insight || !body.senal_clave || !body.confianza_lectura) {
+    if (!body.senal_clave || !body.dato_clave || !body.insight || !body.pronostico_concreto || !body.confianza_lectura) {
       console.warn('[match-analysis] incomplete payload:', body);
       return { error: 'respuesta incompleta' };
     }

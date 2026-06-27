@@ -27,47 +27,48 @@ const CORS = {
 };
 
 const SYSTEM_PROMPT = `Eres un analista experto en fútbol y modelos predictivos, escribiendo para un usuario
-avanzado de una app de prode (predicciones) que ya tiene su propio ensamble de modelos
-estadísticos. Tu trabajo NO es recalcular probabilidades — ya están dadas — sino dar
-una lectura breve que un usuario experto no vería a simple vista mirando los números.
+avanzado de una app de prode que YA tiene su ensamble de modelos. No recalcules
+probabilidades ni cambies el ganador del consenso. Tu valor es una lectura PRECISA y
+ACCIONABLE que ayude a decidir el pronóstico — nada de generalidades.
 
-Recibirás un JSON con: datos del partido, posición en la tabla de grupo, incentivos de
-clasificación de cada equipo, las probabilidades de cada modelo del ensamble, el consenso,
-y una lista de datos relevantes (lesiones, rachas, suspensiones, qué necesita cada equipo).
+Recibirás un JSON con: datos del partido, tabla, incentivos de clasificación,
+probabilidades de cada modelo, el consenso, goles esperados (xG), el marcador del campeón
+y datos_relevantes (lesiones, goles recibidos, goleadores, qué necesita cada equipo).
 
-Generá un análisis de 2-3 líneas (máximo 50 palabras) que:
-1. Señale la tensión o coincidencia MÁS interesante entre los modelos (ej: si el consenso
-   dice empate pero Poisson solo se aparta con una victoria, explicá en una frase por qué
-   pasa eso, conectándolo con datos_relevantes — no repitas los porcentajes, interpretalos).
-2. Mencione el incentivo de clasificación si es relevante para cómo se va a jugar el
-   partido (ej: un equipo que solo necesita empatar suele jugar distinto a uno obligado
-   a ganar).
-3. NUNCA contradigas el consenso del ensamble ni propongas tu propio pick de 1X2 distinto
-   al consenso — tu rol es explicar el "por qué" detrás de los números, no generar una
-   predicción nueva o paralela.
+Devolvé EXACTAMENTE estos campos:
+- "senal_clave": etiqueta corta para el encabezado (máx 6 palabras).
+- "dato_clave": el HECHO o NÚMERO más decisivo y CONCRETO del JSON — un stat específico,
+  no una generalidad. Ej: "England recibió gol en sus 2 partidos" o "xG 0.6 vs 2.3".
+- "insight": 2 líneas (máx 40 palabras) que interpreten la tensión o coincidencia NO OBVIA
+  entre modelos/datos — el "por qué", conectado a un número concreto. Prohibido resumir
+  que "gana el favorito" o repetir porcentajes sin interpretarlos.
+- "pronostico_concreto": UNA recomendación específica y JUGABLE, más allá del ganador.
+  Elegí lo que los datos sostengan (xG, goles recibidos, marcador del campeón): marcador
+  más probable, línea de goles (Over/Under 2.5), ambos marcan (Sí/No), margen (gana por 1
+  vs por 2+), o dónde hay valor respecto al consenso. Debe ser decidible y específica
+  (ej: "Over 2.5 + ambos marcan; England 2-1"), NUNCA "será parejo" o "partido abierto".
+  Tiene que ser coherente con el ganador del consenso.
+- "confianza_lectura": "alta" si modelos y datos cuentan una historia coherente, "media"
+  si hay señales mixtas, "baja" si los datos son escasos (igual dá un pronóstico concreto).
 
-Reglas de estilo:
-- Español rioplatense, tono directo y analítico, sin relleno ni frases de cierre tipo
-  "en resumen" o "será un partido interesante".
-- No repitas el marcador exacto del pronóstico de campeón si ya está visible en otra
-  parte de la tarjeta — enfocate en el INSIGHT, no en restating de datos ya mostrados.
-- Si los datos_relevantes no alcanzan para decir algo no obvio, es mejor un análisis más
-  corto y específico que uno largo y genérico.
-- Nunca inventes datos, lesiones o nombres de jugadores que no estén en el JSON de entrada.
-
-"confianza_lectura" refleja qué tan claro es el patrón en los datos: "alta" si los
-modelos y los datos_relevantes cuentan una historia coherente, "media" si hay señales
-mixtas, "baja" si los datos_relevantes son escasos y el insight es más especulativo.`;
+Reglas:
+- Español rioplatense, directo, sin relleno ni frases de cierre.
+- Fundamentá SIEMPRE con números del JSON (xG, goles recibidos, probabilidades, incentivos).
+- Nunca inventes datos, lesiones ni jugadores que no estén en el JSON.
+- No contradigas al ganador del consenso; sí podés precisar margen, goles o ambos-marcan.`;
 
 // Gemini structured-output schema — forces the exact JSON shape we parse.
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
-    insight:            { type: 'string' },
-    senal_clave:        { type: 'string' },
-    confianza_lectura:  { type: 'string', enum: ['alta', 'media', 'baja'] },
+    senal_clave:         { type: 'string' },
+    dato_clave:          { type: 'string' },
+    insight:             { type: 'string' },
+    pronostico_concreto: { type: 'string' },
+    confianza_lectura:   { type: 'string', enum: ['alta', 'media', 'baja'] },
   },
-  required: ['insight', 'senal_clave', 'confianza_lectura'],
+  propertyOrdering: ['senal_clave', 'dato_clave', 'insight', 'pronostico_concreto', 'confianza_lectura'],
+  required: ['senal_clave', 'dato_clave', 'insight', 'pronostico_concreto', 'confianza_lectura'],
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -112,7 +113,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           // a small budget the text comes back EMPTY (finishReason MAX_TOKENS).
           // Disable thinking + give headroom so the JSON actually fits.
           thinkingConfig:     { thinkingBudget: 0 },
-          maxOutputTokens:    800,
+          maxOutputTokens:    1000,
           topP:               0.9,
           responseMimeType:   'application/json',
           responseSchema:     RESPONSE_SCHEMA,
@@ -149,7 +150,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       );
     }
 
-    let parsed: { insight?: string; senal_clave?: string; confianza_lectura?: string };
+    let parsed: {
+      senal_clave?: string; dato_clave?: string; insight?: string;
+      pronostico_concreto?: string; confianza_lectura?: string;
+    };
     try {
       parsed = JSON.parse(raw);
     } catch {
@@ -160,7 +164,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       );
     }
 
-    if (!parsed.insight || !parsed.senal_clave || !parsed.confianza_lectura) {
+    if (!parsed.senal_clave || !parsed.dato_clave || !parsed.insight || !parsed.pronostico_concreto || !parsed.confianza_lectura) {
       return new Response(
         JSON.stringify({ error: 'gemini-incomplete', detail: parsed }),
         { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } },
