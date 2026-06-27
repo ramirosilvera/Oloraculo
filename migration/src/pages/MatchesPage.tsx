@@ -317,6 +317,8 @@ interface FixtureRowProps {
   onRecordLiveResult?: (homeGoals: number, awayGoals: number) => Promise<void>;
   homeName: string;
   awayName: string;
+  homeTeamId: string;
+  awayTeamId: string;
   context: FixtureContext | null;
   compact?: boolean;
   bestModelName: string | null;
@@ -338,6 +340,7 @@ function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
+  homeTeamId, awayTeamId,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals, tournamentGoals,
   ratings, allFixtures, wcResultsForPIE, pieLooWinner, pieLooExact,
   modelWeights, modelEvalStats,
@@ -370,7 +373,7 @@ function FixtureRow({
         disabled={isExpanding}
         className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-wc-cream/50 active:bg-wc-cream transition-all text-left ${compact ? 'py-2.5' : ''} ${isExpanding ? 'opacity-60' : ''}`}
       >
-        <FlagImg id={fixture.home_team_id} />
+        <FlagImg id={homeTeamId} />
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{homeName}</span>
         <div className="flex flex-col items-center shrink-0 px-1">
           {played ? null : fixture.kickoff_utc && fixture.id.startsWith('ko:') ? (
@@ -387,7 +390,7 @@ function FixtureRow({
           )}
         </div>
         <span className="flex-1 font-semibold text-gray-900 text-sm truncate text-right">{awayName}</span>
-        <FlagImg id={fixture.away_team_id} />
+        <FlagImg id={awayTeamId} />
         {played ? (
           <Badge color="green">{played.home_goals} – {played.away_goals}</Badge>
         ) : liveMatch?.status === 'IN_PLAY' || liveMatch?.status === 'PAUSED' ? (
@@ -1180,6 +1183,8 @@ interface TodayFixtureItemProps {
   i: number;
   homeName: string;
   awayName: string;
+  homeTeamId: string;
+  awayTeamId: string;
   played: WcActualResult | undefined;
   pred: MatchPredictionResult | undefined;
   liveM: LiveMatch | null | undefined;
@@ -1194,7 +1199,7 @@ interface TodayFixtureItemProps {
 }
 
 function TodayFixtureItem({
-  fixture, i, homeName, awayName, played, pred, liveM,
+  fixture, i, homeName, awayName, homeTeamId, awayTeamId, played, pred, liveM,
   expandedId, expandingId, expand, hasEngine, ratings, allFixtures, wcResults, fixtureRowProps,
 }: TodayFixtureItemProps) {
   const rowIsLive = liveM?.status === 'IN_PLAY' || liveM?.status === 'PAUSED';
@@ -1227,11 +1232,11 @@ function TodayFixtureItem({
           )}
         </div>
         <div className="flex items-center gap-3 w-full">
-          <FlagImg id={fixture.home_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
+          <FlagImg id={homeTeamId} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
           <span className="font-bold text-white text-sm truncate flex-1">{homeName}</span>
           <span className="text-white/40 text-xs font-medium shrink-0">vs</span>
           <span className="font-bold text-white text-sm truncate flex-1 text-right">{awayName}</span>
-          <FlagImg id={fixture.away_team_id} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
+          <FlagImg id={awayTeamId} className="w-6 h-4 object-cover rounded-[2px] shrink-0" />
           <span className="ml-1 shrink-0">
             {played ? (
               <Badge color="green">{played.home_goals}–{played.away_goals}</Badge>
@@ -1514,6 +1519,18 @@ export function MatchesPage() {
     return liveSlotMap.get(slot) ?? null;
   }, [liveSlotMap]);
 
+  // Single source of truth for a fixture's displayed teams (name + id for the
+  // flag). Knockout slots resolve against LIVE standings (liveSlotMap), falling
+  // back to the JSON-resolved team for T3/R16+ placeholders; group fixtures just
+  // return their static team. Every match renderer (day list, 16avos round,
+  // accordion) must use this so the cards never disagree on the cruces.
+  const koDisplay = useCallback((f: Fixture) => ({
+    homeId:   resolveKoTeamId(f.home_slot) ?? f.home_team_id,
+    awayId:   resolveKoTeamId(f.away_slot) ?? f.away_team_id,
+    homeName: resolveKoName(f.home_slot, teamMap.get(f.home_team_id)?.name ?? f.home_team_id),
+    awayName: resolveKoName(f.away_slot, teamMap.get(f.away_team_id)?.name ?? f.away_team_id),
+  }), [resolveKoTeamId, resolveKoName, teamMap]);
+
   const dailySignal = useMemo(
     () => detectDailyPattern(wcResults ?? [], fixtures, TODAY),
     [wcResults, fixtures],
@@ -1711,15 +1728,17 @@ export function MatchesPage() {
     onResultAway: setResultAway,
     onContextSaved: (ctx: FixtureContext) => handleContextSaved(fixture, ctx),
     onRecordLiveResult: (hg: number, ag: number) => recordLiveResult(fixture, hg, ag),
-    homeName: resolveKoName(fixture.home_slot, teamMap.get(fixture.home_team_id)?.name ?? fixture.home_team_id),
-    awayName: resolveKoName(fixture.away_slot, teamMap.get(fixture.away_team_id)?.name ?? fixture.away_team_id),
+    homeName: koDisplay(fixture).homeName,
+    awayName: koDisplay(fixture).awayName,
+    homeTeamId: koDisplay(fixture).homeId,
+    awayTeamId: koDisplay(fixture).awayId,
     context: contextMap.get(fixture.id) ?? null,
     compact,
     bestModelName: bestWinnerModelName,
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
     modelWeights,
     modelEvalStats,
-    liveMatch: getLiveForFixture(resolvedLiveByKey, fixture.home_team_id, fixture.away_team_id),
+    liveMatch: getLiveForFixture(resolvedLiveByKey, koDisplay(fixture).homeId, koDisplay(fixture).awayId),
     goals: goalsByFixture.get(fixture.id),
     tournamentGoals: matchGoals ?? [],
     ratings: ratingsList,
@@ -1912,11 +1931,13 @@ export function MatchesPage() {
                     key={f.id}
                     fixture={f}
                     i={i}
-                    homeName={teamMap.get(f.home_team_id)?.name ?? f.home_team_id}
-                    awayName={teamMap.get(f.away_team_id)?.name ?? f.away_team_id}
+                    homeName={koDisplay(f).homeName}
+                    awayName={koDisplay(f).awayName}
+                    homeTeamId={koDisplay(f).homeId}
+                    awayTeamId={koDisplay(f).awayId}
                     played={playedMap.get(f.id)}
                     pred={predictions.get(f.id)}
-                    liveM={getLiveForFixture(resolvedLiveByKey, f.home_team_id, f.away_team_id)}
+                    liveM={getLiveForFixture(resolvedLiveByKey, koDisplay(f).homeId, koDisplay(f).awayId)}
                     expandedId={expandedId}
                     expandingId={expandingId}
                     expand={expand}
