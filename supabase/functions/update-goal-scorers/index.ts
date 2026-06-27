@@ -549,8 +549,10 @@ Deno.serve(async (req) => {
   // -- Reconcile: per fixture, keep the MOST COMPLETE result across sources ---
   // (prefer a set that hits the expected total exactly, else the largest).
   const allGoalsByFixture = new Map<string, GoalEntry[]>();
+  const sourceByFixture: Record<string, string> = {}; // diagnostics: per-source counts + winner
   for (const fid of new Set([...espnGoals.keys(), ...sofaGoals.keys(), ...serperGoals.keys()])) {
     const exp = expectedOf(fid);
+    const eN = lenOf(espnGoals, fid), sN = lenOf(sofaGoals, fid), rN = lenOf(serperGoals, fid);
     const cands = [espnGoals.get(fid), sofaGoals.get(fid), serperGoals.get(fid)]
       .filter((g): g is GoalEntry[] => !!g && g.length > 0);
     if (cands.length === 0) continue;
@@ -559,7 +561,10 @@ Deno.serve(async (req) => {
       if (ae !== be) return be - ae;
       return b.length - a.length;
     });
-    allGoalsByFixture.set(fid, cands[0]);
+    const winner = cands[0];
+    const src = winner === espnGoals.get(fid) ? 'espn' : winner === sofaGoals.get(fid) ? 'sofa' : 'serper';
+    allGoalsByFixture.set(fid, winner);
+    sourceByFixture[fid] = `${src} (exp${exp} e${eN}/s${sN}/r${rN})`;
   }
 
   // -- Monotonic, per-fixture write: never reduce a fixture's coverage --------
@@ -606,6 +611,7 @@ Deno.serve(async (req) => {
     insertedGoals,
     stillIncompleteCount: stillIncomplete.length,
     stillIncomplete:      stillIncomplete.slice(0, 30),
+    sourceByFixture,
   };
   console.log('[update-goal-scorers] done', summary);
 
