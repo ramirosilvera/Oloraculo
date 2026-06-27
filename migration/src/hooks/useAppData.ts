@@ -107,17 +107,24 @@ export function useAppData() {
   });
   const engine = engineQuery.data ?? null;
 
-  // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
-  // need it (Historial, Rendimientos) don't block waiting for it to download.
-  // The engine becomes available asynchronously; pages handle engine === null gracefully.
-  // Page-level loading: blocks on static data (fast, local JSON) AND the Supabase
-  // queries the user expects preloaded (goleadores + evaluations), so once the
-  // splash clears, every section — including Partidos — is instant. react-query
-  // isLoading resolves on error too, so a Supabase outage can't freeze the splash.
+  // The prediction engine (Dixon-Coles fit over the 2.1 MB historical_results.json)
+  // is the heaviest piece. It's gated into the splash so it's fully built BEFORE the
+  // user can hit "Predecir partido" — otherwise Partidos mounted with engine === null
+  // and predictions were computed lazily on navigation, which felt slow.
+  // Guard against hanging: if its inputs error or the build throws, stop waiting and
+  // let pages degrade (they already handle engine === null).
+  const enginePrereqError = !!(results.error || squadStrength.error || tacticalProfiles.error);
+  const engineReady = !!engine || engineQuery.isError || enginePrereqError;
+
+  // Page-level loading: blocks on static data (fast, local JSON), the Supabase
+  // queries the user expects preloaded (goleadores + evaluations) AND the engine,
+  // so once the splash clears every section — including Partidos — is instant.
+  // react-query isLoading resolves on error too, so an outage can't freeze the splash.
   // supabaseWc stays out of the gate (it only gates simulation runs).
   const isLoading =
     teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading ||
-    matchGoals.isLoading || evaluations.isLoading;
+    matchGoals.isLoading || evaluations.isLoading ||
+    !engineReady;
 
   // Simulation-level guard: wait for Supabase WC results before allowing a run,
   // so the engine uses up-to-date match corrections, not stale/empty data.
