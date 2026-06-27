@@ -1,7 +1,24 @@
 import { useState, useMemo } from 'react';
 import { Trophy, ChevronDown } from 'lucide-react';
 import { FlagImg } from './ui';
-import type { Team, TournamentProjection } from '../types/domain';
+import type { Team, TournamentProjection, Fixture } from '../types/domain';
+
+// ─── Real dates from knockout-fixtures.json (ART), shown per round ────────────
+function artDateShort(utc?: string | null): string | null {
+  if (!utc) return null;
+  return new Date(utc).toLocaleDateString('es-AR', {
+    day: 'numeric', month: 'short', timeZone: 'America/Argentina/Buenos_Aires',
+  });
+}
+function roundDateRange(koByNum: Map<number, string>, from: number, to: number): string {
+  const ds: string[] = [];
+  for (let n = from; n <= to; n++) { const k = koByNum.get(n); if (k) ds.push(k); }
+  if (!ds.length) return '';
+  ds.sort();
+  const a = artDateShort(ds[0]);
+  const b = artDateShort(ds[ds.length - 1]);
+  return a === b ? (a ?? '') : `${a} – ${b}`;
+}
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 const CARD_W   = 78;          // px — card width
@@ -227,9 +244,10 @@ function StraightConnector({ flipped = false }: { flipped?: boolean }) {
 
 // ─── RoundColumn ─────────────────────────────────────────────────────────────
 function RoundColumn({
-  label, matchIds, slotH, occ, sims, projMap, highlightTeamId, teamMap,
+  label, dateLabel, matchIds, slotH, occ, sims, projMap, highlightTeamId, teamMap,
 }: {
   label: string;
+  dateLabel?: string;
   matchIds: number[];
   slotH: number;
   occ: Record<number, Record<string, number>> | undefined;
@@ -242,9 +260,14 @@ function RoundColumn({
     <div className="shrink-0 flex flex-col" style={{ width: CARD_W }}>
       <div
         className="text-center font-bold text-blue-300 uppercase tracking-widest"
-        style={{ fontSize: 8, height: LABEL_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ height: LABEL_H, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
       >
-        {label}
+        <span style={{ fontSize: 8 }}>{label}</span>
+        {dateLabel && (
+          <span style={{ fontSize: 6, fontWeight: 400, color: 'rgba(147,197,253,0.6)', marginTop: 1 }}>
+            {dateLabel}
+          </span>
+        )}
       </div>
       {matchIds.map(id => (
         <div
@@ -268,13 +291,14 @@ function RoundColumn({
 // ─── FinalCenter ─────────────────────────────────────────────────────────────
 // Center column: trophy icon, label, and Final match card — all vertically centered.
 function FinalCenter({
-  occ, sims, projMap, highlightTeamId, teamMap,
+  occ, sims, projMap, highlightTeamId, teamMap, finalLine,
 }: {
   occ: Record<number, Record<string, number>> | undefined;
   sims: number;
   projMap: Map<string, { winTournament: number }>;
   highlightTeamId?: string;
   teamMap: Map<string, Team>;
+  finalLine?: string;
 }) {
   return (
     <div
@@ -290,12 +314,14 @@ function FinalCenter({
         >
           Final
         </div>
-        <div
-          className="text-center leading-tight"
-          style={{ fontSize: 6.5, color: 'rgba(255,255,255,0.55)' }}
-        >
-          19 Jul · MetLife NJ
-        </div>
+        {finalLine && (
+          <div
+            className="text-center leading-tight"
+            style={{ fontSize: 6.5, color: 'rgba(255,255,255,0.55)' }}
+          >
+            {finalLine}
+          </div>
+        )}
         <div className="mt-0.5">
           <MiniCard
             matchId={FINAL_ID}
@@ -315,9 +341,10 @@ export interface BracketViewProps {
   projection: TournamentProjection | null;
   teamMap: Map<string, Team>;
   highlightTeamId?: string;
+  koFixtures?: Fixture[];   // knockout-fixtures.json — real FIFA dates/venues
 }
 
-export function BracketView({ projection, teamMap, highlightTeamId }: BracketViewProps) {
+export function BracketView({ projection, teamMap, highlightTeamId, koFixtures }: BracketViewProps) {
   const [open, setOpen] = useState(false);
 
   const occ  = projection?.slotOccupancy;
@@ -327,6 +354,31 @@ export function BracketView({ projection, teamMap, highlightTeamId }: BracketVie
     () => new Map(projection?.teams.map(t => [t.teamId, { winTournament: t.winTournament }]) ?? []),
     [projection],
   );
+
+  // Map match number → kickoff_utc / venue from the real bracket data, so the
+  // round labels and the Final show official FIFA dates instead of hardcoded text.
+  const { roundDates, finalLine } = useMemo(() => {
+    const byNum = new Map<number, string>();
+    let finalFx: Fixture | undefined;
+    for (const f of koFixtures ?? []) {
+      const m = f.id.match(/m(\d+)$/);
+      if (!m) continue;
+      const n = +m[1];
+      if (f.kickoff_utc) byNum.set(n, f.kickoff_utc);
+      if (n === FINAL_ID) finalFx = f;
+    }
+    const fDate = artDateShort(finalFx?.kickoff_utc);
+    const fVenue = finalFx?.city || finalFx?.venue || '';
+    return {
+      roundDates: {
+        r32: roundDateRange(byNum, 73, 88),
+        r16: roundDateRange(byNum, 89, 96),
+        qf:  roundDateRange(byNum, 97, 100),
+        sf:  roundDateRange(byNum, 101, 102),
+      },
+      finalLine: fDate ? `${fDate}${fVenue ? ` · ${fVenue}` : ''}` : '',
+    };
+  }, [koFixtures]);
 
   const colProps = { occ, sims, projMap, highlightTeamId, teamMap };
 
@@ -366,53 +418,53 @@ export function BracketView({ projection, teamMap, highlightTeamId }: BracketVie
             {/* ══ LEFT HALF ══ */}
 
             {/* R32 left */}
-            <RoundColumn label="16avos" matchIds={LEFT_R32} slotH={SLOT_H}     {...colProps} />
+            <RoundColumn label="16avos" dateLabel={roundDates.r32} matchIds={LEFT_R32} slotH={SLOT_H}     {...colProps} />
             <div style={{ paddingTop: LABEL_H }}>
               <ConnectorSvg pairs={4} srcSlotH={SLOT_H} />
             </div>
 
             {/* R16 left */}
-            <RoundColumn label="8avos"  matchIds={LEFT_R16} slotH={SLOT_H * 2} {...colProps} />
+            <RoundColumn label="8avos"  dateLabel={roundDates.r16} matchIds={LEFT_R16} slotH={SLOT_H * 2} {...colProps} />
             <div style={{ paddingTop: LABEL_H }}>
               <ConnectorSvg pairs={2} srcSlotH={SLOT_H * 2} />
             </div>
 
             {/* QF left */}
-            <RoundColumn label="4tos"   matchIds={LEFT_QF}  slotH={SLOT_H * 4} {...colProps} />
+            <RoundColumn label="4tos"   dateLabel={roundDates.qf} matchIds={LEFT_QF}  slotH={SLOT_H * 4} {...colProps} />
             <div style={{ paddingTop: LABEL_H }}>
               <ConnectorSvg pairs={1} srcSlotH={SLOT_H * 4} />
             </div>
 
             {/* SF left */}
-            <RoundColumn label="Semis"  matchIds={LEFT_SF}  slotH={SLOT_H * 8} {...colProps} />
+            <RoundColumn label="Semis"  dateLabel={roundDates.sf} matchIds={LEFT_SF}  slotH={SLOT_H * 8} {...colProps} />
             <StraightConnector />
 
             {/* ══ CENTER: FINAL ══ */}
-            <FinalCenter {...colProps} />
+            <FinalCenter {...colProps} finalLine={finalLine} />
 
             {/* ══ RIGHT HALF ══ */}
 
             {/* SF right */}
             <StraightConnector flipped />
-            <RoundColumn label="Semis"  matchIds={RIGHT_SF}  slotH={SLOT_H * 8} {...colProps} />
+            <RoundColumn label="Semis"  dateLabel={roundDates.sf} matchIds={RIGHT_SF}  slotH={SLOT_H * 8} {...colProps} />
             <div style={{ paddingTop: LABEL_H }}>
               <ConnectorSvg pairs={1} srcSlotH={SLOT_H * 4} flipped />
             </div>
 
             {/* QF right */}
-            <RoundColumn label="4tos"   matchIds={RIGHT_QF}  slotH={SLOT_H * 4} {...colProps} />
+            <RoundColumn label="4tos"   dateLabel={roundDates.qf} matchIds={RIGHT_QF}  slotH={SLOT_H * 4} {...colProps} />
             <div style={{ paddingTop: LABEL_H }}>
               <ConnectorSvg pairs={2} srcSlotH={SLOT_H * 2} flipped />
             </div>
 
             {/* R16 right */}
-            <RoundColumn label="8avos"  matchIds={RIGHT_R16} slotH={SLOT_H * 2} {...colProps} />
+            <RoundColumn label="8avos"  dateLabel={roundDates.r16} matchIds={RIGHT_R16} slotH={SLOT_H * 2} {...colProps} />
             <div style={{ paddingTop: LABEL_H }}>
               <ConnectorSvg pairs={4} srcSlotH={SLOT_H} flipped />
             </div>
 
             {/* R32 right */}
-            <RoundColumn label="16avos" matchIds={RIGHT_R32} slotH={SLOT_H}     {...colProps} />
+            <RoundColumn label="16avos" dateLabel={roundDates.r32} matchIds={RIGHT_R32} slotH={SLOT_H}     {...colProps} />
           </div>
         </div>
       )}

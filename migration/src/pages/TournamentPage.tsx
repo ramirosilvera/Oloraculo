@@ -229,6 +229,7 @@ export function TournamentPage() {
         projection={projection}
         teamMap={teamMap}
         highlightTeamId={selectedTeam?.teamId}
+        koFixtures={fixtures.filter(f => f.id.startsWith('ko:'))}
       />
 
       {!projection && !busy && (
