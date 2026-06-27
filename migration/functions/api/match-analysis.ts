@@ -108,7 +108,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature:        0.35,
-          maxOutputTokens:    400,
+          // 2.5-flash "thinking" is on by default and eats maxOutputTokens; with
+          // a small budget the text comes back EMPTY (finishReason MAX_TOKENS).
+          // Disable thinking + give headroom so the JSON actually fits.
+          thinkingConfig:     { thinkingBudget: 0 },
+          maxOutputTokens:    800,
           topP:               0.9,
           responseMimeType:   'application/json',
           responseSchema:     RESPONSE_SCHEMA,
@@ -119,29 +123,46 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text().catch(() => '');
+      console.error('[match-analysis] gemini http', geminiRes.status, errText.slice(0, 500));
       return new Response(
-        JSON.stringify({ error: `gemini-${geminiRes.status}`, detail: errText.slice(0, 300) }),
+        JSON.stringify({ error: `gemini-${geminiRes.status}`, detail: errText.slice(0, 500) }),
         { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } },
       );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const geminiData = await geminiRes.json() as any;
-    const raw: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const cand = geminiData.candidates?.[0];
+    const raw: string = cand?.content?.parts?.[0]?.text ?? '';
+    // Diagnostics surfaced in the error body so the client can log the real cause.
+    const diag = {
+      finishReason:   cand?.finishReason ?? null,
+      promptFeedback: geminiData.promptFeedback ?? null,
+      usage:          geminiData.usageMetadata ?? null,
+    };
+
+    if (!raw) {
+      console.error('[match-analysis] empty output', diag);
+      return new Response(
+        JSON.stringify({ error: 'gemini-empty-response', detail: diag }),
+        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } },
+      );
+    }
 
     let parsed: { insight?: string; senal_clave?: string; confianza_lectura?: string };
     try {
       parsed = JSON.parse(raw);
     } catch {
+      console.error('[match-analysis] unparseable', raw.slice(0, 300));
       return new Response(
-        JSON.stringify({ error: 'gemini-unparseable' }),
+        JSON.stringify({ error: 'gemini-unparseable', detail: raw.slice(0, 300) }),
         { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } },
       );
     }
 
     if (!parsed.insight || !parsed.senal_clave || !parsed.confianza_lectura) {
       return new Response(
-        JSON.stringify({ error: 'gemini-incomplete' }),
+        JSON.stringify({ error: 'gemini-incomplete', detail: parsed }),
         { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } },
       );
     }

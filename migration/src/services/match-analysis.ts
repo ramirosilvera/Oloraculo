@@ -236,18 +236,33 @@ export function matchAnalysisCacheKey(input: MatchAnalysisInput): string {
   ]);
 }
 
-export async function callMatchAnalysis(input: MatchAnalysisInput): Promise<MatchAnalysis | null> {
+export type MatchAnalysisResult = MatchAnalysis | { error: string };
+
+export function isAnalysisError(r: MatchAnalysisResult | null | undefined): r is { error: string } {
+  return !!r && 'error' in r;
+}
+
+export async function callMatchAnalysis(input: MatchAnalysisInput): Promise<MatchAnalysisResult> {
   try {
     const res = await fetch('/api/match-analysis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input_data: input }),
     });
-    if (!res.ok) return null;
-    const data = await res.json() as Partial<MatchAnalysis>;
-    if (!data.insight || !data.senal_clave || !data.confianza_lectura) return null;
-    return data as MatchAnalysis;
-  } catch {
-    return null; // silent degrade — the card hides the AI block
+    const body = await res.json().catch(() => ({})) as Partial<MatchAnalysis> & { error?: string; detail?: unknown };
+    if (!res.ok) {
+      const reason = [`HTTP ${res.status}`, body.error, body.detail && JSON.stringify(body.detail)].filter(Boolean).join(' · ');
+      console.warn('[match-analysis] failed:', reason);
+      return { error: reason };
+    }
+    if (!body.insight || !body.senal_clave || !body.confianza_lectura) {
+      console.warn('[match-analysis] incomplete payload:', body);
+      return { error: 'respuesta incompleta' };
+    }
+    return body as MatchAnalysis;
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : 'network';
+    console.warn('[match-analysis] error:', reason);
+    return { error: reason }; // UI still degrades silently unless ai-debug is on
   }
 }

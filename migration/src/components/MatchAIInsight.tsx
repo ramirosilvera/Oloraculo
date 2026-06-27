@@ -1,9 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import {
-  callMatchAnalysis, matchAnalysisCacheKey,
+  callMatchAnalysis, matchAnalysisCacheKey, isAnalysisError,
   type MatchAnalysisInput,
 } from '../services/match-analysis';
+
+// Opt-in debug: run `localStorage.setItem('ai-debug','1')` in the console to see
+// the real failure reason rendered in the card instead of silent degradation.
+const AI_DEBUG = typeof localStorage !== 'undefined' && localStorage.getItem('ai-debug') === '1';
 
 interface Props {
   fixtureId: string;
@@ -46,8 +50,18 @@ export function MatchAIInsight({ fixtureId, input, enabled }: Props) {
     );
   }
 
-  // Silent degrade: failed call or model returned nothing usable.
-  if (isError || !data) return null;
+  // Failed call or model returned nothing usable.
+  if (isError || !data || isAnalysisError(data)) {
+    if (AI_DEBUG) {
+      const reason = isError ? 'query error' : isAnalysisError(data) ? data.error : 'sin datos';
+      return (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+          <span className="font-bold">IA debug:</span> {reason}
+        </div>
+      );
+    }
+    return null; // silent degrade in normal mode
+  }
 
   return (
     <div className={`rounded-lg border border-gray-100 border-l-2 ${CONF_STYLE[data.confianza_lectura] ?? 'border-l-gray-300'} bg-violet-50/30 px-3 py-2.5`}>
