@@ -20,6 +20,8 @@ import { buildEvaluationRows } from '../engine/evaluation';
 import type { Fixture, FixtureContext, MatchPredictionResult, WcActualResult, DailyPatternSignal, MatchPrediction, PredictionEvaluation, Team, Rating } from '../types/domain';
 import { ModelDetailPanel, MiniBar } from '../components/ModelDetailPanel';
 import { PIECard } from '../components/PIECard';
+import { MatchAIInsight } from '../components/MatchAIInsight';
+import { buildMatchAnalysisInput } from '../services/match-analysis';
 import { usePIEForFixture } from '../hooks/usePIE';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { computeGroupStandingsDisplay } from '../utils/standings';
@@ -321,6 +323,7 @@ interface FixtureRowProps {
   bestModelWinnerAcc: number | null;
   liveMatch?: LiveMatch;
   goals?: MatchGoal[];
+  tournamentGoals: MatchGoal[];
   // PIE data
   ratings: Rating[];
   allFixtures: Fixture[];
@@ -335,7 +338,7 @@ function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
   onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
-  context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals,
+  context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals, tournamentGoals,
   ratings, allFixtures, wcResultsForPIE, pieLooWinner, pieLooExact,
   modelWeights, modelEvalStats,
 }: FixtureRowProps) {
@@ -348,6 +351,18 @@ function FixtureRow({
     wcResults: wcResultsForPIE,
     enabled: isExpanded,
   });
+  // Per-match AI insight input — assembled lazily only when the card is open.
+  const aiInput = useMemo(
+    () => (isExpanded && pred)
+      ? buildMatchAnalysisInput({
+          fixture, homeName, awayName, pred, pieResult: pieResult ?? null, context,
+          modelWeights, modelEvalStats, ratings, allFixtures,
+          wcResults: wcResultsForPIE, tournamentGoals,
+        })
+      : null,
+    [isExpanded, pred, pieResult, context, modelWeights, modelEvalStats, ratings,
+     allFixtures, wcResultsForPIE, tournamentGoals, fixture, homeName, awayName],
+  );
   return (
     <div>
       <button
@@ -504,6 +519,9 @@ function FixtureRow({
                   })()}
                 </div>
               )}
+
+              {/* ── Lectura con IA (Gemini) — complemento, degrada en silencio ──── */}
+              <MatchAIInsight fixtureId={fixture.id} input={aiInput} enabled={isExpanded} />
 
               {/* ── Modelos de referencia ───────────────────────────────────────── */}
               {(() => {
@@ -1703,6 +1721,7 @@ export function MatchesPage() {
     modelEvalStats,
     liveMatch: getLiveForFixture(resolvedLiveByKey, fixture.home_team_id, fixture.away_team_id),
     goals: goalsByFixture.get(fixture.id),
+    tournamentGoals: matchGoals ?? [],
     ratings: ratingsList,
     allFixtures: fixtures,
     wcResultsForPIE: wcResults ?? [],
