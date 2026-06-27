@@ -549,6 +549,7 @@ Deno.serve(async (req) => {
   // -- Reconcile: per fixture, keep the MOST COMPLETE result across sources ---
   // (prefer a set that hits the expected total exactly, else the largest).
   const allGoalsByFixture = new Map<string, GoalEntry[]>();
+  const winnerSrc = new Map<string, string>();         // fixture_id -> espn|sofa|serper
   const sourceByFixture: Record<string, string> = {}; // diagnostics: per-source counts + winner
   for (const fid of new Set([...espnGoals.keys(), ...sofaGoals.keys(), ...serperGoals.keys()])) {
     const exp = expectedOf(fid);
@@ -564,6 +565,7 @@ Deno.serve(async (req) => {
     const winner = cands[0];
     const src = winner === espnGoals.get(fid) ? 'espn' : winner === sofaGoals.get(fid) ? 'sofa' : 'serper';
     allGoalsByFixture.set(fid, winner);
+    winnerSrc.set(fid, src);
     sourceByFixture[fid] = `${src} (exp${exp} e${eN}/s${sN}/r${rN})`;
   }
 
@@ -581,10 +583,13 @@ Deno.serve(async (req) => {
   let written = 0, skippedWorse = 0, insertedGoals = 0;
   for (const [fid, goals] of allGoalsByFixture) {
     const have = existingCount.get(fid) ?? 0;
-    const exp = expectedOf(fid);
-    if (goals.length < have)                       { skippedWorse++; continue; } // never reduce
-    if (have > 0 && exp > 0 && have >= exp)         continue;                     // already complete
-    if (goals.length === have && have > 0)          continue;                     // no improvement
+    const authoritative = winnerSrc.get(fid) === 'espn' || winnerSrc.get(fid) === 'sofa';
+    if (goals.length < have)                          { skippedWorse++; continue; } // never reduce
+    // Refresh when strictly more goals, OR equal count from an authoritative
+    // source (ESPN/SofaScore) — this corrects earlier, less reliable Serper data
+    // even when the count happens to match. Serper at equal count is skipped.
+    if (goals.length === have && !authoritative)      continue;
+    if (goals.length === have && have === 0)          continue;
     const del = await supabase.from('match_goals').delete().eq('fixture_id', fid);
     if (del.error) { console.error(`[del] ${fid}`, del.error); continue; }
     const ins = await supabase.from('match_goals').insert(goals);
