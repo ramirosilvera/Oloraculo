@@ -13,7 +13,7 @@ import {
   loadStaticSquadStrength,
   loadStaticTacticalProfiles,
 } from '../services/static-data';
-import { loadAllFixtureContexts, loadWcActualResults } from '../services/supabase-client';
+import { loadAllFixtureContexts, loadWcActualResults, loadAllMatchGoals, loadEvaluations } from '../services/supabase-client';
 import { PredictionEngine } from '../engine/prediction-engine';
 import type { FixtureContext, Rating, Team, WcActualResult } from '../types/domain';
 import { useMemo } from 'react';
@@ -36,6 +36,10 @@ export function useAppData() {
   const contexts       = useQuery({ queryKey: ['contexts'],        queryFn: loadAllFixtureContexts,     staleTime: 60_000 });
   // Supabase: manually-entered WC results (override for real-time corrections)
   const supabaseWc     = useQuery({ queryKey: ['wc-results'],      queryFn: loadWcActualResults,        staleTime: 60_000 });
+  // Supabase: goal scorers (goleadores card) + evaluation history (ensemble).
+  // Loaded here so the initial splash preloads them too — Partidos is then instant.
+  const matchGoals     = useQuery({ queryKey: ['match-goals'],     queryFn: loadAllMatchGoals,          staleTime: 60_000 });
+  const evaluations    = useQuery({ queryKey: ['evaluations'],     queryFn: loadEvaluations,            staleTime: 60_000 });
 
   const teamMap = useMemo(
     () => new Map<string, Team>((teams.data ?? []).map(t => [t.id, t])),
@@ -106,10 +110,14 @@ export function useAppData() {
   // historical_results.json is 2.1 MB — excluded from appLoading so pages that don't
   // need it (Historial, Rendimientos) don't block waiting for it to download.
   // The engine becomes available asynchronously; pages handle engine === null gracefully.
-  // Page-level loading: only blocks on static data (fast, local JSON).
-  // supabaseWc is supplemental — failures or slow network must not freeze the whole UI.
+  // Page-level loading: blocks on static data (fast, local JSON) AND the Supabase
+  // queries the user expects preloaded (goleadores + evaluations), so once the
+  // splash clears, every section — including Partidos — is instant. react-query
+  // isLoading resolves on error too, so a Supabase outage can't freeze the splash.
+  // supabaseWc stays out of the gate (it only gates simulation runs).
   const isLoading =
-    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading;
+    teams.isLoading || groups.isLoading || fixtures.isLoading || ratings.isLoading ||
+    matchGoals.isLoading || evaluations.isLoading;
 
   // Simulation-level guard: wait for Supabase WC results before allowing a run,
   // so the engine uses up-to-date match corrections, not stale/empty data.
