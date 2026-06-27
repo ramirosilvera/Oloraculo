@@ -128,17 +128,21 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
   };
 
   // ── group standings (tabla + incentives + conceded) ──────────────────────────
+  // FIFA 2026: top 2 of each group AND the 8 best third-placed teams advance, so
+  // a 3rd can already be through and two qualified teams can be playing for 1st.
   const playedMap = new Map<string, WcActualResult>(a.wcResults.map(r => [r.fixture_id, r]));
   let tabla_grupo: MatchAnalysisInput['tabla_grupo'] = null;
   let jornada: number | null = null;
   const incentivos = { local: 'eliminacion_directa', visitante: 'eliminacion_directa' };
   const concededBits: string[] = [];
+  let stakeBullet: string | null = null;
 
   if (!isKnockout && fixture.group_name) {
+    const fifaMap = new Map(a.ratings.filter(r => r.type === 'fifa').map(r => [r.team_id, r.value]));
     const groupFixtures = a.allFixtures.filter(f => f.id.startsWith('grp:') && f.group_name === fixture.group_name);
     const teamIds = [...new Set(groupFixtures.flatMap(f => [f.home_team_id, f.away_team_id]))];
-    const fifaMap = new Map(a.ratings.filter(r => r.type === 'fifa').map(r => [r.team_id, r.value]));
     const sorted = computeGroupStandingsDisplay(teamIds, groupFixtures, playedMap, fifaMap);
+    const bestThirdIds = computeBestThirdIds(a.allFixtures, playedMap, fifaMap);
     const rowOf = (id: string) => sorted.find(r => r.id === id);
     const posOf = (id: string) => sorted.findIndex(r => r.id === id) + 1;
     const h = rowOf(fixture.home_team_id), v = rowOf(fixture.away_team_id);
@@ -148,8 +152,18 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
         visitante: { puntos: v.pts, pj: v.pj, dg: v.gd, posicion: posOf(fixture.away_team_id) },
       };
       jornada = fixture.is_played ? Math.max(h.pj, v.pj) : Math.min(3, Math.max(h.pj, v.pj) + 1);
-      incentivos.local     = groupIncentive(fixture.home_team_id, sorted, jornada, fixture.is_played);
-      incentivos.visitante = groupIncentive(fixture.away_team_id, sorted, jornada, fixture.is_played);
+      const sH = teamStatus(fixture.home_team_id, sorted, bestThirdIds);
+      const sV = teamStatus(fixture.away_team_id, sorted, bestThirdIds);
+      const qH = sH === 'top2' || sH === 'best3';
+      const qV = sV === 'top2' || sV === 'best3';
+      incentivos.local     = teamIncentive(sH, sorted, fixture.home_team_id, jornada, fixture.is_played, qH && qV);
+      incentivos.visitante = teamIncentive(sV, sorted, fixture.away_team_id, jornada, fixture.is_played, qH && qV);
+      // What the match actually decides.
+      if (!fixture.is_played && qH && qV) {
+        stakeBullet = (sH === 'top2' && sV === 'top2')
+          ? 'Ambos ya clasificados: el partido define el 1° del grupo (y un mejor cruce en eliminatorias)'
+          : 'Ambos con la clasificación encaminada (incluye zona de mejores terceros); se define posición';
+      }
       if (h.pj > 0) concededBits.push(`${homeName} recibió ${h.ga} goles en ${h.pj} partido(s) de grupo`);
       if (v.pj > 0) concededBits.push(`${awayName} recibió ${v.ga} goles en ${v.pj} partido(s) de grupo`);
     }
@@ -157,10 +171,12 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
 
   // ── datos_relevantes ─────────────────────────────────────────────────────────
   const datos: string[] = [];
+  // what the match decides (qualification already settled → playing for 1st, etc.)
+  if (stakeBullet) datos.push(stakeBullet);
   // what each team needs (group stage)
-  if (!isKnockout && tabla_grupo) {
-    if (incentivos.local !== 'depende_de_resultados') datos.push(`${homeName}: ${humanIncentive(incentivos.local)}`);
-    if (incentivos.visitante !== 'depende_de_resultados') datos.push(`${awayName}: ${humanIncentive(incentivos.visitante)}`);
+  if (!isKnockout && tabla_grupo && !stakeBullet) {
+    if (incentivos.local !== 'partido_jugado') datos.push(`${homeName}: ${humanIncentive(incentivos.local)}`);
+    if (incentivos.visitante !== 'partido_jugado') datos.push(`${awayName}: ${humanIncentive(incentivos.visitante)}`);
   }
   // injuries / availability
   if (context) {
@@ -196,32 +212,69 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
   };
 }
 
-// Compact, indicative incentive (the model also receives the full table).
-function groupIncentive(
+type TeamStatus = 'top2' | 'best3' | 'bubble3' | 'out';
+
+// Snapshot qualifying status under the 2026 format (top-2 + 8 best thirds).
+function teamStatus(
   id: string,
+  sorted: { id: string }[],
+  bestThirdIds: Set<string>,
+): TeamStatus {
+  const pos = sorted.findIndex(r => r.id === id) + 1;
+  if (pos <= 2) return 'top2';
+  if (pos === 3) return bestThirdIds.has(id) ? 'best3' : 'bubble3';
+  return 'out';
+}
+
+function teamIncentive(
+  status: TeamStatus,
   sorted: { id: string; pts: number }[],
+  id: string,
   jornada: number,
   played: boolean,
+  bothQualified: boolean,
 ): string {
   if (played) return 'partido_jugado';
-  const pos = sorted.findIndex(r => r.id === id) + 1;
-  const row = sorted.find(r => r.id === id)!;
-  if (jornada < 3) return pos <= 2 ? 'en_zona_de_clasificacion' : 'necesita_sumar_para_clasificar';
-  // matchday 3 — decisive
-  if (row.pts >= 6) return 'practicamente_clasificado';
+  if (status === 'top2') return bothQualified ? 'clasificado_define_primer_puesto' : 'clasificado_top2';
+  if (status === 'best3') return 'clasifica_como_mejor_tercero';
+  if (status === 'bubble3') return jornada >= 3 ? 'pelea_por_mejor_tercero' : 'en_pelea_por_clasificar';
+  // 'out'
   const second = sorted[1]?.pts ?? 0;
-  if (row.pts + 3 < second) return 'eliminado_matematicamente_juega_por_orgullo';
-  if (pos >= 3) return 'necesita_ganar_para_clasificar';
-  return 'depende_de_resultados';
+  const row = sorted.find(r => r.id === id);
+  if (jornada >= 3 && row && row.pts + 3 < second) return 'eliminado_matematicamente_juega_por_orgullo';
+  return 'necesita_ganar_para_clasificar';
+}
+
+// 8 best third-placed teams across all 12 groups (current standings snapshot).
+function computeBestThirdIds(
+  allFixtures: Fixture[],
+  playedMap: Map<string, WcActualResult>,
+  fifaMap: Map<string, number>,
+): Set<string> {
+  const byGroup = new Map<string, Fixture[]>();
+  for (const f of allFixtures) {
+    if (!f.id.startsWith('grp:') || !f.group_name) continue;
+    (byGroup.get(f.group_name) ?? byGroup.set(f.group_name, []).get(f.group_name)!).push(f);
+  }
+  const thirds: { id: string; pts: number; gd: number; gf: number }[] = [];
+  for (const [, fix] of byGroup) {
+    const teamIds = [...new Set(fix.flatMap(f => [f.home_team_id, f.away_team_id]))];
+    const s = computeGroupStandingsDisplay(teamIds, fix, playedMap, fifaMap);
+    if (s[2] && s[2].pj > 0) thirds.push({ id: s[2].id, pts: s[2].pts, gd: s[2].gd, gf: s[2].gf });
+  }
+  thirds.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+  return new Set(thirds.slice(0, 8).map(t => t.id));
 }
 
 function humanIncentive(code: string): string {
   switch (code) {
+    case 'clasificado_define_primer_puesto':            return 'ya clasificado, define el 1° del grupo';
+    case 'clasificado_top2':                            return 'ya clasificado (top 2)';
+    case 'clasifica_como_mejor_tercero':                return 'clasifica como mejor tercero';
+    case 'pelea_por_mejor_tercero':                     return 'pelea un lugar de mejor tercero';
+    case 'en_pelea_por_clasificar':                     return 'en pelea por clasificar';
     case 'necesita_ganar_para_clasificar':              return 'necesita ganar para clasificar';
-    case 'practicamente_clasificado':                   return 'prácticamente clasificado';
     case 'eliminado_matematicamente_juega_por_orgullo': return 'eliminado, juega por orgullo';
-    case 'en_zona_de_clasificacion':                    return 'en zona de clasificación';
-    case 'necesita_sumar_para_clasificar':              return 'necesita sumar para clasificar';
     case 'eliminacion_directa':                         return 'partido de eliminación directa';
     default:                                            return code.replace(/_/g, ' ');
   }
