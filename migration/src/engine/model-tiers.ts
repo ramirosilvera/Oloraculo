@@ -92,7 +92,7 @@ export const MODEL_TIERS: Record<string, ModelTierInfo> = {
     shortName: 'KO',
     color: 'text-amber-600',
     desc: 'L4 + inflación WC + dinámica de fase eliminatoria',
-    how: 'Solo activo en partidos de knockout (R32 a Final). Aplica compresión base de goles (KO históricamente tiene ~15% menos goles que la fase de grupos). La profundidad de ronda comprime más en QF/SF/Final. La asimetría de forma del torneo amplifica el equipo con mejor momentum (sin segunda oportunidad). Mayor rho en Dixon-Coles para reflejar el mayor índice de empates al 90 min en knockout. Degradado en fase de grupos.',
+    how: 'Solo activo en knockout (R32 a Final). Comprime goles (KO ~15% menos que grupos), más en QF/SF/Final, y suma asimetría de forma. Modela NERVIOS: equipos con poca experiencia/pedigrí KO (proxy: jugadores con UCL, edad, profundidad — sin contar la fuerza, que ya está en las lambdas) rinden algo menos en rondas decisivas. Estima la probabilidad de penales (ronda + paridad + pocos goles) y da una pequeña ventaja a quien llega mejor a la definición (arquero/pateadores, proxy de plantel). Mayor rho para más empates al 90′. Degradado en grupos.',
   },
   'Estilo de Juego': {
     tier: 'L7',
