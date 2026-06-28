@@ -331,7 +331,7 @@ export class PredictionEngine {
       goalContextModelPredict(ctx, this.goalModel),
       tournamentMomentumPredict(ctx, this.goalModel),
       groupPatternPredict(ctx, this.goalModel),
-      knockoutPatternPredict(ctx, this.goalModel),
+      knockoutPatternPredict(ctx, this.goalModel, this.squadStrengthMap),
     ];
 
     return {
