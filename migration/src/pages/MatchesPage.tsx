@@ -1502,12 +1502,12 @@ export function MatchesPage() {
   // Returns the display name for a knockout slot label.
   // Uses live standings so names update as results are entered.
   // - "W(…)": returns slot label until that match resolves
-  // - "T3": returns "T3" until bracket activation
+  // - "T3": returns the resolved best-third team (from the JSON) once known, else "T3"
   // - "1A", "2B" etc: returns current standing team name (provisional before MD3, confirmed after)
   const resolveKoName = useCallback((slot: string | null | undefined, fallback: string): string => {
     if (!slot) return fallback;
     if (slot.startsWith('W(')) return slot;
-    if (slot === 'T3') return 'T3';
+    if (slot === 'T3') return fallback || 'T3';
     const liveTeamId = liveSlotMap.get(slot);
     if (liveTeamId) return teamMap.get(liveTeamId)?.name ?? liveTeamId;
     return slot;
