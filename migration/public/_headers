@@ -1,0 +1,9 @@
+# index.html must always be revalidated so a new deploy's hashed JS is picked up
+# without a manual hard refresh. Hashed assets keep their default long cache.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+# Data JSONs have fixed names; revalidate so corrected fixtures/results show.
+/data/*
+  Cache-Control: no-cache
