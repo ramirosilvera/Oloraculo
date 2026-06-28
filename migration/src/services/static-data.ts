@@ -16,8 +16,14 @@ export interface SquadPlayer {
   pos:  'Goalkeeper' | 'Defender' | 'Midfielder' | 'Attacker' | 'Unknown';
 }
 
+// Cache-bust per deploy: the data JSONs have fixed names and would otherwise be
+// served stale from the CDN/browser after a deploy (needing a hard refresh).
+// Appending the build's git commit makes each deploy request a fresh URL.
+declare const __GIT_COMMIT__: string;
+const BUILD_V = typeof __GIT_COMMIT__ !== 'undefined' ? __GIT_COMMIT__ : 'dev';
+
 async function fetchJson<T>(file: string): Promise<T> {
-  const res = await fetch(`./data/${file}`);
+  const res = await fetch(`./data/${file}?v=${BUILD_V}`);
   if (!res.ok) throw new Error(`No se pudo cargar ${file}: ${res.status}`);
   return res.json() as Promise<T>;
 }
