@@ -39,6 +39,9 @@ export interface MatchAnalysisInput {
   probabilidades_1x2: { local: number; empate: number; visitante: number };
   goles_esperados: { local: number; visitante: number } | null;
   pronostico_campeon: { marcador: string | null; ganador: string | null };
+  // Knockout-only signals from the "Fase de Eliminación" model: nerves/inexperience,
+  // penalty likelihood, who arrives better to a shootout (GK/takers proxy).
+  factores_eliminacion?: string[];
   datos_relevantes: string[];
 }
 
@@ -194,6 +197,14 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
   const ts2 = topScorer(a.tournamentGoals, fixture.away_team_id);
   if (ts2) datos.push(`${ts2.name} lleva ${ts2.goals} gol(es) para ${awayName} en el torneo`);
 
+  // ── knockout factors (nerves / penalties / shootout readiness) from L6.8 ─────
+  let factores_eliminacion: string[] | undefined;
+  if (isKnockout) {
+    const ko = pred.predictions.find(p => p.predictorName === 'Fase de Eliminación' && !p.degraded);
+    const picked = ko?.drivers.filter(d => /penal|nervio|experiencia|pedigr|llega mejor/i.test(d)) ?? [];
+    if (picked.length) factores_eliminacion = picked;
+  }
+
   return {
     partido: {
       local: homeName, visitante: awayName,
@@ -208,6 +219,7 @@ export function buildMatchAnalysisInput(a: BuildInputArgs): MatchAnalysisInput {
     probabilidades_1x2,
     goles_esperados,
     pronostico_campeon,
+    factores_eliminacion,
     datos_relevantes: datos.slice(0, 5),
   };
 }
@@ -294,11 +306,11 @@ function topScorer(goals: MatchGoal[], teamId: string): { name: string; goals: n
 // Stable cache key — changes only when an input that affects the analysis changes.
 export function matchAnalysisCacheKey(input: MatchAnalysisInput): string {
   return JSON.stringify([
-    'v2', // bump when the prompt/output shape changes
+    'v3', // bump when the prompt/output shape changes
     input.partido.local, input.partido.visitante, input.partido.jornada,
     input.consenso, input.pronostico_campeon, input.goles_esperados, input.tabla_grupo,
     Object.values(input.modelos).map(m => [m.pick, m.prob]),
-    input.datos_relevantes,
+    input.factores_eliminacion, input.datos_relevantes,
   ]);
 }
 

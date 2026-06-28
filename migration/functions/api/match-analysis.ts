@@ -34,6 +34,10 @@ ACCIONABLE que ayude a decidir el pronóstico — nada de generalidades.
 Recibirás un JSON con: datos del partido, tabla, incentivos de clasificación,
 probabilidades de cada modelo, el consenso, goles esperados (xG), el marcador del campeón
 y datos_relevantes (lesiones, goles recibidos, goleadores, qué necesita cada equipo).
+En partidos de eliminación puede venir "factores_eliminacion": señales del modelo de
+knockout sobre nervios/poca experiencia, probabilidad de penales y qué equipo llega mejor
+a una definición por penales (proxy de arquero/pateadores). Si están, INTERPRETALOS en el
+insight y/o el pronóstico (ej. riesgo de penales, quién tiene ventaja si se define así).
 
 Devolvé EXACTAMENTE estos campos:
 - "senal_clave": etiqueta corta para el encabezado (máx 6 palabras).
