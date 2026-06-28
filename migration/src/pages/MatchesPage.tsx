@@ -524,7 +524,7 @@ function FixtureRow({
               )}
 
               {/* ── Lectura con IA (Gemini) — complemento, degrada en silencio ──── */}
-              <MatchAIInsight fixtureId={fixture.id} input={aiInput} enabled={isExpanded} />
+              <MatchAIInsight fixtureId={fixture.id} input={aiInput} enabled={isExpanded} homeTeamId={homeTeamId} awayTeamId={awayTeamId} />
 
               {/* ── Modelos de referencia ───────────────────────────────────────── */}
               {(() => {
