@@ -47,6 +47,38 @@ function dateLabel(iso: string): string {
   return `${Number(m[3])} ${MES[Number(m[2]) - 1] ?? ''}`.trim();
 }
 
+// Legible model names + 3-letter team codes for the models summary.
+const MODEL_LABELS: Record<string, string> = {
+  plantel: 'Plantel', forma: 'Forma', elo_wc: 'Elo Mundial', elo: 'Elo',
+  poisson: 'Goles', contexto: 'Contexto', grupo: 'Grupo', momentum: 'Momentum',
+};
+const PICK_COLOR: Record<string, string> = { L: '#3b82f6', E: '#9ca3af', V: '#ef4444' };
+function abbr3(name: string): string {
+  const s = name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z]/g, '');
+  return (s.slice(0, 3) || '???').toUpperCase();
+}
+
+// Top-3 models to summarize on the card. Prefer historical accuracy (peso_historico);
+// if too few models have it yet (early tournament, n<5), fall back to model confidence.
+function buildModelsSummary(input: MatchAnalysisInput) {
+  const entries = Object.entries(input.modelos).filter(([, m]) => m.pick != null);
+  const weighted = entries.filter(([, m]) => m.peso_historico != null);
+  const modelsWeighted = weighted.length >= 3;
+  const pool = (modelsWeighted ? weighted : entries).slice();
+  pool.sort((a, b) => modelsWeighted
+    ? (b[1].peso_historico! - a[1].peso_historico!)
+    : ((b[1].prob ?? 0) - (a[1].prob ?? 0)));
+  const models = pool.slice(0, 3).map(([k, m]) => ({
+    label: MODEL_LABELS[k] ?? k,
+    pickLabel: m.pick === 'L' ? abbr3(input.partido.local)
+      : m.pick === 'V' ? abbr3(input.partido.visitante) : 'EMP',
+    pickColor: PICK_COLOR[m.pick!] ?? '#9ca3af',
+    pct: modelsWeighted ? m.peso_historico! : (m.prob ?? 0),
+    agrees: m.pick === input.consenso.resultado,
+  }));
+  return { models, modelsWeighted };
+}
+
 // Map the AI input + analysis into the canvas share-card payload.
 function toShareCard(
   fixtureId: string, input: MatchAnalysisInput, data: MatchAnalysis,
@@ -55,6 +87,7 @@ function toShareCard(
   const fav = input.consenso.resultado;
   const favLabel = fav === 'L' ? input.partido.local
     : fav === 'V' ? input.partido.visitante : 'Empate';
+  const { models, modelsWeighted } = buildModelsSummary(input);
   return {
     homeName: input.partido.local,
     awayName: input.partido.visitante,
@@ -73,6 +106,8 @@ function toShareCard(
     senalClave: data.senal_clave,
     datoClave: data.dato_clave,
     pronostico: data.pronostico_concreto,
+    models,
+    modelsWeighted,
   };
 }
 
