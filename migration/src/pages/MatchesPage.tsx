@@ -25,6 +25,7 @@ import { buildMatchAnalysisInput } from '../services/match-analysis';
 import { usePIEForFixture } from '../hooks/usePIE';
 import { KnockoutActivationButton } from '../components/KnockoutActivationButton';
 import { computeGroupStandingsDisplay } from '../utils/standings';
+import { resolveKnockoutBracket, slotPlaceholder, type KoResult } from '../utils/knockout-progression';
 import { MODEL_TIERS } from '../engine/model-tiers';
 import { detectDailyPattern } from '../engine/models/daily-pattern';
 import {
@@ -438,7 +439,13 @@ function FixtureRow({
 
       {isExpanded && (
         <div className="px-4 pb-5 pt-3 bg-blue-50/30 border-t border-blue-100 space-y-4">
-          {!pred && <p className="text-sm text-gray-500 animate-pulse">Calculando predicción…</p>}
+          {fixture.id.startsWith('ko:') && (!homeTeamId || !awayTeamId) ? (
+            <p className="text-sm text-gray-500">
+              Este cruce se define cuando se jueguen los partidos previos. Las llaves se completan solas al registrar cada resultado.
+            </p>
+          ) : !pred ? (
+            <p className="text-sm text-gray-500 animate-pulse">Calculando predicción…</p>
+          ) : null}
 
           {pred && (
             <>
@@ -1499,37 +1506,57 @@ export function MatchesPage() {
     return map;
   }, [groups, fixtures, playedMap, fifaMap]);
 
-  // Returns the display name for a knockout slot label.
-  // Uses live standings so names update as results are entered.
-  // - "W(…)": returns slot label until that match resolves
-  // - "T3": returns the resolved best-third team (from the JSON) once known, else "T3"
-  // - "1A", "2B" etc: returns current standing team name (provisional before MD3, confirmed after)
-  const resolveKoName = useCallback((slot: string | null | undefined, fallback: string): string => {
-    if (!slot) return fallback;
-    if (slot.startsWith('W(')) return slot;
-    if (slot === 'T3') return fallback || 'T3';
-    const liveTeamId = liveSlotMap.get(slot);
-    if (liveTeamId) return teamMap.get(liveTeamId)?.name ?? liveTeamId;
-    return slot;
-  }, [liveSlotMap, teamMap]);
-
-  // Returns the live team_id for a slot (for flag display); null if not yet determined.
-  const resolveKoTeamId = useCallback((slot: string | null | undefined): string | null => {
-    if (!slot || slot.startsWith('W(') || slot === 'T3') return null;
-    return liveSlotMap.get(slot) ?? null;
-  }, [liveSlotMap]);
+  // Full knockout bracket resolution: propagates winners/losers up the feeder
+  // chain as results are registered, so R16→Final crossings fill automatically.
+  // R32 base slots (1A/2B) come from live standings; T3 from the static JSON; and
+  // "W(…)"/"L(…)" from the resolved winner/loser of the feeder match. A 90' draw
+  // stays unresolved until its shootout winner (advancer_team_id) is recorded.
+  const koResolved = useMemo(() => resolveKnockoutBracket({
+    knockoutFixtures,
+    liveSlotTeam: (slot) => liveSlotMap.get(slot),
+    resultOf: (id) => {
+      const r = playedMap.get(id);
+      if (!r) return undefined;
+      return {
+        home_goals: r.home_goals,
+        away_goals: r.away_goals,
+        advancer_team_id: (r as WcActualResult & { advancer_team_id?: string | null }).advancer_team_id ?? null,
+      } as KoResult;
+    },
+  }), [knockoutFixtures, liveSlotMap, playedMap]);
 
   // Single source of truth for a fixture's displayed teams (name + id for the
-  // flag). Knockout slots resolve against LIVE standings (liveSlotMap), falling
-  // back to the JSON-resolved team for T3/R16+ placeholders; group fixtures just
-  // return their static team. Every match renderer (day list, 16avos round,
-  // accordion) must use this so the cards never disagree on the cruces.
-  const koDisplay = useCallback((f: Fixture) => ({
-    homeId:   resolveKoTeamId(f.home_slot) ?? f.home_team_id,
-    awayId:   resolveKoTeamId(f.away_slot) ?? f.away_team_id,
-    homeName: resolveKoName(f.home_slot, teamMap.get(f.home_team_id)?.name ?? f.home_team_id),
-    awayName: resolveKoName(f.away_slot, teamMap.get(f.away_team_id)?.name ?? f.away_team_id),
-  }), [resolveKoTeamId, resolveKoName, teamMap]);
+  // flag). Every match renderer (day list, rounds view, accordion) MUST use this
+  // so the cards never disagree on the cruces. Unresolved sides fall back to a
+  // friendly placeholder ("Ganador M74", "Mejor 3°") instead of a raw slot label.
+  const koDisplay = useCallback((f: Fixture) => {
+    const r = koResolved.get(f.id);
+    const homeId = r?.homeId ?? (f.home_team_id || null);
+    const awayId = r?.awayId ?? (f.away_team_id || null);
+    const nameFor = (id: string | null, slot: string | null | undefined, staticId: string) =>
+      id ? (teamMap.get(id)?.name ?? id)
+         : (slotPlaceholder(slot) ?? teamMap.get(staticId)?.name ?? staticId ?? '');
+    return {
+      homeId: homeId ?? '',
+      awayId: awayId ?? '',
+      homeName: nameFor(homeId, f.home_slot, f.home_team_id),
+      awayName: nameFor(awayId, f.away_slot, f.away_team_id),
+    };
+  }, [koResolved, teamMap]);
+
+  // Returns a fixture whose team ids are the RESOLVED knockout teams (same id/key),
+  // so predictions and AI input operate on the real crossing rather than empty
+  // placeholders. No-op for group fixtures and unresolved knockout matches.
+  const koResolveFixture = useCallback((f: Fixture): Fixture => {
+    if (!f.id.startsWith('ko:')) return f;
+    const r = koResolved.get(f.id);
+    if (!r || (!r.homeId && !r.awayId)) return f;
+    return {
+      ...f,
+      home_team_id: r.homeId ?? f.home_team_id,
+      away_team_id: r.awayId ?? f.away_team_id,
+    };
+  }, [koResolved]);
 
   const dailySignal = useMemo(
     () => detectDailyPattern(wcResults ?? [], fixtures, TODAY),
@@ -1567,15 +1594,19 @@ export function MatchesPage() {
         if (cancelled) break;
         await new Promise(r => setTimeout(r, 0));
         if (cancelled) break;
-        const ctx = engine.buildContext(f, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
+        const rf = koResolveFixture(f);
+        // Skip knockout matches whose crossing is not decided yet (empty teams).
+        if (rf.id.startsWith('ko:') && (!rf.home_team_id || !rf.away_team_id)) continue;
+        const ctx = engine.buildContext(rf, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
         const result = engine.predict(ctx, modelWeights.size >= 2 ? modelWeights : undefined);
         setPredictions(prev => prev.has(f.id) ? prev : new Map(prev).set(f.id, result));
       }
     })();
     return () => { cancelled = true; };
-  // Re-run only when the engine becomes ready, the day changes, or weights update.
+  // Re-run when the engine is ready, the day changes, weights update, or a new
+  // result resolves a knockout crossing (koResolved) so its strip fills in.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, selectedDate, modelWeights]);
+  }, [engine, selectedDate, modelWeights, koResolved]);
 
   // Auto-save results when the live API reports a match as FINISHED and we have
   // a prediction for it. Fires on every 60s live-score poll that brings a FINISHED
@@ -1621,20 +1652,24 @@ export function MatchesPage() {
     setResultAway('');
     setErr('');
     if (isSame || predictions.has(fixture.id)) return;
+    // Resolve knockout crossings to concrete teams before predicting; skip if the
+    // crossing is still undecided (its feeder matches haven't been played).
+    const rf = koResolveFixture(fixture);
+    if (rf.id.startsWith('ko:') && (!rf.home_team_id || !rf.away_team_id)) return;
     setExpandingId(fixture.id);
     if (!engine) {
       // Engine is still warming up — queue the fixture; the useEffect above
       // will run the prediction the moment the engine becomes available.
-      pendingFixtureRef.current = fixture;
+      pendingFixtureRef.current = rf;
       return;
     }
     // Yield to browser so the expanded row renders before the heavy compute
     await new Promise(r => setTimeout(r, 0));
-    const ctx = engine.buildContext(fixture, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
+    const ctx = engine.buildContext(rf, teamMap, ratingsList, contextMap, wcResults ?? [], fixtures);
     const result = engine.predict(ctx, modelWeights.size >= 2 ? modelWeights : undefined);
     setPredictions(prev => new Map(prev).set(fixture.id, result));
     setExpandingId(null);
-  }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap, wcResults, fixtures, modelWeights]);
+  }, [expandedId, predictions, engine, teamMap, ratingsList, contextMap, wcResults, fixtures, modelWeights, koResolveFixture]);
 
   const handleContextSaved = useCallback(async (fixture: Fixture, ctx: FixtureContext) => {
     // Persist to Supabase
@@ -1645,7 +1680,7 @@ export function MatchesPage() {
       setExpandingId(fixture.id);
       await new Promise(r => setTimeout(r, 0));
       const tempCtxMap = new Map(contextMap).set(fixture.id, ctx);
-      const c = engine.buildContext(fixture, teamMap, ratingsList, tempCtxMap, wcResults ?? [], fixtures);
+      const c = engine.buildContext(koResolveFixture(fixture), teamMap, ratingsList, tempCtxMap, wcResults ?? [], fixtures);
       const result = engine.predict(c, modelWeights.size >= 2 ? modelWeights : undefined);
       setPredictions(prev => new Map(prev).set(fixture.id, result));
       setExpandingId(null);
@@ -1712,8 +1747,13 @@ export function MatchesPage() {
     finally { setSaving(null); }
   };
 
-  const fixtureRowProps = (fixture: Fixture, compact?: boolean) => ({
-    fixture,
+  const fixtureRowProps = (fixture: Fixture, compact?: boolean) => {
+    const disp = koDisplay(fixture);
+    // Pass the crossing-resolved fixture (real team ids) downstream so predictions
+    // and AI input operate on the actual matchup, not empty knockout placeholders.
+    const rf = koResolveFixture(fixture);
+    return {
+    fixture: rf,
     played: playedMap.get(fixture.id),
     pred: predictions.get(fixture.id),
     isExpanded: expandedId === fixture.id,
@@ -1728,17 +1768,17 @@ export function MatchesPage() {
     onResultAway: setResultAway,
     onContextSaved: (ctx: FixtureContext) => handleContextSaved(fixture, ctx),
     onRecordLiveResult: (hg: number, ag: number) => recordLiveResult(fixture, hg, ag),
-    homeName: koDisplay(fixture).homeName,
-    awayName: koDisplay(fixture).awayName,
-    homeTeamId: koDisplay(fixture).homeId,
-    awayTeamId: koDisplay(fixture).awayId,
+    homeName: disp.homeName,
+    awayName: disp.awayName,
+    homeTeamId: disp.homeId,
+    awayTeamId: disp.awayId,
     context: contextMap.get(fixture.id) ?? null,
     compact,
     bestModelName: bestWinnerModelName,
     bestModelWinnerAcc: bestWinnerModelStats?.winnerAcc ?? null,
     modelWeights,
     modelEvalStats,
-    liveMatch: getLiveForFixture(resolvedLiveByKey, koDisplay(fixture).homeId, koDisplay(fixture).awayId),
+    liveMatch: getLiveForFixture(resolvedLiveByKey, disp.homeId, disp.awayId),
     goals: goalsByFixture.get(fixture.id),
     tournamentGoals: matchGoals ?? [],
     ratings: ratingsList,
@@ -1746,7 +1786,8 @@ export function MatchesPage() {
     wcResultsForPIE: wcResults ?? [],
     pieLooWinner: pieLooMetrics?.winner ?? null,
     pieLooExact: pieLooMetrics?.exact ?? null,
-  });
+    };
+  };
 
   // ---- filtered fixtures ----
   const searchTerm = search.toLowerCase().trim();
@@ -2270,19 +2311,19 @@ export function MatchesPage() {
                         <div className="border-t border-gray-100 divide-y divide-gray-50">
                           {roundFixtures.map(f => {
                             const result = playedMap.get(f.id);
-                            const fHome = resolveKoName(f.home_slot, teamMap.get(f.home_team_id)?.name ?? f.home_team_id);
-                            const fAway = resolveKoName(f.away_slot, teamMap.get(f.away_team_id)?.name ?? f.away_team_id);
-                            // confirmed = group fully done; provisional = group has some results
-                            const homeGroupLetter = f.home_slot && !f.home_slot.startsWith('W(') && f.home_slot !== 'T3' ? f.home_slot[1] : null;
-                            const awayGroupLetter = f.away_slot && !f.away_slot.startsWith('W(') && f.away_slot !== 'T3' ? f.away_slot[1] : null;
-                            const homeConfirmed = homeGroupLetter ? (groupCompletedMD3.get(homeGroupLetter) ?? false) : !!f.home_team_id;
-                            const awayConfirmed = awayGroupLetter ? (groupCompletedMD3.get(awayGroupLetter) ?? false) : !!f.away_team_id;
-                            const homeLiveId = resolveKoTeamId(f.home_slot);
-                            const awayLiveId = resolveKoTeamId(f.away_slot);
-                            const homeHasTeam = homeConfirmed || !!homeLiveId;
-                            const awayHasTeam = awayConfirmed || !!awayLiveId;
-                            const homeFlagId = homeLiveId ?? f.home_team_id;
-                            const awayFlagId = awayLiveId ?? f.away_team_id;
+                            const disp = koDisplay(f);
+                            const fHome = disp.homeName;
+                            const fAway = disp.awayName;
+                            const homeFlagId = disp.homeId;
+                            const awayFlagId = disp.awayId;
+                            const homeHasTeam = !!homeFlagId;
+                            const awayHasTeam = !!awayFlagId;
+                            // confirmed = group fully done (group slot) or feeder decided (W/L slot);
+                            // provisional = group slot with only partial results so far.
+                            const homeGroupLetter = f.home_slot && /^[12][A-L]$/.test(f.home_slot) ? f.home_slot[1] : null;
+                            const awayGroupLetter = f.away_slot && /^[12][A-L]$/.test(f.away_slot) ? f.away_slot[1] : null;
+                            const homeConfirmed = homeGroupLetter ? (groupCompletedMD3.get(homeGroupLetter) ?? false) : homeHasTeam;
+                            const awayConfirmed = awayGroupLetter ? (groupCompletedMD3.get(awayGroupLetter) ?? false) : awayHasTeam;
                             const liveG = getLiveForFixture(resolvedLiveByKey, homeFlagId, awayFlagId);
                             const isLive = liveG?.status === 'IN_PLAY' || liveG?.status === 'PAUSED';
                             return (
