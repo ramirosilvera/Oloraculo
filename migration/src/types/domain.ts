@@ -87,6 +87,9 @@ export interface WcActualResult {
   home_goals: number;
   away_goals: number;
   played_at: string;
+  // Knockout only: team_id that advanced when level at 90' (penalties). Null for
+  // decisive results and group games. Drives automatic bracket propagation.
+  advancer_team_id?: string | null;
 }
 
 export interface PredictionSnapshot {

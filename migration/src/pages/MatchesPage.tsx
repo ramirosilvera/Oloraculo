@@ -314,6 +314,9 @@ interface FixtureRowProps {
   onRecordResult: () => void;
   onResultHome: (v: string) => void;
   onResultAway: (v: string) => void;
+  resultAdvancer: string;
+  onResultAdvancer: (v: string) => void;
+  onRecordAdvancer: (teamId: string) => void;
   onContextSaved: (ctx: FixtureContext) => Promise<void>;
   onRecordLiveResult?: (homeGoals: number, awayGoals: number) => Promise<void>;
   homeName: string;
@@ -340,7 +343,8 @@ interface FixtureRowProps {
 function FixtureRow({
   fixture, played, pred, isExpanded, isExpanding, isSavingThis, savedSnap, evalDone,
   resultHome, resultAway, err, onExpand, onSaveSnapshot, onRecordResult,
-  onResultHome, onResultAway, onContextSaved, onRecordLiveResult, homeName, awayName,
+  onResultHome, onResultAway, resultAdvancer, onResultAdvancer, onRecordAdvancer,
+  onContextSaved, onRecordLiveResult, homeName, awayName,
   homeTeamId, awayTeamId,
   context, compact, bestModelName, bestModelWinnerAcc, liveMatch, goals, tournamentGoals,
   ratings, allFixtures, wcResultsForPIE, pieLooWinner, pieLooExact,
@@ -702,15 +706,73 @@ function FixtureRow({
                       Registrar resultado
                     </Button>
                   </div>
+
+                  {/* Knockout draw → penalties: capture who advanced so the bracket propagates */}
+                  {fixture.id.startsWith('ko:') && resultHome !== '' && resultHome === resultAway && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-amber-700">Empate al 90' — ¿quién avanzó por penales?</p>
+                      <div className="flex gap-2">
+                        {[{ id: homeTeamId, name: homeName }, { id: awayTeamId, name: awayName }].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => onResultAdvancer(t.id)}
+                            disabled={!t.id}
+                            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${
+                              resultAdvancer === t.id && t.id
+                                ? 'border-amber-500 bg-amber-500 text-white'
+                                : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-100'
+                            }`}
+                          >
+                            {t.id && <FlagImg id={t.id} className="w-4 h-3 object-cover rounded-[1px] shrink-0" />}
+                            <span className="truncate">{t.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {(played || evalDone.has(fixture.id)) && (
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                  <Badge color="green">
-                    Resultado: {played?.home_goals ?? resultHome} – {played?.away_goals ?? resultAway}
-                  </Badge>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    <Badge color="green">
+                      Resultado: {played?.home_goals ?? resultHome} – {played?.away_goals ?? resultAway}
+                    </Badge>
+                  </div>
+
+                  {/* Played knockout draw with no shootout winner yet (e.g. auto-saved
+                      from the live API) → let the user set who advanced. */}
+                  {played && fixture.id.startsWith('ko:')
+                    && played.home_goals === played.away_goals
+                    && !played.advancer_team_id && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-amber-700">Empate al 90' — ¿quién avanzó por penales?</p>
+                      <div className="flex gap-2">
+                        {[{ id: homeTeamId, name: homeName }, { id: awayTeamId, name: awayName }].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => t.id && onRecordAdvancer(t.id)}
+                            disabled={!t.id || isSavingThis}
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-white text-amber-800 hover:bg-amber-100 px-2 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60"
+                          >
+                            {t.id && <FlagImg id={t.id} className="w-4 h-3 object-cover rounded-[1px] shrink-0" />}
+                            <span className="truncate">{t.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Confirmed advancer badge */}
+                  {played && fixture.id.startsWith('ko:') && played.advancer_team_id && (
+                    <p className="text-[11px] text-gray-500">
+                      Avanzó por penales: <span className="font-semibold text-gray-700">
+                        {played.advancer_team_id === homeTeamId ? homeName : awayName}
+                      </span>
+                    </p>
+                  )}
                 </div>
               )}
             </>
@@ -1457,6 +1519,7 @@ export function MatchesPage() {
   const [savedSnap, setSavedSnap]       = useState<Set<string>>(new Set());
   const [resultHome, setResultHome]     = useState('');
   const [resultAway, setResultAway]     = useState('');
+  const [resultAdvancer, setResultAdvancer] = useState('');  // KO draw → who advanced (penalties)
   const [evalDone, setEvalDone]         = useState<Set<string>>(new Set());
   const [err, setErr]                   = useState('');
 
@@ -1650,6 +1713,7 @@ export function MatchesPage() {
     setExpandedId(isSame ? null : fixture.id);
     setResultHome('');
     setResultAway('');
+    setResultAdvancer('');
     setErr('');
     if (isSame || predictions.has(fixture.id)) return;
     // Resolve knockout crossings to concrete teams before predicting; skip if the
@@ -1731,10 +1795,15 @@ export function MatchesPage() {
     if (isNaN(hg) || isNaN(ag) || hg < 0 || ag < 0) { setErr('Ingresá goles válidos (0 o más).'); return; }
     const pred = predictions.get(fixture.id);
     if (!pred) { setErr('Primero predecí el partido.'); return; }
+    // Knockout matches level at 90' are decided by penalties: require the advancer
+    // so the bracket can propagate to the next round.
+    const isKo = fixture.id.startsWith('ko:');
+    const advancer = isKo && hg === ag ? resultAdvancer : '';
+    if (isKo && hg === ag && !advancer) { setErr('Empate al 90\': elegí quién avanzó por penales.'); return; }
     setErr('');
     setSaving(fixture.id);
     try {
-      await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag });
+      await saveWcActualResult({ fixture_id: fixture.id, home_goals: hg, away_goals: ag, advancer_team_id: advancer || null });
       // Save evaluations for ALL non-degraded ladder models so PerformancePage
       // can compare L2–L6 and the ensemble can learn from each model's track record.
       // Clear any prior rows for this fixture first so re-recording stays idempotent.
@@ -1743,6 +1812,23 @@ export function MatchesPage() {
       setEvalDone(prev => new Set(prev).add(fixture.id));
       qc.invalidateQueries({ queryKey: ['wc-results'] });
       qc.invalidateQueries({ queryKey: ['evaluations'] });
+    } catch (e) { setErr(String(e)); }
+    finally { setSaving(null); }
+  };
+
+  // Set/patch the shootout winner for an already-recorded knockout draw (e.g. one
+  // auto-saved from the live API, which can't know the penalty result). Keeps the
+  // stored goals; only fills advancer_team_id so the bracket can move forward.
+  const recordAdvancer = async (fixture: Fixture, teamId: string) => {
+    const r = playedMap.get(fixture.id);
+    if (!r) return;
+    setErr('');
+    setSaving(fixture.id);
+    try {
+      await saveWcActualResult({
+        fixture_id: fixture.id, home_goals: r.home_goals, away_goals: r.away_goals, advancer_team_id: teamId,
+      });
+      qc.invalidateQueries({ queryKey: ['wc-results'] });
     } catch (e) { setErr(String(e)); }
     finally { setSaving(null); }
   };
@@ -1766,6 +1852,9 @@ export function MatchesPage() {
     onRecordResult: () => recordResult(fixture),
     onResultHome: setResultHome,
     onResultAway: setResultAway,
+    resultAdvancer,
+    onResultAdvancer: setResultAdvancer,
+    onRecordAdvancer: (teamId: string) => recordAdvancer(fixture, teamId),
     onContextSaved: (ctx: FixtureContext) => handleContextSaved(fixture, ctx),
     onRecordLiveResult: (hg: number, ag: number) => recordLiveResult(fixture, hg, ag),
     homeName: disp.homeName,
