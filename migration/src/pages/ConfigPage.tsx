@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Archive, Save } from 'lucide-react';
+import { Plus, Archive, Save, KeyRound } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
+import { useAuth } from '../hooks/useAuth';
 import { Card, CardHeader, Button, Badge, fmtUsd } from '../components/ui';
 
 export function ConfigPage() {
@@ -66,7 +67,43 @@ export function ConfigPage() {
       {active && <EditActive key={active.id}
         nombre={active.nombre} estrategia={active.estrategia ?? ''} capital={active.capital_objetivo}
         onSave={(patch) => updatePortfolio(active.id, patch)} />}
+
+      <ChangePassword />
     </div>
+  );
+}
+
+function ChangePassword() {
+  const { updatePassword } = useAuth();
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
+
+  const submit = async () => {
+    if (p1.length < 6) { setMsg({ text: 'Mínimo 6 caracteres.' }); return; }
+    if (p1 !== p2) { setMsg({ text: 'Las contraseñas no coinciden.' }); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await updatePassword(p1);
+    setMsg(error ? { text: error } : { text: 'Contraseña actualizada.', ok: true });
+    if (!error) { setP1(''); setP2(''); }
+    setBusy(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader title="Cambiar contraseña" sub="Se aplica a tu cuenta de acceso." />
+      <div className="p-4 grid sm:grid-cols-2 gap-3">
+        <input type="password" placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} autoComplete="new-password"
+          className="bg-ink-900 border border-ink-600 rounded-lg px-3 py-2 text-sm" />
+        <input type="password" placeholder="Repetir contraseña" value={p2} onChange={e => setP2(e.target.value)} autoComplete="new-password"
+          className="bg-ink-900 border border-ink-600 rounded-lg px-3 py-2 text-sm" />
+        <div className="sm:col-span-2 flex items-center gap-3">
+          <Button variant="ghost" onClick={submit} disabled={busy || !p1}><KeyRound className="w-4 h-4" /> {busy ? 'Guardando…' : 'Actualizar contraseña'}</Button>
+          {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
+        </div>
+      </div>
+    </Card>
   );
 }
 

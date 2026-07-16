@@ -7,6 +7,7 @@ interface AuthCtx {
   loading: boolean;
   signInPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirm: boolean }>;
+  updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -35,6 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Si Supabase tiene confirmación por email activada, no hay sesión hasta confirmar.
       const needsConfirm = !error && !data.session;
       return { error: error?.message ?? null, needsConfirm };
+    },
+    updatePassword: async (newPassword) => {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      return { error: error?.message ?? null };
     },
     signOut: async () => { await supabase.auth.signOut(); },
   };
