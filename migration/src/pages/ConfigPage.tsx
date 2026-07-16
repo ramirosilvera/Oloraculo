@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Plus, Archive, Save, KeyRound } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAuth } from '../hooks/useAuth';
+import { useCikMap } from '../hooks/useCikMap';
+import { Trash2 } from 'lucide-react';
 import { Card, CardHeader, Button, Badge, fmtUsd } from '../components/ui';
 
 export function ConfigPage() {
@@ -56,8 +58,8 @@ export function ConfigPage() {
                 <p className="text-[11px] text-ink-600 truncate">{p.descripcion || '—'}</p>
               </div>
               <span className="text-xs text-ink-600 tnum">obj: {fmtUsd(p.capital_objetivo, 0)}</span>
-              <button onClick={() => archivePortfolio(p.id)} title="Archivar"
-                className="text-ink-600 hover:text-warn"><Archive className="w-4 h-4" /></button>
+              <button onClick={() => { if (window.confirm(`¿Archivar "${p.nombre}"? Deja de aparecer, pero no se borra.`)) archivePortfolio(p.id); }} title="Archivar"
+                className="text-ink-600 hover:text-warn inline-flex items-center justify-center w-9 h-9"><Archive className="w-4 h-4" /></button>
             </div>
           ))}
           {portfolios.length === 0 && <p className="px-4 py-6 text-sm text-ink-600">Sin portfolios todavía.</p>}
@@ -68,8 +70,46 @@ export function ConfigPage() {
         nombre={active.nombre} estrategia={active.estrategia ?? ''} capital={active.capital_objetivo}
         onSave={(patch) => updatePortfolio(active.id, patch)} />}
 
+      <CikMapSection />
       <ChangePassword />
     </div>
+  );
+}
+
+function CikMapSection() {
+  const { data: entries = [], add, remove } = useCikMap();
+  const [ticker, setTicker] = useState('');
+  const [cik, setCik] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  const guardar = async () => {
+    if (!ticker.trim() || !cik.trim()) { setErr('Completá ticker y CIK.'); return; }
+    setErr(null);
+    try { await add(ticker.trim(), cik.trim().padStart(10, '0')); setTicker(''); setCik(''); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'error'); }
+  };
+
+  return (
+    <Card>
+      <CardHeader title="Tickers → CIK (EDGAR)" sub="Para analizar empresas que no reconocemos por defecto. El CIK es el número de la empresa en SEC EDGAR (10 dígitos)." />
+      <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+        <input placeholder="Ticker (ej. TSLA)" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-base sm:text-sm" />
+        <input placeholder="CIK (ej. 1318605)" value={cik} onChange={e => setCik(e.target.value)} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-base sm:text-sm" />
+        <Button onClick={guardar}>Agregar</Button>
+      </div>
+      {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
+      {entries.length > 0 && (
+        <div className="divide-y divide-ink-700/60">
+          {entries.map(e => (
+            <div key={e.ticker} className="px-4 py-2 flex items-center gap-3 text-sm">
+              <span className="font-semibold text-gray-100 w-20">{e.ticker}</span>
+              <span className="text-ink-600 tnum flex-1">CIK {e.cik}</span>
+              <button onClick={() => remove(e.ticker)} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9"><Trash2 className="w-4 h-4" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 

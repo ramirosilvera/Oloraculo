@@ -20,11 +20,18 @@ export const api = {
   fred: () => get<Record<string, number | null>>('/api/market/fred'),
   bonos: () => get<Record<string, number>>('/api/market/bonos'),
 
-  analisisEmpresa: (body: unknown) =>
-    fetch('/api/analysis/empresa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      .then(r => r.json()) as Promise<{ analisis?: string; error?: string; cached?: boolean }>,
-
-  analisisPortfolio: (body: unknown) =>
-    fetch('/api/analysis/portfolio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      .then(r => r.json()) as Promise<{ analisis?: string; error?: string }>,
+  analisisEmpresa: (body: unknown) => postAnalisis('/api/analysis/empresa', body),
+  analisisPortfolio: (body: unknown) => postAnalisis('/api/analysis/portfolio', body),
 };
+
+// Nunca rechaza: devuelve {error} ante fallo de red/HTTP para que el botón no quede colgado.
+async function postAnalisis(path: string, body: unknown): Promise<{ analisis?: string; error?: string; cached?: boolean }> {
+  try {
+    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (data as { error?: string }).error ?? `HTTP ${res.status}` };
+    return data;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'red' };
+  }
+}

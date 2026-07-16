@@ -16,6 +16,16 @@ body {
 /* Numeric tables read better tabular */
 .tnum { font-variant-numeric: tabular-nums; }
 
+/* iOS Safari hace auto-zoom al enfocar controles con fuente < 16px, y eso mete scroll
+   horizontal en toda la página. Forzamos 16px en mobile para todos los controles. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
+/* Scroll de tabs limpio (sin barra) en el nav */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Thin scrollbars for data-dense panels */
 * { scrollbar-width: thin; scrollbar-color: #2a3446 transparent; }
 *::-webkit-scrollbar { height: 8px; width: 8px; }

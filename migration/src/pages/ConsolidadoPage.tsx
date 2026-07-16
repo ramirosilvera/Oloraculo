@@ -4,17 +4,16 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { useAllPosiciones, useQuotes } from '../hooks/usePosiciones';
 import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { unitValueUSD as unitUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
-
-function unitUSD(p: Posicion, live: number | null): number | null {
-  if (live == null) return null;
-  if (p.tipo === 'cedear' && p.ratio_cedear) return live / p.ratio_cedear;
-  return live;
-}
 
 export function ConsolidadoPage() {
   const { portfolios } = usePortfolios();
-  const { data: posiciones = [] } = useAllPosiciones(true);
+  const { data: allPosiciones = [] } = useAllPosiciones(true);
+  // Solo posiciones de portfolios ACTIVOS (RLS aísla por usuario, no por estado) — si no,
+  // el total y los % incluirían portfolios archivados que no aparecen en la lista.
+  const activeIds = useMemo(() => new Set(portfolios.map(p => p.id)), [portfolios]);
+  const posiciones = useMemo(() => allPosiciones.filter(p => activeIds.has(p.portfolio_id)), [allPosiciones, activeIds]);
   const equity = [...new Set(posiciones.filter(p => p.tipo !== 'bono' && p.tipo !== 'cash').map(p => p.ticker))];
   const bonds = [...new Set(posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker))];
   const { data: quotes = {} } = useQuotes(equity, bonds);

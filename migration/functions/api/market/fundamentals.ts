@@ -9,7 +9,9 @@ export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
   const ticker = (url.searchParams.get('ticker') || '').toUpperCase().trim();
-  const cik = url.searchParams.get('cik') || DEFAULT_CIK[ticker];
+  // Para tickers conocidos usamos SIEMPRE el CIK oficial (ignoramos el ?cik del query)
+  // para que nadie pueda envenenar fundamentals_cache[ticker] con el CIK de otra empresa.
+  const cik = DEFAULT_CIK[ticker] || url.searchParams.get('cik') || '';
   const force = url.searchParams.get('fresh') === '1';
 
   if (!ticker) return json({ error: 'ticker requerido' }, 400);

@@ -42,8 +42,12 @@ export function computeRatios(f: Fundamentals, price: number | null, beta: numbe
   const eg = eg5y(f.epsDiluted);
   const pe = price != null && eps ? price / eps : null;
 
-  const roic = opInc != null && equity != null
-    ? (opInc * (1 - effTax)) / (equity + debt - cash)
+  // Capital invertido = equity + deuda − caja. Con denominador ≤ 0 (cash-rich o equity
+  // negativo por recompras) el ROIC explota o cambia de signo → null (no crear el falso
+  // chequeo Munger "ROIC>WACC ✓").
+  const investedCapital = (equity ?? 0) + debt - cash;
+  const roic = opInc != null && equity != null && investedCapital > 0
+    ? (opInc * (1 - effTax)) / investedCapital
     : null;
 
   const ebitda = opInc != null ? opInc + Math.abs(dna) : null;

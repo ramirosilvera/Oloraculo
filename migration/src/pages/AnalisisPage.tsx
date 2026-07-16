@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
 import { useQuotes, useMacro } from '../hooks/usePosiciones';
+import { useCikMap } from '../hooks/useCikMap';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { computeRatios } from '../engine/ratios';
 import { computeDcf, sensitivityTable, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod } from '../engine/dcf';
@@ -17,9 +18,12 @@ export function AnalisisPage() {
   const [inp, setInp] = useState<DcfInputs>(DEFAULT_DCF_INPUTS);
   const [beta, setBeta] = useState(1.0);
 
+  const { map: cikMap, isLoading: cikLoading } = useCikMap();
+  const cik = cikMap.get(T)?.cik;
   const { data: fund, isLoading, error } = useQuery({
-    queryKey: ['fundamentals', T],
-    queryFn: () => api.fundamentals(T),
+    queryKey: ['fundamentals', T, cik ?? ''],
+    enabled: !cikLoading,   // esperar el cik_map para tickers fuera del set por defecto
+    queryFn: () => api.fundamentals(T, cik),
     staleTime: 12 * 60 * 60_000,
   });
   const { data: quotes = {} } = useQuotes([T]);
@@ -38,8 +42,13 @@ export function AnalisisPage() {
     return { ratios: r, dcf: d, sens: s };
   }, [fund, price, beta, riskFree, inp]);
 
-  if (isLoading) return <p className="text-ink-600">Cargando fundamentals de {T}…</p>;
-  if (error) return <p className="text-neg">No se pudieron traer datos de {T}. ¿Cargaste su CIK en Configuración?</p>;
+  if (cikLoading || isLoading) return <p className="text-ink-600">Cargando fundamentals de {T}…</p>;
+  if (error) return (
+    <div className="text-sm text-warn space-y-1">
+      <p>No hay fundamentals de <b>{T}</b> vía EDGAR.</p>
+      <p className="text-ink-600">Solo funciona con empresas que reportan a la SEC. Si es una grande de EE.UU. que no reconocemos, cargá su par ticker → CIK en <b>Configuración</b>.</p>
+    </div>
+  );
   if (!fund || !ratios || !dcf) return null;
 
   const verdictTone = dcf.verdict === 'COMPRAR' ? 'pos' : dcf.verdict === 'CARO' ? 'neg' : 'warn';
@@ -64,7 +73,7 @@ export function AnalisisPage() {
       {/* Ratios */}
       <Card>
         <CardHeader title="Ratios" sub="Calculados por el código desde EDGAR (no por IA)." />
-        <div className="p-4 grid grid-cols-3 sm:grid-cols-6 gap-3 text-sm">
+        <div className="p-4 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
           <Metric l="P/E" v={fmtNum(ratios.pe, 1)} />
           <Metric l="P/E fwd" v={fmtNum(ratios.peForward, 1)} />
           <Metric l="P/B" v={fmtNum(ratios.pb, 1)} />

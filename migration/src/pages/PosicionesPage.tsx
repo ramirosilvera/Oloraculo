@@ -4,15 +4,8 @@ import { Plus, Trash2, LineChart } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
 import { Card, CardHeader, Button, Badge, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
-
-// A CEDEAR settles in USD as (precio_local / ratio); for USD-quoted ETFs/stocks the
-// live price IS the value per unit. Bonds price per nominal already /100.
-function unitValueUSD(p: Posicion, live: number | null): number | null {
-  if (live == null) return null;
-  if (p.tipo === 'cedear' && p.ratio_cedear) return live / p.ratio_cedear;
-  return live;
-}
 
 export function PosicionesPage() {
   const { active } = usePortfolios();
@@ -37,6 +30,23 @@ export function PosicionesPage() {
 
   const [form, setForm] = useState<Partial<Posicion>>({ tipo: 'cedear', cantidad: 0, precio_compra: 0 });
   const [showForm, setShowForm] = useState(false);
+  const [formErr, setFormErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const guardar = async () => {
+    if (!form.ticker) { setFormErr('Ingresá el ticker.'); return; }
+    if (form.tipo === 'cedear' && !(form.ratio_cedear && form.ratio_cedear > 0)) {
+      setFormErr('Un CEDEAR necesita su ratio (subyacentes por CEDEAR) — sin eso el valor se calcula mal.'); return;
+    }
+    setSaving(true); setFormErr(null);
+    try {
+      await add(form);
+      setShowForm(false);
+      setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 });
+    } catch (e) {
+      setFormErr(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`);
+    } finally { setSaving(false); }
+  };
 
   if (!active) return null;
 
@@ -60,9 +70,10 @@ export function PosicionesPage() {
             <input placeholder="Precio compra USD" type="number" onChange={e => setForm({ ...form, precio_compra: Number(e.target.value) })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="Ratio (CEDEAR)" type="number" onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <Button onClick={async () => { if (form.ticker) { await add(form); setShowForm(false); setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 }); } }}>Guardar</Button>
+            <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-base sm:text-sm" />
+            <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
           </div>
+          {formErr && <p className="px-4 pb-3 text-xs text-warn">{formErr}</p>}
         </Card>
       )}
 
@@ -106,11 +117,13 @@ export function PosicionesPage() {
                       {pesoAct != null ? fmtPct(pesoAct, 0) : '—'}
                       {p.peso_objetivo != null && <span className="block text-[10px] text-ink-600">obj {fmtPct(p.peso_objetivo, 0)}</span>}
                     </td>
-                    <td className="px-3 text-right whitespace-nowrap">
-                      {p.tipo !== 'bono' && p.tipo !== 'cash' && (
-                        <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-block mr-2" title="Análisis / DCF"><LineChart className="w-4 h-4" /></Link>
-                      )}
-                      <button onClick={() => remove(p.id)} className="text-ink-600 hover:text-neg inline-block" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
+                    <td className="px-2 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
+                        {p.tipo !== 'bono' && p.tipo !== 'cash' && (
+                          <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF"><LineChart className="w-4 h-4" /></Link>
+                        )}
+                        <button onClick={() => { if (window.confirm(`¿Borrar ${p.ticker}? No se puede deshacer.`)) remove(p.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
+                      </div>
                     </td>
                   </tr>
                 );

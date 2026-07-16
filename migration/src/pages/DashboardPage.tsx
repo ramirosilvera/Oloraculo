@@ -3,15 +3,9 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
 import { SEMAFOROS, sintesis, type Luz } from '../engine/semaforos';
 import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
-import type { Posicion } from '../types/domain';
+import { unitValueUSD as unitUSD } from '../lib/valuation';
 
 const LUZ_BG: Record<Luz, string> = { verde: 'bg-pos/15 text-pos', amarillo: 'bg-warn/15 text-warn', rojo: 'bg-neg/15 text-neg' };
-
-function unitUSD(p: Posicion, live: number | null): number | null {
-  if (live == null) return null;
-  if (p.tipo === 'cedear' && p.ratio_cedear) return live / p.ratio_cedear;
-  return live;
-}
 
 export function DashboardPage() {
   const { active } = usePortfolios();

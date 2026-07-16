@@ -46,7 +46,7 @@ export function AportesPage() {
               <Badge tone={TIPO_TONE[a.tipo]}>{a.tipo}</Badge>
               <span className="flex-1 text-ink-600 truncate">{a.descripcion || '—'}</span>
               <span className="font-semibold tnum text-gray-100">{fmtUsd(a.monto, 0)}</span>
-              <button onClick={() => remove(a.id)} className="text-ink-600 hover:text-neg"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => { if (window.confirm('¿Borrar este aporte?')) remove(a.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
           {aportes.length === 0 && <p className="px-4 py-6 text-sm text-ink-600">Sin aportes registrados.</p>}

@@ -86,6 +86,17 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   const ownerEarningsNorm = last5.reduce((s, y) => s + y.ownerEarnings, 0) / last5.length;
   const histCagrOE = cagr(last5.map(y => y.ownerEarnings));
 
+  // Owner earnings normalizados ≤ 0 (capex agresivo / OCF < capex mant.): el DCF no
+  // aplica. Sin esto, un valor intrínseco negativo produce MoS > 100% y un falso "COMPRAR".
+  if (ownerEarningsNorm <= 0) {
+    return {
+      ownerEarningsByYear: oeYears, ownerEarningsNorm, histCagrOE,
+      intrinsicValue: 0, intrinsicPerShare: null, terminalPV: 0, terminalShare: 0,
+      marginOfSafety: null, verdict: 'SIN_DATOS',
+      mungerChecks: [], shares, price,
+    };
+  }
+
   // Proyección: N años a tasa g, descontados a d, valor terminal de Gordon con gt.
   const { g, d, gt, N } = inp;
   let pvExplicit = 0;
@@ -102,7 +113,7 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   const intrinsicValue = pvExplicit + terminalPV;
   const intrinsicPerShare = shares && shares > 0 ? intrinsicValue / shares : null;
   const terminalShare = intrinsicValue > 0 ? terminalPV / intrinsicValue : 0;
-  const marginOfSafety = intrinsicPerShare && price ? 1 - price / intrinsicPerShare : null;
+  const marginOfSafety = intrinsicPerShare && intrinsicPerShare > 0 && price ? 1 - price / intrinsicPerShare : null;
 
   const verdict: DcfResult['verdict'] =
     marginOfSafety == null ? 'SIN_DATOS'

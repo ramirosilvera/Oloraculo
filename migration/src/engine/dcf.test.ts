@@ -82,6 +82,32 @@ describe('owner earnings + DCF', () => {
     expect(check.ok).toBe(false);   // g 30% > CAGR histórico de OE
   });
 
+  it('owner earnings negativos → SIN_DATOS, no COMPRAR', () => {
+    const bad: Fundamentals = {
+      ...MSFT,
+      // OCF < capex de mantenimiento (D&A) todos los años → owner earnings negativos
+      ocf:   P([[2020,5000],[2021,4000],[2022,3000],[2023,2000],[2024,1000]]),
+      dna:   P([[2020,12000],[2021,12000],[2022,12000],[2023,12000],[2024,12000]]),
+      capex: P([[2020,15000],[2021,15000],[2022,15000],[2023,15000],[2024,15000]]),
+    };
+    const d = computeDcf(bad, 100, 0.088, DEFAULT_DCF_INPUTS);
+    expect(d.ownerEarningsNorm).toBeLessThan(0);
+    expect(d.verdict).toBe('SIN_DATOS');
+    expect(d.intrinsicPerShare).toBeNull();
+    expect(d.marginOfSafety).toBeNull();
+  });
+
+  it('ROIC null si el capital invertido es ≤ 0 (cash-rich)', () => {
+    const cashRich: Fundamentals = {
+      ...MSFT,
+      equity:    P([[2024,10000]]),
+      totalDebt: P([[2024,0]]),
+      cash:      P([[2024,50000]]),  // cash > equity+deuda → invested capital negativo
+    };
+    const r = computeRatios(cashRich, 420, 0.9, 0.043);
+    expect(r.roic).toBeNull();
+  });
+
   it('sensibilidad: monótona en g y d', () => {
     const t = sensitivityTable(MSFT, 0.088, DEFAULT_DCF_INPUTS, [0.04, 0.08, 0.12], [0.08, 0.10, 0.12]);
     expect(t).toHaveLength(3);
