@@ -1,0 +1,62 @@
+name: Deploy a Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['migration/**', '.github/workflows/deploy.yml']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: migration/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: migration
+        run: npm ci
+
+      - name: Build (VITE_* embebidas en el bundle)
+        working-directory: migration
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Cargar secretos de Pages Functions
+        working-directory: migration
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEC_PROXY_BASE: ${{ secrets.SEC_PROXY_BASE }}
+          SEC_PROXY_TOKEN: ${{ secrets.SEC_PROXY_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: |
+          put() { [ -n "$2" ] && printf '%s' "$2" | npx wrangler@3 pages secret put "$1" --project-name=portfolio-inversiones || true; }
+          put SUPABASE_URL "$SUPABASE_URL"
+          put SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
+          put SEC_PROXY_BASE "$SEC_PROXY_BASE"
+          put SEC_PROXY_TOKEN "$SEC_PROXY_TOKEN"
+          put GEMINI_API_KEY "$GEMINI_API_KEY"
+          put FINNHUB_API_KEY "$FINNHUB_API_KEY"
+          put FMP_API_KEY "$FMP_API_KEY"
+
+      - name: Deploy a Cloudflare Pages
+        working-directory: migration
+        run: npx wrangler@3 pages deploy dist --project-name=portfolio-inversiones --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

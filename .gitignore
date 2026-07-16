@@ -1,0 +1,72 @@
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+bin/
+obj/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+bld/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## Codex
+/.codex-tmp/
+
+## Claude Code local config
+/.claude/
+
+## Local automation
+/publish-readme-snapshot.bat
+
+## ASP.NET / dotnet
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+*.snupkg
+
+## Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+## SQLite database (generated at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+## Local secrets and environment-specific settings
+**/appsettings.Development.json
+*.env
+secrets.json
+
+## Node / Vite (migration app)
+migration/node_modules/
+migration/dist/
+
+## OS files
+.DS_Store
+Thumbs.db
+/Oloraculo.Web/Data/Downloads/20260316_135132.mp4
+/Oloraculo.Web/Data/Downloads/desktop.ini

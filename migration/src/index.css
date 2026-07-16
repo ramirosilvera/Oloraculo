@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: #0a0e17;
+  color: #e5e7eb;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numeric tables read better tabular */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Thin scrollbars for data-dense panels */
+* { scrollbar-width: thin; scrollbar-color: #2a3446 transparent; }
+*::-webkit-scrollbar { height: 8px; width: 8px; }
+*::-webkit-scrollbar-thumb { background: #2a3446; border-radius: 4px; }

@@ -1,0 +1,67 @@
+// =============================================================================
+// Ratios fundamentales — puros, calculados desde EDGAR + precio. (sección 9)
+// EG5Y usa el CAGR REAL del EPS (no estimaciones de analistas — decisión Munger).
+// =============================================================================
+
+import type { Fundamentals, AnnualPoint, Ratios } from '../types/domain';
+
+const latest = (a: AnnualPoint[]): number | null => (a.length ? a[a.length - 1].val : null);
+const sortedByFy = (a: AnnualPoint[]) => [...a].sort((x, y) => x.fy - y.fy);
+
+// CAGR real del EPS diluido de los últimos 5 años: (eps_hoy/eps_hace_5a)^(1/(n-1)) − 1
+export function eg5y(epsDiluted: AnnualPoint[]): number | null {
+  const s = sortedByFy(epsDiluted).slice(-5);
+  if (s.length < 2) return null;
+  const first = s[0].val, last = s[s.length - 1].val;
+  if (first <= 0 || last <= 0) return null;
+  return (last / first) ** (1 / (s.length - 1)) - 1;
+}
+
+export function computeRatios(f: Fundamentals, price: number | null, beta: number, riskFreeRate: number): Ratios {
+  const eps = latest(f.epsDiluted);
+  const equity = latest(f.equity);
+  const shares = f.shares ?? null;
+  const dps = latest(f.dividendPerShare) ?? 0;
+  const revenue = latest(f.revenue);
+  const opInc = latest(f.operatingIncome);
+  const debt = latest(f.totalDebt) ?? 0;
+  const cash = latest(f.cash) ?? 0;
+  const sti = latest(f.shortTermInvestments) ?? 0;
+  const dna = latest(f.dna) ?? 0;
+  const taxes = latest(f.taxes);
+  const pretax = latest(f.pretaxIncome);
+
+  // Tasa impositiva efectiva con guarda: fuera de [0, 0.6] → 0.21
+  let effTax = 0.21;
+  if (taxes != null && pretax && pretax !== 0) {
+    const t = taxes / pretax;
+    effTax = t >= 0 && t <= 0.6 ? t : 0.21;
+  }
+
+  const bookPerShare = equity != null && shares ? equity / shares : null;
+  const eg = eg5y(f.epsDiluted);
+  const pe = price != null && eps ? price / eps : null;
+
+  const roic = opInc != null && equity != null
+    ? (opInc * (1 - effTax)) / (equity + debt - cash)
+    : null;
+
+  const ebitda = opInc != null ? opInc + Math.abs(dna) : null;
+
+  return {
+    price,
+    eps,
+    pe,
+    pb: price != null && bookPerShare ? price / bookPerShare : null,
+    divYield: price ? dps / price : null,
+    payout: eps ? dps / eps : null,
+    operatingMargin: opInc != null && revenue ? opInc / revenue : null,
+    debtToEquity: equity ? debt / equity : null,
+    netDebtToEbitda: ebitda && ebitda !== 0 ? (debt - cash - sti) / ebitda : null,
+    roic,
+    effectiveTaxRate: effTax,
+    eg5y: eg,
+    peForward: pe != null && eg != null ? pe / (1 + eg) : null,
+    wacc: riskFreeRate + beta * 0.05,
+  };
+}

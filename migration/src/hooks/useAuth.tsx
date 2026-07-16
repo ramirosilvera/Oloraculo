@@ -1,0 +1,51 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+
+interface AuthCtx {
+  session: Session | null;
+  loading: boolean;
+  signInPassword: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirm: boolean }>;
+  signInGoogle: () => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>;
+}
+
+const Ctx = createContext<AuthCtx>(null as unknown as AuthCtx);
+export const useAuth = () => useContext(Ctx);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const value: AuthCtx = {
+    session,
+    loading,
+    signInPassword: async (email, password) => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error?.message ?? null };
+    },
+    signUp: async (email, password) => {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      // Si Supabase tiene confirmación por email activada, no hay sesión hasta confirmar.
+      const needsConfirm = !error && !data.session;
+      return { error: error?.message ?? null, needsConfirm };
+    },
+    signInGoogle: async () => {
+      // Redirige a Google y vuelve; detectSessionInUrl (client) resuelve el callback.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google', options: { redirectTo: window.location.origin },
+      });
+      return { error: error?.message ?? null };
+    },
+    signOut: async () => { await supabase.auth.signOut(); },
+  };
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
