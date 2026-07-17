@@ -62,8 +62,11 @@ export function PosicionesPage() {
           <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
             <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value as Posicion['tipo'] })}
               className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
-              <option value="cedear">CEDEAR</option><option value="etf">ETF</option>
-              <option value="bono">Bono/ON</option><option value="cash">Cash</option>
+              <option value="cedear">CEDEAR</option>
+              <option value="accion">Acción (US)</option>
+              <option value="etf">ETF</option>
+              <option value="bono">Bono / ON</option>
+              <option value="cash">Cash</option>
             </select>
             <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="Cantidad" type="number" onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />

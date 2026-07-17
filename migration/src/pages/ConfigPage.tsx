@@ -10,18 +10,26 @@ export function ConfigPage() {
   const { portfolios, active, createPortfolio, updatePortfolio, archivePortfolio } = usePortfolios();
   const [nuevo, setNuevo] = useState({ nombre: '', descripcion: '', capital_objetivo: '', moneda_ref: 'USD' });
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
 
   const crear = async () => {
-    if (!nuevo.nombre.trim()) return;
-    setBusy(true);
-    await createPortfolio({
-      nombre: nuevo.nombre.trim(),
-      descripcion: nuevo.descripcion || null,
-      capital_objetivo: nuevo.capital_objetivo ? Number(nuevo.capital_objetivo) : null,
-      moneda_ref: nuevo.moneda_ref,
-    });
-    setNuevo({ nombre: '', descripcion: '', capital_objetivo: '', moneda_ref: 'USD' });
-    setBusy(false);
+    if (!nuevo.nombre.trim()) { setMsg({ text: 'Ingresá un nombre.' }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      await createPortfolio({
+        nombre: nuevo.nombre.trim(),
+        descripcion: nuevo.descripcion || null,
+        capital_objetivo: nuevo.capital_objetivo ? Number(nuevo.capital_objetivo) : null,
+        moneda_ref: nuevo.moneda_ref,
+      });
+      setNuevo({ nombre: '', descripcion: '', capital_objetivo: '', moneda_ref: 'USD' });
+      setMsg({ text: 'Portfolio creado y activado. Cargá sus posiciones en la pestaña Posiciones.', ok: true });
+    } catch (e) {
+      // Antes el error se tragaba y parecía que "no hacía nada".
+      setMsg({ text: `No se pudo crear: ${e instanceof Error ? e.message : 'error desconocido'}` });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -40,8 +48,9 @@ export function ConfigPage() {
           <input placeholder="Descripción / estrategia (opcional)" value={nuevo.descripcion}
             onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })}
             className="bg-ink-900 border border-ink-600 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
-          <div>
-            <Button onClick={crear} disabled={busy || !nuevo.nombre.trim()}><Plus className="w-4 h-4" /> Crear</Button>
+          <div className="sm:col-span-2 flex items-center gap-3">
+            <Button onClick={crear} disabled={busy || !nuevo.nombre.trim()}><Plus className="w-4 h-4" /> {busy ? 'Creando…' : 'Crear'}</Button>
+            {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
           </div>
         </div>
       </Card>
