@@ -14,9 +14,10 @@ export function ConsolidadoPage() {
   // el total y los % incluirían portfolios archivados que no aparecen en la lista.
   const activeIds = useMemo(() => new Set(portfolios.map(p => p.id)), [portfolios]);
   const posiciones = useMemo(() => allPosiciones.filter(p => activeIds.has(p.portfolio_id)), [allPosiciones, activeIds]);
-  const equity = [...new Set(posiciones.filter(p => p.tipo !== 'bono' && p.tipo !== 'cash').map(p => p.ticker))];
+  const equity = [...new Set(posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker))];
   const bonds = [...new Set(posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker))];
-  const { data: quotes = {} } = useQuotes(equity, bonds);
+  const arStocks = [...new Set(posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker))];
+  const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
 
   const pfName = useMemo(() => new Map(portfolios.map(p => [p.id, p.nombre])), [portfolios]);
 

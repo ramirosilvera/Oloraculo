@@ -10,9 +10,10 @@ const LUZ_BG: Record<Luz, string> = { verde: 'bg-pos/15 text-pos', amarillo: 'bg
 export function DashboardPage() {
   const { active } = usePortfolios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
-  const equity = posiciones.filter(p => p.tipo !== 'bono' && p.tipo !== 'cash').map(p => p.ticker);
+  const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
-  const { data: quotes = {} } = useQuotes(equity, bonds);
+  const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
+  const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
   const { data: macro = {} } = useMacro();
 
   const { patrimonio, costo, pnl } = useMemo(() => {

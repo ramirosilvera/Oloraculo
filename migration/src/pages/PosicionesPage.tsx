@@ -14,9 +14,10 @@ export function PosicionesPage() {
   const { data: posiciones = [] } = usePosiciones(active?.id);
   const { add, remove } = usePosicionMutations(active?.id);
 
-  const equity = posiciones.filter(p => p.tipo !== 'bono' && p.tipo !== 'cash').map(p => p.ticker);
+  const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
-  const { data: quotes = {} } = useQuotes(equity, bonds);
+  const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
+  const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
 
   const rows = useMemo(() => posiciones.map(p => {
     const live = quotes[p.ticker] ?? null;

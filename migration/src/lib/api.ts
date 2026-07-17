@@ -19,6 +19,9 @@ export const api = {
   riesgoPais: () => get<{ riesgo_pais: number | null }>('/api/market/riesgo-pais'),
   fred: () => get<Record<string, number | null>>('/api/market/fred'),
   bonos: () => get<Record<string, number>>('/api/market/bonos'),
+  accionesAr: (tickers: string[]) =>
+    get<{ mep: number | null; precios: Record<string, number | null> }>(
+      `/api/market/acciones-ar?tickers=${tickers.map(encodeURIComponent).join(',')}`),
 
   analisisEmpresa: (body: unknown) => postAnalisis('/api/analysis/empresa', body),
   analisisPortfolio: (body: unknown) => postAnalisis('/api/analysis/portfolio', body),

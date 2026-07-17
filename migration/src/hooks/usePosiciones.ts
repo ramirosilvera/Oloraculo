@@ -48,19 +48,22 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
   };
 }
 
-// Live prices for a set of tickers (equities via quotes, bonds via bonos).
-export function useQuotes(tickers: string[], bondTickers: string[] = []) {
+// Live prices (US equities via Finnhub/FMP, bonds via data912, AR stocks via data912+MEP).
+export function useQuotes(tickers: string[], bondTickers: string[] = [], arTickers: string[] = []) {
   return useQuery({
-    queryKey: ['quotes', [...tickers].sort().join(','), [...bondTickers].sort().join(',')],
-    enabled: tickers.length > 0 || bondTickers.length > 0,
+    queryKey: ['quotes', [...tickers].sort().join(','), [...bondTickers].sort().join(','), [...arTickers].sort().join(',')],
+    enabled: tickers.length > 0 || bondTickers.length > 0 || arTickers.length > 0,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Record<string, number | null>> => {
-      const [eq, bo] = await Promise.all([
+      const [eq, bo, ar] = await Promise.allSettled([
         tickers.length ? api.quotes(tickers) : Promise.resolve({}),
         bondTickers.length ? api.bonos() : Promise.resolve({}),
+        arTickers.length ? api.accionesAr(arTickers) : Promise.resolve({ precios: {} }),
       ]);
-      const out: Record<string, number | null> = { ...eq };
-      for (const t of bondTickers) out[t] = (bo as Record<string, number>)[t] ?? null;
+      const out: Record<string, number | null> = {};
+      if (eq.status === 'fulfilled') Object.assign(out, eq.value);
+      if (bo.status === 'fulfilled') for (const t of bondTickers) out[t] = (bo.value as Record<string, number>)[t] ?? null;
+      if (ar.status === 'fulfilled') for (const t of arTickers) out[t] = (ar.value as { precios: Record<string, number | null> }).precios?.[t] ?? null;
       return out;
     },
   });
