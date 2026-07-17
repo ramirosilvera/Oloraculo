@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import { Plus, Trash2, LineChart } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
+import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
 export function PosicionesPage() {
   const { active } = usePortfolios();
+  const { ratios: cedearRatios, saveRatio } = useCedearRatios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
   const { add, remove } = usePosicionMutations(active?.id);
 
@@ -33,6 +35,14 @@ export function PosicionesPage() {
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Pre-llena el ratio de un CEDEAR desde la base (si existe y el usuario no lo tipeó).
+  const applyAuto = (f: Partial<Posicion>): Partial<Posicion> => {
+    if (f.tipo === 'cedear' && f.ticker && cedearRatios[f.ticker] && !f.ratio_cedear) {
+      return { ...f, ratio_cedear: cedearRatios[f.ticker] };
+    }
+    return f;
+  };
+
   const guardar = async () => {
     if (!form.ticker) { setFormErr('Ingresá el ticker.'); return; }
     if (form.tipo === 'cedear' && !(form.ratio_cedear && form.ratio_cedear > 0)) {
@@ -41,6 +51,10 @@ export function PosicionesPage() {
     setSaving(true); setFormErr(null);
     try {
       await add(form);
+      // Si es CEDEAR y no estaba en la base, la enriquecemos con este ratio.
+      if (form.tipo === 'cedear' && form.ticker && form.ratio_cedear && !cedearRatios[form.ticker]) {
+        void saveRatio(form.ticker, form.ratio_cedear);
+      }
       setShowForm(false);
       setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 });
     } catch (e) {
@@ -60,18 +74,19 @@ export function PosicionesPage() {
       {showForm && (
         <Card>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-            <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value as Posicion['tipo'] })}
+            <select value={form.tipo} onChange={e => setForm(f => applyAuto({ ...f, tipo: e.target.value as Posicion['tipo'] }))}
               className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
               <option value="cedear">CEDEAR</option>
               <option value="accion">Acción (US)</option>
+              <option value="accion_ar">Acción ARG</option>
               <option value="etf">ETF</option>
               <option value="bono">Bono / ON</option>
               <option value="cash">Cash</option>
             </select>
-            <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
+            <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm(f => applyAuto({ ...f, ticker: e.target.value.toUpperCase() }))} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="Cantidad" type="number" onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="Precio compra USD" type="number" onChange={e => setForm({ ...form, precio_compra: Number(e.target.value) })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder="Ratio (CEDEAR)" type="number" onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
+            <input placeholder={form.tipo === 'cedear' ? 'Ratio (auto)' : 'Ratio (CEDEAR)'} type="number" value={form.ratio_cedear ?? ''} onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
             <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-base sm:text-sm" />
             <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>

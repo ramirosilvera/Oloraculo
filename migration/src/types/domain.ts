@@ -2,8 +2,9 @@
 // Domain types — mirror the Supabase schema (see supabase/migrations).
 // =============================================================================
 
-// bono cubre bonos soberanos y ONs (obligaciones negociables). accion = acción directa.
-export type AssetType = 'cedear' | 'accion' | 'etf' | 'bono' | 'cash';
+// bono cubre bonos soberanos y ONs (obligaciones negociables). accion = acción US directa;
+// accion_ar = acción argentina (BYMA).
+export type AssetType = 'cedear' | 'accion' | 'accion_ar' | 'etf' | 'bono' | 'cash';
 export type AssetRole =
   | 'compounder' | 'stalwart' | 'fast_grower' | 'asset_play' | 'slow_grower' | 'turnaround' | 'cyclical';
 export type PortfolioState = 'active' | 'archived';
