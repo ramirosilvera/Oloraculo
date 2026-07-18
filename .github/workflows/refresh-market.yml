@@ -1,31 +1,26 @@
 name: Refrescar datos de mercado
 
-# Cada endpoint escribe su cache en Supabase, así la data se actualiza sola sin
-# depender de que la app esté abierta. Requiere el secret APP_URL (URL de la app en
-# Cloudflare Pages, ej. https://portfolio-inversiones.pages.dev).
+# Pega a /api/cron/refresh-all, que calienta TODAS las caches en Supabase en una pasada
+# (fx, bonos, riesgo-país, FRED + fundamentos y precios de los tickers realmente tenidos).
+# Así la data se actualiza sola sin depender de que la app esté abierta.
+# Requiere el secret APP_URL = URL de la app en Cloudflare Pages
+# (ej. https://portfolio-inversiones.pages.dev).
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # cada 30 min (fx, bonos)
-    - cron: '17 * * * *'     # cada hora (riesgo país)
-    - cron: '23 */6 * * *'   # cada 6 h (FRED: tasas/spreads)
+    - cron: '*/30 * * * *'   # cada 30 min
   workflow_dispatch:
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping endpoints de refresco
+      - name: Refrescar todas las caches
         env:
           APP: ${{ secrets.APP_URL }}
         run: |
-          [ -z "$APP" ] && { echo "APP_URL no configurada"; exit 0; }
-          H=$(date -u +%H); M=$(date -u +%M)
-          hit() { echo "→ $1"; curl -fsS --max-time 30 "$APP$1" >/dev/null && echo "  ok" || echo "  fallo (se reintenta en el próximo tick)"; }
-          # 30 min: fx + bonos
-          hit /api/market/fx
-          hit /api/market/bonos
-          # cada hora (min ~17): riesgo país
-          [ "$M" -ge 15 ] && [ "$M" -le 20 ] && hit /api/market/riesgo-pais || true
-          # cada 6 h (min ~23): FRED
-          [ "$M" -ge 20 ] && [ "$M" -le 26 ] && [ $((10#$H % 6)) -eq 5 ] && hit /api/market/fred || true
+          [ -z "$APP" ] && { echo "::error::APP_URL no configurada — agregá el secret APP_URL en GitHub"; exit 1; }
+          echo "→ $APP/api/cron/refresh-all"
+          curl -fsS --max-time 120 "$APP/api/cron/refresh-all" || {
+            echo "::warning::refresh-all falló (se reintenta en el próximo tick)"; exit 0;
+          }
