@@ -1,4 +1,4 @@
-import { type Env, json, preflight, cacheFresh, sbUpsert, fetchText } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchText } from '../_shared';
 
 const TTL = 6 * 60 * 60 * 1000; // 6h
 // FRED series → clave en macro_cache. Valores en % (ej. DGS10 = 4.3 → guardamos 4.3).
@@ -22,7 +22,7 @@ function lastValue(csv: string): number | null {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/fred → { dgs10, dgs3mo, hy_spread }  (todo en %)
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet = guard(async ({ env }) => {
   const out: Record<string, number | null> = {};
   const rows: unknown[] = [];
   await Promise.all(Object.entries(SERIES).map(async ([serie, clave]) => {
@@ -37,4 +37,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   }));
   if (rows.length) await sbUpsert(env, 'macro_cache', rows, 'clave');
   return json(out);
-};
+});

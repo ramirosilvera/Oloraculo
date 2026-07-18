@@ -1,4 +1,4 @@
-import { type Env, json, preflight, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 30 * 60 * 1000; // 30 min
 const LISTS = ['arg_corp', 'arg_bonds', 'arg_notes'] as const;
@@ -23,7 +23,7 @@ export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/bonos            → { YM41D: 98.2, GD46D: ..., ... }
 // GET /api/market/bonos?ticker=X   → { ticker: 'X', precio: n }
-export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestGet = guard(async ({ request, env }) => {
   const url = new URL(request.url);
   const one = (url.searchParams.get('ticker') || '').toUpperCase().trim();
 
@@ -48,4 +48,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   if (one) return json({ ticker: one, precio: map[one] ?? null });
   return json(map);
-};
+});

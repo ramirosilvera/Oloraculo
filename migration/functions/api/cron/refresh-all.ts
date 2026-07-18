@@ -1,4 +1,4 @@
-import { type Env, json, preflight, sbSelect } from '../_shared';
+import { type Env, json, preflight, guard, sbSelect } from '../_shared';
 import { DEFAULT_CIK } from '../_edgar';
 
 // GET /api/cron/refresh-all
@@ -11,7 +11,7 @@ import { DEFAULT_CIK } from '../_edgar';
 
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
-export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestGet = guard(async ({ request, env }) => {
   const origin = new URL(request.url).origin;
 
   const hit = async (path: string) => {
@@ -50,4 +50,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   for (const p of paths) if (await hit(p)) ok++;
 
   return json({ ok, total: paths.length, equity: equity.length, ar: ar.length });
-};
+});

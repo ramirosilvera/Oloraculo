@@ -1,4 +1,4 @@
-import { type Env, json, preflight, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 30 * 60 * 1000; // 30 min
 const TIPOS = ['oficial', 'blue', 'bolsa', 'contadoconliqui'] as const;
@@ -8,7 +8,7 @@ const CLAVE: Record<string, string> = { oficial: 'dolar_oficial', blue: 'dolar_b
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/fx  → { dolar_oficial, dolar_mep, dolar_blue, dolar_ccl }
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet = guard(async ({ env }) => {
   const out: Record<string, number | null> = {};
   const stale: string[] = [];
   for (const t of TIPOS) {
@@ -29,4 +29,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     if (rows.length) await sbUpsert(env, 'macro_cache', rows, 'clave');
   }
   return json(out);
-};
+});

@@ -1,11 +1,11 @@
-import { type Env, json, preflight, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 60 * 60 * 1000; // 1h
 
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/riesgo-pais → { riesgo_pais }
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet = guard(async ({ env }) => {
   const cached = await cacheFresh<{ valor: number }>(env, 'macro_cache', 'clave', 'riesgo_pais', TTL);
   if (cached) return json({ riesgo_pais: cached.valor });
   try {
@@ -16,4 +16,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   } catch (e) {
     return json({ error: 'riesgo-pais-failed', detail: String(e) }, 502);
   }
-};
+});

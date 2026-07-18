@@ -1,4 +1,4 @@
-import { type Env, json, preflight, cacheFresh, sbUpsert } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, sbUpsert } from '../_shared';
 import { DEFAULT_CIK, fetchFundamentals } from '../_edgar';
 
 const TTL = 12 * 60 * 60 * 1000; // 12h
@@ -6,7 +6,7 @@ const TTL = 12 * 60 * 60 * 1000; // 12h
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/fundamentals?ticker=MSFT[&cik=0000789019][&fresh=1]
-export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestGet = guard(async ({ request, env }) => {
   const url = new URL(request.url);
   const ticker = (url.searchParams.get('ticker') || '').toUpperCase().trim();
   // Para tickers conocidos usamos SIEMPRE el CIK oficial (ignoramos el ?cik del query)
@@ -33,4 +33,4 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   } catch (e) {
     return json({ error: 'edgar-fetch-failed', detail: String(e) }, 502);
   }
-};
+});

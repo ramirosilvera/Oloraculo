@@ -1,4 +1,4 @@
-import { type Env, json, preflight } from '../_shared';
+import { type Env, json, preflight, safe } from '../_shared';
 
 const SYSTEM = `Sos un asesor de carteras estilo Munger/Buffett. Te paso la lista de posiciones
 (ticker, sector, rol, peso objetivo) de un portfolio. En español rioplatense, en 5-8 frases,
@@ -13,7 +13,7 @@ riesgos de construcción de cartera. Sé concreto.`;
 
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestPost = safe(async ({ request, env }) => {
   if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY no configurada' }, 503);
   const body = await request.json().catch(() => ({})) as { posiciones?: unknown };
   if (!body.posiciones) return json({ error: 'posiciones requeridas' }, 400);
@@ -36,4 +36,4 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   if (!text) return json({ error: 'gemini-sin-respuesta' }, 502);
   return json({ analisis: text, modelo: model });
-};
+});
