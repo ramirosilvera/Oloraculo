@@ -37,6 +37,11 @@ export interface Posicion {
   ratio_cedear: number | null;   // subyacentes por CEDEAR
   tir_esperada: number | null;
   beta: number | null;
+  // Cupones (bonos/ONs) — usados por el flujo de cupones:
+  cupon_tasa: number | null;         // tasa nominal anual (0.07 = 7%)
+  cupon_frecuencia: number | null;   // pagos por año (1/2/4)
+  cupon_mes: number | null;          // mes (1-12) de un pago de referencia
+  vencimiento: string | null;        // ISO date
   notas: string | null;
   created_at: string;
 }

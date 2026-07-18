@@ -92,6 +92,31 @@ export function PosicionesPage() {
             <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-base sm:text-sm" />
             <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
           </div>
+          {form.tipo === 'bono' && (
+            <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm border-t border-ink-700 pt-3">
+              <div className="col-span-2 sm:col-span-4 text-[11px] text-ink-600">Datos de cupón (para el flujo de cupones):</div>
+              <input placeholder="Tasa cupón % anual" type="number" step="0.1" value={form.cupon_tasa != null ? form.cupon_tasa * 100 : ''}
+                onChange={e => setForm({ ...form, cupon_tasa: e.target.value ? Number(e.target.value) / 100 : null })}
+                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
+              <select value={form.cupon_frecuencia ?? ''} onChange={e => setForm({ ...form, cupon_frecuencia: e.target.value ? Number(e.target.value) : null })}
+                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
+                <option value="">Frecuencia…</option>
+                <option value="1">Anual</option>
+                <option value="2">Semestral</option>
+                <option value="4">Trimestral</option>
+              </select>
+              <select value={form.cupon_mes ?? ''} onChange={e => setForm({ ...form, cupon_mes: e.target.value ? Number(e.target.value) : null })}
+                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
+                <option value="">Mes de pago…</option>
+                {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => (
+                  <option key={m} value={i + 1}>{m}</option>
+                ))}
+              </select>
+              <input placeholder="Vencimiento" type="date" value={form.vencimiento ?? ''}
+                onChange={e => setForm({ ...form, vencimiento: e.target.value || null })}
+                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-ink-300" />
+            </div>
+          )}
           {formErr && <p className="px-4 pb-3 text-xs text-warn">{formErr}</p>}
         </Card>
       )}
