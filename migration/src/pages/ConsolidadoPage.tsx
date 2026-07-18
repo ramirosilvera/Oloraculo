@@ -3,7 +3,7 @@ import { Layers, Info } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAllPosiciones, useQuotes } from '../hooks/usePosiciones';
 import { PortfolioReview } from '../components/PortfolioReview';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct, Empty } from '../components/ui';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
@@ -96,7 +96,7 @@ export function ConsolidadoPage() {
                   <td className="px-4 text-[11px] text-ink-600">{[...info.portfolios].map(id => pfName.get(id)).join(', ')}</td>
                 </tr>
               ))}
-              {tickersOrdenados.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-ink-600">Sin posiciones en ningún portfolio.</td></tr>}
+              {tickersOrdenados.length === 0 && <tr><td colSpan={4}><Empty icon={Layers} title="Nada para consolidar">Cargá posiciones en algún portfolio para ver la exposición combinada.</Empty></td></tr>}
             </tbody>
           </table>
         </div>

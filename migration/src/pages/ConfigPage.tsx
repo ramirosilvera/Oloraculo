@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Plus, Archive, Save, KeyRound } from 'lucide-react';
+import { Plus, Archive, Save, KeyRound, Layers } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAuth } from '../hooks/useAuth';
 import { useCikMap } from '../hooks/useCikMap';
 import { Trash2 } from 'lucide-react';
-import { Card, CardHeader, Button, Badge, fmtUsd } from '../components/ui';
+import { Card, CardHeader, Button, Badge, fmtUsd, Field, inputCls, Empty } from '../components/ui';
 
 export function ConfigPage() {
   const { portfolios, active, createPortfolio, updatePortfolio, archivePortfolio } = usePortfolios();
@@ -39,15 +39,21 @@ export function ConfigPage() {
       <Card>
         <CardHeader title="Nuevo portfolio" sub="Cada portfolio es independiente: posiciones, capital y análisis no se mezclan." />
         <div className="p-4 grid sm:grid-cols-2 gap-3">
-          <input placeholder="Nombre (ej. Ahorros, Herencia)" value={nuevo.nombre}
-            onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })}
-            className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-          <input placeholder="Capital objetivo (USD, opcional)" type="number" value={nuevo.capital_objetivo}
-            onChange={e => setNuevo({ ...nuevo, capital_objetivo: e.target.value })}
-            className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-          <input placeholder="Descripción / estrategia (opcional)" value={nuevo.descripcion}
-            onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })}
-            className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+          <Field label="Nombre">
+            <input placeholder="Nombre (ej. Ahorros, Herencia)" value={nuevo.nombre}
+              onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })}
+              className={inputCls} />
+          </Field>
+          <Field label="Capital objetivo (USD)">
+            <input placeholder="Capital objetivo (USD, opcional)" type="number" value={nuevo.capital_objetivo}
+              onChange={e => setNuevo({ ...nuevo, capital_objetivo: e.target.value })}
+              className={inputCls} />
+          </Field>
+          <Field label="Descripción / estrategia" className="sm:col-span-2">
+            <input placeholder="Descripción / estrategia (opcional)" value={nuevo.descripcion}
+              onChange={e => setNuevo({ ...nuevo, descripcion: e.target.value })}
+              className={inputCls} />
+          </Field>
           <div className="sm:col-span-2 flex items-center gap-3">
             <Button onClick={crear} disabled={busy || !nuevo.nombre.trim()}><Plus className="w-4 h-4" /> {busy ? 'Creando…' : 'Crear'}</Button>
             {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
@@ -71,7 +77,7 @@ export function ConfigPage() {
                 className="text-ink-600 hover:text-warn inline-flex items-center justify-center w-9 h-9"><Archive className="w-4 h-4" /></button>
             </div>
           ))}
-          {portfolios.length === 0 && <p className="px-4 py-6 text-sm text-ink-600">Sin portfolios todavía.</p>}
+          {portfolios.length === 0 && <Empty icon={Layers} title="Sin portfolios">Creá el primero arriba.</Empty>}
         </div>
       </Card>
 
@@ -102,9 +108,15 @@ function CikMapSection() {
     <Card>
       <CardHeader title="Tickers → CIK (EDGAR)" sub="Para analizar empresas que no reconocemos por defecto. El CIK es el número de la empresa en SEC EDGAR (10 dígitos)." />
       <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-        <input placeholder="Ticker (ej. TSLA)" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-base sm:text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-        <input placeholder="CIK (ej. 1318605)" value={cik} onChange={e => setCik(e.target.value)} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-base sm:text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-        <Button onClick={guardar}>Agregar</Button>
+        <Field label="Ticker">
+          <input placeholder="Ticker (ej. TSLA)" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} className={inputCls} />
+        </Field>
+        <Field label="CIK">
+          <input placeholder="CIK (ej. 1318605)" value={cik} onChange={e => setCik(e.target.value)} className={inputCls} />
+        </Field>
+        <div className="flex items-end">
+          <Button onClick={guardar}>Agregar</Button>
+        </div>
       </div>
       {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
       {entries.length > 0 && (
@@ -143,10 +155,14 @@ function ChangePassword() {
     <Card>
       <CardHeader title="Cambiar contraseña" sub="Se aplica a tu cuenta de acceso." />
       <div className="p-4 grid sm:grid-cols-2 gap-3">
-        <input type="password" placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} autoComplete="new-password"
-          className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-        <input type="password" placeholder="Repetir contraseña" value={p2} onChange={e => setP2(e.target.value)} autoComplete="new-password"
-          className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+        <Field label="Nueva contraseña">
+          <input type="password" placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} autoComplete="new-password"
+            className={inputCls} />
+        </Field>
+        <Field label="Repetir contraseña">
+          <input type="password" placeholder="Repetir contraseña" value={p2} onChange={e => setP2(e.target.value)} autoComplete="new-password"
+            className={inputCls} />
+        </Field>
         <div className="sm:col-span-2 flex items-center gap-3">
           <Button variant="ghost" onClick={submit} disabled={busy || !p1}><KeyRound className="w-4 h-4" /> {busy ? 'Guardando…' : 'Actualizar contraseña'}</Button>
           {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
@@ -168,10 +184,16 @@ function EditActive({ nombre, estrategia, capital, onSave }: {
     <Card>
       <CardHeader title="Editar portfolio activo" />
       <div className="p-4 space-y-3">
-        <input value={n} onChange={ev => setN(ev.target.value)} className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-        <input value={c} type="number" placeholder="Capital objetivo (USD)" onChange={ev => setC(ev.target.value)} className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-        <textarea value={e} onChange={ev => setE(ev.target.value)} placeholder="Estrategia (texto libre)" rows={3}
-          className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+        <Field label="Nombre">
+          <input value={n} onChange={ev => setN(ev.target.value)} className={inputCls} />
+        </Field>
+        <Field label="Capital objetivo (USD)">
+          <input value={c} type="number" placeholder="Capital objetivo (USD)" onChange={ev => setC(ev.target.value)} className={inputCls} />
+        </Field>
+        <Field label="Estrategia">
+          <textarea value={e} onChange={ev => setE(ev.target.value)} placeholder="Estrategia (texto libre)" rows={3}
+            className={inputCls} />
+        </Field>
         <Button variant="ghost" onClick={async () => { await onSave({ nombre: n, estrategia: e, capital_objetivo: c ? Number(c) : null }); setSaved(true); setTimeout(() => setSaved(false), 1500); }}>
           <Save className="w-4 h-4" /> {saved ? 'Guardado' : 'Guardar cambios'}
         </Button>

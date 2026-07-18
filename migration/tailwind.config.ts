@@ -1,35 +1,34 @@
 import type { Config } from 'tailwindcss';
 
-// Tema claro, pastel, inspirado en la bandera argentina (celeste + blanco) y en la estética
-// moderna de fintech (Lemon Cash): superficies blancas sobre un canvas casi blanco, celeste
-// de marca, sol dorado como acento, mucho aire y bordes suaves.
+// Tema claro/oscuro, pastel, inspirado en la bandera argentina (celeste + blanco) y en la
+// estética moderna de fintech (Lemon Cash). Los neutros (canvas/surface/line/ink) son
+// CSS-variables (ver src/index.css :root y .dark) para cambiar de tema sin tocar las páginas.
+const withVar = (v: string) => `rgb(var(${v}) / <alpha-value>)`;
+
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        canvas: '#F4F8FC',     // fondo de página (celeste muy tenue)
-        surface: '#FFFFFF',    // tarjetas / superficies
-        line: '#E4ECF4',       // bordes
-        // Celeste de la bandera como marca (rampa pastel → contraste)
+        canvas: withVar('--canvas'),     // fondo de página
+        surface: withVar('--surface'),   // tarjetas / superficies
+        line: withVar('--line'),         // bordes
+        // Neutros de texto (rampa). En claro 900=oscuro→300=claro; en oscuro se invierte.
+        ink: {
+          950: withVar('--ink-950'), 900: withVar('--ink-900'), 800: withVar('--ink-800'),
+          700: withVar('--ink-700'), 600: withVar('--ink-600'), 500: withVar('--ink-500'),
+          400: withVar('--ink-400'), 300: withVar('--ink-300'),
+        },
+        // Marca celeste (fija en ambos temas; legible sobre claro y oscuro)
         celeste: {
           50: '#EFF7FD', 100: '#DCEDFA', 200: '#BFE0F5', 300: '#9BCFEF',
           400: '#74ACDF', 500: '#4F97D4', 600: '#3B82C4', 700: '#2C6699',
           DEFAULT: '#74ACDF',
         },
-        // Sol de Mayo: dorado pastel como acento cálido
         sol: { DEFAULT: '#F4C752', soft: '#FBE8BE', deep: '#DDA92E' },
-        // Compatibilidad: `accent` = celeste de marca (para clases *-accent existentes)
         accent: { DEFAULT: '#4F97D4', dim: '#2C6699' },
-        // Neutros. `ink` re-mapeado a escala CLARA: 900 = texto oscuro, 600 = texto atenuado,
-        // 300 = bordes/superficies claras (así clases dark sin migrar no rompen el fondo).
-        ink: {
-          950: '#0F1D2E', 900: '#14212E', 800: '#243244', 700: '#3B4A5C',
-          600: '#5C6A7D', 500: '#94A2B3', 400: '#C4CEDB', 300: '#DDE5EE',
-        },
-        pos: '#15A34A',        // ganancia (verde legible en claro)
-        neg: '#E14B4B',        // pérdida
-        warn: '#E0952B',       // atención
+        pos: '#15A34A', neg: '#E14B4B', warn: '#E0952B',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

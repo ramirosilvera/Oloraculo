@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Trash2, LineChart } from 'lucide-react';
+import { Plus, Trash2, LineChart, Radar } from 'lucide-react';
 import { api } from '../lib/api';
 import { useMacro, useQuotes } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
@@ -9,7 +9,7 @@ import { useWatchlist, type WatchItem } from '../hooks/useWatchlist';
 import { computeRatios } from '../engine/ratios';
 import { computeDcf, DEFAULT_DCF_INPUTS } from '../engine/dcf';
 import { computeScore, type Rating } from '../engine/score';
-import { Card, CardHeader, Button, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
 import type { Fundamentals } from '../types/domain';
 
 const RATING_TONE: Record<Rating, 'pos' | 'accent' | 'warn' | 'neg'> = { A: 'pos', B: 'accent', C: 'warn', D: 'neg' };
@@ -37,12 +37,18 @@ export function RadarPage() {
       <h1 className="text-2xl font-bold text-ink-900 font-display">Radar · Watchlist</h1>
 
       <Card>
-        <div className="p-4 flex flex-wrap gap-2 items-center text-sm">
-          <input placeholder="Ticker (ej. GOOGL)" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
-            className="bg-surface border border-line rounded-xl px-2 py-1.5 w-32 text-ink-900 placeholder:text-ink-500" />
-          <input placeholder="Nota (opcional)" value={nota} onChange={e => setNota(e.target.value)}
-            className="bg-surface border border-line rounded-xl px-2 py-1.5 flex-1 min-w-[140px] text-ink-900 placeholder:text-ink-500" />
-          <Button onClick={agregar} disabled={busy}><Plus className="w-4 h-4" /> Seguir</Button>
+        <div className="p-4 flex flex-wrap gap-2 items-end text-sm">
+          <Field label="Ticker">
+            <input placeholder="Ticker (ej. GOOGL)" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
+              className={`${inputCls} w-32`} />
+          </Field>
+          <Field label="Nota (opcional)" className="flex-1 min-w-[140px]">
+            <input placeholder="Nota (opcional)" value={nota} onChange={e => setNota(e.target.value)}
+              className={inputCls} />
+          </Field>
+          <div className="flex items-end">
+            <Button onClick={agregar} disabled={busy}><Plus className="w-4 h-4" /> Seguir</Button>
+          </div>
         </div>
         {err && <p className="px-4 pb-3 text-xs text-warn">{err}</p>}
       </Card>
@@ -67,7 +73,7 @@ export function RadarPage() {
             <tbody className="divide-y divide-line">
               {items.map(it => <RadarRow key={it.id} item={it} riskFree={riskFree} onRemove={() => remove(it.id)} />)}
               {!isLoading && items.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-6 text-center text-ink-600">Sin tickers en el radar. Agregá el primero arriba.</td></tr>
+                <tr><td colSpan={8}><Empty icon={Radar} title="Radar vacío">Agregá un ticker arriba para ver su score.</Empty></td></tr>
               )}
             </tbody>
           </table>

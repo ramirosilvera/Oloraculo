@@ -1,14 +1,21 @@
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent, CalendarClock, Radar, LogOut, ChevronDown } from 'lucide-react';
+import {
+  LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent,
+  CalendarClock, Radar, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal,
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
+import { usePrefs } from '../hooks/usePrefs';
 import { Wordmark } from './ui';
 
-const NAV = [
+const NAV_PRIMARY = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/posiciones', label: 'Posiciones', icon: Table2 },
   { to: '/radar', label: 'Radar', icon: Radar },
   { to: '/bonos', label: 'Renta fija', icon: Landmark },
+];
+const NAV_SECONDARY = [
   { to: '/tasas', label: 'Tasas EEUU', icon: Percent },
   { to: '/cupones', label: 'Cupones', icon: CalendarClock },
   { to: '/aportes', label: 'Aportes', icon: Wallet },
@@ -17,28 +24,28 @@ const NAV = [
   { to: '/config', label: 'Configuración', icon: Settings },
 ];
 
+const pill = (isActive: boolean) =>
+  `flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+    isActive ? 'bg-celeste-500 text-white shadow-glow' : 'text-ink-600 hover:bg-canvas hover:text-ink-800'}`;
+
 export function Layout() {
   const { signOut, session } = useAuth();
   const { portfolios, active, activeId, setActiveId, loading } = usePortfolios();
+  const { theme, density, toggleTheme, toggleDensity } = usePrefs();
   const navigate = useNavigate();
   const location = useLocation();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
     <div className="min-h-full flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-3">
           <Link to="/" className="shrink-0"><Wordmark /></Link>
 
-          {/* Portfolio selector */}
           <div className="relative min-w-0 flex-1 sm:flex-none sm:ml-2">
             <select
               value={activeId ?? ''}
-              onChange={e => {
-                const v = e.target.value;
-                setActiveId(v);
-                if (v === '__all__') navigate('/consolidado');
-              }}
+              onChange={e => { const v = e.target.value; setActiveId(v); if (v === '__all__') navigate('/consolidado'); }}
               className="w-full max-w-full truncate appearance-none bg-canvas border border-line rounded-full pl-4 pr-9 py-2 text-sm font-semibold text-ink-800 focus:outline-none focus:ring-2 focus:ring-celeste-300"
             >
               {portfolios.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
@@ -47,23 +54,51 @@ export function Layout() {
             <ChevronDown className="w-4 h-4 text-ink-600 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <span className="text-[11px] text-ink-600 hidden sm:inline max-w-[160px] truncate">{session?.user.email}</span>
-            <button onClick={signOut} className="text-ink-600 hover:text-neg hover:bg-neg/5 inline-flex items-center justify-center w-10 h-10 rounded-full transition-colors" title="Salir">
-              <LogOut className="w-4 h-4" />
-            </button>
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            <IconBtn onClick={toggleDensity} title={density === 'compact' ? 'Densidad cómoda' : 'Densidad compacta'} active={density === 'compact'}>
+              <Rows3 className="w-4 h-4" />
+            </IconBtn>
+            <IconBtn onClick={toggleTheme} title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </IconBtn>
+            <span className="text-[11px] text-ink-600 hidden md:inline max-w-[150px] truncate ml-1">{session?.user.email}</span>
+            <IconBtn onClick={signOut} title="Salir" danger><LogOut className="w-4 h-4" /></IconBtn>
           </div>
         </div>
-        {/* Nav — pills */}
-        <nav className="mx-auto max-w-6xl px-3 pb-2.5 flex gap-1.5 overflow-x-auto no-scrollbar">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end}
-              className={({ isActive }) =>
-                `flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                  isActive ? 'bg-celeste-500 text-white shadow-glow' : 'text-ink-600 hover:bg-canvas hover:text-ink-800'}`}>
+
+        {/* Nav — pills; en móvil los secundarios van al menú "Más" */}
+        <nav className="mx-auto max-w-6xl px-3 pb-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {NAV_PRIMARY.map(({ to, label, icon: Icon, end }) => (
+            <NavLink key={to} to={to} end={end} className={({ isActive }) => pill(isActive)}>
               <Icon className="w-3.5 h-3.5" /> {label}
             </NavLink>
           ))}
+          {/* Secundarios: pills en desktop */}
+          {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} className={({ isActive }) => `${pill(isActive)} hidden lg:flex`}>
+              <Icon className="w-3.5 h-3.5" /> {label}
+            </NavLink>
+          ))}
+          {/* "Más" en móvil/tablet */}
+          <div className="relative lg:hidden">
+            <button onClick={() => setMoreOpen(o => !o)} className={pill(NAV_SECONDARY.some(n => location.pathname === n.to))}>
+              <MoreHorizontal className="w-3.5 h-3.5" /> Más
+            </button>
+            {moreOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
+                <div className="absolute right-0 mt-1.5 z-20 w-48 rounded-2xl border border-line bg-surface shadow-card p-1.5 animate-fade-in">
+                  {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
+                    <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
+                      className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                        isActive ? 'bg-celeste-100 text-celeste-700' : 'text-ink-700 hover:bg-canvas'}`}>
+                      <Icon className="w-4 h-4" /> {label}
+                    </NavLink>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </nav>
       </header>
 
@@ -81,6 +116,20 @@ export function Layout() {
         Portafolio · los números los calcula el código, la IA solo interpreta lo cualitativo.
       </footer>
     </div>
+  );
+}
+
+function IconBtn({ children, onClick, title, active, danger }: {
+  children: React.ReactNode; onClick?: () => void; title: string; active?: boolean; danger?: boolean;
+}) {
+  return (
+    <button onClick={onClick} title={title} aria-label={title}
+      className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-colors ${
+        active ? 'bg-celeste-100 text-celeste-700'
+        : danger ? 'text-ink-600 hover:text-neg hover:bg-neg/5'
+        : 'text-ink-600 hover:text-ink-900 hover:bg-canvas'}`}>
+      {children}
+    </button>
   );
 }
 

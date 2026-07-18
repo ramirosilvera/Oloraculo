@@ -1,6 +1,7 @@
+import { Landmark } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes } from '../hooks/usePosiciones';
-import { Card, CardHeader, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 
 export function BonosPage() {
   const { active } = usePortfolios();
@@ -54,7 +55,7 @@ export function BonosPage() {
                   </tr>
                 );
               })}
-              {bonos.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-ink-600">Sin bonos en este portfolio. Agregalos en Posiciones (tipo "Bono/ON").</td></tr>}
+              {bonos.length === 0 && <tr><td colSpan={7}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
             </tbody>
           </table>
         </div>

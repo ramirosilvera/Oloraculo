@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, LineChart } from 'lucide-react';
+import { Plus, Trash2, LineChart, Table2 } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
-import { Card, CardHeader, Button, Badge, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
@@ -75,46 +75,70 @@ export function PosicionesPage() {
       {showForm && (
         <Card>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-            <select value={form.tipo} onChange={e => setForm(f => applyAuto({ ...f, tipo: e.target.value as Posicion['tipo'] }))}
-              className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
-              <option value="cedear">CEDEAR</option>
-              <option value="accion">Acción (US)</option>
-              <option value="accion_ar">Acción ARG</option>
-              <option value="etf">ETF</option>
-              <option value="bono">Bono / ON</option>
-              <option value="cash">Cash</option>
-            </select>
-            <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm(f => applyAuto({ ...f, ticker: e.target.value.toUpperCase() }))} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-            <input placeholder="Cantidad" type="number" onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-            <input placeholder="Precio compra USD" type="number" onChange={e => setForm({ ...form, precio_compra: Number(e.target.value) })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-            <input placeholder={form.tipo === 'cedear' ? 'Ratio (auto)' : 'Ratio (CEDEAR)'} type="number" value={form.ratio_cedear ?? ''} onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-            <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-            <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300 text-base sm:text-sm" />
-            <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
+            <Field label="Tipo">
+              <select value={form.tipo} onChange={e => setForm(f => applyAuto({ ...f, tipo: e.target.value as Posicion['tipo'] }))}
+                className={`${inputCls} appearance-none`}>
+                <option value="cedear">CEDEAR</option>
+                <option value="accion">Acción (US)</option>
+                <option value="accion_ar">Acción ARG</option>
+                <option value="etf">ETF</option>
+                <option value="bono">Bono / ON</option>
+                <option value="cash">Cash</option>
+              </select>
+            </Field>
+            <Field label="Ticker">
+              <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm(f => applyAuto({ ...f, ticker: e.target.value.toUpperCase() }))} className={inputCls} />
+            </Field>
+            <Field label="Cantidad">
+              <input placeholder="Cantidad" type="number" onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} className={inputCls} />
+            </Field>
+            <Field label="Precio compra (USD)">
+              <input placeholder="Precio compra USD" type="number" onChange={e => setForm({ ...form, precio_compra: Number(e.target.value) })} className={inputCls} />
+            </Field>
+            <Field label="Ratio CEDEAR">
+              <input placeholder={form.tipo === 'cedear' ? 'Ratio (auto)' : 'Ratio (CEDEAR)'} type="number" value={form.ratio_cedear ?? ''} onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className={inputCls} />
+            </Field>
+            <Field label="% objetivo">
+              <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className={inputCls} />
+            </Field>
+            <Field label="Sector">
+              <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className={`${inputCls} text-base sm:text-sm`} />
+            </Field>
+            <div className="flex items-end">
+              <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
+            </div>
           </div>
           {form.tipo === 'bono' && (
             <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm border-t border-line pt-3">
               <div className="col-span-2 sm:col-span-4 text-[11px] text-ink-600">Datos de cupón (para el flujo de cupones):</div>
-              <input placeholder="Tasa cupón % anual" type="number" step="0.1" value={form.cupon_tasa != null ? form.cupon_tasa * 100 : ''}
-                onChange={e => setForm({ ...form, cupon_tasa: e.target.value ? Number(e.target.value) / 100 : null })}
-                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-              <select value={form.cupon_frecuencia ?? ''} onChange={e => setForm({ ...form, cupon_frecuencia: e.target.value ? Number(e.target.value) : null })}
-                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
-                <option value="">Frecuencia…</option>
-                <option value="1">Anual</option>
-                <option value="2">Semestral</option>
-                <option value="4">Trimestral</option>
-              </select>
-              <select value={form.cupon_mes ?? ''} onChange={e => setForm({ ...form, cupon_mes: e.target.value ? Number(e.target.value) : null })}
-                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
-                <option value="">Mes de pago…</option>
-                {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => (
-                  <option key={m} value={i + 1}>{m}</option>
-                ))}
-              </select>
-              <input placeholder="Vencimiento" type="date" value={form.vencimiento ?? ''}
-                onChange={e => setForm({ ...form, vencimiento: e.target.value || null })}
-                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+              <Field label="Tasa cupón (% anual)">
+                <input placeholder="Tasa cupón % anual" type="number" step="0.1" value={form.cupon_tasa != null ? form.cupon_tasa * 100 : ''}
+                  onChange={e => setForm({ ...form, cupon_tasa: e.target.value ? Number(e.target.value) / 100 : null })}
+                  className={inputCls} />
+              </Field>
+              <Field label="Frecuencia">
+                <select value={form.cupon_frecuencia ?? ''} onChange={e => setForm({ ...form, cupon_frecuencia: e.target.value ? Number(e.target.value) : null })}
+                  className={`${inputCls} appearance-none`}>
+                  <option value="">Frecuencia…</option>
+                  <option value="1">Anual</option>
+                  <option value="2">Semestral</option>
+                  <option value="4">Trimestral</option>
+                </select>
+              </Field>
+              <Field label="Mes de pago">
+                <select value={form.cupon_mes ?? ''} onChange={e => setForm({ ...form, cupon_mes: e.target.value ? Number(e.target.value) : null })}
+                  className={`${inputCls} appearance-none`}>
+                  <option value="">Mes de pago…</option>
+                  {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => (
+                    <option key={m} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Vencimiento">
+                <input placeholder="Vencimiento" type="date" value={form.vencimiento ?? ''}
+                  onChange={e => setForm({ ...form, vencimiento: e.target.value || null })}
+                  className={inputCls} />
+              </Field>
             </div>
           )}
           {formErr && <p className="px-4 pb-3 text-xs text-warn">{formErr}</p>}
@@ -172,7 +196,7 @@ export function PosicionesPage() {
                   </tr>
                 );
               })}
-              {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-ink-600">Sin posiciones. Agregá la primera.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={8}><Empty icon={Table2} title="Sin posiciones todavía">Agregá tu primera posición con el botón "Agregar".</Empty></td></tr>}
             </tbody>
           </table>
         </div>

@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { CalendarClock } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones } from '../hooks/usePosiciones';
 import { couponCalendar, cuponAnualTotal, type CouponBond } from '../engine/coupons';
-import { Card, CardHeader, Stat, fmtUsd, fmtPct } from '../components/ui';
+import { Card, CardHeader, Stat, Empty, fmtUsd, fmtPct } from '../components/ui';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -52,10 +53,9 @@ export function CuponesPage() {
 
       {conCupon === 0 ? (
         <Card>
-          <div className="p-6 text-center text-sm text-ink-600">
-            Ningún bono tiene datos de cupón cargados todavía. En <b>Posiciones</b>, editá un bono y completá
-            <b> tasa de cupón</b>, <b>frecuencia</b> y <b>mes de pago</b> para ver el calendario.
-          </div>
+          <Empty icon={CalendarClock} title="Sin datos de cupón">
+            En Posiciones, editá un bono y completá tasa de cupón, frecuencia y mes de pago para ver el calendario.
+          </Empty>
         </Card>
       ) : (
         <>
