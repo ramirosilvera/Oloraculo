@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
@@ -44,9 +44,12 @@ export function AnalisisPage() {
 
   if (cikLoading || isLoading) return <p className="text-ink-600">Cargando fundamentals de {T}…</p>;
   if (error) return (
-    <div className="text-sm text-warn space-y-1">
-      <p>No hay fundamentals de <b>{T}</b> vía EDGAR.</p>
-      <p className="text-ink-600">Solo funciona con empresas que reportan a la SEC. Si es una grande de EE.UU. que no reconocemos, cargá su par ticker → CIK en <b>Configuración</b>.</p>
+    <div className="space-y-3">
+      <Link to="/analisis" className="text-xs text-celeste-600 hover:underline">← Volver a Análisis</Link>
+      <div className="text-sm text-warn space-y-1">
+        <p>No hay fundamentals de <b>{T}</b> vía EDGAR.</p>
+        <p className="text-ink-600">Solo funciona con empresas que reportan a la SEC. Si es una grande de EE.UU. que no reconocemos, cargá su par ticker → CIK en <b>Configuración</b>.</p>
+      </div>
     </div>
   );
   if (!fund || !ratios || !dcf) return null;
@@ -55,6 +58,7 @@ export function AnalisisPage() {
 
   return (
     <div className="space-y-4">
+      <Link to="/analisis" className="inline-flex items-center text-xs text-celeste-600 hover:underline">← Volver a Análisis</Link>
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-ink-900 font-display">{T}</h1>
         <span className="text-sm text-ink-600">{(fund as Fundamentals).entityName ?? ''}</span>

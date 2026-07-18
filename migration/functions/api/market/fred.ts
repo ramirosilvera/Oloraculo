@@ -3,9 +3,11 @@ import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchText } fro
 const TTL = 6 * 60 * 60 * 1000; // 6h
 // FRED series → clave en macro_cache. Valores en % (ej. DGS10 = 4.3 → guardamos 4.3).
 const SERIES: Record<string, string> = {
-  DGS10: 'dgs10',            // Treasury 10Y
-  DGS3MO: 'dgs3mo',          // T-Bills 3M
-  BAMLH0A0HYM2: 'hy_spread', // High Yield OAS
+  DGS10: 'dgs10',            // Treasury 10Y (%)
+  DGS3MO: 'dgs3mo',          // T-Bills 3M (%)
+  BAMLH0A0HYM2: 'hy_spread', // High Yield OAS (%)
+  VIXCLS: 'vix',             // CBOE VIX (nivel) — gratis en FRED (Finnhub free no da ^VIX)
+  DTWEXBGS: 'dollar_index',  // Índice dólar amplio (base 2006=100)
 };
 
 // Last numeric value in a fredgraph CSV (skips "." missing markers).

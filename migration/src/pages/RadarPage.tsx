@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, Trash2, LineChart, Radar } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, LineChart, Radar, RefreshCw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useMacro, useQuotes } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
@@ -16,13 +16,27 @@ const RATING_TONE: Record<Rating, 'pos' | 'accent' | 'warn' | 'neg'> = { A: 'pos
 
 export function RadarPage() {
   const { data: items = [], isLoading, add, remove } = useWatchlist();
+  const qc = useQueryClient();
   const [ticker, setTicker] = useState('');
   const [nota, setNota] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: macro = {} } = useMacro();
   const riskFree = ((macro as Record<string, number | null>).dgs10 ?? 4.3) / 100;
+
+  const refrescar = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['quotes'] }),
+        qc.invalidateQueries({ queryKey: ['fundamentals'] }),
+        qc.invalidateQueries({ queryKey: ['macro'] }),
+        qc.invalidateQueries({ queryKey: ['watchlist'] }),
+      ]);
+    } finally { setRefreshing(false); }
+  };
 
   const agregar = async () => {
     if (!ticker.trim()) { setErr('Ingresá un ticker.'); return; }
@@ -55,7 +69,10 @@ export function RadarPage() {
 
       <Card>
         <CardHeader title="Tickers en seguimiento"
-          sub="Score = valuación (MoS) + calidad (ROIC−WACC, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código." />
+          sub="Score = valuación (MoS) + calidad (ROIC−WACC, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código."
+          right={<Button variant="ghost" onClick={refrescar} disabled={refreshing}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Actualizando…' : 'Refrescar'}
+          </Button>} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="text-[11px] text-ink-600 border-b border-line">
@@ -91,9 +108,9 @@ function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: num
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
   const cik = item.cik || cikMap.get(T)?.cik;
 
-  const { data: fund } = useQuery({
+  const { data: fund, isFetching } = useQuery({
     queryKey: ['fundamentals', T, cik ?? ''],
-    enabled: !cikLoading,
+    enabled: !cikLoading && !!cik,   // sin CIK no hay fundamentals que pedir
     queryFn: () => api.fundamentals(T, cik),
     staleTime: 12 * 60 * 60_000,
     retry: false,
@@ -131,7 +148,11 @@ function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: num
       <td className="text-right px-3">
         {score?.score != null
           ? <span className="inline-flex items-center gap-1.5"><span className="tnum font-bold text-ink-900">{score.score}</span><Badge tone={RATING_TONE[score.rating!]}>{score.rating}</Badge></span>
-          : <span className="text-ink-600">—</span>}
+          : !cik
+            ? <Link to="/config" className="text-[10px] text-warn hover:underline" title="Cargá el CIK en Configuración">sin CIK</Link>
+            : isFetching
+              ? <span className="text-ink-500 text-xs">…</span>
+              : <span className="text-ink-600">—</span>}
       </td>
       <td className="px-2 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1">

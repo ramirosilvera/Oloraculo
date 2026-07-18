@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent,
-  CalendarClock, Radar, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal,
+  CalendarClock, Radar, Sparkles, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
@@ -16,6 +16,7 @@ const NAV_PRIMARY = [
   { to: '/bonos', label: 'Renta fija', icon: Landmark },
 ];
 const NAV_SECONDARY = [
+  { to: '/analisis', label: 'Análisis', icon: Sparkles },
   { to: '/tasas', label: 'Tasas EEUU', icon: Percent },
   { to: '/cupones', label: 'Cupones', icon: CalendarClock },
   { to: '/aportes', label: 'Aportes', icon: Wallet },
