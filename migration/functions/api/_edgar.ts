@@ -37,16 +37,31 @@ export const CONCEPTS = {
 interface Raw { end: string; val: number; fy?: number; fp?: string; form?: string; filed?: string; }
 export interface AnnualPoint { fy: number; end: string; val: number; }
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Devuelve la serie de un concepto. Distingue "no existe" (404/403 → null definitivo) de errores
+// transitorios (429/5xx/red → reintenta con backoff), para no confundir un rate-limit del proxy
+// con ausencia real de dato. Elige la unidad correcta (USD / USD/shares / shares) explícitamente.
 async function fetchConcept(env: Env, cik: string, taxonomy: string, concept: string): Promise<Raw[] | null> {
   const url = `${env.SEC_PROXY_BASE}/api/xbrl/companyconcept/CIK${cik}/${taxonomy}/${concept}.json?k=${env.SEC_PROXY_TOKEN}`;
-  const res = await fetch(url);
-  if (res.status === 404 || res.status === 403) return null;
-  if (!res.ok) return null;
-  const data = await res.json() as { units?: Record<string, Raw[]> };
-  const units = data.units ?? {};
-  // USD for money, USD/shares for EPS, shares for share counts — take the first present.
-  const key = Object.keys(units)[0];
-  return key ? units[key] : null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url);
+    } catch {
+      await sleep(300 * (attempt + 1));   // error de red → reintento
+      continue;
+    }
+    if (res.status === 404 || res.status === 403) return null;              // concepto inexistente
+    if (res.status === 429 || res.status >= 500) { await sleep(400 * (attempt + 1)); continue; } // transitorio
+    if (!res.ok) return null;
+    const data = await res.json() as { units?: Record<string, Raw[]> };
+    const units = data.units ?? {};
+    const keys = Object.keys(units);
+    const key = keys.find(k => k === 'USD') ?? keys.find(k => k === 'USD/shares') ?? keys.find(k => k === 'shares') ?? keys[0];
+    return key ? units[key] : null;
+  }
+  return null; // reintentos agotados
 }
 
 // Try each alias; return the first concept that yields data.
@@ -62,7 +77,7 @@ async function fetchFirst(env: Env, cik: string, taxonomy: string, aliases: read
 // keep the latest-filed value; sorted oldest→newest.
 function parseAnnual(raw: Raw[] | null): AnnualPoint[] {
   if (!raw) return [];
-  const tenK = raw.filter(x => x.form === '10-K' && (x.fp === 'FY' || x.fp == null));
+  const tenK = raw.filter(x => (x.form ?? '').startsWith('10-K') && (x.fp === 'FY' || x.fp == null));
   const byEnd = new Map<string, Raw>();
   for (const x of tenK) {
     const prev = byEnd.get(x.end);
@@ -107,17 +122,21 @@ export async function fetchFundamentals(env: Env, ticker: string, cik: string): 
     fetchConcept(env, cik, 'dei', 'EntityCommonStockSharesOutstanding'),
   ]);
 
-  const totalDebt = sumByFy(parseAnnual(dl), parseAnnual(ds));
-  const ungradeable: string[] = [];
-  const req: [string, AnnualPoint[]][] = [['ocf', parseAnnual(ocf)], ['epsDiluted', parseAnnual(eps)], ['revenue', parseAnnual(rev)]];
-  for (const [k, v] of req) if (v.length === 0) ungradeable.push(k);
-
-  return {
-    ticker, cik, entityName: null, shares: parseLatest(sharesRaw),
+  const P = {
     ocf: parseAnnual(ocf), netIncome: parseAnnual(ni), dna: parseAnnual(dna), capex: parseAnnual(capex),
     revenue: parseAnnual(rev), operatingIncome: parseAnnual(opInc), epsDiluted: parseAnnual(eps),
-    dividendPerShare: parseAnnual(dps), equity: parseAnnual(eq), totalDebt,
+    dividendPerShare: parseAnnual(dps), equity: parseAnnual(eq), totalDebt: sumByFy(parseAnnual(dl), parseAnnual(ds)),
     cash: parseAnnual(cash), shortTermInvestments: parseAnnual(sti), taxes: parseAnnual(tax),
-    pretaxIncome: parseAnnual(pre), ungradeable,
+    pretaxIncome: parseAnnual(pre),
   };
+
+  // Marcamos como "ungradeable" TODO campo crítico que alimenta el DCF (owner earnings) o los
+  // ratios (ROIC, P/B) — no solo ocf/eps/revenue — para poder avisar cuando falta algo clave.
+  const criticos: [string, AnnualPoint[]][] = [
+    ['ocf', P.ocf], ['epsDiluted', P.epsDiluted], ['revenue', P.revenue],
+    ['dna', P.dna], ['capex', P.capex], ['equity', P.equity], ['totalDebt', P.totalDebt], ['cash', P.cash],
+  ];
+  const ungradeable = criticos.filter(([, v]) => v.length === 0).map(([k]) => k);
+
+  return { ticker, cik, entityName: null, shares: parseLatest(sharesRaw), ...P, ungradeable };
 }

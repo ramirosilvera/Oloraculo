@@ -24,11 +24,17 @@ export const onRequestGet = guard(async ({ request, env }) => {
 
   try {
     const data = await fetchFundamentals(env, ticker, cik);
-    await sbUpsert(env, 'fundamentals_cache', [{
-      ticker, cik, data_json: data, updated_at: new Date().toISOString(),
-    }], 'ticker');
-    // 20-F / IFRS filers (e.g. ASML) may lack us-gaap tags → surface, don't crash.
-    if (data.ungradeable.length) return json({ ...data, warning: 'datos incompletos vía EDGAR (posible 20-F/IFRS)' });
+    // Núcleo: si faltan OCF/EPS/Revenue probablemente fue un fallo transitorio del proxy (429/5xx)
+    // o un filer 20-F/IFRS. NO lo cacheamos 12h para no congelar datos vacíos: se reintenta al toque.
+    const nucleoIncompleto = !data.ocf.length || !data.epsDiluted.length || !data.revenue.length;
+    if (!nucleoIncompleto) {
+      await sbUpsert(env, 'fundamentals_cache', [{
+        ticker, cik, data_json: data, updated_at: new Date().toISOString(),
+      }], 'ticker');
+    }
+    if (data.ungradeable.length) {
+      return json({ ...data, warning: `datos incompletos vía EDGAR: falta ${data.ungradeable.join(', ')} (posible 20-F/IFRS o rate-limit)` });
+    }
     return json(data);
   } catch (e) {
     return json({ error: 'edgar-fetch-failed', detail: String(e) }, 502);
