@@ -67,28 +67,32 @@ export function Layout() {
           </div>
         </div>
 
-        {/* Nav — pills; en móvil los secundarios van al menú "Más" */}
-        <nav className="mx-auto max-w-6xl px-3 pb-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {NAV_PRIMARY.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => pill(isActive)}>
-              <Icon className="w-3.5 h-3.5" /> {label}
-            </NavLink>
-          ))}
-          {/* Secundarios: pills en desktop */}
-          {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `${pill(isActive)} hidden lg:flex`}>
-              <Icon className="w-3.5 h-3.5" /> {label}
-            </NavLink>
-          ))}
-          {/* "Más" en móvil/tablet */}
-          <div className="relative lg:hidden">
-            <button onClick={() => setMoreOpen(o => !o)} className={pill(NAV_SECONDARY.some(n => location.pathname === n.to))}>
+        {/* Nav — pills; en móvil los secundarios van al menú "Más".
+            El scroll horizontal va SOLO en el contenedor de pills; el menú "Más" queda fuera
+            para que su dropdown no lo recorte el overflow. */}
+        <div className="mx-auto max-w-6xl px-3 pb-2.5 flex items-center gap-1.5">
+          <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
+            {NAV_PRIMARY.map(({ to, label, icon: Icon, end }) => (
+              <NavLink key={to} to={to} end={end} className={({ isActive }) => pill(isActive)}>
+                <Icon className="w-3.5 h-3.5" /> {label}
+              </NavLink>
+            ))}
+            {/* Secundarios: pills en desktop */}
+            {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
+              <NavLink key={to} to={to} className={({ isActive }) => `${pill(isActive)} hidden lg:flex`}>
+                <Icon className="w-3.5 h-3.5" /> {label}
+              </NavLink>
+            ))}
+          </nav>
+          {/* "Más" en móvil/tablet (fuera del scroll) */}
+          <div className="relative lg:hidden shrink-0">
+            <button onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen} className={pill(NAV_SECONDARY.some(n => location.pathname === n.to))}>
               <MoreHorizontal className="w-3.5 h-3.5" /> Más
             </button>
             {moreOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
-                <div className="absolute right-0 mt-1.5 z-20 w-48 rounded-2xl border border-line bg-surface shadow-card p-1.5 animate-fade-in">
+                <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+                <div className="absolute right-0 mt-1.5 z-50 w-48 rounded-2xl border border-line bg-surface shadow-card p-1.5 animate-fade-in">
                   {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
                     <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
                       className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
@@ -100,7 +104,7 @@ export function Layout() {
               </>
             )}
           </div>
-        </nav>
+        </div>
       </header>
 
       <main className="mx-auto max-w-6xl w-full px-4 py-6 flex-1 animate-fade-in">
