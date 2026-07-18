@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, LogOut, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
 
@@ -8,6 +8,7 @@ const NAV = [
   { to: '/posiciones', label: 'Posiciones', icon: Table2 },
   { to: '/bonos', label: 'Renta fija', icon: Landmark },
   { to: '/aportes', label: 'Aportes', icon: Wallet },
+  { to: '/proyeccion', label: 'Proyección', icon: TrendingUp },
   { to: '/consolidado', label: 'Consolidado', icon: Layers },
   { to: '/config', label: 'Configuración', icon: Settings },
 ];

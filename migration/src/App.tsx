@@ -10,6 +10,7 @@ import { BonosPage } from './pages/BonosPage';
 import { AportesPage } from './pages/AportesPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { ConsolidadoPage } from './pages/ConsolidadoPage';
+import { ProyeccionesPage } from './pages/ProyeccionesPage';
 
 export function App() {
   const { session, loading } = useAuth();
@@ -28,6 +29,7 @@ export function App() {
           <Route path="analisis/:ticker" element={<AnalisisPage />} />
           <Route path="bonos" element={<BonosPage />} />
           <Route path="aportes" element={<AportesPage />} />
+          <Route path="proyeccion" element={<ProyeccionesPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="consolidado" element={<ConsolidadoPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
