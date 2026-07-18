@@ -108,6 +108,18 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
     sell: async (pos: Posicion, sellQty: number, sellPrice: number, fecha?: string) => {
       const qty = Math.min(Number(sellQty) || 0, Number(pos.cantidad) || 0);
       if (qty <= 0) throw new Error('Cantidad de venta inválida');
+      // Si la posición no tiene historial (fue cargada antes de que existieran los movimientos),
+      // registramos su compra base con la cantidad y costo actuales, para que el P&L realizado
+      // se calcule sobre una base de costo correcta.
+      const { count } = await supabase.from('movimientos')
+        .select('id', { count: 'exact', head: true }).eq('posicion_id', pos.id);
+      if (!count) {
+        await supabase.from('movimientos').insert({
+          portfolio_id: portfolioId, posicion_id: pos.id, ticker: pos.ticker,
+          tipo: 'compra', cantidad: pos.cantidad, precio: pos.precio_compra,
+          fecha: pos.fecha_compra ?? new Date().toISOString().slice(0, 10), nota: 'carga inicial',
+        });
+      }
       await supabase.from('movimientos').insert({
         portfolio_id: portfolioId, posicion_id: pos.id, ticker: pos.ticker,
         tipo: 'venta', cantidad: qty, precio: Number(sellPrice) || 0,
@@ -146,6 +158,15 @@ export function useQuotes(tickers: string[], bondTickers: string[] = [], arTicke
       if (ar.status === 'fulfilled') for (const t of arTickers) out[t] = (ar.value as { precios: Record<string, number | null> }).precios?.[t] ?? null;
       return out;
     },
+  });
+}
+
+// Última actualización de los caches de mercado (para mostrarle al usuario).
+export function useDataStatus() {
+  return useQuery({
+    queryKey: ['data-status'],
+    staleTime: 5 * 60_000,
+    queryFn: () => api.status(),
   });
 }
 

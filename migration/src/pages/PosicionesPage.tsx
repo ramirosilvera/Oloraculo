@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
-import { Card, CardHeader, Button, Badge, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { realizedPnl } from '../engine/pnl';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
@@ -30,6 +31,11 @@ export function PosicionesPage() {
   }), [posiciones, quotes]);
 
   const totalMkt = rows.reduce((s, r) => s + (r.mkt ?? r.cost), 0);
+  const pnlNoReal = rows.reduce((s, r) => s + (r.pnl ?? 0), 0);
+  const costoTotal = rows.reduce((s, r) => s + r.cost, 0);
+
+  const { data: allMovs = [] } = useMovimientos(active?.id);
+  const realized = useMemo(() => realizedPnl(allMovs), [allMovs]);
 
   const [form, setForm] = useState<Partial<Posicion>>({ tipo: 'cedear', cantidad: 0, precio_compra: 0 });
   const [showForm, setShowForm] = useState(false);
@@ -37,6 +43,10 @@ export function PosicionesPage() {
   const [saving, setSaving] = useState(false);
   const [histTicker, setHistTicker] = useState<string | null>(null);
   const [sellData, setSellData] = useState<{ pos: Posicion; sugerido: number | null } | null>(null);
+  const [showClosed, setShowClosed] = useState(false);
+
+  const cerradas = rows.filter(r => r.p.cantidad <= 0).length;
+  const visibleRows = showClosed ? rows : rows.filter(r => r.p.cantidad > 0);
 
   // Pre-llena el ratio de un CEDEAR desde la base (si existe y el usuario no lo tipeó).
   const applyAuto = (f: Partial<Posicion>): Partial<Posicion> => {
@@ -72,6 +82,13 @@ export function PosicionesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-ink-900 font-display">Posiciones · {active.nombre}</h1>
         <Button onClick={() => setShowForm(v => !v)}><Plus className="w-4 h-4" /> Agregar</Button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Stat label="Valor de mercado" value={fmtUsd(totalMkt, 0)} />
+        <Stat label="Costo" value={fmtUsd(costoTotal, 0)} />
+        <Stat label="P&L no realizado" value={fmtUsd(pnlNoReal, 0)} delta={costoTotal > 0 ? pnlNoReal / costoTotal : undefined} hint="ganancia/pérdida de lo que tenés hoy" />
+        <Stat label="P&L realizado" value={fmtUsd(realized.total, 0)} hint="resultado de las ventas (según historial)" />
       </div>
 
       {showForm && (
@@ -148,7 +165,18 @@ export function PosicionesPage() {
       )}
 
       <Card>
-        <CardHeader title="Cartera" sub="Al agregar un activo ya existente se consolida (costo promedio ponderado); mirá el historial con el ícono de reloj." right={<span className="text-xs text-ink-600 tnum">Total {fmtUsd(totalMkt, 0)}</span>} />
+        <CardHeader title="Cartera" sub="Al agregar un activo ya existente se consolida (costo promedio ponderado); mirá el historial con el ícono de reloj."
+          right={
+            <div className="flex items-center gap-3">
+              {cerradas > 0 && (
+                <button onClick={() => setShowClosed(v => !v)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-600 hover:text-celeste-600">
+                  {showClosed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showClosed ? 'Ocultar cerradas' : `Ver cerradas (${cerradas})`}
+                </button>
+              )}
+              <span className="text-xs text-ink-600 tnum">Total {fmtUsd(totalMkt, 0)}</span>
+            </div>
+          } />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="text-[11px] text-ink-600 border-b border-line">
@@ -164,7 +192,7 @@ export function PosicionesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {rows.map(({ p, unit, mkt, pnl, pnlPct }) => {
+              {visibleRows.map(({ p, unit, mkt, pnl, pnlPct }) => {
                 const pesoAct = mkt != null && totalMkt > 0 ? mkt / totalMkt : null;
                 return (
                   <tr key={p.id} className="hover:bg-canvas">
@@ -203,7 +231,7 @@ export function PosicionesPage() {
                   </tr>
                 );
               })}
-              {rows.length === 0 && <tr><td colSpan={8}><Empty icon={Table2} title="Sin posiciones todavía">Agregá tu primera posición con el botón "Agregar".</Empty></td></tr>}
+              {visibleRows.length === 0 && <tr><td colSpan={8}><Empty icon={Table2} title="Sin posiciones todavía">Agregá tu primera posición con el botón "Agregar".</Empty></td></tr>}
             </tbody>
           </table>
         </div>
@@ -276,7 +304,7 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
 function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: string; ticker: string; onClose: () => void }) {
   const { data: movs = [], isLoading } = useMovimientos(portfolioId, ticker);
   const totalQty = movs.reduce((s, m) => s + (m.tipo === 'venta' ? -1 : 1) * m.cantidad, 0);
-  const totalCost = movs.reduce((s, m) => s + (m.tipo === 'venta' ? -1 : 1) * m.cantidad * m.precio, 0);
+  const realizado = realizedPnl(movs).total;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
@@ -299,9 +327,15 @@ function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: strin
                 ))}
           </div>
           {movs.length > 0 && (
-            <div className="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
-              <span className="text-ink-600">Total consolidado</span>
-              <span className="tnum font-semibold text-ink-900">{fmtNum(totalQty, 0)} un. · {fmtUsd(totalCost, 0)}</span>
+            <div className="px-4 py-3 border-t border-line space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-ink-600">Tenencia neta</span>
+                <span className="tnum font-semibold text-ink-900">{fmtNum(totalQty, 0)} un.</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-ink-600">P&L realizado</span>
+                <span className={`tnum font-semibold ${realizado >= 0 ? 'text-pos' : 'text-neg'}`}>{realizado >= 0 ? '+' : ''}{fmtUsd(realizado, 0)}</span>
+              </div>
             </div>
           )}
         </Card>

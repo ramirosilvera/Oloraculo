@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePrefs } from '../hooks/usePrefs';
 import { Wordmark } from './ui';
+import { UpdatedAt } from './UpdatedAt';
 
 const NAV_PRIMARY = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -117,8 +118,9 @@ export function Layout() {
               : <Outlet />}
       </main>
 
-      <footer className="mx-auto max-w-6xl w-full px-4 py-6 text-center text-[11px] text-ink-500">
-        Portafolio · los números los calcula el código, la IA solo interpreta lo cualitativo.
+      <footer className="mx-auto max-w-6xl w-full px-4 py-6 text-center text-[11px] text-ink-500 space-y-1">
+        <div><UpdatedAt /></div>
+        <p>Portafolio · los números los calcula el código, la IA solo interpreta lo cualitativo.</p>
       </footer>
     </div>
   );

@@ -3,6 +3,7 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
 import { SEMAFOROS, sintesis, type Luz } from '../engine/semaforos';
 import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 
 const LUZ_BG: Record<Luz, string> = { verde: 'bg-pos/15 text-pos', amarillo: 'bg-warn/15 text-warn', rojo: 'bg-neg/15 text-neg' };
@@ -37,7 +38,10 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-ink-900 font-display">Dashboard · {active.nombre}</h1>
+      <div className="flex items-end justify-between gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold text-ink-900 font-display">Dashboard · {active.nombre}</h1>
+        <UpdatedAt icon />
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Patrimonio" value={fmtUsd(patrimonio, 0)} />
