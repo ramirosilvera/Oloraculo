@@ -20,7 +20,15 @@ jobs:
           APP: ${{ secrets.APP_URL }}
         run: |
           [ -z "$APP" ] && { echo "::error::APP_URL no configurada — agregá el secret APP_URL en GitHub"; exit 1; }
-          echo "→ $APP/api/cron/refresh-all"
-          curl -fsS --max-time 120 "$APP/api/cron/refresh-all" || {
-            echo "::warning::refresh-all falló (se reintenta en el próximo tick)"; exit 0;
-          }
+          URL="$APP/api/cron/refresh-all"
+          echo "→ $URL"
+          RESP=$(curl -sS --max-time 120 "$URL")
+          echo "Respuesta: $RESP" | head -c 500
+          case "$RESP" in
+            '{'*'"ok"'*)
+              echo ""; echo "✓ refresh-all OK" ;;
+            *'<!DOCTYPE'* | *'<html'*)
+              echo "::error::APP_URL apunta a un deploy sin la Function (devolvió el HTML de la app). Usá el alias de producción https://portfolio-inversiones.pages.dev (sin hash) y verificá que el último deploy esté en producción."; exit 1 ;;
+            *)
+              echo "::warning::refresh-all no devolvió el JSON esperado (¿fuente externa caída? se reintenta en el próximo tick)"; exit 0 ;;
+          esac
