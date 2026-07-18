@@ -102,6 +102,21 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       }
       invalidate();
     },
+    // Venta: descuenta cantidad y registra el movimiento. El costo promedio (precio_compra) NO
+    // cambia al vender. Si la cantidad llega a 0, la posición queda "cerrada" (cantidad 0) pero
+    // no se borra, para conservar el historial y poder reabrirla con una compra futura.
+    sell: async (pos: Posicion, sellQty: number, sellPrice: number, fecha?: string) => {
+      const qty = Math.min(Number(sellQty) || 0, Number(pos.cantidad) || 0);
+      if (qty <= 0) throw new Error('Cantidad de venta inválida');
+      await supabase.from('movimientos').insert({
+        portfolio_id: portfolioId, posicion_id: pos.id, ticker: pos.ticker,
+        tipo: 'venta', cantidad: qty, precio: Number(sellPrice) || 0,
+        fecha: fecha ?? new Date().toISOString().slice(0, 10), nota: null,
+      });
+      const newQty = (Number(pos.cantidad) || 0) - qty;
+      const { error } = await supabase.from('posiciones').update({ cantidad: newQty }).eq('id', pos.id);
+      if (error) throw error; invalidate();
+    },
     update: async (id: string, patch: Partial<Posicion>) => {
       const { error } = await supabase.from('posiciones').update(patch).eq('id', id);
       if (error) throw error; invalidate();

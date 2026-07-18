@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, LineChart, Table2, History, X } from 'lucide-react';
+import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
@@ -12,7 +12,7 @@ export function PosicionesPage() {
   const { active } = usePortfolios();
   const { ratios: cedearRatios, saveRatio } = useCedearRatios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
-  const { add, remove } = usePosicionMutations(active?.id);
+  const { add, sell, remove } = usePosicionMutations(active?.id);
 
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
@@ -36,6 +36,7 @@ export function PosicionesPage() {
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [histTicker, setHistTicker] = useState<string | null>(null);
+  const [sellData, setSellData] = useState<{ pos: Posicion; sugerido: number | null } | null>(null);
 
   // Pre-llena el ratio de un CEDEAR desde la base (si existe y el usuario no lo tipeó).
   const applyAuto = (f: Partial<Posicion>): Partial<Posicion> => {
@@ -171,6 +172,7 @@ export function PosicionesPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-ink-900">{p.ticker}</span>
                         <Badge tone="gray">{p.tipo}</Badge>
+                        {p.cantidad <= 0 && <Badge tone="neg">cerrada</Badge>}
                       </div>
                       {p.sector && <span className="text-[10px] text-ink-600">{p.sector}</span>}
                     </td>
@@ -188,6 +190,9 @@ export function PosicionesPage() {
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        {p.cantidad > 0 && p.tipo !== 'cash' && (
+                          <button onClick={() => setSellData({ pos: p, sugerido: unit ?? p.precio_compra })} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Vender"><TrendingDown className="w-4 h-4" /></button>
+                        )}
                         <button onClick={() => setHistTicker(p.ticker)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Historial de movimientos"><History className="w-4 h-4" /></button>
                         {p.tipo !== 'bono' && p.tipo !== 'cash' && (
                           <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF"><LineChart className="w-4 h-4" /></Link>
@@ -205,6 +210,65 @@ export function PosicionesPage() {
       </Card>
 
       {histTicker && <MovimientosModal portfolioId={active.id} ticker={histTicker} onClose={() => setHistTicker(null)} />}
+      {sellData && <SellModal pos={sellData.pos} sugerido={sellData.sugerido}
+        onClose={() => setSellData(null)}
+        onSell={async (qty, precio, fecha) => { await sell(sellData.pos, qty, precio, fecha); setSellData(null); }} />}
+    </div>
+  );
+}
+
+function SellModal({ pos, sugerido, onClose, onSell }: {
+  pos: Posicion; sugerido: number | null; onClose: () => void;
+  onSell: (qty: number, precio: number, fecha: string) => Promise<void>;
+}) {
+  const [qty, setQty] = useState<string>(String(pos.cantidad));
+  const [precio, setPrecio] = useState<string>(sugerido != null ? String(+sugerido.toFixed(2)) : '');
+  const [fecha, setFecha] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const n = Number(qty) || 0;
+  const p = Number(precio) || 0;
+  const costoProm = pos.precio_compra;
+  const resultado = n > 0 ? (p - costoProm) * n : 0;
+
+  const confirmar = async () => {
+    if (!(n > 0)) { setErr('Ingresá una cantidad válida.'); return; }
+    if (n > pos.cantidad) { setErr(`No podés vender más de ${fmtNum(pos.cantidad, 0)} que tenés.`); return; }
+    setBusy(true); setErr(null);
+    try { await onSell(n, p, fecha); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo vender'); setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <Card className="animate-rise">
+          <CardHeader title={`Vender · ${pos.ticker}`} sub={`Tenés ${fmtNum(pos.cantidad, 0)} un. · costo prom. ${fmtUsd(pos.precio_compra)}`}
+            right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
+          <div className="p-4 grid grid-cols-2 gap-3">
+            <Field label="Cantidad a vender">
+              <input type="number" value={qty} onChange={e => setQty(e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="Precio de venta (USD)">
+              <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="Fecha" className="col-span-2">
+              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} />
+            </Field>
+            <button type="button" onClick={() => setQty(String(pos.cantidad))} className="col-span-2 text-left text-[11px] text-celeste-600 hover:underline">Vender todo ({fmtNum(pos.cantidad, 0)})</button>
+          </div>
+          <div className="px-4 pb-2 flex items-center justify-between text-sm">
+            <span className="text-ink-600">Resultado estimado (vs costo prom.)</span>
+            <span className={`tnum font-semibold ${resultado >= 0 ? 'text-pos' : 'text-neg'}`}>{resultado >= 0 ? '+' : ''}{fmtUsd(resultado, 0)}</span>
+          </div>
+          {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
+          <div className="px-4 pb-4 flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+            <Button variant="danger" onClick={confirmar} disabled={busy}><TrendingDown className="w-4 h-4" /> {busy ? 'Vendiendo…' : 'Vender'}</Button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
