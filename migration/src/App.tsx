@@ -11,6 +11,7 @@ import { AportesPage } from './pages/AportesPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { ConsolidadoPage } from './pages/ConsolidadoPage';
 import { ProyeccionesPage } from './pages/ProyeccionesPage';
+import { TasasPage } from './pages/TasasPage';
 
 export function App() {
   const { session, loading } = useAuth();
@@ -28,6 +29,7 @@ export function App() {
           <Route path="posiciones" element={<PosicionesPage />} />
           <Route path="analisis/:ticker" element={<AnalisisPage />} />
           <Route path="bonos" element={<BonosPage />} />
+          <Route path="tasas" element={<TasasPage />} />
           <Route path="aportes" element={<AportesPage />} />
           <Route path="proyeccion" element={<ProyeccionesPage />} />
           <Route path="config" element={<ConfigPage />} />

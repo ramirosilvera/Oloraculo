@@ -58,8 +58,8 @@ export function DashboardPage() {
           ))}
         </div>
         <p className="px-4 pb-3 text-[11px] text-ink-600">
-          Los indicadores de mercado (S&P, VIX, oro, BTC, Dollar index, Merval, ADR YPF) se completan
-          cuando el cron de precios los cargue en <code>macro_cache</code>.
+          S&P 500, oro, BTC y ADR YPF vienen de Finnhub (S&P≈SPY×10, oro≈GLD×10). VIX, Dollar index
+          y Merval quedan en — si la fuente gratuita no los provee.
         </p>
       </Card>
 

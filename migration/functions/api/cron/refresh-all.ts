@@ -22,7 +22,7 @@ export const onRequestGet = guard(async ({ request, env }) => {
   };
 
   // 1) Macro + renta fija (no dependen de posiciones)
-  const base = ['/api/market/fx', '/api/market/bonos', '/api/market/riesgo-pais', '/api/market/fred'];
+  const base = ['/api/market/fx', '/api/market/bonos', '/api/market/riesgo-pais', '/api/market/fred', '/api/market/indicadores'];
 
   // 2) Tickers realmente tenidos, agrupados por tipo (service-role → ve todos los portfolios)
   const pos = await sbSelect<{ ticker: string; tipo: string }>(env, 'posiciones', 'select=ticker,tipo');

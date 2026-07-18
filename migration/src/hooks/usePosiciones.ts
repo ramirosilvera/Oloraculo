@@ -75,11 +75,12 @@ export function useMacro() {
     staleTime: 15 * 60_000,
     queryFn: async () => {
       // allSettled: si una fuente cae (ej. riesgo-país 502), las demás igual se muestran.
-      const [fx, rp, fred] = await Promise.allSettled([api.fx(), api.riesgoPais(), api.fred()]);
+      const [fx, rp, fred, ind] = await Promise.allSettled([api.fx(), api.riesgoPais(), api.fred(), api.indicadores()]);
       const out: Record<string, number | null> = {};
       if (fx.status === 'fulfilled') Object.assign(out, fx.value);
       if (rp.status === 'fulfilled') out.riesgo_pais = rp.value.riesgo_pais;
       if (fred.status === 'fulfilled') Object.assign(out, fred.value);
+      if (ind.status === 'fulfilled') Object.assign(out, ind.value);
       return out;
     },
   });
