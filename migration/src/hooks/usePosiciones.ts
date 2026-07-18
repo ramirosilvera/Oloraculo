@@ -1,7 +1,24 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
-import type { Posicion } from '../types/domain';
+import type { Posicion, Movimiento } from '../types/domain';
+
+// Historial de movimientos de un portfolio (opcionalmente filtrado por ticker).
+export function useMovimientos(portfolioId: string | null | undefined, ticker?: string) {
+  return useQuery({
+    queryKey: ['movimientos', portfolioId, ticker ?? 'all'],
+    enabled: !!portfolioId,
+    queryFn: async (): Promise<Movimiento[]> => {
+      let q = supabase.from('movimientos').select('*')
+        .eq('portfolio_id', portfolioId)
+        .order('fecha', { ascending: false }).order('created_at', { ascending: false });
+      if (ticker) q = q.eq('ticker', ticker);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
 
 export function usePosiciones(portfolioId: string | null | undefined) {
   return useQuery({
@@ -31,11 +48,59 @@ export function useAllPosiciones(enabled: boolean) {
 
 export function usePosicionMutations(portfolioId: string | null | undefined) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['posiciones'] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['posiciones'] });
+    qc.invalidateQueries({ queryKey: ['movimientos'] });
+  };
   return {
+    // Alta con CONSOLIDACIÓN: si el activo ya existe en el portfolio, suma la cantidad y
+    // recalcula el precio con costo promedio ponderado; si no, crea la posición. Siempre
+    // registra el movimiento (compra) para dejar el historial completo.
     add: async (p: Partial<Posicion>) => {
-      const { error } = await supabase.from('posiciones').insert({ ...p, portfolio_id: portfolioId });
-      if (error) throw error; invalidate();
+      const ticker = (p.ticker ?? '').toUpperCase().trim();
+      const addQty = Number(p.cantidad) || 0;
+      const addPrice = Number(p.precio_compra) || 0;
+
+      const { data: existing, error: selErr } = await supabase.from('posiciones')
+        .select('*').eq('portfolio_id', portfolioId).eq('ticker', ticker).eq('tipo', p.tipo ?? '')
+        .limit(1).maybeSingle();
+      if (selErr) throw selErr;
+
+      let posId: string;
+      if (existing) {
+        const oldQty = Number(existing.cantidad) || 0;
+        const oldPrice = Number(existing.precio_compra) || 0;
+        const newQty = oldQty + addQty;
+        const newPrice = newQty > 0 ? (oldQty * oldPrice + addQty * addPrice) / newQty : oldPrice;
+        const patch: Partial<Posicion> = { cantidad: newQty, precio_compra: newPrice };
+        // completar campos que faltaban en la posición existente
+        if (existing.ratio_cedear == null && p.ratio_cedear != null) patch.ratio_cedear = p.ratio_cedear;
+        if (!existing.sector && p.sector) patch.sector = p.sector;
+        if (existing.peso_objetivo == null && p.peso_objetivo != null) patch.peso_objetivo = p.peso_objetivo;
+        // datos de cupón: si el activo es bono y no los tenía, tomarlos
+        if (existing.cupon_tasa == null && p.cupon_tasa != null) patch.cupon_tasa = p.cupon_tasa;
+        if (existing.cupon_frecuencia == null && p.cupon_frecuencia != null) patch.cupon_frecuencia = p.cupon_frecuencia;
+        if (existing.cupon_mes == null && p.cupon_mes != null) patch.cupon_mes = p.cupon_mes;
+        if (existing.vencimiento == null && p.vencimiento != null) patch.vencimiento = p.vencimiento;
+        const { error: updErr } = await supabase.from('posiciones').update(patch).eq('id', existing.id);
+        if (updErr) throw updErr;
+        posId = existing.id;
+      } else {
+        const { data: created, error: insErr } = await supabase.from('posiciones')
+          .insert({ ...p, ticker, portfolio_id: portfolioId }).select('id').single();
+        if (insErr) throw insErr;
+        posId = created.id;
+      }
+
+      if (addQty > 0) {
+        await supabase.from('movimientos').insert({
+          portfolio_id: portfolioId, posicion_id: posId, ticker,
+          tipo: 'compra', cantidad: addQty, precio: addPrice,
+          fecha: p.fecha_compra ?? new Date().toISOString().slice(0, 10),
+          nota: p.notas ?? null,
+        });
+      }
+      invalidate();
     },
     update: async (id: string, patch: Partial<Posicion>) => {
       const { error } = await supabase.from('posiciones').update(patch).eq('id', id);

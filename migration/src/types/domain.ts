@@ -46,6 +46,19 @@ export interface Posicion {
   created_at: string;
 }
 
+export interface Movimiento {
+  id: string;
+  portfolio_id: string;
+  posicion_id: string | null;
+  ticker: string;
+  tipo: 'compra' | 'venta' | 'ajuste';
+  cantidad: number;
+  precio: number;                // precio por unidad (USD)
+  fecha: string;
+  nota: string | null;
+  created_at: string;
+}
+
 export interface Aporte {
   id: string;
   portfolio_id: string;

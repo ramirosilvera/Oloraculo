@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, LineChart, Table2 } from 'lucide-react';
+import { Plus, Trash2, LineChart, Table2, History, X } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
+import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { unitValueUSD } from '../lib/valuation';
@@ -35,6 +35,7 @@ export function PosicionesPage() {
   const [showForm, setShowForm] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [histTicker, setHistTicker] = useState<string | null>(null);
 
   // Pre-llena el ratio de un CEDEAR desde la base (si existe y el usuario no lo tipeó).
   const applyAuto = (f: Partial<Posicion>): Partial<Posicion> => {
@@ -146,7 +147,7 @@ export function PosicionesPage() {
       )}
 
       <Card>
-        <CardHeader title="Cartera" sub="Precio en vivo (celeste) = del sistema · el resto lo cargás vos." right={<span className="text-xs text-ink-600 tnum">Total {fmtUsd(totalMkt, 0)}</span>} />
+        <CardHeader title="Cartera" sub="Al agregar un activo ya existente se consolida (costo promedio ponderado); mirá el historial con el ícono de reloj." right={<span className="text-xs text-ink-600 tnum">Total {fmtUsd(totalMkt, 0)}</span>} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="text-[11px] text-ink-600 border-b border-line">
@@ -187,10 +188,11 @@ export function PosicionesPage() {
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setHistTicker(p.ticker)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Historial de movimientos"><History className="w-4 h-4" /></button>
                         {p.tipo !== 'bono' && p.tipo !== 'cash' && (
                           <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF"><LineChart className="w-4 h-4" /></Link>
                         )}
-                        <button onClick={() => { if (window.confirm(`¿Borrar ${p.ticker}? No se puede deshacer.`)) remove(p.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => { if (window.confirm(`¿Borrar ${p.ticker}? Se elimina la posición y su historial. No se puede deshacer.`)) remove(p.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -201,6 +203,45 @@ export function PosicionesPage() {
           </table>
         </div>
       </Card>
+
+      {histTicker && <MovimientosModal portfolioId={active.id} ticker={histTicker} onClose={() => setHistTicker(null)} />}
+    </div>
+  );
+}
+
+function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: string; ticker: string; onClose: () => void }) {
+  const { data: movs = [], isLoading } = useMovimientos(portfolioId, ticker);
+  const totalQty = movs.reduce((s, m) => s + (m.tipo === 'venta' ? -1 : 1) * m.cantidad, 0);
+  const totalCost = movs.reduce((s, m) => s + (m.tipo === 'venta' ? -1 : 1) * m.cantidad * m.precio, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <Card className="animate-rise">
+          <CardHeader title={`Movimientos · ${ticker}`} sub="Registro de cada compra que consolidó esta posición."
+            right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
+          <div className="max-h-[55vh] overflow-y-auto divide-y divide-line">
+            {isLoading
+              ? <p className="p-4 text-sm text-ink-600">Cargando…</p>
+              : movs.length === 0
+                ? <Empty icon={History} title="Sin movimientos">Las compras que hagas quedarán registradas acá.</Empty>
+                : movs.map(m => (
+                  <div key={m.id} className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                    <span className="text-ink-600 tnum w-24 shrink-0">{m.fecha}</span>
+                    <Badge tone={m.tipo === 'compra' ? 'pos' : m.tipo === 'venta' ? 'neg' : 'gray'}>{m.tipo}</Badge>
+                    <span className="flex-1 text-right text-ink-700 tnum">{fmtNum(m.cantidad, 0)} × {fmtUsd(m.precio)}</span>
+                    <span className="font-semibold tnum text-ink-900 w-24 text-right">{fmtUsd(m.cantidad * m.precio, 0)}</span>
+                  </div>
+                ))}
+          </div>
+          {movs.length > 0 && (
+            <div className="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+              <span className="text-ink-600">Total consolidado</span>
+              <span className="tnum font-semibold text-ink-900">{fmtNum(totalQty, 0)} un. · {fmtUsd(totalCost, 0)}</span>
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
