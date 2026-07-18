@@ -1,11 +1,12 @@
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
-import { LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent, CalendarClock, LogOut, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent, CalendarClock, Radar, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/posiciones', label: 'Posiciones', icon: Table2 },
+  { to: '/radar', label: 'Radar', icon: Radar },
   { to: '/bonos', label: 'Renta fija', icon: Landmark },
   { to: '/tasas', label: 'Tasas EEUU', icon: Percent },
   { to: '/cupones', label: 'Cupones', icon: CalendarClock },
