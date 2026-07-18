@@ -25,7 +25,7 @@ export default {
         // 300 = bordes/superficies claras (así clases dark sin migrar no rompen el fondo).
         ink: {
           950: '#0F1D2E', 900: '#14212E', 800: '#243244', 700: '#3B4A5C',
-          600: '#8595A8', 500: '#A6B3C2', 400: '#C4CEDB', 300: '#DDE5EE',
+          600: '#5C6A7D', 500: '#94A2B3', 400: '#C4CEDB', 300: '#DDE5EE',
         },
         pos: '#15A34A',        // ganancia (verde legible en claro)
         neg: '#E14B4B',        // pérdida

@@ -46,7 +46,7 @@ export function TasasPage() {
         <div className="p-4 space-y-2">
           <p className="text-sm text-ink-700">{curva.sugerencia}</p>
           {nivel.luz && (
-            <p className={`text-sm rounded-lg px-3 py-2 ${LUZ_BG[nivel.luz]}`}>{nivel.texto}</p>
+            <p className={`text-sm rounded-xl px-3.5 py-2.5 ${LUZ_BG[nivel.luz]}`}>{nivel.texto}</p>
           )}
         </div>
       </Card>

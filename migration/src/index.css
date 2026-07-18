@@ -19,6 +19,18 @@ body {
   background-attachment: fixed;
 }
 
+/* Interacción: sin flash azul al tocar en móvil, scroll suave */
+* { -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+button, a, [role="button"] { touch-action: manipulation; }
+
+/* Foco visible por teclado, consistente en toda la app (accesibilidad) */
+:focus-visible { outline: 2px solid #4F97D4; outline-offset: 2px; border-radius: 6px; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* Selección de texto con tinte celeste */
+::selection { background: rgba(116,172,223,0.28); }
+
 /* Numeric tables read better tabular */
 .tnum { font-variant-numeric: tabular-nums; }
 
