@@ -28,8 +28,10 @@ jobs:
         working-directory: migration
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # La URL del proyecto Supabase no es secreta (ya va embebida en el bundle y está en
+          # CLAUDE.md); hardcodeada como fallback para no depender de un secret extra.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://wyedmgxngqdgnxmbencl.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
 
       - name: Crear el proyecto Pages si no existe
         working-directory: migration
@@ -45,7 +47,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://wyedmgxngqdgnxmbencl.supabase.co' }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SEC_PROXY_BASE: ${{ secrets.SEC_PROXY_BASE }}
           SEC_PROXY_TOKEN: ${{ secrets.SEC_PROXY_TOKEN }}
