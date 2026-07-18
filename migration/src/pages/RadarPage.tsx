@@ -34,14 +34,14 @@ export function RadarPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Radar · Watchlist</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Radar · Watchlist</h1>
 
       <Card>
         <div className="p-4 flex flex-wrap gap-2 items-center text-sm">
           <input placeholder="Ticker (ej. GOOGL)" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
-            className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 w-32" />
+            className="bg-surface border border-line rounded-xl px-2 py-1.5 w-32 text-ink-900 placeholder:text-ink-500" />
           <input placeholder="Nota (opcional)" value={nota} onChange={e => setNota(e.target.value)}
-            className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 flex-1 min-w-[140px]" />
+            className="bg-surface border border-line rounded-xl px-2 py-1.5 flex-1 min-w-[140px] text-ink-900 placeholder:text-ink-500" />
           <Button onClick={agregar} disabled={busy}><Plus className="w-4 h-4" /> Seguir</Button>
         </div>
         {err && <p className="px-4 pb-3 text-xs text-warn">{err}</p>}
@@ -52,7 +52,7 @@ export function RadarPage() {
           sub="Score = valuación (MoS) + calidad (ROIC−WACC, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código." />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr>
                 <th className="text-left px-4 py-2">Ticker</th>
                 <th className="text-right px-3">Precio</th>
@@ -64,7 +64,7 @@ export function RadarPage() {
                 <th className="px-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {items.map(it => <RadarRow key={it.id} item={it} riskFree={riskFree} onRemove={() => remove(it.id)} />)}
               {!isLoading && items.length === 0 && (
                 <tr><td colSpan={8} className="px-4 py-6 text-center text-ink-600">Sin tickers en el radar. Agregá el primero arriba.</td></tr>
@@ -110,10 +110,10 @@ function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: num
   const verdictTone = dcf?.verdict === 'COMPRAR' ? 'pos' : dcf?.verdict === 'CARO' ? 'neg' : 'warn';
 
   return (
-    <tr className="hover:bg-ink-700/30">
+    <tr className="hover:bg-canvas">
       <td className="px-4 py-2">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-100">{T}</span>
+          <span className="font-semibold text-ink-900">{T}</span>
           {item.nota && <span className="text-[10px] text-ink-600 truncate max-w-[160px]">{item.nota}</span>}
         </div>
       </td>
@@ -124,7 +124,7 @@ function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: num
       <td className="text-right px-3">{dcf ? <Badge tone={verdictTone as 'pos' | 'neg' | 'warn'}>{dcf.verdict}</Badge> : <span className="text-ink-600">—</span>}</td>
       <td className="text-right px-3">
         {score?.score != null
-          ? <span className="inline-flex items-center gap-1.5"><span className="tnum font-bold text-gray-100">{score.score}</span><Badge tone={RATING_TONE[score.rating!]}>{score.rating}</Badge></span>
+          ? <span className="inline-flex items-center gap-1.5"><span className="tnum font-bold text-ink-900">{score.score}</span><Badge tone={RATING_TONE[score.rating!]}>{score.rating}</Badge></span>
           : <span className="text-ink-600">—</span>}
       </td>
       <td className="px-2 text-right whitespace-nowrap">

@@ -41,7 +41,7 @@ export function CuponesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Flujo de cupones · {active.nombre}</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Flujo de cupones · {active.nombre}</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Cupón anual" value={fmtUsd(anual, 0)} hint="suma de cupones de 12 meses" />
@@ -64,12 +64,12 @@ export function CuponesPage() {
             <div className="p-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                  <CartesianGrid stroke="#1e2739" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="mes" stroke="#6b7280" fontSize={11} />
-                  <YAxis stroke="#6b7280" fontSize={11} tickFormatter={v => `$${v}`} width={48} />
-                  <Tooltip contentStyle={{ background: '#0e1420', border: '1px solid #2a3446', borderRadius: 8, fontSize: 12 }}
-                    formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: '#ffffff08' }} />
-                  <Bar dataKey="USD" fill="#2dd4bf" radius={[3, 3, 0, 0]} />
+                  <CartesianGrid stroke="#E4ECF4" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="mes" stroke="#8595A8" fontSize={11} />
+                  <YAxis stroke="#8595A8" fontSize={11} tickFormatter={v => `$${v}`} width={48} />
+                  <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #E4ECF4', borderRadius: 12, fontSize: 12, color: '#14212E' }}
+                    formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
+                  <Bar dataKey="USD" fill="#4F97D4" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -79,17 +79,17 @@ export function CuponesPage() {
             <CardHeader title="Detalle por mes" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[420px]">
-                <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+                <thead className="text-[11px] text-ink-600 border-b border-line">
                   <tr>
                     <th className="text-left px-4 py-2">Mes</th>
                     <th className="text-left px-3">Bonos que pagan</th>
                     <th className="text-right px-4">Total USD</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink-700/60">
+                <tbody className="divide-y divide-line">
                   {cal.filter(m => m.total > 0).map(m => (
-                    <tr key={m.ym} className="hover:bg-ink-700/30">
-                      <td className="px-4 py-2 text-gray-200">{MESES[m.month - 1]} {m.year}</td>
+                    <tr key={m.ym} className="hover:bg-canvas">
+                      <td className="px-4 py-2 text-ink-800">{MESES[m.month - 1]} {m.year}</td>
                       <td className="px-3 text-ink-600 text-[12px]">
                         {m.detalle.map(d => `${d.ticker} (${fmtUsd(d.monto, 0)})`).join(' · ')}
                       </td>

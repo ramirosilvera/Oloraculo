@@ -45,13 +45,13 @@ export function ConsolidadoPage() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Layers className="w-5 h-5 text-accent" />
-        <h1 className="text-xl font-bold text-gray-100">Consolidado</h1>
+        <h1 className="text-2xl font-bold text-ink-900 font-display">Consolidado</h1>
         <Badge tone="accent">solo lectura</Badge>
       </div>
 
-      <div className="flex items-start gap-2 rounded-lg bg-ink-900 border border-ink-700 px-3 py-2 text-[11px] text-ink-600">
+      <div className="flex items-start gap-2 rounded-xl bg-surface border border-line px-3 py-2 text-[11px] text-ink-600">
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
-        <p>Vista agregada de todos los portfolios. La <b className="text-gray-300">gestión se hace por portfolio</b> (elegilo en el header); acá solo ves el total y la exposición combinada.</p>
+        <p>Vista agregada de todos los portfolios. La <b className="text-ink-800">gestión se hace por portfolio</b> (elegilo en el header); acá solo ves el total y la exposición combinada.</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -68,8 +68,8 @@ export function ConsolidadoPage() {
             const w = total > 0 ? v / total : 0;
             return (
               <div key={p.id} className="flex items-center gap-2 text-sm">
-                <span className="w-28 font-semibold text-gray-200 truncate">{p.nombre}</span>
-                <div className="flex-1 h-2 rounded-full bg-ink-700 overflow-hidden"><div className="h-full bg-accent" style={{ width: `${Math.min(100, w * 100)}%` }} /></div>
+                <span className="w-28 font-semibold text-ink-800 truncate">{p.nombre}</span>
+                <div className="flex-1 h-2 rounded-full bg-canvas overflow-hidden"><div className="h-full bg-accent" style={{ width: `${Math.min(100, w * 100)}%` }} /></div>
                 <span className="w-24 text-right tnum text-ink-600">{fmtUsd(v, 0)}</span>
                 <span className="w-12 text-right tnum">{fmtPct(w, 0)}</span>
               </div>
@@ -82,13 +82,13 @@ export function ConsolidadoPage() {
         <CardHeader title="Exposición consolidada por activo" sub="Cuánto pesa cada activo sumando todos los portfolios." />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr><th className="text-left px-4 py-2">Activo</th><th className="text-right px-3">Valor total</th><th className="text-right px-3">% del total</th><th className="text-left px-4">En portfolios</th></tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {tickersOrdenados.map(([ticker, info]) => (
-                <tr key={ticker}>
-                  <td className="px-4 py-2 font-semibold text-gray-100">{ticker}
+                <tr key={ticker} className="hover:bg-canvas">
+                  <td className="px-4 py-2 font-semibold text-ink-900">{ticker}
                     {info.portfolios.size > 1 && <Badge tone="warn"><span className="ml-1">en {info.portfolios.size}</span></Badge>}
                   </td>
                   <td className="text-right px-3 tnum">{fmtUsd(info.total, 0)}</td>

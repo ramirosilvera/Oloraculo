@@ -68,7 +68,7 @@ export function PosicionesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-100">Posiciones · {active.nombre}</h1>
+        <h1 className="text-2xl font-bold text-ink-900 font-display">Posiciones · {active.nombre}</h1>
         <Button onClick={() => setShowForm(v => !v)}><Plus className="w-4 h-4" /> Agregar</Button>
       </div>
 
@@ -76,7 +76,7 @@ export function PosicionesPage() {
         <Card>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
             <select value={form.tipo} onChange={e => setForm(f => applyAuto({ ...f, tipo: e.target.value as Posicion['tipo'] }))}
-              className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
+              className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
               <option value="cedear">CEDEAR</option>
               <option value="accion">Acción (US)</option>
               <option value="accion_ar">Acción ARG</option>
@@ -84,29 +84,29 @@ export function PosicionesPage() {
               <option value="bono">Bono / ON</option>
               <option value="cash">Cash</option>
             </select>
-            <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm(f => applyAuto({ ...f, ticker: e.target.value.toUpperCase() }))} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder="Cantidad" type="number" onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder="Precio compra USD" type="number" onChange={e => setForm({ ...form, precio_compra: Number(e.target.value) })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder={form.tipo === 'cedear' ? 'Ratio (auto)' : 'Ratio (CEDEAR)'} type="number" value={form.ratio_cedear ?? ''} onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-            <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-base sm:text-sm" />
+            <input placeholder="Ticker" value={form.ticker ?? ''} onChange={e => setForm(f => applyAuto({ ...f, ticker: e.target.value.toUpperCase() }))} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+            <input placeholder="Cantidad" type="number" onChange={e => setForm({ ...form, cantidad: Number(e.target.value) })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+            <input placeholder="Precio compra USD" type="number" onChange={e => setForm({ ...form, precio_compra: Number(e.target.value) })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+            <input placeholder={form.tipo === 'cedear' ? 'Ratio (auto)' : 'Ratio (CEDEAR)'} type="number" value={form.ratio_cedear ?? ''} onChange={e => setForm({ ...form, ratio_cedear: Number(e.target.value) || null })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+            <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+            <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300 text-base sm:text-sm" />
             <Button onClick={guardar} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
           </div>
           {form.tipo === 'bono' && (
-            <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm border-t border-ink-700 pt-3">
+            <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm border-t border-line pt-3">
               <div className="col-span-2 sm:col-span-4 text-[11px] text-ink-600">Datos de cupón (para el flujo de cupones):</div>
               <input placeholder="Tasa cupón % anual" type="number" step="0.1" value={form.cupon_tasa != null ? form.cupon_tasa * 100 : ''}
                 onChange={e => setForm({ ...form, cupon_tasa: e.target.value ? Number(e.target.value) / 100 : null })}
-                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
+                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
               <select value={form.cupon_frecuencia ?? ''} onChange={e => setForm({ ...form, cupon_frecuencia: e.target.value ? Number(e.target.value) : null })}
-                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
+                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
                 <option value="">Frecuencia…</option>
                 <option value="1">Anual</option>
                 <option value="2">Semestral</option>
                 <option value="4">Trimestral</option>
               </select>
               <select value={form.cupon_mes ?? ''} onChange={e => setForm({ ...form, cupon_mes: e.target.value ? Number(e.target.value) : null })}
-                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
+                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
                 <option value="">Mes de pago…</option>
                 {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => (
                   <option key={m} value={i + 1}>{m}</option>
@@ -114,7 +114,7 @@ export function PosicionesPage() {
               </select>
               <input placeholder="Vencimiento" type="date" value={form.vencimiento ?? ''}
                 onChange={e => setForm({ ...form, vencimiento: e.target.value || null })}
-                className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5 text-ink-300" />
+                className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
             </div>
           )}
           {formErr && <p className="px-4 pb-3 text-xs text-warn">{formErr}</p>}
@@ -125,7 +125,7 @@ export function PosicionesPage() {
         <CardHeader title="Cartera" sub="Precio en vivo (celeste) = del sistema · el resto lo cargás vos." right={<span className="text-xs text-ink-600 tnum">Total {fmtUsd(totalMkt, 0)}</span>} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr>
                 <th className="text-left px-4 py-2">Activo</th>
                 <th className="text-right px-3">Cant.</th>
@@ -137,20 +137,20 @@ export function PosicionesPage() {
                 <th className="px-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {rows.map(({ p, unit, mkt, pnl, pnlPct }) => {
                 const pesoAct = mkt != null && totalMkt > 0 ? mkt / totalMkt : null;
                 return (
-                  <tr key={p.id} className="hover:bg-ink-700/30">
+                  <tr key={p.id} className="hover:bg-canvas">
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-100">{p.ticker}</span>
+                        <span className="font-semibold text-ink-900">{p.ticker}</span>
                         <Badge tone="gray">{p.tipo}</Badge>
                       </div>
                       {p.sector && <span className="text-[10px] text-ink-600">{p.sector}</span>}
                     </td>
                     <td className="text-right px-3 tnum">{fmtNum(p.cantidad, 0)}</td>
-                    <td className="text-right px-3 tnum text-gray-300">{fmtUsd(p.precio_compra)}</td>
+                    <td className="text-right px-3 tnum text-ink-700">{fmtUsd(p.precio_compra)}</td>
                     <td className="text-right px-3 tnum text-accent">{unit != null ? fmtUsd(unit) : '—'}</td>
                     <td className="text-right px-3 tnum">{fmtUsd(mkt)}</td>
                     <td className={`text-right px-3 tnum ${pnl == null ? '' : pnl >= 0 ? 'text-pos' : 'text-neg'}`}>

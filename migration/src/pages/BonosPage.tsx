@@ -18,13 +18,13 @@ export function BonosPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Renta fija · {active.nombre}</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Renta fija · {active.nombre}</h1>
       <Card>
         <CardHeader title="Bonos y ONs" sub="Precio por nominal desde data912 (paridad = precio/100 × 100)."
           right={<span className="text-xs text-ink-600 tnum">Capital {fmtUsd(totalCapital, 0)} · Mercado {fmtUsd(totalMkt, 0)}</span>} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr>
                 <th className="text-left px-4 py-2">Especie</th>
                 <th className="text-right px-3">Nominales</th>
@@ -35,7 +35,7 @@ export function BonosPage() {
                 <th className="text-left px-4">Notas</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {bonos.map(b => {
                 const px = quotes[b.ticker] ?? null;               // precio por nominal (data912/100)
                 const paridad = px != null ? px * 100 : null;      // en %
@@ -43,10 +43,10 @@ export function BonosPage() {
                 const mkt = px != null ? px * b.cantidad : null;
                 const res = mkt != null ? mkt - capital : null;
                 return (
-                  <tr key={b.id} className="hover:bg-ink-700/30">
-                    <td className="px-4 py-2 font-semibold text-gray-100">{b.ticker}</td>
+                  <tr key={b.id} className="hover:bg-canvas">
+                    <td className="px-4 py-2 font-semibold text-ink-900">{b.ticker}</td>
                     <td className="text-right px-3 tnum">{fmtNum(b.cantidad, 0)}</td>
-                    <td className="text-right px-3 tnum text-gray-300">{fmtUsd(capital, 0)}</td>
+                    <td className="text-right px-3 tnum text-ink-700">{fmtUsd(capital, 0)}</td>
                     <td className="text-right px-3 tnum text-accent">{paridad != null ? fmtPct(paridad / 100, 1) : '—'}</td>
                     <td className="text-right px-3 tnum">{fmtUsd(mkt, 0)}</td>
                     <td className={`text-right px-3 tnum ${res == null ? '' : res >= 0 ? 'text-pos' : 'text-neg'}`}>{res == null ? '—' : `${res >= 0 ? '+' : ''}${fmtUsd(res, 0)}`}</td>

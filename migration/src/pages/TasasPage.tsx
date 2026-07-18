@@ -31,7 +31,7 @@ export function TasasPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Escalera de tasas · EEUU</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Escalera de tasas · EEUU</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="T-Bills 3M" value={dgs3mo != null ? fmtPct(dgs3mo / 100, 2) : '—'} hint="DGS3MO (FRED)" />
@@ -44,7 +44,7 @@ export function TasasPage() {
         <CardHeader title="Lectura de la curva"
           right={curva.luz && <Badge tone={LUZ_TONE[curva.luz]}>{curva.forma}</Badge>} />
         <div className="p-4 space-y-2">
-          <p className="text-sm text-gray-300">{curva.sugerencia}</p>
+          <p className="text-sm text-ink-700">{curva.sugerencia}</p>
           {nivel.luz && (
             <p className={`text-sm rounded-lg px-3 py-2 ${LUZ_BG[nivel.luz]}`}>{nivel.texto}</p>
           )}
@@ -55,7 +55,7 @@ export function TasasPage() {
         <CardHeader title="Peldaños de la escalera" sub="Cada ETF representa un tramo de la curva de Treasuries." />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr>
                 <th className="text-left px-4 py-2">Tramo</th>
                 <th className="text-left px-3">ETF</th>
@@ -65,15 +65,15 @@ export function TasasPage() {
                 <th className="text-right px-4" title="Impacto en precio si la tasa baja 1%">Si tasa −1%</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {LADDER.map(r => {
                 const px = (prices as Record<string, number | null>)[r.etf] ?? null;
                 const up = impactoPorTasa(r.durYears, 1);    // tasa +1% → precio baja
                 const down = impactoPorTasa(r.durYears, -1); // tasa −1% → precio sube
                 return (
-                  <tr key={r.key} className="hover:bg-ink-700/30">
+                  <tr key={r.key} className="hover:bg-canvas">
                     <td className="px-4 py-2">
-                      <span className="font-semibold text-gray-100">{r.label}</span>
+                      <span className="font-semibold text-ink-900">{r.label}</span>
                       <span className="text-[11px] text-ink-600 ml-2">{r.tramo}</span>
                     </td>
                     <td className="px-3 font-semibold text-accent">{r.etf}</td>

@@ -37,7 +37,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Dashboard · {active.nombre}</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Dashboard · {active.nombre}</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Patrimonio" value={fmtUsd(patrimonio, 0)} />
@@ -51,7 +51,7 @@ export function DashboardPage() {
           right={<Badge tone={sint.luz === 'rojo' ? 'neg' : sint.luz === 'amarillo' ? 'warn' : 'pos'}>{sint.texto} · {sint.rojos} 🔴</Badge>} />
         <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {semaforos.map(({ def, valor, luz }) => (
-            <div key={def.key} className={`rounded-lg px-3 py-2 ${luz ? LUZ_BG[luz] : 'bg-ink-800/60 text-ink-600'}`}>
+            <div key={def.key} className={`rounded-lg px-3 py-2 ${luz ? LUZ_BG[luz] : 'bg-canvas text-ink-600'}`}>
               <p className="text-[10px] uppercase tracking-wide opacity-70">{def.label}</p>
               <p className="text-base font-bold tnum">{valor != null ? (def.fmt ? def.fmt(valor) : valor) : '—'}</p>
             </div>
@@ -72,9 +72,9 @@ export function DashboardPage() {
             const w = patrimonio > 0 ? mkt / patrimonio : 0;
             return (
               <div key={p.id} className="flex items-center gap-2 text-sm">
-                <span className="w-16 font-semibold text-gray-200">{p.ticker}</span>
-                <div className="flex-1 h-2 rounded-full bg-ink-700 overflow-hidden">
-                  <div className="h-full bg-accent" style={{ width: `${Math.min(100, w * 100)}%` }} />
+                <span className="w-16 font-semibold text-ink-800">{p.ticker}</span>
+                <div className="flex-1 h-2 rounded-full bg-canvas overflow-hidden">
+                  <div className="h-full bg-celeste-500" style={{ width: `${Math.min(100, w * 100)}%` }} />
                 </div>
                 <span className="w-12 text-right tnum text-ink-600">{fmtPct(w, 0)}</span>
                 {p.peso_objetivo != null && <span className="w-16 text-right tnum text-[10px] text-ink-600">obj {fmtPct(p.peso_objetivo, 0)}</span>}

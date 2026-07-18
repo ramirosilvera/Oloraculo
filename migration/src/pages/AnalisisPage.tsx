@@ -56,7 +56,7 @@ export function AnalisisPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-100">{T}</h1>
+        <h1 className="text-2xl font-bold text-ink-900 font-display">{T}</h1>
         <span className="text-sm text-ink-600">{(fund as Fundamentals).entityName ?? ''}</span>
         <Badge tone={verdictTone as 'pos'|'neg'|'warn'}>{dcf.verdict}</Badge>
         {(fund as { warning?: string }).warning && <Badge tone="warn">datos incompletos EDGAR</Badge>}
@@ -101,17 +101,17 @@ export function AnalisisPage() {
           <div>
             <label className="text-[10px] uppercase text-ink-600">Capex mant.</label>
             <select value={inp.capexMethod} onChange={e => setInp({ ...inp, capexMethod: e.target.value as CapexMethod })}
-              className="w-full bg-ink-900 border border-ink-600 rounded px-2 py-1.5 mt-1">
+              className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
               <option value="dna">= D&A</option><option value="capex">= Capex total</option><option value="avg">promedio</option>
             </select>
           </div>
           <NumIn l="Beta" v={beta} step={0.1} onChange={setBeta} />
         </div>
         {/* Nota metodológica dividendo ↔ tasa */}
-        <div className="mx-4 mb-4 rounded-lg bg-ink-900 border border-ink-700 px-3 py-2 text-[11px] text-ink-600 flex gap-2">
+        <div className="mx-4 mb-4 rounded-xl bg-celeste-50 border border-celeste-200 px-3 py-2 text-[11px] text-ink-600 flex gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
           <p>
-            Div yield <b className="text-gray-300">{fmtPct(ratios.divYield)}</b> · payout <b className="text-gray-300">{fmtPct(ratios.payout)}</b>.
+            Div yield <b className="text-ink-800">{fmtPct(ratios.divYield)}</b> · payout <b className="text-ink-800">{fmtPct(ratios.payout)}</b>.
             El dividendo YA está dentro de los owner earnings — la tasa NO se ajusta sola por el yield (sería doble conteo).
             Un dividendo alto y estable con payout sano (&lt;70%) es señal de negocio maduro: esa menor incertidumbre puede
             justificar que VOS bajes la tasa a mano. Un payout &gt;90% es alarma (dividendo en riesgo), no calidad.
@@ -124,19 +124,19 @@ export function AnalisisPage() {
         <CardHeader title="Owner Earnings por año" sub="OCF − capex de mantenimiento. El capex de crecimiento se muestra aparte." />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr><th className="text-left px-4 py-2">Año</th><th className="text-right px-3">OCF</th>
                 <th className="text-right px-3">Capex mant.</th><th className="text-right px-3">Capex crec.</th>
                 <th className="text-right px-4">Owner Earnings</th></tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {dcf.ownerEarningsByYear.slice(-5).map(y => (
-                <tr key={y.fy}>
-                  <td className="px-4 py-1.5 text-gray-300">{y.fy}</td>
+                <tr key={y.fy} className="hover:bg-canvas">
+                  <td className="px-4 py-1.5 text-ink-700">{y.fy}</td>
                   <td className="text-right px-3 tnum">{fmtUsd(y.ocf, 0)}</td>
                   <td className="text-right px-3 tnum text-ink-600">{fmtUsd(y.maintenanceCapex, 0)}</td>
                   <td className="text-right px-3 tnum text-warn">{fmtUsd(y.growthCapex, 0)}</td>
-                  <td className="text-right px-4 tnum font-semibold text-gray-100">{fmtUsd(y.ownerEarnings, 0)}</td>
+                  <td className="text-right px-4 tnum font-semibold text-ink-900">{fmtUsd(y.ownerEarnings, 0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -158,7 +158,7 @@ export function AnalisisPage() {
                     <td className="px-2 py-1 text-ink-600">{fmtPct(row.g, 0)}</td>
                     {row.cells.map((c, j) => {
                       const good = c != null && price != null && c > price;
-                      return <td key={j} className={`px-2 py-1 text-right ${good ? 'text-pos' : 'text-gray-300'}`}>{fmtUsd(c, 0)}</td>;
+                      return <td key={j} className={`px-2 py-1 text-right ${good ? 'text-pos' : 'text-ink-700'}`}>{fmtUsd(c, 0)}</td>;
                     })}
                   </tr>
                 ))}
@@ -175,7 +175,7 @@ export function AnalisisPage() {
           {dcf.mungerChecks.map((c, i) => (
             <div key={i} className="flex items-center gap-2 text-sm">
               {c.ok ? <CheckCircle2 className="w-4 h-4 text-pos" /> : <AlertTriangle className="w-4 h-4 text-warn" />}
-              <span className="text-gray-300">{c.label}</span>
+              <span className="text-ink-700">{c.label}</span>
               <span className="ml-auto text-[11px] text-ink-600">{c.detail}</span>
             </div>
           ))}
@@ -200,13 +200,13 @@ function GeminiAnalysis({ ticker, portfolioId, context }: { ticker: string; port
     <Card>
       <CardHeader title="Análisis cualitativo (IA)" sub="Gemini interpreta los números calculados por el código. No es recomendación de inversión."
         right={<Button variant="ghost" onClick={run} disabled={busy}><Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : txt ? 'Regenerar' : 'Analizar'}</Button>} />
-      {txt && <p className="px-4 py-3 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{txt}</p>}
+      {txt && <p className="px-4 py-3 text-sm text-ink-700 whitespace-pre-wrap leading-relaxed">{txt}</p>}
     </Card>
   );
 }
 
 function Metric({ l, v, tone }: { l: string; v: string; tone?: 'pos' | 'neg' | 'warn' }) {
-  const c = tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : tone === 'warn' ? 'text-warn' : 'text-gray-100';
+  const c = tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : tone === 'warn' ? 'text-warn' : 'text-ink-900';
   return <div><p className="text-[10px] uppercase text-ink-600">{l}</p><p className={`font-semibold tnum ${c}`}>{v}</p></div>;
 }
 function NumIn({ l, v, step, onChange, pct }: { l: string; v: number; step: number; onChange: (n: number) => void; pct?: boolean }) {
@@ -215,7 +215,7 @@ function NumIn({ l, v, step, onChange, pct }: { l: string; v: number; step: numb
       <label className="text-[10px] uppercase text-ink-600">{l}{pct ? ' (%)' : ''}</label>
       <input type="number" step={pct ? step * 100 : step} value={pct ? +(v * 100).toFixed(2) : v}
         onChange={e => onChange(pct ? Number(e.target.value) / 100 : Number(e.target.value))}
-        className="w-full bg-ink-900 border border-ink-600 rounded px-2 py-1.5 mt-1 tnum" />
+        className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 tnum text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
     </div>
   );
 }

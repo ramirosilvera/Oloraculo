@@ -36,7 +36,7 @@ export function ProyeccionesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Proyección · {active.nombre}</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Proyección · {active.nombre}</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Hoy" value={fmtUsd(valorActual, 0)} hint="patrimonio actual del portfolio" />
@@ -60,14 +60,14 @@ export function ProyeccionesPage() {
         <div className="p-2 h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-              <CartesianGrid stroke="#1e2739" strokeDasharray="3 3" />
-              <XAxis dataKey="anio" stroke="#6b7280" fontSize={11} />
-              <YAxis stroke="#6b7280" fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={44} />
-              <Tooltip contentStyle={{ background: '#0e1420', border: '1px solid #2a3446', borderRadius: 8, fontSize: 12 }}
+              <CartesianGrid stroke="#E4ECF4" strokeDasharray="3 3" />
+              <XAxis dataKey="anio" stroke="#8595A8" fontSize={11} />
+              <YAxis stroke="#8595A8" fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={44} />
+              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #E4ECF4', borderRadius: 12, fontSize: 12, color: '#14212E' }}
                 formatter={(v: number) => fmtUsd(v, 0)} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="Aportado" stroke="#6b7280" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="Patrimonio" stroke="#2dd4bf" strokeWidth={2} dot={false} />
+              <Legend wrapperStyle={{ fontSize: 11, color: '#14212E' }} />
+              <Line type="monotone" dataKey="Aportado" stroke="#C4CEDB" strokeWidth={1.5} dot={false} />
+              <Line type="monotone" dataKey="Patrimonio" stroke="#4F97D4" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -77,14 +77,14 @@ export function ProyeccionesPage() {
         <CardHeader title="Año a año (cada 5)" />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[420px]">
-            <thead className="text-[11px] text-ink-600 border-b border-ink-700">
+            <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr><th className="text-left px-4 py-2">Año</th><th className="text-right px-3">Edad</th>
                 <th className="text-right px-3">Aportado</th><th className="text-right px-4">Patrimonio</th></tr>
             </thead>
-            <tbody className="divide-y divide-ink-700/60">
+            <tbody className="divide-y divide-line">
               {rows.filter((_, i) => i % 5 === 0 || i === rows.length - 1).map(r => (
-                <tr key={r.anio}>
-                  <td className="px-4 py-1.5 text-gray-300">{r.anio}</td>
+                <tr key={r.anio} className="hover:bg-canvas">
+                  <td className="px-4 py-1.5 text-ink-700">{r.anio}</td>
                   <td className="text-right px-3 tnum text-ink-600">{r.edad ?? '—'}</td>
                   <td className="text-right px-3 tnum text-ink-600">{fmtUsd(r.aportadoTotal, 0)}</td>
                   <td className="text-right px-4 tnum font-semibold text-accent">{fmtUsd(r.valor, 0)}</td>
@@ -103,7 +103,7 @@ function Num({ l, v, step, onChange }: { l: string; v: number; step: number; onC
     <div>
       <label className="text-[10px] uppercase text-ink-600">{l}</label>
       <input type="number" step={step} value={v} onChange={e => onChange(Number(e.target.value))}
-        className="w-full bg-ink-900 border border-ink-600 rounded px-2 py-1.5 mt-1 tnum" />
+        className="w-full bg-surface border border-line rounded-xl text-ink-900 px-2 py-1.5 mt-1 tnum focus:outline-none focus:ring-2 focus:ring-celeste-300" />
     </div>
   );
 }

@@ -20,17 +20,17 @@ export function AportesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-100">Aportes · {active.nombre}</h1>
+      <h1 className="text-2xl font-bold text-ink-900 font-display">Aportes · {active.nombre}</h1>
 
       <Card>
         <CardHeader title="Registrar aporte" sub="El capital que va entrando al portfolio." />
         <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-          <input type="number" placeholder="Monto USD" value={f.monto} onChange={e => setF({ ...f, monto: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-          <input type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
-          <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value as AporteTipo })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5">
+          <input type="number" placeholder="Monto USD" value={f.monto} onChange={e => setF({ ...f, monto: e.target.value })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300" />
+          <input type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300" />
+          <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value as AporteTipo })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300">
             <option value="inicial">Inicial</option><option value="recurrente">Recurrente</option><option value="adelanto">Adelanto</option>
           </select>
-          <input placeholder="Descripción" value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} className="bg-ink-900 border border-ink-600 rounded px-2 py-1.5" />
+          <input placeholder="Descripción" value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} className="bg-surface border border-line rounded-xl px-2 py-1.5 text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300" />
           <Button onClick={async () => { if (f.monto) { await add({ monto: Number(f.monto), fecha: f.fecha, tipo: f.tipo, descripcion: f.descripcion || null }); setF({ ...f, monto: '', descripcion: '' }); } }}>
             <Plus className="w-4 h-4" /> Agregar
           </Button>
@@ -39,13 +39,13 @@ export function AportesPage() {
 
       <Card>
         <CardHeader title="Historial de aportes" right={<span className="text-xs text-ink-600 tnum">Total {fmtUsd(total, 0)}</span>} />
-        <div className="divide-y divide-ink-700/60">
+        <div className="divide-y divide-line">
           {aportes.map(a => (
             <div key={a.id} className="px-4 py-2.5 flex items-center gap-3 text-sm">
               <span className="text-ink-600 tnum w-24">{a.fecha}</span>
               <Badge tone={TIPO_TONE[a.tipo]}>{a.tipo}</Badge>
               <span className="flex-1 text-ink-600 truncate">{a.descripcion || '—'}</span>
-              <span className="font-semibold tnum text-gray-100">{fmtUsd(a.monto, 0)}</span>
+              <span className="font-semibold tnum text-ink-900">{fmtUsd(a.monto, 0)}</span>
               <button onClick={() => { if (window.confirm('¿Borrar este aporte?')) remove(a.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}

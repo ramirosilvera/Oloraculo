@@ -2,15 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root { color-scheme: light; }
 
 html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: #0a0e17;
-  color: #e5e7eb;
+  background: #F4F8FC;
+  color: #14212E;
   font-family: Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Fondo con un sutil degradé celeste + sol, estilo fintech */
+  background-image:
+    radial-gradient(1100px 480px at 100% -10%, rgba(116,172,223,0.14), transparent 60%),
+    radial-gradient(900px 420px at -10% 0%, rgba(244,199,82,0.10), transparent 55%);
+  background-attachment: fixed;
 }
 
 /* Numeric tables read better tabular */
@@ -26,7 +32,8 @@ body {
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Thin scrollbars for data-dense panels */
-* { scrollbar-width: thin; scrollbar-color: #2a3446 transparent; }
+/* Scrollbars claros y finos */
+* { scrollbar-width: thin; scrollbar-color: #C4CEDB transparent; }
 *::-webkit-scrollbar { height: 8px; width: 8px; }
-*::-webkit-scrollbar-thumb { background: #2a3446; border-radius: 4px; }
+*::-webkit-scrollbar-thumb { background: #C4CEDB; border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: #A6B3C2; }

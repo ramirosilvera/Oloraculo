@@ -1,15 +1,45 @@
 import type { ReactNode } from 'react';
 
+// ── Marca ─────────────────────────────────────────────────────────────────────
+// Isotipo: mosaico celeste con un mini gráfico ascendente (crecimiento) y el sol.
+export function Logo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#9BCFEF" /><stop offset="1" stopColor="#4F97D4" />
+        </linearGradient>
+      </defs>
+      <rect width="40" height="40" rx="12" fill="url(#lg)" />
+      <circle cx="29.5" cy="11" r="3.2" fill="#F4C752" />
+      <path d="M9 27.5 L17 20.5 L22.5 24.5 L31 15" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="9" cy="27.5" r="1.9" fill="#fff" />
+    </svg>
+  );
+}
+
+export function Wordmark({ size = 32 }: { size?: number }) {
+  return (
+    <span className="inline-flex items-center gap-2 shrink-0">
+      <Logo size={size} />
+      <span className="font-display font-extrabold tracking-tight text-ink-900 text-lg leading-none">
+        Porta<span className="text-celeste-600">folio</span>
+      </span>
+    </span>
+  );
+}
+
+// ── Superficies ───────────────────────────────────────────────────────────────
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-ink-700 bg-ink-800/60 ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl border border-line bg-surface shadow-card ${className}`}>{children}</div>;
 }
 
 export function CardHeader({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-ink-700">
+    <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-line">
       <div>
-        <h3 className="text-sm font-semibold text-gray-100">{title}</h3>
-        {sub && <p className="text-[11px] text-ink-600 mt-0.5">{sub}</p>}
+        <h3 className="text-sm font-bold text-ink-900 font-display">{title}</h3>
+        {sub && <p className="text-[11px] text-ink-600 mt-0.5 leading-snug">{sub}</p>}
       </div>
       {right}
     </div>
@@ -18,11 +48,11 @@ export function CardHeader({ title, sub, right }: { title: string; sub?: string;
 
 export function Stat({ label, value, delta, hint }: { label: string; value: ReactNode; delta?: number; hint?: string }) {
   return (
-    <div className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2.5" title={hint}>
-      <p className="text-[10px] uppercase tracking-wide text-ink-600">{label}</p>
-      <p className="text-lg font-bold text-gray-100 tnum mt-0.5">{value}</p>
+    <div className="rounded-2xl border border-line bg-surface shadow-soft px-4 py-3" title={hint}>
+      <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{label}</p>
+      <p className="text-xl font-bold text-ink-900 tnum mt-1 font-display">{value}</p>
       {delta != null && (
-        <p className={`text-xs font-semibold tnum ${delta >= 0 ? 'text-pos' : 'text-neg'}`}>
+        <p className={`text-xs font-semibold tnum mt-0.5 ${delta >= 0 ? 'text-pos' : 'text-neg'}`}>
           {delta >= 0 ? '▲' : '▼'} {fmtPct(Math.abs(delta))}
         </p>
       )}
@@ -30,15 +60,17 @@ export function Stat({ label, value, delta, hint }: { label: string; value: Reac
   );
 }
 
-export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?: 'gray' | 'pos' | 'neg' | 'warn' | 'accent' }) {
+export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?: 'gray' | 'pos' | 'neg' | 'warn' | 'accent' | 'celeste' | 'sol' }) {
   const m: Record<string, string> = {
-    gray: 'bg-ink-700 text-gray-300',
-    pos: 'bg-pos/15 text-pos',
-    neg: 'bg-neg/15 text-neg',
-    warn: 'bg-warn/15 text-warn',
-    accent: 'bg-accent/15 text-accent',
+    gray: 'bg-canvas text-ink-700 ring-1 ring-line',
+    pos: 'bg-pos/10 text-pos ring-1 ring-pos/20',
+    neg: 'bg-neg/10 text-neg ring-1 ring-neg/20',
+    warn: 'bg-warn/10 text-warn ring-1 ring-warn/20',
+    accent: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200',
+    celeste: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200',
+    sol: 'bg-sol-soft text-sol-deep ring-1 ring-sol/30',
   };
-  return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${m[tone]}`}>{children}</span>;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${m[tone]}`}>{children}</span>;
 }
 
 export function Button({ children, onClick, variant = 'primary', disabled, type = 'button', className = '' }: {
@@ -46,13 +78,13 @@ export function Button({ children, onClick, variant = 'primary', disabled, type 
   disabled?: boolean; type?: 'button' | 'submit'; className?: string;
 }) {
   const v: Record<string, string> = {
-    primary: 'bg-accent text-ink-950 hover:bg-accent/90',
-    ghost: 'border border-ink-600 text-gray-300 hover:bg-ink-700',
-    danger: 'border border-neg/40 text-neg hover:bg-neg/10',
+    primary: 'bg-celeste-500 text-white hover:bg-celeste-600 shadow-glow',
+    ghost: 'border border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300',
+    danger: 'border border-neg/30 bg-surface text-neg hover:bg-neg/5',
   };
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-50 ${v[variant]} ${className}`}>
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:shadow-none active:scale-[0.98] ${v[variant]} ${className}`}>
       {children}
     </button>
   );
