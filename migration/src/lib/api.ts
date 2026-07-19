@@ -8,9 +8,9 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  fundamentals: (ticker: string, cik?: string) =>
+  fundamentals: (ticker: string, cik?: string, fresh?: boolean) =>
     get<Fundamentals & { warning?: string; cached?: boolean }>(
-      `/api/market/fundamentals?ticker=${encodeURIComponent(ticker)}${cik ? `&cik=${cik}` : ''}`),
+      `/api/market/fundamentals?ticker=${encodeURIComponent(ticker)}${cik ? `&cik=${cik}` : ''}${fresh ? '&fresh=1' : ''}`),
 
   quotes: (tickers: string[]) =>
     get<Record<string, number | null>>(`/api/market/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`),

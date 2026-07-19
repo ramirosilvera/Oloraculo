@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Sparkles, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Sparkles, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
@@ -20,12 +20,22 @@ export function AnalisisPage() {
 
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
   const cik = cikMap.get(T)?.cik;
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
   const { data: fund, isLoading, error } = useQuery({
     queryKey: ['fundamentals', T, cik ?? ''],
     enabled: !cikLoading,   // esperar el cik_map para tickers fuera del set por defecto
     queryFn: () => api.fundamentals(T, cik),
     staleTime: 12 * 60 * 60_000,
   });
+  // Fuerza re-consulta a EDGAR salteando la cache del server (fresh=1) y actualiza la vista.
+  const actualizar = async () => {
+    setRefreshing(true);
+    try {
+      const fresh = await api.fundamentals(T, cik, true);
+      qc.setQueryData(['fundamentals', T, cik ?? ''], fresh);
+    } catch { /* se muestra el estado de error normal */ } finally { setRefreshing(false); }
+  };
   const { data: quotes = {} } = useQuotes([T]);
   const { data: macro = {} } = useMacro();
   const price = quotes[T] ?? null;
@@ -64,7 +74,13 @@ export function AnalisisPage() {
         <span className="text-sm text-ink-600">{(fund as Fundamentals).entityName ?? ''}</span>
         <Badge tone={verdictTone as 'pos'|'neg'|'warn'}>{dcf.verdict}</Badge>
         {(fund as { warning?: string }).warning && <Badge tone="warn">datos incompletos EDGAR</Badge>}
+        <Button variant="ghost" onClick={actualizar} disabled={refreshing} className="ml-auto">
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Actualizando…' : 'Actualizar datos'}
+        </Button>
       </div>
+      {(fund as { warning?: string }).warning && (
+        <p className="text-[11px] text-warn">{(fund as { warning?: string }).warning}</p>
+      )}
 
       {/* Veredicto + valuación */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
