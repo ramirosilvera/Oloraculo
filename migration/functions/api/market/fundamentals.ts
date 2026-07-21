@@ -22,35 +22,28 @@ export const onRequestGet = guard(async ({ request, env }) => {
   // y cuántos quedan tras el parseo. Sirve para distinguir 403/404 (token/CIK) de 200-vacío o de
   // un filtro que descarta todo. No expone el token.
   if (debug) {
-    const probe = async (tax: string, concept: string) => {
-      const purl = `${env.SEC_PROXY_BASE}/api/xbrl/companyconcept/CIK${cik}/${tax}/${concept}.json?k=${env.SEC_PROXY_TOKEN}`;
+    const base = (env.SEC_PROXY_BASE || '').replace(/\/+$/, '');
+    const tok = env.SEC_PROXY_TOKEN || '';
+    const secPath = `api/xbrl/companyconcept/CIK${cik}/us-gaap/Revenues.json`;
+    // Probamos varios formatos de request para descubrir cuál acepta el worker proxy.
+    const variants: { label: string; url: string; init?: RequestInit }[] = [
+      { label: 'a) ?k= (actual)', url: `${base}/${secPath}?k=${tok}` },
+      { label: 'b) ?token=', url: `${base}/${secPath}?token=${tok}` },
+      { label: 'c) ?key=', url: `${base}/${secPath}?key=${tok}` },
+      { label: 'd) header Authorization Bearer', url: `${base}/${secPath}`, init: { headers: { Authorization: `Bearer ${tok}` } } },
+      { label: 'e) header x-api-key', url: `${base}/${secPath}`, init: { headers: { 'x-api-key': tok } } },
+      { label: 'f) sin /api/xbrl', url: `${base}/companyconcept/CIK${cik}/us-gaap/Revenues.json?k=${tok}` },
+      { label: 'g) ?url=<sec>&k=', url: `${base}/?url=${encodeURIComponent('https://data.sec.gov/' + secPath)}&k=${tok}` },
+      { label: 'h) raíz + header', url: `${base}/`, init: { headers: { 'x-token': tok } } },
+    ];
+    const results = await Promise.all(variants.map(async v => {
       try {
-        const res = await fetch(purl);
-        let unitKeys: string[] | null = null; let rawCount: number | null = null;
-        let forms: string[] | null = null;
-        if (res.ok) {
-          const j = await res.json() as { units?: Record<string, { form?: string }[]> };
-          unitKeys = Object.keys(j.units ?? {});
-          const arr = unitKeys.length ? j.units![unitKeys[0]] : [];
-          rawCount = arr.length;
-          forms = [...new Set(arr.map(x => x.form).filter(Boolean) as string[])].slice(0, 6);
-        }
-        return { concept, status: res.status, unitKeys, rawCount, forms };
-      } catch (e) { return { concept, error: String(e) }; }
-    };
-    const probes = await Promise.all([
-      probe('us-gaap', 'Revenues'),
-      probe('us-gaap', 'RevenueFromContractWithCustomerExcludingAssessedTax'),
-      probe('us-gaap', 'NetCashProvidedByUsedInOperatingActivities'),
-      probe('us-gaap', 'EarningsPerShareDiluted'),
-      probe('dei', 'EntityCommonStockSharesOutstanding'),
-    ]);
-    const data = await fetchFundamentals(env, ticker, cik);
-    return json({
-      ticker, cik, proxyBaseSet: !!env.SEC_PROXY_BASE, proxyTokenSet: !!env.SEC_PROXY_TOKEN,
-      probes,
-      parsed: { ocf: data.ocf.length, epsDiluted: data.epsDiluted.length, revenue: data.revenue.length, shares: data.shares, ungradeable: data.ungradeable },
-    });
+        const res = await fetch(v.url, v.init);
+        const body = (await res.text()).slice(0, 180).replace(/\s+/g, ' ');
+        return { label: v.label, status: res.status, ct: res.headers.get('content-type'), body };
+      } catch (e) { return { label: v.label, error: String(e) }; }
+    }));
+    return json({ ticker, cik, proxyBase: base.slice(0, 40), proxyTokenLen: tok.length, results });
   }
 
   // Cache válida solo si tiene el núcleo (OCF/EPS/Revenue). Una entrada vieja vacía (de un fallo
