@@ -62,7 +62,10 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 // transitorios (429/5xx/red → reintenta con backoff), para no confundir un rate-limit del proxy
 // con ausencia real de dato. Elige la unidad correcta (USD / USD/shares / shares) explícitamente.
 async function fetchConcept(env: Env, cik: string, taxonomy: string, concept: string): Promise<Raw[] | null> {
-  const url = `${env.SEC_PROXY_BASE}/api/xbrl/companyconcept/CIK${cik}/${taxonomy}/${concept}.json?k=${env.SEC_PROXY_TOKEN}`;
+  // Normalizar la base: si el secret SEC_PROXY_BASE termina en "/", la doble barra resultante
+  // hacía que el worker respondiera 400 "Ruta no permitida" para TODOS los conceptos.
+  const base = (env.SEC_PROXY_BASE || '').replace(/\/+$/, '');
+  const url = `${base}/api/xbrl/companyconcept/CIK${cik}/${taxonomy}/${concept}.json?k=${env.SEC_PROXY_TOKEN}`;
   for (let attempt = 0; attempt < 3; attempt++) {
     let res: Response;
     try {
