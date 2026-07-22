@@ -78,6 +78,8 @@ export interface PortfolioTir {
 // Construye la TIR del portfolio. PRIMARIO: aportes (capital externo con fecha) + valor actual.
 // FALLBACK (aproximado): costo de las posiciones abiertas en su fecha_compra. Los trades internos
 // (movimientos) NO entran: comprar un activo con plata que ya estaba adentro no es capital nuevo.
+// Nota: como los flujos son todos negativos (aportes/costos) + UN terminal positivo, hay un solo
+// cambio de signo → la XIRR tiene raíz única (no aplica la ambigüedad de IRR múltiple).
 export function portfolioTir(params: {
   aportes: { monto: number; fecha: string }[];
   costos: { costo: number; fecha: string | null }[];
