@@ -34,7 +34,7 @@ export function DashboardPage() {
   // TIR money-weighted: aportes (capital externo) + patrimonio actual como flujo terminal.
   // Fallback aproximado: costo de las posiciones abiertas en su fecha de compra.
   const tir = useMemo(() => portfolioTir({
-    aportes: aportes.map(a => ({ monto: a.monto, fecha: a.fecha })),
+    aportes: aportes.map(a => ({ monto: a.monto, fecha: a.fecha, retiro: a.tipo === 'retiro' })),
     costos: posiciones.filter(p => p.cantidad > 0).map(p => ({ costo: p.precio_compra * p.cantidad, fecha: p.fecha_compra })),
     valorActual: patrimonio,
     hoy: new Date().toISOString().slice(0, 10),

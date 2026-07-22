@@ -8,7 +8,7 @@ export type AssetType = 'cedear' | 'accion' | 'accion_ar' | 'etf' | 'bono' | 'ca
 export type AssetRole =
   | 'compounder' | 'stalwart' | 'fast_grower' | 'asset_play' | 'slow_grower' | 'turnaround' | 'cyclical';
 export type PortfolioState = 'active' | 'archived';
-export type AporteTipo = 'inicial' | 'adelanto' | 'recurrente';
+export type AporteTipo = 'inicial' | 'adelanto' | 'recurrente' | 'retiro';
 
 export interface Portfolio {
   id: string;

@@ -87,4 +87,24 @@ describe('portfolioTir', () => {
     expect(r.anual).toBeNull();
     expect(r.historica).toBeCloseTo(0, 6);
   });
+
+  it('con retiro: la salida de capital cuenta como flujo positivo', () => {
+    // Aporto 1000, retiro 500 a mitad de año, hoy vale 700 → recuperé 1200 sobre 1000 aportado.
+    const r = portfolioTir({
+      aportes: [{ monto: 1000, fecha: '2025-01-01' }, { monto: 500, fecha: '2025-07-01', retiro: true }],
+      costos: [], valorActual: 700, hoy: '2026-01-01',
+    });
+    expect(r.invertido).toBe(1000);
+    expect(r.historica!).toBeCloseTo((700 + 500 - 1000) / 1000, 6); // +20% total
+    expect(r.anual).not.toBeNull();
+    expect(r.anual!).toBeGreaterThan(0);   // ganancia neta positiva
+  });
+
+  it('retiro total (vendí y saqué todo) sin valor final → TIR sobre aporte vs retiro', () => {
+    const r = portfolioTir({
+      aportes: [{ monto: 1000, fecha: '2025-01-01' }, { monto: 1100, fecha: '2026-01-01', retiro: true }],
+      costos: [], valorActual: 0, hoy: '2026-01-01',
+    });
+    expect(r.anual!).toBeCloseTo(0.10, 3);   // aporté 1000, retiré 1100 al año → 10%
+  });
 });

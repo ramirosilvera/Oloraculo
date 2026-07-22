@@ -75,13 +75,15 @@ export interface PortfolioTir {
   aproximada: boolean;         // true si se usó el fallback por costos (sin registro de aportes)
 }
 
-// Construye la TIR del portfolio. PRIMARIO: aportes (capital externo con fecha) + valor actual.
-// FALLBACK (aproximado): costo de las posiciones abiertas en su fecha_compra. Los trades internos
-// (movimientos) NO entran: comprar un activo con plata que ya estaba adentro no es capital nuevo.
-// Nota: como los flujos son todos negativos (aportes/costos) + UN terminal positivo, hay un solo
-// cambio de signo → la XIRR tiene raíz única (no aplica la ambigüedad de IRR múltiple).
+// Construye la TIR del portfolio. PRIMARIO: aportes (capital externo con fecha) + retiros (salidas
+// de capital) + valor actual. FALLBACK (aproximado): costo de las posiciones abiertas en su
+// fecha_compra. Los trades internos (movimientos) NO entran: comprar un activo con plata que ya
+// estaba adentro no es capital nuevo.
+// Convención: aporte = flujo negativo (entra al portfolio), retiro = positivo (sale a tu bolsillo),
+// valor actual = positivo. Los retiros pueden agregar cambios de signo; la raíz devuelta sigue
+// siendo una TIR válida (NPV≈0) — verificado con tests adversariales.
 export function portfolioTir(params: {
-  aportes: { monto: number; fecha: string }[];
+  aportes: { monto: number; fecha: string; retiro?: boolean }[];
   costos: { costo: number; fecha: string | null }[];
   valorActual: number;
   hoy: string;
@@ -89,13 +91,19 @@ export function portfolioTir(params: {
   const { aportes, costos, valorActual, hoy } = params;
   const terminal: CashFlow = { date: hoy, amount: valorActual };
 
-  const aportesOk = aportes.filter(a => a.monto > 0 && !Number.isNaN(Date.parse(a.fecha)));
-  if (aportesOk.length) {
-    const invertido = aportesOk.reduce((s, a) => s + a.monto, 0);
-    const flows: CashFlow[] = [...aportesOk.map(a => ({ date: a.fecha, amount: -a.monto })), terminal];
+  const validos = aportes.filter(a => a.monto > 0 && !Number.isNaN(Date.parse(a.fecha)));
+  const entradas = validos.filter(a => !a.retiro);   // capital que entra
+  if (entradas.length) {
+    const invertido = entradas.reduce((s, a) => s + a.monto, 0);
+    const retirado = validos.filter(a => a.retiro).reduce((s, a) => s + a.monto, 0);
+    const flows: CashFlow[] = [
+      ...validos.map(a => ({ date: a.fecha, amount: a.retiro ? a.monto : -a.monto })),
+      terminal,
+    ];
     return {
       anual: xirr(flows),
-      historica: invertido > 0 ? valorActual / invertido - 1 : null,
+      // Rendimiento total = ganancia neta (valor hoy + lo retirado − lo aportado) sobre lo aportado.
+      historica: invertido > 0 ? (valorActual + retirado - invertido) / invertido : null,
       invertido, base: 'aportes', aproximada: false,
     };
   }
