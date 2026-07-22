@@ -55,9 +55,15 @@ export function computeRatios(f: Fundamentals, price: number | null, beta: numbe
   // WACC real ponderado.
   // Ke (costo de equity) por CAPM: rf + β · ERP (prima de riesgo de mercado 5%).
   const costOfEquity = riskFreeRate + beta * 0.05;
-  // Kd (costo de deuda) después de impuestos: rf + spread de crédito (200 bps, simplificación —
-  // no fetcheamos el gasto por intereses) por (1 − tasa efectiva).
-  const costOfDebt = debt > 0 ? (riskFreeRate + 0.02) * (1 - effTax) : null;
+  // Kd (costo de deuda) después de impuestos. Tasa implícita = gasto por intereses / deuda total
+  // (dato real de EDGAR); si no está o da fuera de un rango sensato [0.5%, 20%], usamos rf + 200bps.
+  const intExp = Math.abs(latest(f.interestExpense ?? []) ?? 0);
+  let kdPretax = riskFreeRate + 0.02;
+  if (debt > 0 && intExp > 0) {
+    const implied = intExp / debt;
+    if (implied >= 0.005 && implied <= 0.20) kdPretax = implied;
+  }
+  const costOfDebt = debt > 0 ? kdPretax * (1 - effTax) : null;
   // Pesos por VALOR DE MERCADO: E = precio·acciones, D = deuda total. Si no hay market cap
   // (falta precio o acciones), no podemos ponderar → WACC = Ke (solo equity).
   const marketCap = price != null && shares ? price * shares : null;

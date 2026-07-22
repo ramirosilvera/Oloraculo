@@ -90,6 +90,7 @@ export interface Fundamentals {
   shortTermInvestments: AnnualPoint[];
   taxes: AnnualPoint[];
   pretaxIncome: AnnualPoint[];
+  interestExpense?: AnnualPoint[];        // opcional: para Kd real (interés/deuda). Ausente en cache viejo.
   ungradeable?: string[];                 // concepts EDGAR didn't return (e.g. 20-F/IFRS filers)
   updated_at?: string;
 }

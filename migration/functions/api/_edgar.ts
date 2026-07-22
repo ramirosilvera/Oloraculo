@@ -51,6 +51,7 @@ export const CONCEPTS = {
   shortTermInvestments: ['ShortTermInvestments', 'AvailableForSaleSecuritiesCurrent'],
   taxes: ['IncomeTaxExpenseBenefit'],
   pretaxIncome: ['IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments'],
+  interestExpense: ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense', 'InterestExpenseNonoperating'],
 } as const;
 
 interface Raw { end: string; val: number; fy?: number; fp?: string; form?: string; filed?: string; }
@@ -131,16 +132,16 @@ export interface EdgarFundamentals {
   revenue: AnnualPoint[]; operatingIncome: AnnualPoint[]; epsDiluted: AnnualPoint[];
   dividendPerShare: AnnualPoint[]; equity: AnnualPoint[]; totalDebt: AnnualPoint[];
   cash: AnnualPoint[]; shortTermInvestments: AnnualPoint[]; taxes: AnnualPoint[];
-  pretaxIncome: AnnualPoint[]; ungradeable: string[];
+  pretaxIncome: AnnualPoint[]; interestExpense: AnnualPoint[]; ungradeable: string[];
 }
 
 export async function fetchFundamentals(env: Env, ticker: string, cik: string): Promise<EdgarFundamentals> {
   const g = (aliases: readonly string[]) => fetchFirst(env, cik, 'us-gaap', aliases);
-  const [ocf, ni, dna, capex, rev, opInc, eps, dps, eq, dl, ds, cash, sti, tax, pre, sharesRaw] = await Promise.all([
+  const [ocf, ni, dna, capex, rev, opInc, eps, dps, eq, dl, ds, cash, sti, tax, pre, intExp, sharesRaw] = await Promise.all([
     g(CONCEPTS.ocf), g(CONCEPTS.netIncome), g(CONCEPTS.dna), g(CONCEPTS.capex),
     g(CONCEPTS.revenue), g(CONCEPTS.operatingIncome), g(CONCEPTS.epsDiluted), g(CONCEPTS.dividendPerShare),
     g(CONCEPTS.equity), g(CONCEPTS.totalDebtLong), g(CONCEPTS.totalDebtShort), g(CONCEPTS.cash),
-    g(CONCEPTS.shortTermInvestments), g(CONCEPTS.taxes), g(CONCEPTS.pretaxIncome),
+    g(CONCEPTS.shortTermInvestments), g(CONCEPTS.taxes), g(CONCEPTS.pretaxIncome), g(CONCEPTS.interestExpense),
     fetchConcept(env, cik, 'dei', 'EntityCommonStockSharesOutstanding'),
   ]);
 
@@ -149,7 +150,7 @@ export async function fetchFundamentals(env: Env, ticker: string, cik: string): 
     revenue: parseAnnual(rev), operatingIncome: parseAnnual(opInc), epsDiluted: parseAnnual(eps),
     dividendPerShare: parseAnnual(dps), equity: parseAnnual(eq), totalDebt: sumByFy(parseAnnual(dl), parseAnnual(ds)),
     cash: parseAnnual(cash), shortTermInvestments: parseAnnual(sti), taxes: parseAnnual(tax),
-    pretaxIncome: parseAnnual(pre),
+    pretaxIncome: parseAnnual(pre), interestExpense: parseAnnual(intExp),
   };
 
   // Marcamos como "ungradeable" TODO campo crítico que alimenta el DCF (owner earnings) o los
