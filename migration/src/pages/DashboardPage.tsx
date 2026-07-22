@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
+import { useAportes } from '../hooks/useAportes';
 import { SEMAFOROS, sintesis, type Luz } from '../engine/semaforos';
+import { portfolioTir } from '../engine/irr';
 import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
@@ -16,6 +19,7 @@ export function DashboardPage() {
   const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
   const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
   const { data: macro = {} } = useMacro();
+  const { data: aportes = [] } = useAportes(active?.id);
 
   const { patrimonio, costo, pnl } = useMemo(() => {
     let patrimonio = 0, costo = 0;
@@ -26,6 +30,15 @@ export function DashboardPage() {
     }
     return { patrimonio, costo, pnl: patrimonio - costo };
   }, [posiciones, quotes]);
+
+  // TIR money-weighted: aportes (capital externo) + patrimonio actual como flujo terminal.
+  // Fallback aproximado: costo de las posiciones abiertas en su fecha de compra.
+  const tir = useMemo(() => portfolioTir({
+    aportes: aportes.map(a => ({ monto: a.monto, fecha: a.fecha })),
+    costos: posiciones.filter(p => p.cantidad > 0).map(p => ({ costo: p.precio_compra * p.cantidad, fecha: p.fecha_compra })),
+    valorActual: patrimonio,
+    hoy: new Date().toISOString().slice(0, 10),
+  }), [aportes, posiciones, patrimonio]);
 
   const semaforos = SEMAFOROS.map(s => {
     const v = (macro as Record<string, number | null>)[s.key];
@@ -48,6 +61,26 @@ export function DashboardPage() {
         <Stat label="Costo" value={fmtUsd(costo, 0)} />
         <Stat label="P&L" value={fmtUsd(pnl, 0)} delta={costo > 0 ? pnl / costo : undefined} />
         <Stat label="Objetivo" value={fmtUsd(active.capital_objetivo, 0)} hint="capital objetivo del portfolio" />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <Stat label={`TIR anual${tir.aproximada ? ' (aprox.)' : ''}`}
+          value={<span className={tir.anual == null ? '' : tir.anual >= 0 ? 'text-pos' : 'text-neg'}>{tir.anual != null ? fmtPct(tir.anual) : '—'}</span>}
+          hint={tir.base === 'aportes' ? 'money-weighted (XIRR) sobre tus aportes' : tir.base === 'costos' ? 'aproximada: sin aportes registrados, se usa el costo en fecha de compra' : 'cargá tus aportes (o fechas de compra) para calcularla'} />
+        <Stat label="TIR histórica"
+          value={<span className={tir.historica == null ? '' : tir.historica >= 0 ? 'text-pos' : 'text-neg'}>{tir.historica != null ? fmtPct(tir.historica) : '—'}</span>}
+          hint="rendimiento total acumulado sobre el capital invertido" />
+        <Stat label="Invertido" value={tir.invertido > 0 ? fmtUsd(tir.invertido, 0) : '—'}
+          hint={tir.base === 'aportes' ? 'suma de tus aportes' : 'costo de las posiciones (sin aportes registrados)'} />
+        <div className="rounded-2xl border border-line bg-surface shadow-soft px-4 py-3 flex flex-col justify-center">
+          <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">Base de la TIR</p>
+          <p className="text-sm font-semibold text-ink-800 mt-0.5">
+            {tir.base === 'aportes' ? 'Aportes + valor actual' : tir.base === 'costos' ? 'Costo + valor actual' : 'Sin datos'}
+          </p>
+          {tir.base !== 'aportes' && (
+            <Link to="/aportes" className="text-[11px] text-celeste-600 hover:underline mt-0.5">Cargar aportes →</Link>
+          )}
+        </div>
       </div>
 
       <Card>
