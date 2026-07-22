@@ -7,7 +7,8 @@ import { useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { computeRatios } from '../engine/ratios';
-import { computeDcf, sensitivityTable, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod } from '../engine/dcf';
+import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod } from '../engine/dcf';
+import { useDcfInputs } from '../hooks/useDcfInputs';
 import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import type { Fundamentals } from '../types/domain';
 
@@ -19,7 +20,9 @@ export function AnalisisPage() {
   const [beta, setBeta] = useState(1.0);
 
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
+  const { map: dcfMap, isLoading: dcfLoading, save: saveDcf, remove: removeDcf } = useDcfInputs();
   const cik = cikMap.get(T)?.cik;
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const { data: fund, isLoading, error } = useQuery({
@@ -41,11 +44,8 @@ export function AnalisisPage() {
   const price = quotes[T] ?? null;
   const riskFree = (macro.dgs10 ?? 4.3) / 100;
 
-  // Sembrar la tasa de descuento con el Ke (CAPM) calculado, UNA vez por ticker y solo si el
-  // usuario no la tocó: así empresas de distinto riesgo no arrancan todas con el mismo 10%.
-  const dTouched = useRef(false);
   const seededFor = useRef<string | null>(null);
-  useEffect(() => { dTouched.current = false; seededFor.current = null; }, [T]);
+  useEffect(() => { seededFor.current = null; setSaveMsg(null); }, [T]);
 
   const { ratios, dcf, sens } = useMemo(() => {
     if (!fund) return { ratios: null, dcf: null, sens: null };
@@ -58,14 +58,25 @@ export function AnalisisPage() {
     return { ratios: r, dcf: d, sens: s };
   }, [fund, price, beta, riskFree, inp]);
 
+  // Al abrir un ticker (una vez que hay ratios y cargó lo guardado): si el usuario ya guardó
+  // supuestos para ese ticker, los usamos; si no, calculamos los defaults por empresa
+  // (g = EG5Y−1pto, d = WACC, gt 3%, N 20, MoS 20%).
   useEffect(() => {
-    const ke = ratios?.wacc;
-    if (ke != null && !dTouched.current && seededFor.current !== T) {
-      seededFor.current = T;
-      const d = Math.max(0.06, +ke.toFixed(3)); // piso 6% para no descontar con tasas irrisorias
-      setInp(prev => (prev.d === d ? prev : { ...prev, d }));
-    }
-  }, [ratios?.wacc, T]);
+    if (!ratios || dcfLoading || seededFor.current === T) return;
+    seededFor.current = T;
+    const saved = dcfMap.get(T);
+    if (saved) { const { beta: b, ...rest } = saved; setInp(rest); setBeta(b); }
+    else { setInp(dcfDefaultsFor(ratios)); setBeta(1.0); }
+  }, [ratios, dcfLoading, T, dcfMap]);
+
+  const guardarSupuestos = async () => {
+    try { await saveDcf(T, { ...inp, beta }); setSaveMsg('Guardado ✓ — el Radar usará estos supuestos.'); }
+    catch (e) { setSaveMsg(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`); }
+  };
+  const restablecer = async () => {
+    if (ratios) { setInp(dcfDefaultsFor(ratios)); setBeta(1.0); }
+    try { await removeDcf(T); setSaveMsg('Restablecido a los valores por defecto.'); } catch { /* */ }
+  };
 
   if (cikLoading || isLoading) return <p className="text-ink-600">Cargando fundamentals de {T}…</p>;
   if (error) return (
@@ -113,7 +124,8 @@ export function AnalisisPage() {
           <Metric l="P/E fwd" v={fmtNum(ratios.peForward, 1)} />
           <Metric l="P/B" v={fmtNum(ratios.pb, 1)} />
           <Metric l="ROIC" v={fmtPct(ratios.roic)} tone={ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'pos' : 'warn'} />
-          <Metric l="Ke (CAPM)" v={fmtPct(ratios.wacc)} />
+          <Metric l="Ke (CAPM)" v={fmtPct(ratios.costOfEquity)} />
+          <Metric l="WACC" v={fmtPct(ratios.wacc)} />
           <Metric l="EG5Y (real)" v={fmtPct(ratios.eg5y)} />
           <Metric l="Margen op." v={fmtPct(ratios.operatingMargin)} />
           <Metric l="Deuda/Eq." v={fmtNum(ratios.debtToEquity, 2)} />
@@ -126,10 +138,17 @@ export function AnalisisPage() {
 
       {/* Inputs DCF + nota tasa/dividendo */}
       <Card>
-        <CardHeader title="Supuestos del DCF" sub="Editá los supuestos; el valor se recalcula solo." />
+        <CardHeader title="Supuestos del DCF" sub="Editá los supuestos y guardalos por ticker: el Radar usará estos mismos para el score."
+          right={
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={restablecer}>Restablecer</Button>
+              <Button onClick={guardarSupuestos}>Guardar</Button>
+            </div>
+          } />
+        {saveMsg && <p className="px-4 pt-3 -mb-1 text-xs text-pos">{saveMsg}</p>}
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <NumIn l="Crecimiento g" v={inp.g} step={0.01} onChange={g => setInp({ ...inp, g })} pct />
-          <NumIn l="Tasa descuento d" v={inp.d} step={0.01} onChange={d => { dTouched.current = true; setInp({ ...inp, d }); }} pct />
+          <NumIn l="Tasa descuento d" v={inp.d} step={0.01} onChange={d => setInp({ ...inp, d })} pct />
           <NumIn l="Crec. terminal gt" v={inp.gt} step={0.005} onChange={gt => setInp({ ...inp, gt })} pct />
           <NumIn l="Años N" v={inp.N} step={1} onChange={N => setInp({ ...inp, N })} />
           <NumIn l="MoS exigido" v={inp.mosRequired} step={0.05} onChange={mosRequired => setInp({ ...inp, mosRequired })} pct />
@@ -240,7 +259,11 @@ function GeminiAnalysis({ ticker, portfolioId, context }: { ticker: string; port
     <Card>
       <CardHeader title="Análisis cualitativo (IA)" sub="Gemini interpreta los números calculados por el código. No es recomendación de inversión."
         right={<Button variant="ghost" onClick={run} disabled={busy}><Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : txt ? 'Regenerar' : 'Analizar'}</Button>} />
-      {txt && <p className="px-4 py-3 text-sm text-ink-700 whitespace-pre-wrap leading-relaxed">{txt}</p>}
+      {txt && (
+        <div className="px-4 py-3">
+          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{txt}</p>
+        </div>
+      )}
     </Card>
   );
 }

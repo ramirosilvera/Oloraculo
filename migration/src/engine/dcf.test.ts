@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Fundamentals, AnnualPoint } from '../types/domain';
 import { computeRatios, eg5y } from './ratios';
-import { computeDcf, ownerEarningsByYear, sensitivityTable, DEFAULT_DCF_INPUTS } from './dcf';
+import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS } from './dcf';
 
 const P = (vals: [number, number][]): AnnualPoint[] =>
   vals.map(([fy, val]) => ({ fy, end: `${fy}-06-30`, val }));
@@ -41,8 +41,19 @@ describe('ratios', () => {
   it('tasa impositiva efectiva dentro de guarda [0,0.6]', () => {
     expect(r.effectiveTaxRate).toBeCloseTo(19651 / 107700, 4);
   });
-  it('WACC = rf + beta*0.05', () => {
-    expect(r.wacc).toBeCloseTo(0.043 + 0.9 * 0.05, 6);
+  it('Ke (costOfEquity) = rf + beta*0.05; WACC real ≤ Ke (ponderado con deuda más barata)', () => {
+    expect(r.costOfEquity).toBeCloseTo(0.043 + 0.9 * 0.05, 6);
+    expect(r.wacc).not.toBeNull();
+    expect(r.wacc!).toBeLessThanOrEqual(r.costOfEquity! + 1e-9);
+    expect(r.wacc!).toBeGreaterThan(0);
+  });
+  it('dcfDefaultsFor: g = EG5Y − 1pto, d = WACC, gt 3%, N 20, MoS 20%', () => {
+    const def = dcfDefaultsFor(r);  // redondea a 4 decimales
+    expect(def.g).toBeCloseTo(Math.max(0, (r.eg5y ?? 0) - 0.01), 4);
+    expect(def.d).toBeCloseTo(Math.max(0.06, r.wacc!), 4);
+    expect(def.gt).toBe(0.03);
+    expect(def.N).toBe(20);
+    expect(def.mosRequired).toBe(0.20);
   });
 });
 

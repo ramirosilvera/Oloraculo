@@ -52,6 +52,21 @@ export function computeRatios(f: Fundamentals, price: number | null, beta: numbe
 
   const ebitda = opInc != null ? opInc + Math.abs(dna) : null;
 
+  // WACC real ponderado.
+  // Ke (costo de equity) por CAPM: rf + β · ERP (prima de riesgo de mercado 5%).
+  const costOfEquity = riskFreeRate + beta * 0.05;
+  // Kd (costo de deuda) después de impuestos: rf + spread de crédito (200 bps, simplificación —
+  // no fetcheamos el gasto por intereses) por (1 − tasa efectiva).
+  const costOfDebt = debt > 0 ? (riskFreeRate + 0.02) * (1 - effTax) : null;
+  // Pesos por VALOR DE MERCADO: E = precio·acciones, D = deuda total. Si no hay market cap
+  // (falta precio o acciones), no podemos ponderar → WACC = Ke (solo equity).
+  const marketCap = price != null && shares ? price * shares : null;
+  let wacc = costOfEquity;
+  if (marketCap != null && marketCap > 0 && debt > 0 && costOfDebt != null) {
+    const V = marketCap + debt;
+    wacc = costOfEquity * (marketCap / V) + costOfDebt * (debt / V);
+  }
+
   return {
     price,
     eps,
@@ -68,8 +83,8 @@ export function computeRatios(f: Fundamentals, price: number | null, beta: numbe
     effectiveTaxRate: effTax,
     eg5y: eg,
     peForward: pe != null && eg != null ? pe / (1 + eg) : null,
-    // Costo de equity por CAPM (rf + β·ERP 5%), no un WACC completo (no pondera deuda). Se usa
-    // como tasa de referencia del chequeo "crea valor" y como semilla de la tasa de descuento.
-    wacc: riskFreeRate + beta * 0.05,
+    costOfEquity,
+    costOfDebt,
+    wacc,
   };
 }

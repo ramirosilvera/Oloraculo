@@ -43,7 +43,7 @@ export const onRequestPost = safe(async ({ request, env }) => {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 700 } }),
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1200 } }),
     });
     if (res.status === 429 || res.status === 503) { await new Promise(r => setTimeout(r, 1500 * 2 ** attempt)); continue; }
     if (!res.ok) return json({ error: `gemini-${res.status}` }, 502);

@@ -56,8 +56,12 @@ describe('cadena de análisis end-to-end (ratios → DCF → score) con datos re
     expect(ratios.eg5y).not.toBeNull();
     expect(ratios.eg5y!).toBeCloseTo(0.10, 2);   // EPS 3.00→4.3923 en 4 años, factor 1.10 exacto
 
+    expect(ratios.costOfEquity).not.toBeNull();
+    expect(ratios.costOfEquity).toBeCloseTo(0.043 + 1 * 0.05, 6);
+    // WACC real: ponderado con deuda (más barata que el equity) → menor o igual al Ke, positivo.
     expect(ratios.wacc).not.toBeNull();
-    expect(ratios.wacc).toBeCloseTo(0.043 + 1 * 0.05, 6);
+    expect(ratios.wacc!).toBeLessThanOrEqual(ratios.costOfEquity! + 1e-9);
+    expect(ratios.wacc!).toBeGreaterThan(0);
   });
 
   const dcf = computeDcf(TECHCO, PRICE, ratios.wacc, DEFAULT_DCF_INPUTS, ratios.roic);

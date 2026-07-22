@@ -5,7 +5,7 @@
 // cuánto invierte la empresa en crecer (y cuánto deprime su FCF de hoy).
 // =============================================================================
 
-import type { Fundamentals, AnnualPoint } from '../types/domain';
+import type { Fundamentals, AnnualPoint, Ratios } from '../types/domain';
 
 export type CapexMethod = 'dna' | 'capex' | 'avg';
 
@@ -19,8 +19,16 @@ export interface DcfInputs {
 }
 
 export const DEFAULT_DCF_INPUTS: DcfInputs = {
-  g: 0.08, d: 0.10, gt: 0.025, N: 10, capexMethod: 'dna', mosRequired: 0.30,
+  g: 0.08, d: 0.10, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20,
 };
+
+// Supuestos por defecto CALCULADOS por empresa: g = EG5Y real − 1 punto; d = WACC real;
+// gt 3%, N 20 años, MoS exigido 20%. Son el punto de partida; el usuario puede editar y guardar.
+export function dcfDefaultsFor(r: Ratios): DcfInputs {
+  const g = r.eg5y != null ? Math.max(0, +(r.eg5y - 0.01).toFixed(4)) : DEFAULT_DCF_INPUTS.g;
+  const d = r.wacc != null ? Math.max(0.06, +r.wacc.toFixed(4)) : DEFAULT_DCF_INPUTS.d; // piso 6%
+  return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20 };
+}
 
 export interface OwnerEarningsYear {
   fy: number;

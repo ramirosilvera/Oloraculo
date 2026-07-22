@@ -7,8 +7,9 @@ import { useMacro, useQuotes } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
 import { useWatchlist, type WatchItem } from '../hooks/useWatchlist';
 import { computeRatios } from '../engine/ratios';
-import { computeDcf, DEFAULT_DCF_INPUTS } from '../engine/dcf';
+import { computeDcf, dcfDefaultsFor } from '../engine/dcf';
 import { computeScore, type Rating } from '../engine/score';
+import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import type { Fundamentals } from '../types/domain';
@@ -26,6 +27,7 @@ export function RadarPage() {
 
   const { data: macro = {} } = useMacro();
   const riskFree = ((macro as Record<string, number | null>).dgs10 ?? 4.3) / 100;
+  const { map: dcfMap } = useDcfInputs();
 
   const refrescar = async () => {
     setRefreshing(true);
@@ -92,7 +94,7 @@ export function RadarPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {items.map(it => <RadarRow key={it.id} item={it} riskFree={riskFree} onRemove={() => remove(it.id)} />)}
+              {items.map(it => <RadarRow key={it.id} item={it} riskFree={riskFree} saved={dcfMap.get(it.ticker.toUpperCase())} onRemove={() => remove(it.id)} />)}
               {!isLoading && items.length === 0 && (
                 <tr><td colSpan={8}><Empty icon={Radar} title="Radar vacío">Agregá un ticker arriba para ver su score.</Empty></td></tr>
               )}
@@ -107,7 +109,7 @@ export function RadarPage() {
   );
 }
 
-function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: number; onRemove: () => void }) {
+function RadarRow({ item, riskFree, saved, onRemove }: { item: WatchItem; riskFree: number; saved?: StoredDcf; onRemove: () => void }) {
   const T = item.ticker.toUpperCase();
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
   const cik = item.cik || cikMap.get(T)?.cik;
@@ -125,14 +127,20 @@ function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: num
   const { ratios, dcf, score } = useMemo(() => {
     if (!fund || (fund as { error?: string }).error) return { ratios: null, dcf: null, score: null };
     const f = fund as Fundamentals;
-    const r = computeRatios(f, price, 1.0, riskFree);
-    const d = computeDcf(f, price, r.wacc, DEFAULT_DCF_INPUTS, r.roic);
+    // Si el usuario guardó supuestos para este ticker (en Análisis), los usamos — así el score
+    // refleja SU valuación. Si no, defaults calculados por empresa (g=EG5Y−1pto, d=WACC…).
+    const beta = saved?.beta ?? 1.0;
+    const r = computeRatios(f, price, beta, riskFree);
+    const inputs = saved
+      ? { g: saved.g, d: saved.d, gt: saved.gt, N: saved.N, capexMethod: saved.capexMethod, mosRequired: saved.mosRequired }
+      : dcfDefaultsFor(r);
+    const d = computeDcf(f, price, r.wacc, inputs, r.roic);
     const s = computeScore({
       marginOfSafety: d.marginOfSafety, roic: r.roic, wacc: r.wacc,
       operatingMargin: r.operatingMargin, debtToEquity: r.debtToEquity, eg5y: r.eg5y,
     });
     return { ratios: r, dcf: d, score: s };
-  }, [fund, price, riskFree]);
+  }, [fund, price, riskFree, saved]);
 
   const verdictTone = dcf?.verdict === 'COMPRAR' ? 'pos' : dcf?.verdict === 'CARO' ? 'neg' : 'warn';
 

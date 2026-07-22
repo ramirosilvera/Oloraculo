@@ -108,5 +108,7 @@ export interface Ratios {
   effectiveTaxRate: number | null;
   eg5y: number | null;                    // real historical EPS CAGR (5y)
   peForward: number | null;
-  wacc: number | null;
+  costOfEquity: number | null;            // Ke por CAPM (rf + β·ERP)
+  costOfDebt: number | null;              // Kd después de impuestos
+  wacc: number | null;                    // WACC real ponderado (Ke·E/V + Kd·D/V); Ke si no hay market cap
 }
