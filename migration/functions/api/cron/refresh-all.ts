@@ -12,6 +12,11 @@ import { DEFAULT_CIK } from '../_edgar';
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 export const onRequestGet = guard(async ({ request, env }) => {
+  // Si CRON_SECRET está configurado, solo el workflow (que manda X-Cron-Secret) puede dispararlo.
+  // Sin el secret configurado sigue abierto (compatibilidad), pero se recomienda setearlo.
+  if (env.CRON_SECRET && request.headers.get('X-Cron-Secret') !== env.CRON_SECRET) {
+    return json({ error: 'no autorizado' }, 401);
+  }
   const origin = new URL(request.url).origin;
 
   const hit = async (path: string) => {
@@ -49,5 +54,6 @@ export const onRequestGet = guard(async ({ request, env }) => {
   const paths = [...base, ...dyn];
   for (const p of paths) if (await hit(p)) ok++;
 
-  return json({ ok, total: paths.length, equity: equity.length, ar: ar.length });
+  // Solo conteos agregados de endpoints — sin cantidades de posiciones (no filtrar composición).
+  return json({ ok, total: paths.length });
 });

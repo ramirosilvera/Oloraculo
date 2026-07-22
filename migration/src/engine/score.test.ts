@@ -34,6 +34,15 @@ describe('computeScore', () => {
     expect(r.rating).toBeNull();
   });
 
+  it('sin valuación (MoS null) el rating queda capeado en C', () => {
+    // Calidad/crecimiento/solidez excelentes pero sin señal de valuación → no puede ser A/B.
+    const r = computeScore({
+      marginOfSafety: null, roic: 0.25, wacc: 0.08, operatingMargin: 0.35, debtToEquity: 0.1, eg5y: 0.2,
+    });
+    expect(r.score).not.toBeNull();
+    expect(r.rating).toBe('C');
+  });
+
   it('ROIC<WACC baja la calidad', () => {
     const bueno = computeScore({ marginOfSafety: 0, roic: 0.20, wacc: 0.08, operatingMargin: 0.25, debtToEquity: 0.4, eg5y: 0.1 });
     const malo = computeScore({ marginOfSafety: 0, roic: 0.05, wacc: 0.10, operatingMargin: 0.25, debtToEquity: 0.4, eg5y: 0.1 });

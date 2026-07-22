@@ -122,9 +122,9 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
 
   const mungerChecks: MungerCheck[] = [
     {
-      label: '¿ROIC > WACC? (crea valor)',
+      label: '¿ROIC > Ke? (crea valor)',
       ok: roic != null && wacc != null ? roic > wacc : false,
-      detail: roic != null && wacc != null ? `ROIC ${(roic * 100).toFixed(1)}% vs WACC ${(wacc * 100).toFixed(1)}%` : 'ROIC/WACC no disponible',
+      detail: roic != null && wacc != null ? `ROIC ${(roic * 100).toFixed(1)}% vs Ke ${(wacc * 100).toFixed(1)}%` : 'ROIC/Ke no disponible',
     },
     {
       label: '¿g ≤ CAGR histórico de owner earnings? (supuesto no optimista)',

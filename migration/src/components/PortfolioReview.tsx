@@ -7,7 +7,10 @@ import type { Posicion } from '../types/domain';
 // Review cualitativo de la cartera con IA: concentración, correlación entre posiciones
 // (ej. dos apuestas al mismo factor de riesgo), diversificación sectorial y coherencia
 // con la estrategia. La IA solo interpreta; no calcula valores.
-export function PortfolioReview({ posiciones, pfName }: { posiciones: Posicion[]; pfName: Map<string, string> }) {
+export function PortfolioReview({ posiciones, pfName, pesos }: {
+  posiciones: Posicion[]; pfName: Map<string, string>;
+  pesos?: Map<string, number>;   // peso REAL por ticker (valor de mercado / total), calculado por el código
+}) {
   const [txt, setTxt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -16,6 +19,8 @@ export function PortfolioReview({ posiciones, pfName }: { posiciones: Posicion[]
     const resumen = posiciones.map(p => ({
       portfolio: pfName.get(p.portfolio_id) ?? '', ticker: p.ticker, tipo: p.tipo,
       sector: p.sector, rol: p.rol, peso_objetivo: p.peso_objetivo,
+      // Sin el peso real la IA no puede juzgar concentración; lo calcula el código, no ella.
+      peso_actual: pesos?.get(p.ticker) != null ? +(pesos.get(p.ticker)! * 100).toFixed(1) + '%' : null,
     }));
     const r = await api.analisisPortfolio({ posiciones: resumen });
     setTxt(r.analisis ?? r.error ?? 'Sin respuesta');

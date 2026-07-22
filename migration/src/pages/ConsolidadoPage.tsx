@@ -102,7 +102,8 @@ export function ConsolidadoPage() {
         </div>
       </Card>
 
-      <PortfolioReview posiciones={posiciones} pfName={pfName} />
+      <PortfolioReview posiciones={posiciones} pfName={pfName}
+        pesos={new Map([...porTicker.entries()].map(([t, info]) => [t, total > 0 ? info.total / total : 0]))} />
     </div>
   );
 }

@@ -93,9 +93,9 @@ export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?:
     pos: 'bg-pos/10 text-pos ring-1 ring-pos/20',
     neg: 'bg-neg/10 text-neg ring-1 ring-neg/20',
     warn: 'bg-warn/10 text-warn ring-1 ring-warn/20',
-    accent: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200',
-    celeste: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200',
-    sol: 'bg-sol-soft text-sol-deep ring-1 ring-sol/30',
+    accent: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200 dark:bg-celeste-500/20 dark:text-celeste-300 dark:ring-celeste-500/30',
+    celeste: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200 dark:bg-celeste-500/20 dark:text-celeste-300 dark:ring-celeste-500/30',
+    sol: 'bg-sol-soft text-sol-deep ring-1 ring-sol/30 dark:bg-sol/15 dark:text-sol',
   };
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${m[tone]}`}>{children}</span>;
 }

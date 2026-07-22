@@ -56,7 +56,7 @@ export function AportesPage() {
               <Badge tone={TIPO_TONE[a.tipo]}>{a.tipo}</Badge>
               <span className="flex-1 text-ink-600 truncate">{a.descripcion || '—'}</span>
               <span className="font-semibold tnum text-ink-900">{fmtUsd(a.monto, 0)}</span>
-              <button onClick={() => { if (window.confirm('¿Borrar este aporte?')) remove(a.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => { if (window.confirm('¿Borrar este aporte?')) remove(a.id); }} aria-label="Borrar aporte" title="Borrar aporte" className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
           {aportes.length === 0 && <Empty icon={Wallet} title="Sin aportes">Registrá el primer aporte arriba.</Empty>}

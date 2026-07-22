@@ -11,6 +11,7 @@ export interface Env {
   GEMINI_MODEL?: string;
   FMP_API_KEY?: string;     // fundamentals fallback / prices
   FINNHUB_API_KEY?: string; // prices
+  CRON_SECRET?: string;     // opcional: protege /api/cron/* (header X-Cron-Secret)
 }
 
 export const CORS: Record<string, string> = {
@@ -72,11 +73,14 @@ export async function sbSelect<T = unknown>(env: Env, table: string, query: stri
 }
 
 export async function sbUpsert(env: Env, table: string, rows: unknown[], onConflict: string): Promise<void> {
-  await fetch(`${env.SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
     method: 'POST',
     headers: sbHeaders(env, { Prefer: 'resolution=merge-duplicates,return=minimal' }),
     body: JSON.stringify(rows),
   });
+  // Antes se ignoraba el resultado: una escritura rechazada (constraint/payload) se perdía en
+  // silencio y el cache quedaba viejo sin ninguna señal. Ahora falla ruidoso.
+  if (!res.ok) throw new Error(`sbUpsert ${table} → HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
 // Generic cache: read one row; return it only if fresher than ttlMs.

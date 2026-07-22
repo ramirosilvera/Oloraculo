@@ -6,6 +6,7 @@ import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
+import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
@@ -80,11 +81,18 @@ export function PosicionesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-ink-900 font-display">Posiciones · {active.nombre}</h1>
-        <Button onClick={() => setShowForm(v => !v)}><Plus className="w-4 h-4" /> Agregar</Button>
+        <div>
+          <h1 className="text-2xl font-bold text-ink-900 font-display">Posiciones · {active.nombre}</h1>
+          <UpdatedAt icon />
+        </div>
+        <Button onClick={() => {
+          // Al abrir, arrancar limpio: sin esto, campos de una carga anterior (incluido cupón)
+          // reaparecían y podían mezclarse con el alta siguiente.
+          setShowForm(v => { if (!v) { setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 }); setFormErr(null); } return !v; });
+        }}><Plus className="w-4 h-4" /> Agregar</Button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Valor de mercado" value={fmtUsd(totalMkt, 0)} />
         <Stat label="Costo" value={fmtUsd(costoTotal, 0)} />
         <Stat label="P&L no realizado" value={fmtUsd(pnlNoReal, 0)} delta={costoTotal > 0 ? pnlNoReal / costoTotal : undefined} hint="ganancia/pérdida de lo que tenés hoy" />
@@ -219,13 +227,13 @@ export function PosicionesPage() {
                     <td className="px-2 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         {p.cantidad > 0 && p.tipo !== 'cash' && (
-                          <button onClick={() => setSellData({ pos: p, sugerido: unit ?? p.precio_compra })} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Vender"><TrendingDown className="w-4 h-4" /></button>
+                          <button onClick={() => setSellData({ pos: p, sugerido: unit ?? p.precio_compra })} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Vender" aria-label="Vender"><TrendingDown className="w-4 h-4" /></button>
                         )}
-                        <button onClick={() => setHistTicker(p.ticker)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Historial de movimientos"><History className="w-4 h-4" /></button>
+                        <button onClick={() => setHistTicker(p.ticker)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Historial de movimientos" aria-label="Historial de movimientos"><History className="w-4 h-4" /></button>
                         {p.tipo !== 'bono' && p.tipo !== 'cash' && (
-                          <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF"><LineChart className="w-4 h-4" /></Link>
+                          <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
                         )}
-                        <button onClick={() => { if (window.confirm(`¿Borrar ${p.ticker}? Se elimina la posición y su historial. No se puede deshacer.`)) remove(p.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => { if (window.confirm(`¿Borrar ${p.ticker}? Se elimina la posición y su historial. No se puede deshacer.`)) remove(p.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Eliminar" aria-label="Eliminar posición"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>

@@ -54,8 +54,11 @@ export function computeScore(inp: ScoreInputs): ScoreResult {
     if (v != null) { num += v * PESOS[k]; den += PESOS[k]; }
   });
   const score = den > 0 ? Math.round(num / den) : null;
-  const rating: Rating | null =
+  let rating: Rating | null =
     score == null ? null : score >= 75 ? 'A' : score >= 60 ? 'B' : score >= 45 ? 'C' : 'D';
+  // Sin señal de valuación (DCF SIN_DATOS → MoS null) el score se renormaliza sobre calidad/
+  // crecimiento/solidez y podría dar A/B sin saber si está cara. Capeamos el rating en C.
+  if (valuacion == null && rating != null && (rating === 'A' || rating === 'B')) rating = 'C';
 
   return { score, rating, partes };
 }

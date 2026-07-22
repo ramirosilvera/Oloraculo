@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -41,6 +41,12 @@ export function AnalisisPage() {
   const price = quotes[T] ?? null;
   const riskFree = (macro.dgs10 ?? 4.3) / 100;
 
+  // Sembrar la tasa de descuento con el Ke (CAPM) calculado, UNA vez por ticker y solo si el
+  // usuario no la tocó: así empresas de distinto riesgo no arrancan todas con el mismo 10%.
+  const dTouched = useRef(false);
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => { dTouched.current = false; seededFor.current = null; }, [T]);
+
   const { ratios, dcf, sens } = useMemo(() => {
     if (!fund) return { ratios: null, dcf: null, sens: null };
     const f = fund as Fundamentals;
@@ -51,6 +57,15 @@ export function AnalisisPage() {
       [inp.d - 0.02, inp.d, inp.d + 0.02, inp.d + 0.04]);
     return { ratios: r, dcf: d, sens: s };
   }, [fund, price, beta, riskFree, inp]);
+
+  useEffect(() => {
+    const ke = ratios?.wacc;
+    if (ke != null && !dTouched.current && seededFor.current !== T) {
+      seededFor.current = T;
+      const d = Math.max(0.06, +ke.toFixed(3)); // piso 6% para no descontar con tasas irrisorias
+      setInp(prev => (prev.d === d ? prev : { ...prev, d }));
+    }
+  }, [ratios?.wacc, T]);
 
   if (cikLoading || isLoading) return <p className="text-ink-600">Cargando fundamentals de {T}…</p>;
   if (error) return (
@@ -98,7 +113,7 @@ export function AnalisisPage() {
           <Metric l="P/E fwd" v={fmtNum(ratios.peForward, 1)} />
           <Metric l="P/B" v={fmtNum(ratios.pb, 1)} />
           <Metric l="ROIC" v={fmtPct(ratios.roic)} tone={ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'pos' : 'warn'} />
-          <Metric l="WACC" v={fmtPct(ratios.wacc)} />
+          <Metric l="Ke (CAPM)" v={fmtPct(ratios.wacc)} />
           <Metric l="EG5Y (real)" v={fmtPct(ratios.eg5y)} />
           <Metric l="Margen op." v={fmtPct(ratios.operatingMargin)} />
           <Metric l="Deuda/Eq." v={fmtNum(ratios.debtToEquity, 2)} />
@@ -114,7 +129,7 @@ export function AnalisisPage() {
         <CardHeader title="Supuestos del DCF" sub="Editá los supuestos; el valor se recalcula solo." />
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <NumIn l="Crecimiento g" v={inp.g} step={0.01} onChange={g => setInp({ ...inp, g })} pct />
-          <NumIn l="Tasa descuento d" v={inp.d} step={0.01} onChange={d => setInp({ ...inp, d })} pct />
+          <NumIn l="Tasa descuento d" v={inp.d} step={0.01} onChange={d => { dTouched.current = true; setInp({ ...inp, d }); }} pct />
           <NumIn l="Crec. terminal gt" v={inp.gt} step={0.005} onChange={gt => setInp({ ...inp, gt })} pct />
           <NumIn l="Años N" v={inp.N} step={1} onChange={N => setInp({ ...inp, N })} />
           <NumIn l="MoS exigido" v={inp.mosRequired} step={0.05} onChange={mosRequired => setInp({ ...inp, mosRequired })} pct />
@@ -128,7 +143,7 @@ export function AnalisisPage() {
           <NumIn l="Beta" v={beta} step={0.1} onChange={setBeta} />
         </div>
         {/* Nota metodológica dividendo ↔ tasa */}
-        <div className="mx-4 mb-4 rounded-xl bg-celeste-50 border border-celeste-200 px-3 py-2 text-[11px] text-ink-600 flex gap-2">
+        <div className="mx-4 mb-4 rounded-xl bg-celeste-500/10 border border-celeste-500/25 px-3 py-2 text-[11px] text-ink-600 flex gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
           <p>
             Div yield <b className="text-ink-800">{fmtPct(ratios.divYield)}</b> · payout <b className="text-ink-800">{fmtPct(ratios.payout)}</b>.
@@ -202,7 +217,12 @@ export function AnalisisPage() {
         </div>
       </Card>
 
-      <GeminiAnalysis ticker={T} portfolioId={active?.id ?? null} context={{ ratios, verdict: dcf.verdict, entityName: (fund as Fundamentals).entityName }} />
+      <GeminiAnalysis ticker={T} portfolioId={active?.id ?? null} context={{
+        ratios, verdict: dcf.verdict, entityName: (fund as Fundamentals).entityName,
+        // Magnitudes del DCF para que la IA fundamente con cifras reales (no solo la palabra del veredicto)
+        precio: price, valorIntrinsecoPorAccion: dcf.intrinsicPerShare,
+        margenDeSeguridad: dcf.marginOfSafety, ownerEarningsNorm: dcf.ownerEarningsNorm,
+      }} />
     </div>
   );
 }

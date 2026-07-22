@@ -1,5 +1,26 @@
 import { useEffect, useState } from 'react';
 
+// ¿Está activo el modo oscuro? Observa la clase `dark` del <html> (la maneja usePrefs en el
+// Layout) para que componentes con colores imperativos (recharts) re-rendericen al cambiar tema.
+export function useIsDark(): boolean {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const obs = new MutationObserver(() =>
+      setDark(document.documentElement.classList.contains('dark')));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}
+
+// Colores para gráficos recharts según tema (recharts no resuelve CSS vars en atributos SVG).
+export function useChartTheme() {
+  const dark = useIsDark();
+  return dark
+    ? { grid: '#263144', axis: '#96A3B2', tooltipBg: '#161D2D', tooltipBorder: '#263144', tooltipText: '#EDF2F8', line2: '#475466' }
+    : { grid: '#E4ECF4', axis: '#5C6A7D', tooltipBg: '#FFFFFF', tooltipBorder: '#E4ECF4', tooltipText: '#14212E', line2: '#C4CEDB' };
+}
+
 type Theme = 'light' | 'dark';
 type Density = 'comfortable' | 'compact';
 

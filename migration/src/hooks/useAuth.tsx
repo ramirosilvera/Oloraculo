@@ -24,8 +24,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
-      // Al cerrar sesión, limpiar toda la cache para no filtrar datos entre cuentas.
-      if (event === 'SIGNED_OUT') qc.clear();
+      // Al cerrar sesión, limpiar la cache EN MEMORIA y la PERSISTIDA (localStorage). El persister
+      // escribe con throttle: si solo hiciéramos qc.clear(), un cierre de pestaña inmediato podría
+      // dejar los datos del usuario anterior en disco y rehidratarse para el próximo usuario.
+      if (event === 'SIGNED_OUT') {
+        qc.clear();
+        try { localStorage.removeItem('portafolio-rq-cache'); } catch { /* */ }
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [qc]);

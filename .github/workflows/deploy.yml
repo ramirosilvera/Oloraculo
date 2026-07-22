@@ -54,6 +54,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           put() { [ -n "$2" ] && printf '%s' "$2" | npx wrangler@3 pages secret put "$1" --project-name=portfolio-inversiones || true; }
           put SUPABASE_URL "$SUPABASE_URL"
@@ -63,6 +64,7 @@ jobs:
           put GEMINI_API_KEY "$GEMINI_API_KEY"
           put FINNHUB_API_KEY "$FINNHUB_API_KEY"
           put FMP_API_KEY "$FMP_API_KEY"
+          put CRON_SECRET "$CRON_SECRET"
 
       - name: Deploy a Cloudflare Pages
         working-directory: migration

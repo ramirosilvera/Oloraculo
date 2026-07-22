@@ -29,7 +29,11 @@ export function realizedPnl(movs: Movimiento[]): RealizedResult {
         const q = Math.min(m.cantidad, qty);      // no vender más de lo que hay
         realized += (m.precio - avg) * q;
         qty -= q;
-      } else {                                     // compra / ajuste → entra al promedio
+      } else if (m.tipo === 'ajuste') {
+        // Ajuste de cantidad (split, corrección): cambia la cantidad SIN tocar el costo promedio.
+        // Si entrara al promedio con precio 0 diluiría el costo real e inflaría el realizado.
+        qty = Math.max(0, qty + m.cantidad);
+      } else {                                     // compra → entra al promedio ponderado
         const nueva = qty + m.cantidad;
         avg = nueva > 0 ? (qty * avg + m.cantidad * m.precio) / nueva : avg;
         qty = nueva;

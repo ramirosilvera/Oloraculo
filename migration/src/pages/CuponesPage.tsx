@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { CalendarClock } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones } from '../hooks/usePosiciones';
+import { useChartTheme } from '../hooks/usePrefs';
 import { couponCalendar, cuponAnualTotal, type CouponBond } from '../engine/coupons';
 import { Card, CardHeader, Stat, Empty, fmtUsd, fmtPct } from '../components/ui';
 
@@ -11,6 +12,7 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 export function CuponesPage() {
   const { active } = usePortfolios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
+  const chart = useChartTheme();
 
   const bonds = useMemo<CouponBond[]>(() =>
     posiciones
@@ -64,10 +66,10 @@ export function CuponesPage() {
             <div className="p-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                  <CartesianGrid stroke="#E4ECF4" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="mes" stroke="#8595A8" fontSize={11} />
-                  <YAxis stroke="#8595A8" fontSize={11} tickFormatter={v => `$${v}`} width={48} />
-                  <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #E4ECF4', borderRadius: 12, fontSize: 12, color: '#14212E' }}
+                  <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="mes" stroke={chart.axis} fontSize={11} />
+                  <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `$${v}`} width={48} />
+                  <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                     formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
                   <Bar dataKey="USD" fill="#4F97D4" radius={[3, 3, 0, 0]} />
                 </BarChart>

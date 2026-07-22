@@ -28,6 +28,7 @@ solo (crea el proyecto, carga los 7 secrets de Functions, deploya). La URL vieja
 | `FMP_API_KEY` | API key de FMP (opcional, fallback) | precios/fundamentos fallback |
 | `GEMINI_API_KEY` | API key de Gemini | análisis cualitativo |
 | `APP_URL` | `https://portfolio-inversiones.pages.dev` | **refresco automático cada 30 min** |
+| `CRON_SECRET` | cualquier string aleatorio largo (opcional, recomendado) | protege `/api/cron/refresh-all` de terceros |
 | `CLOUDFLARE_API_TOKEN` | token de Cloudflare (Pages: Edit) | deploy |
 | `CLOUDFLARE_ACCOUNT_ID` | account id de Cloudflare | deploy |
 

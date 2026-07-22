@@ -18,11 +18,12 @@ jobs:
       - name: Refrescar todas las caches
         env:
           APP: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           [ -z "$APP" ] && { echo "::error::APP_URL no configurada — agregá el secret APP_URL en GitHub"; exit 1; }
           URL="$APP/api/cron/refresh-all"
           echo "→ $URL"
-          RESP=$(curl -sS --max-time 120 "$URL")
+          RESP=$(curl -sS --max-time 120 -H "X-Cron-Secret: $CRON_SECRET" "$URL")
           echo "Respuesta: $RESP" | head -c 500
           case "$RESP" in
             '{'*'"ok"'*)

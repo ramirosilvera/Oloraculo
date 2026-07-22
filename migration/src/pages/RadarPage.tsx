@@ -10,6 +10,7 @@ import { computeRatios } from '../engine/ratios';
 import { computeDcf, DEFAULT_DCF_INPUTS } from '../engine/dcf';
 import { computeScore, type Rating } from '../engine/score';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
+import { UpdatedAt } from '../components/UpdatedAt';
 import type { Fundamentals } from '../types/domain';
 
 const RATING_TONE: Record<Rating, 'pos' | 'accent' | 'warn' | 'neg'> = { A: 'pos', B: 'accent', C: 'warn', D: 'neg' };
@@ -48,7 +49,10 @@ export function RadarPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-ink-900 font-display">Radar · Watchlist</h1>
+      <div className="flex items-end justify-between gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold text-ink-900 font-display">Radar · Watchlist</h1>
+        <UpdatedAt icon />
+      </div>
 
       <Card>
         <div className="p-4 flex flex-wrap gap-2 items-end text-sm">
@@ -69,7 +73,7 @@ export function RadarPage() {
 
       <Card>
         <CardHeader title="Tickers en seguimiento"
-          sub="Score = valuación (MoS) + calidad (ROIC−WACC, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código."
+          sub="Score = valuación (MoS) + calidad (ROIC−Ke, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código."
           right={<Button variant="ghost" onClick={refrescar} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Actualizando…' : 'Refrescar'}
           </Button>} />
@@ -156,8 +160,8 @@ function RadarRow({ item, riskFree, onRemove }: { item: WatchItem; riskFree: num
       </td>
       <td className="px-2 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1">
-          <Link to={`/analisis/${T}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF"><LineChart className="w-4 h-4" /></Link>
-          <button onClick={() => { if (window.confirm(`¿Sacar ${T} del radar?`)) onRemove(); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Quitar"><Trash2 className="w-4 h-4" /></button>
+          <Link to={`/analisis/${T}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
+          <button onClick={() => { if (window.confirm(`¿Sacar ${T} del radar?`)) onRemove(); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Quitar" aria-label="Quitar del radar"><Trash2 className="w-4 h-4" /></button>
         </div>
       </td>
     </tr>

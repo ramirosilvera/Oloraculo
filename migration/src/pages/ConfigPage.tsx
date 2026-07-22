@@ -125,7 +125,7 @@ function CikMapSection() {
             <div key={e.ticker} className="px-4 py-2 flex items-center gap-3 text-sm">
               <span className="font-semibold text-ink-900 w-20">{e.ticker}</span>
               <span className="text-ink-600 tnum flex-1">CIK {e.cik}</span>
-              <button onClick={() => remove(e.ticker)} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => remove(e.ticker)} aria-label="Borrar par ticker/CIK" title="Borrar" className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
         </div>

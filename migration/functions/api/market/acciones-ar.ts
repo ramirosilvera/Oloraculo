@@ -26,8 +26,9 @@ export const onRequestGet = guard(async ({ request, env }) => {
   const url = new URL(request.url);
   const tickers = (url.searchParams.get('tickers') || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
 
-  // MEP para pasar ARS → USD
-  const mepRow = await cacheFresh<{ valor: number }>(env, 'macro_cache', 'clave', 'dolar_mep', 6 * 60 * 60 * 1000);
+  // MEP para pasar ARS → USD. TTL 30 min (igual que fx.ts): con 6h, en días volátiles la
+  // conversión podía usar un MEP viejo y desviar la valuación.
+  const mepRow = await cacheFresh<{ valor: number }>(env, 'macro_cache', 'clave', 'dolar_mep', 30 * 60 * 1000);
   let mep = mepRow?.valor ?? null;
   if (!mep) {
     try { const d = await fetchJson<{ venta?: number }>('https://dolarapi.com/v1/dolares/bolsa'); mep = d.venta ?? null; } catch { /* */ }

@@ -37,4 +37,14 @@ describe('realizedPnl', () => {
   it('sin ventas → 0', () => {
     expect(realizedPnl([mv({ tipo: 'compra', cantidad: 5, precio: 20 })]).total).toBe(0);
   });
+
+  it('ajuste cambia cantidad sin diluir el costo promedio', () => {
+    const r = realizedPnl([
+      mv({ ticker: 'B', tipo: 'compra', cantidad: 10, precio: 100, fecha: '2026-01-01' }),
+      mv({ ticker: 'B', tipo: 'ajuste', cantidad: 10, precio: 0, fecha: '2026-01-15' }), // split 2:1 sin costo
+      mv({ ticker: 'B', tipo: 'venta', cantidad: 5, precio: 120, fecha: '2026-02-01' }),
+    ]);
+    // El promedio sigue en 100 (no se diluyó con precio 0): (120-100)*5 = 100
+    expect(r.porTicker.B).toBe(100);
+  });
 });

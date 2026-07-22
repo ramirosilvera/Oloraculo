@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes } from '../hooks/usePosiciones';
+import { useChartTheme } from '../hooks/usePrefs';
 import { project } from '../engine/projection';
 import { marketValueUSD, costUSD } from '../lib/valuation';
 import { Card, CardHeader, Stat, fmtUsd } from '../components/ui';
@@ -10,6 +11,7 @@ const anioActual = 2026;
 
 export function ProyeccionesPage() {
   const { active } = usePortfolios();
+  const chart = useChartTheme();
   const { data: posiciones = [] } = usePosiciones(active?.id);
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
@@ -60,13 +62,13 @@ export function ProyeccionesPage() {
         <div className="p-2 h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-              <CartesianGrid stroke="#E4ECF4" strokeDasharray="3 3" />
-              <XAxis dataKey="anio" stroke="#8595A8" fontSize={11} />
-              <YAxis stroke="#8595A8" fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={44} />
-              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #E4ECF4', borderRadius: 12, fontSize: 12, color: '#14212E' }}
+              <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" />
+              <XAxis dataKey="anio" stroke={chart.axis} fontSize={11} />
+              <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={44} />
+              <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                 formatter={(v: number) => fmtUsd(v, 0)} />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#14212E' }} />
-              <Line type="monotone" dataKey="Aportado" stroke="#C4CEDB" strokeWidth={1.5} dot={false} />
+              <Legend wrapperStyle={{ fontSize: 11, color: chart.tooltipText }} />
+              <Line type="monotone" dataKey="Aportado" stroke={chart.line2} strokeWidth={1.5} dot={false} />
               <Line type="monotone" dataKey="Patrimonio" stroke="#4F97D4" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>

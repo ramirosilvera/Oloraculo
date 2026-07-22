@@ -58,14 +58,18 @@ export function computeRatios(f: Fundamentals, price: number | null, beta: numbe
     pe,
     pb: price != null && bookPerShare ? price / bookPerShare : null,
     divYield: price ? dps / price : null,
-    payout: eps ? dps / eps : null,
+    // payout con EPS ≤ 0 daría un número negativo engañoso (dividendo pagado con pérdidas) → null.
+    payout: eps && eps > 0 ? dps / eps : null,
     operatingMargin: opInc != null && revenue ? opInc / revenue : null,
     debtToEquity: equity ? debt / equity : null,
-    netDebtToEbitda: ebitda && ebitda !== 0 ? (debt - cash - sti) / ebitda : null,
+    // EBITDA ≤ 0 con deuda neta positiva daría un ratio negativo que "parece" sano → null.
+    netDebtToEbitda: ebitda && ebitda > 0 ? (debt - cash - sti) / ebitda : null,
     roic,
     effectiveTaxRate: effTax,
     eg5y: eg,
     peForward: pe != null && eg != null ? pe / (1 + eg) : null,
+    // Costo de equity por CAPM (rf + β·ERP 5%), no un WACC completo (no pondera deuda). Se usa
+    // como tasa de referencia del chequeo "crea valor" y como semilla de la tasa de descuento.
     wacc: riskFreeRate + beta * 0.05,
   };
 }

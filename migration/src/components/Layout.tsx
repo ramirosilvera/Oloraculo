@@ -97,7 +97,7 @@ export function Layout() {
                   {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
                     <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
                       className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                        isActive ? 'bg-celeste-100 text-celeste-700' : 'text-ink-700 hover:bg-canvas'}`}>
+                        isActive ? 'bg-celeste-100 text-celeste-700 dark:bg-celeste-500/20 dark:text-celeste-300' : 'text-ink-700 hover:bg-canvas'}`}>
                       <Icon className="w-4 h-4" /> {label}
                     </NavLink>
                   ))}
@@ -132,7 +132,7 @@ function IconBtn({ children, onClick, title, active, danger }: {
   return (
     <button onClick={onClick} title={title} aria-label={title}
       className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-colors ${
-        active ? 'bg-celeste-100 text-celeste-700'
+        active ? 'bg-celeste-100 text-celeste-700 dark:bg-celeste-500/20 dark:text-celeste-300'
         : danger ? 'text-ink-600 hover:text-neg hover:bg-neg/5'
         : 'text-ink-600 hover:text-ink-900 hover:bg-canvas'}`}>
       {children}

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
+import { useAuth } from './useAuth';
 import type { Posicion, Movimiento } from '../types/domain';
 
 // Historial de movimientos de un portfolio (opcionalmente filtrado por ticker).
@@ -34,10 +35,13 @@ export function usePosiciones(portfolioId: string | null | undefined) {
 }
 
 // All positions across the user's active portfolios (for the consolidated view).
+// La key incluye el user_id: sin eso, la cache persistida podría rehidratar datos de otra
+// cuenta que usó el mismo navegador.
 export function useAllPosiciones(enabled: boolean) {
+  const { session } = useAuth();
   return useQuery({
-    queryKey: ['posiciones', 'all'],
-    enabled,
+    queryKey: ['posiciones', 'all', session?.user.id ?? 'anon'],
+    enabled: enabled && !!session,
     queryFn: async (): Promise<Posicion[]> => {
       const { data, error } = await supabase.from('posiciones').select('*');
       if (error) throw error;
@@ -60,9 +64,10 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       const ticker = (p.ticker ?? '').toUpperCase().trim();
       const addQty = Number(p.cantidad) || 0;
       const addPrice = Number(p.precio_compra) || 0;
+      if (!p.tipo) throw new Error('Elegí el tipo de activo.'); // sin tipo, .eq('tipo','') nunca consolida
 
       const { data: existing, error: selErr } = await supabase.from('posiciones')
-        .select('*').eq('portfolio_id', portfolioId).eq('ticker', ticker).eq('tipo', p.tipo ?? '')
+        .select('*').eq('portfolio_id', portfolioId).eq('ticker', ticker).eq('tipo', p.tipo)
         .limit(1).maybeSingle();
       if (selErr) throw selErr;
 
@@ -93,12 +98,15 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       }
 
       if (addQty > 0) {
-        await supabase.from('movimientos').insert({
+        // Chequear el error: si el movimiento no se registra, el P&L realizado quedaría mal y
+        // el usuario no se enteraría. La posición ya se actualizó, así que lo hacemos visible.
+        const { error: movErr } = await supabase.from('movimientos').insert({
           portfolio_id: portfolioId, posicion_id: posId, ticker,
           tipo: 'compra', cantidad: addQty, precio: addPrice,
           fecha: p.fecha_compra ?? new Date().toISOString().slice(0, 10),
           nota: p.notas ?? null,
         });
+        if (movErr) { invalidate(); throw new Error(`Posición guardada, pero no se pudo registrar el movimiento: ${movErr.message}`); }
       }
       invalidate();
     },
@@ -114,17 +122,21 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       const { count } = await supabase.from('movimientos')
         .select('id', { count: 'exact', head: true }).eq('posicion_id', pos.id);
       if (!count) {
-        await supabase.from('movimientos').insert({
+        const { error: baseErr } = await supabase.from('movimientos').insert({
           portfolio_id: portfolioId, posicion_id: pos.id, ticker: pos.ticker,
           tipo: 'compra', cantidad: pos.cantidad, precio: pos.precio_compra,
           fecha: pos.fecha_compra ?? new Date().toISOString().slice(0, 10), nota: 'carga inicial',
         });
+        if (baseErr) throw new Error(`No se pudo registrar la compra base: ${baseErr.message}`);
       }
-      await supabase.from('movimientos').insert({
+      // Registrar la venta ANTES de descontar: si falla, abortamos y la cantidad no cambia
+      // (nunca puede quedar una cantidad descontada sin su movimiento en el historial).
+      const { error: ventaErr } = await supabase.from('movimientos').insert({
         portfolio_id: portfolioId, posicion_id: pos.id, ticker: pos.ticker,
         tipo: 'venta', cantidad: qty, precio: Number(sellPrice) || 0,
         fecha: fecha ?? new Date().toISOString().slice(0, 10), nota: null,
       });
+      if (ventaErr) throw new Error(`No se pudo registrar la venta: ${ventaErr.message}`);
       const newQty = (Number(pos.cantidad) || 0) - qty;
       const { error } = await supabase.from('posiciones').update({ cantidad: newQty }).eq('id', pos.id);
       if (error) throw error; invalidate();
