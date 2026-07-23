@@ -145,6 +145,15 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       const { error } = await supabase.from('posiciones').update(patch).eq('id', id);
       if (error) throw error; invalidate();
     },
+    // Escribe varios objetivos de una (para sincronizar el plan a 100%) e invalida una sola vez.
+    setObjetivos: async (list: { id: string; peso_objetivo: number | null }[]) => {
+      const changed = list.filter(x => x.peso_objetivo == null || Number.isFinite(x.peso_objetivo));
+      const results = await Promise.all(changed.map(x =>
+        supabase.from('posiciones').update({ peso_objetivo: x.peso_objetivo }).eq('id', x.id)));
+      const failed = results.find(r => r.error);
+      if (failed?.error) throw failed.error;
+      invalidate();
+    },
     remove: async (id: string) => {
       const { error } = await supabase.from('posiciones').delete().eq('id', id);
       if (error) throw error; invalidate();

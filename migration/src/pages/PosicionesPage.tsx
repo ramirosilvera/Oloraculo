@@ -1,20 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff, Pencil } from 'lucide-react';
+import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff, Pencil, ShoppingCart, Target } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
+import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo } from '../engine/rebalance';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
+
+type Row = { p: Posicion; live: number | null; unit: number | null; mkt: number | null; cost: number; pnl: number | null; pnlPct: number | null };
 
 export function PosicionesPage() {
   const { active } = usePortfolios();
   const { ratios: cedearRatios, saveRatio } = useCedearRatios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
-  const { add, sell, update, remove } = usePosicionMutations(active?.id);
+  const { add, sell, update, remove, setObjetivos } = usePosicionMutations(active?.id);
 
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
@@ -46,9 +49,23 @@ export function PosicionesPage() {
   const [sellData, setSellData] = useState<{ pos: Posicion; sugerido: number | null } | null>(null);
   const [editPos, setEditPos] = useState<Posicion | null>(null);
   const [showClosed, setShowClosed] = useState(false);
+  const [simular, setSimular] = useState<{ pos?: Posicion } | null>(null);
 
   const cerradas = rows.filter(r => r.p.cantidad <= 0).length;
   const visibleRows = showClosed ? rows : rows.filter(r => r.p.cantidad > 0);
+  const openRows = rows.filter(r => r.p.cantidad > 0);
+
+  // Edición inline del % objetivo con sincronización a 100%: el plan son las posiciones abiertas
+  // con objetivo asignado (más la que se está tocando); el resto se reescala solo.
+  const setTargetFor = async (pos: Posicion, pctStr: string) => {
+    const nuevo = pctStr.trim() === '' ? null : Math.max(0, Math.min(100, Number(pctStr))) / 100;
+    if (nuevo != null && !Number.isFinite(nuevo)) return;
+    const planIds = new Set(openRows.filter(r => r.p.peso_objetivo != null).map(r => r.p.id));
+    planIds.add(pos.id);
+    const targeted = openRows.filter(r => planIds.has(r.p.id)).map(r => ({ id: r.p.id, peso_objetivo: r.p.peso_objetivo }));
+    const result = aplicarObjetivo(targeted, pos.id, nuevo);
+    try { await setObjetivos(result); } catch { /* el input vuelve al valor guardado en el próximo refetch */ }
+  };
 
   // Pre-llena el ratio de un CEDEAR desde la base (si existe y el usuario no lo tipeó).
   const applyAuto = (f: Partial<Posicion>): Partial<Posicion> => {
@@ -86,11 +103,14 @@ export function PosicionesPage() {
           <h1 className="text-2xl font-bold text-ink-900 font-display">Posiciones · {active.nombre}</h1>
           <UpdatedAt icon />
         </div>
-        <Button onClick={() => {
-          // Al abrir, arrancar limpio: sin esto, campos de una carga anterior (incluido cupón)
-          // reaparecían y podían mezclarse con el alta siguiente.
-          setShowForm(v => { if (!v) { setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 }); setFormErr(null); } return !v; });
-        }}><Plus className="w-4 h-4" /> Agregar</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => setSimular({})}><ShoppingCart className="w-4 h-4" /> Simular compra</Button>
+          <Button onClick={() => {
+            // Al abrir, arrancar limpio: sin esto, campos de una carga anterior (incluido cupón)
+            // reaparecían y podían mezclarse con el alta siguiente.
+            setShowForm(v => { if (!v) { setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 }); setFormErr(null); } return !v; });
+          }}><Plus className="w-4 h-4" /> Agregar</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -221,12 +241,16 @@ export function PosicionesPage() {
                       {pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${fmtUsd(pnl, 0)}`}
                       {pnlPct != null && <span className="block text-[10px]">{fmtPct(pnlPct)}</span>}
                     </td>
-                    <td className="text-right px-3 tnum">
-                      {pesoAct != null ? fmtPct(pesoAct, 0) : '—'}
-                      {p.peso_objetivo != null && <span className="block text-[10px] text-ink-600">obj {fmtPct(p.peso_objetivo, 0)}</span>}
+                    <td className="text-right px-3">
+                      {p.cantidad > 0
+                        ? <TargetCell pos={p} actual={pesoAct} onCommit={v => setTargetFor(p, v)} />
+                        : <span className="tnum text-ink-600">—</span>}
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        {p.cantidad > 0 && p.tipo !== 'cash' && (
+                          <button onClick={() => setSimular({ pos: p })} className="text-ink-600 hover:text-pos inline-flex items-center justify-center w-9 h-9" title="Comprar / simular" aria-label="Comprar / simular"><ShoppingCart className="w-4 h-4" /></button>
+                        )}
                         {p.cantidad > 0 && p.tipo !== 'cash' && (
                           <button onClick={() => setSellData({ pos: p, sugerido: unit ?? p.precio_compra })} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Vender" aria-label="Vender"><TrendingDown className="w-4 h-4" /></button>
                         )}
@@ -253,6 +277,36 @@ export function PosicionesPage() {
         onSell={async (qty, precio, fecha) => { await sell(sellData.pos, qty, precio, fecha); setSellData(null); }} />}
       {editPos && <EditModal pos={editPos} onClose={() => setEditPos(null)}
         onSave={async (patch) => { await update(editPos.id, patch); setEditPos(null); }} />}
+      {simular && <SimularCompraModal openRows={openRows} totalMkt={totalMkt} cedearRatios={cedearRatios}
+        initial={simular.pos} onClose={() => setSimular(null)}
+        onEjecutar={async (payload) => { await add(payload); setSimular(null); }} />}
+    </div>
+  );
+}
+
+// Celda de peso: muestra el peso actual y permite editar el % objetivo inline (se sincroniza a 100%
+// con el resto). Debajo, la desviación actual−objetivo (verde = por debajo → hay lugar para comprar).
+function TargetCell({ pos, actual, onCommit }: { pos: Posicion; actual: number | null; onCommit: (v: string) => void }) {
+  const fromPos = () => (pos.peso_objetivo != null ? String(Math.round(pos.peso_objetivo * 100)) : '');
+  const [val, setVal] = useState(fromPos());
+  useEffect(() => { setVal(fromPos()); }, [pos.peso_objetivo]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const off = actual != null && pos.peso_objetivo != null ? actual - pos.peso_objetivo : null;
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <span className="tnum font-medium text-ink-900">{actual != null ? fmtPct(actual, 0) : '—'}</span>
+      <div className="flex items-center gap-1 text-ink-500">
+        <span className="text-[9px] uppercase">obj</span>
+        <input value={val} onChange={e => setVal(e.target.value)} onBlur={() => onCommit(val)}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder="—" inputMode="numeric" aria-label={`Objetivo de ${pos.ticker} en %`}
+          className="w-9 text-right text-[11px] bg-canvas border border-line rounded px-1 py-0.5 tnum focus:outline-none focus:ring-1 focus:ring-celeste-300" />
+        <span className="text-[9px]">%</span>
+      </div>
+      {off != null && Math.abs(off) >= 0.005 && (
+        <span className={`text-[9px] tnum ${off > 0 ? 'text-warn' : 'text-celeste-600'}`} title={off > 0 ? 'por encima del objetivo' : 'por debajo del objetivo'}>
+          {off > 0 ? '+' : ''}{fmtPct(off, 0)}
+        </span>
+      )}
     </div>
   );
 }
@@ -380,6 +434,165 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
           <div className="px-4 pb-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button variant="danger" onClick={confirmar} disabled={busy}><TrendingDown className="w-4 h-4" /> {busy ? 'Vendiendo…' : 'Vender'}</Button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Simulador de compra: elegís un activo (existente o nuevo), un método (por monto, por cantidad, o
+// "llegar al objetivo") y ves el costo y el peso resultante ANTES de ejecutar. Al ejecutar, se
+// consolida con la posición existente (costo promedio) igual que una compra normal.
+function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose, onEjecutar }: {
+  openRows: Row[]; totalMkt: number; cedearRatios: Record<string, number>;
+  initial?: Posicion; onClose: () => void; onEjecutar: (payload: Partial<Posicion>) => Promise<void>;
+}) {
+  const comprables = openRows.filter(r => r.p.tipo !== 'cash');
+  const [modo, setModo] = useState<'existente' | 'nuevo'>(initial || comprables.length > 0 ? 'existente' : 'nuevo');
+  const [selId, setSelId] = useState<string>(initial?.id ?? comprables[0]?.p.id ?? '');
+  const [nTicker, setNTicker] = useState('');
+  const [nTipo, setNTipo] = useState<Posicion['tipo']>('cedear');
+  const [nRatio, setNRatio] = useState('');
+  const [precio, setPrecio] = useState('');
+  const [metodo, setMetodo] = useState<'monto' | 'cantidad' | 'objetivo'>('objetivo');
+  const [montoStr, setMontoStr] = useState('');
+  const [cantStr, setCantStr] = useState('');
+  const [objStr, setObjStr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const sel = modo === 'existente' ? comprables.find(r => r.p.id === selId) : undefined;
+  const esNuevoCedear = modo === 'nuevo' && nTipo === 'cedear';
+
+  // Precio unitario por defecto: valuación viva por unidad (o costo prom.) al elegir un existente.
+  useEffect(() => {
+    if (modo === 'existente' && sel) setPrecio(String(+(sel.unit ?? sel.p.precio_compra).toFixed(2)));
+  }, [modo, selId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Al elegir existente, precargar su objetivo si lo tiene.
+  useEffect(() => {
+    if (modo === 'existente' && sel?.p.peso_objetivo != null) setObjStr(String(Math.round(sel.p.peso_objetivo * 100)));
+  }, [modo, selId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // CEDEAR nuevo: si la base tiene su ratio, precargarlo.
+  useEffect(() => {
+    if (esNuevoCedear && nTicker && cedearRatios[nTicker] && !nRatio) setNRatio(String(cedearRatios[nTicker]));
+  }, [nTicker, nTipo]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const unitPrice = Number(precio) || 0;
+  // vi con la MISMA base que el total (totalMkt usa mkt ?? cost): si la posición no tiene precio
+  // vivo, contamos su costo — si no, quedaría en 0 acá pero como costo en V y el objetivo daría mal.
+  const vi = sel ? (sel.mkt ?? sel.cost) : 0;     // valor actual de la posición
+  const V = totalMkt;                              // total actual de la cartera
+  const objetivo = objStr ? Math.max(0, Math.min(100, Number(objStr))) / 100 : null;
+
+  // Monto/cantidad según el método elegido.
+  let monto = 0;
+  if (metodo === 'monto') monto = Number(montoStr) || 0;
+  else if (metodo === 'cantidad') monto = (Number(cantStr) || 0) * unitPrice;
+  else if (objetivo != null) monto = montoParaObjetivo(vi, V, objetivo);
+  const cantidad = metodo === 'cantidad' ? (Number(cantStr) || 0) : cantidadPorMonto(monto, unitPrice);
+
+  const sobreponderada = metodo === 'objetivo' && monto < 0;
+  const costo = Math.max(0, monto);
+  const pesoNuevo = pesoResultante(vi, V, costo);
+  const nuevoProm = sel && sel.p.cantidad + cantidad > 0
+    ? (sel.p.cantidad * sel.p.precio_compra + cantidad * unitPrice) / (sel.p.cantidad + cantidad) : unitPrice;
+
+  const ticker = modo === 'existente' ? (sel?.p.ticker ?? '') : nTicker.trim().toUpperCase();
+  const puedeEjecutar = !!ticker && unitPrice > 0 && cantidad > 0 && costo > 0
+    && !(esNuevoCedear && !(Number(nRatio) > 0));
+
+  const ejecutar = async () => {
+    if (!puedeEjecutar) { setErr('Completá activo, precio y monto/cantidad válidos.'); return; }
+    setBusy(true); setErr(null);
+    const payload: Partial<Posicion> = modo === 'existente'
+      ? { ticker: sel!.p.ticker, tipo: sel!.p.tipo, cantidad, precio_compra: unitPrice, ratio_cedear: sel!.p.ratio_cedear }
+      : { ticker, tipo: nTipo, cantidad, precio_compra: unitPrice, ratio_cedear: nTipo === 'cedear' ? Number(nRatio) : null, peso_objetivo: objetivo };
+    try { await onEjecutar(payload); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo ejecutar'); setBusy(false); }
+  };
+
+  const tabBtn = (k: typeof metodo, label: string) =>
+    <button type="button" onClick={() => setMetodo(k)}
+      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${metodo === k ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600 hover:text-ink-900'}`}>{label}</button>;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <Card className="animate-rise max-h-[90vh] overflow-y-auto">
+          <CardHeader title="Simular compra" sub="Mirá el costo y el peso resultante antes de ejecutar."
+            right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
+
+          <div className="p-4 space-y-3 text-sm">
+            {/* Activo */}
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setModo('existente')} disabled={comprables.length === 0}
+                className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${modo === 'existente' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'} disabled:opacity-40`}>Activo existente</button>
+              <button type="button" onClick={() => setModo('nuevo')}
+                className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${modo === 'nuevo' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'}`}>Nuevo activo</button>
+            </div>
+
+            {modo === 'existente' ? (
+              <Field label="Posición">
+                <select value={selId} onChange={e => setSelId(e.target.value)} className={`${inputCls} appearance-none`}>
+                  {comprables.map(r => <option key={r.p.id} value={r.p.id}>{r.p.ticker} · {fmtNum(r.p.cantidad, 0)} un · {fmtUsd(r.mkt, 0)}</option>)}
+                </select>
+              </Field>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Ticker"><input value={nTicker} onChange={e => setNTicker(e.target.value.toUpperCase())} className={inputCls} placeholder="ej. GOOGL" /></Field>
+                <Field label="Tipo">
+                  <select value={nTipo} onChange={e => setNTipo(e.target.value as Posicion['tipo'])} className={`${inputCls} appearance-none`}>
+                    <option value="cedear">CEDEAR</option><option value="accion">Acción (US)</option><option value="accion_ar">Acción ARG</option><option value="etf">ETF</option><option value="bono">Bono / ON</option>
+                  </select>
+                </Field>
+                {esNuevoCedear && <Field label="Ratio CEDEAR" className="col-span-2"><input type="number" value={nRatio} onChange={e => setNRatio(e.target.value)} className={inputCls} placeholder="subyacentes por CEDEAR" /></Field>}
+              </div>
+            )}
+
+            <Field label="Precio unitario (USD)" hint={sel?.unit != null ? `valuación viva ${fmtUsd(sel.unit)}` : undefined}>
+              <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} placeholder="USD por unidad" />
+            </Field>
+
+            {/* Método */}
+            <div>
+              <span className="block text-[11px] font-semibold text-ink-600 mb-1">Método</span>
+              <div className="flex items-center gap-1.5">{tabBtn('objetivo', 'Llegar al objetivo')}{tabBtn('monto', 'Por monto')}{tabBtn('cantidad', 'Por cantidad')}</div>
+            </div>
+
+            {metodo === 'monto' && <Field label="Monto a invertir (USD)"><input type="number" value={montoStr} onChange={e => setMontoStr(e.target.value)} className={inputCls} placeholder="USD" /></Field>}
+            {metodo === 'cantidad' && <Field label="Cantidad a comprar"><input type="number" value={cantStr} onChange={e => setCantStr(e.target.value)} className={inputCls} placeholder="unidades" /></Field>}
+            {metodo === 'objetivo' && (
+              <Field label="% objetivo del activo" hint="cuánto querés que pese en la cartera">
+                <input type="number" value={objStr} onChange={e => setObjStr(e.target.value)} className={inputCls} placeholder="ej. 10" />
+              </Field>
+            )}
+          </div>
+
+          {/* Preview */}
+          <div className="mx-4 mb-3 rounded-xl bg-canvas ring-1 ring-inset ring-line p-3">
+            {sobreponderada ? (
+              <p className="text-xs text-warn flex items-center gap-1.5"><Target className="w-4 h-4 shrink-0" /> {ticker || 'El activo'} ya está por encima del objetivo — para llegar deberías vender ~{fmtUsd(Math.abs(monto), 0)}, no comprar.</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Cantidad</p><p className="tnum font-bold text-ink-900 mt-0.5">{cantidad > 0 ? fmtNum(cantidad, cantidad < 10 ? 2 : 0) : '—'}</p></div>
+                <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Costo</p><p className="tnum font-bold text-ink-900 mt-0.5">{costo > 0 ? fmtUsd(costo, 0) : '—'}</p></div>
+                <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Peso result.</p><p className="tnum font-bold text-celeste-600 mt-0.5">{costo > 0 ? fmtPct(pesoNuevo, 1) : '—'}</p></div>
+              </div>
+            )}
+            {!sobreponderada && costo > 0 && (
+              <p className="text-[11px] text-ink-600 mt-2 text-center">
+                {sel ? <>Peso hoy {fmtPct(V > 0 ? vi / V : 0, 1)} → {fmtPct(pesoNuevo, 1)} · nuevo costo prom. {fmtUsd(nuevoProm)}</>
+                     : <>Nueva posición · pesaría {fmtPct(pesoNuevo, 1)} de la cartera</>}
+                {objetivo != null && <> · objetivo {fmtPct(objetivo, 0)}</>}
+              </p>
+            )}
+          </div>
+
+          {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
+          <div className="px-4 pb-4 flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+            <Button onClick={ejecutar} disabled={busy || !puedeEjecutar}><ShoppingCart className="w-4 h-4" /> {busy ? 'Ejecutando…' : 'Ejecutar compra'}</Button>
           </div>
         </Card>
       </div>

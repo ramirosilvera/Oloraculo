@@ -3,8 +3,9 @@ import { Plus, Trash2, TrendingUp, TrendingDown, PiggyBank, AlertCircle } from '
 import { useFlujo, useFlujoMutations } from '../hooks/useFlujo';
 import { useMacro } from '../hooks/usePosiciones';
 import { resumenFlujo, type FlujoDestino } from '../engine/flujo';
-import { Card, CardHeader, Stat, Button, Empty, inputCls } from '../components/ui';
+import { Card, CardHeader, Button, Empty, inputCls, fmtPct } from '../components/ui';
 import type { FlujoItem, FlujoCategoria } from '../types/domain';
+import type { ResumenFlujo } from '../engine/flujo';
 
 const DESTINOS: { key: FlujoDestino; label: string }[] = [
   { key: 'fci', label: 'FCI' },
@@ -46,17 +47,7 @@ export function FinanzasPage() {
         <span className="text-xs text-ink-600">{mep != null ? `MEP $${Math.round(mep).toLocaleString('es-AR')}` : 'MEP no disponible'}</span>
       </div>
 
-      {/* Resumen cascada */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        <Stat label="Ingresos" value={fmtArs(r.ingresos)} />
-        <Stat label="Egresos" value={<span className="text-neg">{fmtArs(r.egresos)}</span>} />
-        <Stat label="Disponible" value={<span className={r.disponible >= 0 ? 'text-pos' : 'text-neg'}>{fmtArs(r.disponible)}</span>}
-          delta={r.tasaAhorro ?? undefined} hint="ingresos − egresos · el delta es tu tasa de ahorro" />
-        <Stat label="Asignado" value={fmtArs(r.invertido)} hint="suma de inversiones/asignaciones" />
-        <Stat label="Sin asignar" value={<span className={r.sinAsignar >= 0 ? 'text-ink-900' : 'text-neg'}>{fmtArs(r.sinAsignar)}</span>}
-          hint="disponible − asignado: lo que todavía no colocaste" />
-        <Stat label="FCI + billetera" value={fmtArs(r.fci)} hint={mep ? `≈ US$${Math.round(r.fci / mep).toLocaleString('en-US')}` : 'sleeve near-cash'} />
-      </div>
+      <ResumenFlujoCard r={r} />
 
       {r.pendientesConversion > 0 && (
         <p className="text-[11px] text-warn">
@@ -84,6 +75,51 @@ export function FinanzasPage() {
         Los totales los calcula el código; el MEP convierte las filas en USD. La parte de FCI + Mercado Pago se muestra en el Dashboard.
       </p>
     </div>
+  );
+}
+
+// Resumen condensado + barra cascada: cómo se reparte el ingreso (egresos / asignado / sin asignar).
+function ResumenFlujoCard({ r }: { r: ResumenFlujo }) {
+  const I = r.ingresos, E = r.egresos, A = r.invertido, S = r.sinAsignar;
+  const denom = Math.max(I, E + A, 1);
+  const seg = [
+    { key: 'egr', label: 'Egresos', monto: E, w: E / denom, cls: 'bg-neg/70', dot: 'bg-neg' },
+    { key: 'asig', label: 'Asignado', monto: A, w: A / denom, cls: 'bg-celeste-500', dot: 'bg-celeste-500' },
+    { key: 'sin', label: 'Sin asignar', monto: Math.max(0, S), w: Math.max(0, S) / denom, cls: 'bg-pos/60', dot: 'bg-pos' },
+  ];
+  return (
+    <Card>
+      <div className="p-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">Disponible del mes</p>
+            <p className={`text-2xl font-bold font-display tnum ${S >= 0 && r.disponible >= 0 ? 'text-ink-900' : 'text-neg'}`}>{fmtArs(r.disponible)}</p>
+            <p className="text-[11px] text-ink-600 tnum">de {fmtArs(I)} de ingresos</p>
+          </div>
+          <div className="text-right">
+            {r.tasaAhorro != null && (
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${r.tasaAhorro >= 0 ? 'bg-pos/10 text-pos ring-1 ring-pos/20' : 'bg-neg/10 text-neg ring-1 ring-neg/20'}`}>
+                ahorro {fmtPct(r.tasaAhorro, 0)}
+              </span>
+            )}
+            <p className="text-[11px] text-ink-600 mt-1 tnum">FCI + billetera {fmtArs(r.fci)}</p>
+          </div>
+        </div>
+
+        {/* Barra cascada. */}
+        <div className="mt-3 h-3 rounded-full bg-canvas overflow-hidden flex">
+          {seg.map(s => s.w > 0 && <div key={s.key} className={s.cls} style={{ width: `${Math.min(100, s.w * 100)}%` }} title={`${s.label}: ${fmtArs(s.monto)}`} />)}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+          {seg.map(s => (
+            <span key={s.key} className="inline-flex items-center gap-1.5 text-ink-600">
+              <span className={`w-2 h-2 rounded-full ${s.dot}`} /> {s.label} <span className="tnum font-semibold text-ink-800">{fmtArs(s.monto)}</span>
+            </span>
+          ))}
+        </div>
+        {S < 0 && <p className="mt-2 text-[11px] text-warn">Estás asignando más de lo disponible ({fmtArs(-S)} de más): revisá las inversiones o los egresos.</p>}
+      </div>
+    </Card>
   );
 }
 
