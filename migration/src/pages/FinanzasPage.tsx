@@ -93,7 +93,7 @@ function ResumenFlujoCard({ r }: { r: ResumenFlujo }) {
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
             <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">Disponible del mes</p>
-            <p className={`text-2xl font-bold font-display tnum ${S >= 0 && r.disponible >= 0 ? 'text-ink-900' : 'text-neg'}`}>{fmtArs(r.disponible)}</p>
+            <p className={`text-2xl font-bold font-display tnum ${r.disponible >= 0 ? 'text-ink-900' : 'text-neg'}`}>{fmtArs(r.disponible)}</p>
             <p className="text-[11px] text-ink-600 tnum">de {fmtArs(I)} de ingresos</p>
           </div>
           <div className="text-right">

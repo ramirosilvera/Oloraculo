@@ -289,14 +289,19 @@ export function PosicionesPage() {
 function TargetCell({ pos, actual, onCommit }: { pos: Posicion; actual: number | null; onCommit: (v: string) => void }) {
   const fromPos = () => (pos.peso_objetivo != null ? String(Math.round(pos.peso_objetivo * 100)) : '');
   const [val, setVal] = useState(fromPos());
-  useEffect(() => { setVal(fromPos()); }, [pos.peso_objetivo]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const [focused, setFocused] = useState(false);
+  // Sincronizamos desde la base salvo mientras el usuario tipea (el rebalanceo de otra celda dispara
+  // un refetch: sin este guard, pisaría lo que estás escribiendo). Al desenfocar, se re-sincroniza
+  // (y así también se limpia un texto inválido que no llegó a guardarse).
+  useEffect(() => { if (!focused) setVal(fromPos()); }, [pos.peso_objetivo, focused]);   // eslint-disable-line react-hooks/exhaustive-deps
   const off = actual != null && pos.peso_objetivo != null ? actual - pos.peso_objetivo : null;
   return (
     <div className="flex flex-col items-end gap-0.5">
       <span className="tnum font-medium text-ink-900">{actual != null ? fmtPct(actual, 0) : '—'}</span>
       <div className="flex items-center gap-1 text-ink-500">
         <span className="text-[9px] uppercase">obj</span>
-        <input value={val} onChange={e => setVal(e.target.value)} onBlur={() => onCommit(val)}
+        <input value={val} onChange={e => setVal(e.target.value)}
+          onFocus={() => setFocused(true)} onBlur={() => { onCommit(val); setFocused(false); }}
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           placeholder="—" inputMode="numeric" aria-label={`Objetivo de ${pos.ticker} en %`}
           className="w-9 text-right text-[11px] bg-canvas border border-line rounded px-1 py-0.5 tnum focus:outline-none focus:ring-1 focus:ring-celeste-300" />
@@ -465,13 +470,15 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
   const sel = modo === 'existente' ? comprables.find(r => r.p.id === selId) : undefined;
   const esNuevoCedear = modo === 'nuevo' && nTipo === 'cedear';
 
-  // Precio unitario por defecto: valuación viva por unidad (o costo prom.) al elegir un existente.
+  // Al cambiar de activo/modo: precargar precio (valuación viva o costo prom.) y objetivo del activo
+  // elegido; en "nuevo" limpiar ambos para no arrastrar los del activo anterior.
   useEffect(() => {
-    if (modo === 'existente' && sel) setPrecio(String(+(sel.unit ?? sel.p.precio_compra).toFixed(2)));
-  }, [modo, selId]);   // eslint-disable-line react-hooks/exhaustive-deps
-  // Al elegir existente, precargar su objetivo si lo tiene.
-  useEffect(() => {
-    if (modo === 'existente' && sel?.p.peso_objetivo != null) setObjStr(String(Math.round(sel.p.peso_objetivo * 100)));
+    if (modo === 'existente' && sel) {
+      setPrecio(String(+(sel.unit ?? sel.p.precio_compra).toFixed(2)));
+      setObjStr(sel.p.peso_objetivo != null ? String(Math.round(sel.p.peso_objetivo * 100)) : '');
+    } else if (modo === 'nuevo') {
+      setPrecio(''); setObjStr('');
+    }
   }, [modo, selId]);   // eslint-disable-line react-hooks/exhaustive-deps
   // CEDEAR nuevo: si la base tiene su ratio, precargarlo.
   useEffect(() => {
@@ -505,9 +512,12 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
   const ejecutar = async () => {
     if (!puedeEjecutar) { setErr('Completá activo, precio y monto/cantidad válidos.'); return; }
     setBusy(true); setErr(null);
+    // No seteamos peso_objetivo acá: el % objetivo se administra con el editor inline (que mantiene
+    // el plan en 100%). Escribirlo directo desde el simulador rompería esa suma. El objetivo del
+    // simulador se usa solo para dimensionar la compra.
     const payload: Partial<Posicion> = modo === 'existente'
       ? { ticker: sel!.p.ticker, tipo: sel!.p.tipo, cantidad, precio_compra: unitPrice, ratio_cedear: sel!.p.ratio_cedear }
-      : { ticker, tipo: nTipo, cantidad, precio_compra: unitPrice, ratio_cedear: nTipo === 'cedear' ? Number(nRatio) : null, peso_objetivo: objetivo };
+      : { ticker, tipo: nTipo, cantidad, precio_compra: unitPrice, ratio_cedear: nTipo === 'cedear' ? Number(nRatio) : null };
     try { await onEjecutar(payload); }
     catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo ejecutar'); setBusy(false); }
   };
@@ -557,7 +567,7 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
             {/* Método */}
             <div>
               <span className="block text-[11px] font-semibold text-ink-600 mb-1">Método</span>
-              <div className="flex items-center gap-1.5">{tabBtn('objetivo', 'Llegar al objetivo')}{tabBtn('monto', 'Por monto')}{tabBtn('cantidad', 'Por cantidad')}</div>
+              <div className="flex flex-wrap items-center gap-1.5">{tabBtn('objetivo', 'Llegar al objetivo')}{tabBtn('monto', 'Por monto')}{tabBtn('cantidad', 'Por cantidad')}</div>
             </div>
 
             {metodo === 'monto' && <Field label="Monto a invertir (USD)"><input type="number" value={montoStr} onChange={e => setMontoStr(e.target.value)} className={inputCls} placeholder="USD" /></Field>}
