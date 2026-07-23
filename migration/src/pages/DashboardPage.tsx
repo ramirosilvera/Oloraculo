@@ -175,7 +175,7 @@ function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo
   ];
   return (
     <Card>
-      <CardHeader title="Liquidez & FCI" sub="Fondos y billetera, según tu flujo de caja."
+      <CardHeader title="Liquidez & FCI" sub="Fondos y billetera en pesos, según tu flujo de caja."
         right={<Link to="/finanzas" className="text-[11px] text-celeste-600 hover:underline">Editar flujo →</Link>} />
       <div className="grid grid-cols-3 gap-2 p-3">
         {tiles.map(t => (

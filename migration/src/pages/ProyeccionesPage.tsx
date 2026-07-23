@@ -64,7 +64,7 @@ export function ProyeccionesPage() {
             <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
               <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" />
               <XAxis dataKey="anio" stroke={chart.axis} fontSize={11} />
-              <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={44} />
+              <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${(v / 1000).toFixed(0)}k`} width={52} />
               <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                 formatter={(v: number) => fmtUsd(v, 0)} />
               <Legend wrapperStyle={{ fontSize: 11, color: chart.tooltipText }} />

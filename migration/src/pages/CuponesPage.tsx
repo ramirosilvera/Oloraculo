@@ -68,7 +68,7 @@ export function CuponesPage() {
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
                   <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="mes" stroke={chart.axis} fontSize={11} />
-                  <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `$${v}`} width={48} />
+                  <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
                   <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                     formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
                   <Bar dataKey="USD" fill="#4F97D4" radius={[3, 3, 0, 0]} />

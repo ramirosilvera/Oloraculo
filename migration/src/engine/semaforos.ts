@@ -22,11 +22,12 @@ export const GRUPOS: { key: Grupo; label: string }[] = [
 ];
 
 const pct = (v: number) => `${v.toFixed(1)}%`;
-const usd0 = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
+const usd0 = (v: number) => `US$${Math.round(v).toLocaleString('en-US')}`;  // indicador en dólares
+const ars0 = (v: number) => `$${Math.round(v).toLocaleString('es-AR')}`;    // indicador en pesos (dólar $)
 
 export const SEMAFOROS: SemaforoDef[] = [
-  { key: 'dolar_oficial', label: 'Dólar oficial', grupo: 'arg', fmt: usd0, evalua: v => v < 1200 ? 'rojo' : v < 1600 ? 'verde' : 'amarillo' },
-  { key: 'dolar_mep',     label: 'Dólar MEP',     grupo: 'arg', fmt: usd0, evalua: v => v < 1400 ? 'rojo' : v < 1750 ? 'verde' : 'amarillo' },
+  { key: 'dolar_oficial', label: 'Dólar oficial', grupo: 'arg', fmt: ars0, evalua: v => v < 1200 ? 'rojo' : v < 1600 ? 'verde' : 'amarillo' },
+  { key: 'dolar_mep',     label: 'Dólar MEP',     grupo: 'arg', fmt: ars0, evalua: v => v < 1400 ? 'rojo' : v < 1750 ? 'verde' : 'amarillo' },
   { key: 'riesgo_pais',   label: 'Riesgo país',   grupo: 'arg', fmt: v => `${Math.round(v)}`, evalua: v => v < 400 ? 'verde' : v < 800 ? 'amarillo' : 'rojo' },
   { key: 'merval_usd',    label: 'Merval USD',    grupo: 'arg', fmt: usd0, evalua: v => v > 2050 ? 'rojo' : v > 1500 ? 'amarillo' : 'verde' },
   { key: 'adr_ypf',       label: 'ADR YPF',       grupo: 'arg', fmt: usd0, evalua: v => v > 40 ? 'verde' : v > 25 ? 'amarillo' : 'rojo' },
