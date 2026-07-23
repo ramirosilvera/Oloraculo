@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Plus, Archive, Save, KeyRound, Layers } from 'lucide-react';
+import { Plus, Archive, Save, KeyRound, Layers, Download, ShieldCheck } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAuth } from '../hooks/useAuth';
 import { useCikMap } from '../hooks/useCikMap';
 import { Trash2 } from 'lucide-react';
 import { Card, CardHeader, Button, Badge, fmtUsd, Field, inputCls, Empty } from '../components/ui';
+import { buildBackup, descargarBackup } from '../lib/backup';
 
 export function ConfigPage() {
   const { portfolios, active, defaultId, setDefaultId, setActiveId, createPortfolio, updatePortfolio, archivePortfolio } = usePortfolios();
@@ -102,9 +103,46 @@ export function ConfigPage() {
         nombre={active.nombre} estrategia={active.estrategia ?? ''} capital={active.capital_objetivo}
         onSave={(patch) => updatePortfolio(active.id, patch)} />}
 
+      <BackupSection />
       <CikMapSection />
       <ChangePassword />
     </div>
+  );
+}
+
+function BackupSection() {
+  const { session } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
+
+  const descargar = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await buildBackup(session?.user.email ?? null);
+      descargarBackup(r);
+      const detalle = `${r.counts.portfolios ?? 0} portfolios · ${r.counts.posiciones ?? 0} posiciones · ${r.counts.movimientos ?? 0} movimientos · ${r.counts.aportes ?? 0} aportes · ${r.counts.flujo_items ?? 0} flujo`;
+      setMsg(r.errores.length
+        ? { text: `Backup descargado (${r.total} registros), con avisos: ${r.errores.join('; ')}` }
+        : { text: `Backup descargado ✓ — ${r.total} registros (${detalle}). Guardalo en tu Drive.`, ok: true });
+    } catch (e) {
+      setMsg({ text: `No se pudo generar el backup: ${e instanceof Error ? e.message : 'error'}` });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <CardHeader title="Backup de tus datos" sub="Descargá un archivo JSON con TODOS tus portfolios y datos para guardarlo por tu cuenta (ej. en tu Drive)." />
+      <div className="p-4 space-y-3">
+        <div className="flex items-start gap-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 text-[11px] text-ink-600">
+          <ShieldCheck className="w-4 h-4 shrink-0 text-pos mt-0.5" />
+          <p>Incluye portfolios, posiciones, movimientos, aportes, flujo de caja, supuestos de DCF, watchlist, mapa de CIK y análisis de IA. Se genera en tu navegador (no se sube a ningún lado). Sirve para reconstruir la cuenta si Supabase deja de estar, si te comprometen la app, o lo que sea.</p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button onClick={descargar} disabled={busy}><Download className="w-4 h-4" /> {busy ? 'Generando…' : 'Descargar backup (JSON)'}</Button>
+          {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
+        </div>
+      </div>
+    </Card>
   );
 }
 
