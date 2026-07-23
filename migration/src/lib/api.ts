@@ -27,6 +27,7 @@ export const api = {
 
   analisisEmpresa: (body: unknown) => postAnalisis('/api/analysis/empresa', body),
   analisisPortfolio: (body: unknown) => postAnalisis('/api/analysis/portfolio', body),
+  analisisMacro: (body: unknown) => postAnalisis('/api/analysis/macro', body),
 };
 
 // Nunca rechaza: devuelve {error} ante fallo de red/HTTP para que el botón no quede colgado.

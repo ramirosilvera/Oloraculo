@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SEMAFOROS, sintesis } from './semaforos';
+import { SEMAFOROS, sintesis, resumenMacro, type Lectura } from './semaforos';
 
 const ev = (key: string, v: number) => SEMAFOROS.find(s => s.key === key)!.evalua(v);
 
@@ -31,5 +31,30 @@ describe('semáforos — umbrales exactos sección 9', () => {
     expect(sintesis(['rojo', 'rojo', 'rojo', 'rojo']).texto).toBe('Estrés creciente');
     expect(sintesis(['rojo', 'rojo', 'verde']).texto).toBe('Vulnerabilidad moderada');
     expect(sintesis(['verde', 'amarillo']).texto).toBe('Panorama estable');
+  });
+
+  it('resumenMacro: conteo, alertas con significado y foco por área', () => {
+    const lec = (key: string, luz: 'verde' | 'amarillo' | 'rojo'): Lectura => {
+      const def = SEMAFOROS.find(s => s.key === key)!;
+      return { def, valor: 1, luz };
+    };
+    const r = resumenMacro([
+      lec('riesgo_pais', 'rojo'),   // arg
+      lec('vix', 'amarillo'),        // global
+      lec('oro', 'verde'),           // refugio
+      lec('dolar_mep', 'verde'),
+    ]);
+    expect(r.conteo).toEqual({ verdes: 2, amarillos: 1, rojos: 1, total: 4 });
+    expect(r.alertas).toHaveLength(2);
+    expect(r.alertas[0].luz).toBe('rojo');                 // rojos primero
+    expect(r.alertas.some(a => a.grupo === 'arg')).toBe(true);
+    expect(r.parrafo).toContain('En Argentina');
+    expect(r.parrafo.length).toBeGreaterThan(20);
+  });
+
+  it('resumenMacro sin datos → mensaje explícito', () => {
+    const r = resumenMacro([]);
+    expect(r.conteo.total).toBe(0);
+    expect(r.parrafo).toContain('Todavía no hay datos');
   });
 });

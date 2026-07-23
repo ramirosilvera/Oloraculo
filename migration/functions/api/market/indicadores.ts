@@ -43,7 +43,7 @@ export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 // GET /api/market/indicadores → { adr_ypf, bitcoin, sp500, oro, vix }  (para los semáforos)
 export const onRequestGet = guard(async ({ env }) => {
   const out: Record<string, number | null> = {};
-  const CLAVES = ['adr_ypf', 'bitcoin', 'sp500', 'oro', 'merval_usd', 'dollar_index']; // vix lo provee FRED
+  const CLAVES = ['adr_ypf', 'bitcoin', 'sp500', 'oro', 'merval_usd']; // vix y dollar_index los provee FRED
 
   // Cache: devolvemos lo fresco, pedimos solo lo vencido.
   const stale: string[] = [];
@@ -59,7 +59,6 @@ export const onRequestGet = guard(async ({ env }) => {
       sp500:   async () => { const spy = await finnhub(env, 'SPY'); return spy != null ? Math.round(spy * 10) : null; },
       oro:     async () => { const gld = await finnhub(env, 'GLD'); return gld != null ? Math.round(gld * 10) : null; },
       merval_usd: () => mervalUsd(env),
-      dollar_index: async () => { const d = await yahooPrice('DX-Y.NYB'); return d != null ? +d.toFixed(2) : null; }, // DXY real (ICE)
     };
     const rows: { clave: string; valor: number; updated_at: string }[] = [];
     await Promise.all(stale.map(async (c) => {

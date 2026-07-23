@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
-import { SEMAFOROS, sintesis, type Luz } from '../engine/semaforos';
+import { SEMAFOROS, GRUPOS, resumenMacro, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { portfolioTir } from '../engine/irr';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { api } from '../lib/api';
+import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtPct } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 
@@ -40,12 +42,11 @@ export function DashboardPage() {
     hoy: new Date().toISOString().slice(0, 10),
   }), [aportes, posiciones, patrimonio]);
 
-  const semaforos = SEMAFOROS.map(s => {
+  const semaforos: Lectura[] = SEMAFOROS.map(s => {
     const v = (macro as Record<string, number | null>)[s.key];
     return { def: s, valor: v ?? null, luz: v != null ? s.evalua(v) : null };
   });
-  const luces = semaforos.map(s => s.luz).filter(Boolean) as Luz[];
-  const sint = sintesis(luces);
+  const resumen = resumenMacro(semaforos);
 
   if (!active) return null;
 
@@ -83,22 +84,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader title="Contexto macro" sub="Umbrales de la planilla original."
-          right={<Badge tone={sint.luz === 'rojo' ? 'neg' : sint.luz === 'amarillo' ? 'warn' : 'pos'}>{sint.texto} · {sint.rojos} 🔴</Badge>} />
-        <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          {semaforos.map(({ def, valor, luz }) => (
-            <div key={def.key} className={`rounded-xl px-3 py-2.5 ring-1 ring-inset ${luz ? `${LUZ_BG[luz]} ring-black/[0.04]` : 'bg-canvas text-ink-600 ring-line'}`}>
-              <p className="text-[10px] uppercase tracking-wide font-semibold opacity-80">{def.label}</p>
-              <p className="text-base font-bold tnum mt-0.5">{valor != null ? (def.fmt ? def.fmt(valor) : valor) : '—'}</p>
-            </div>
-          ))}
-        </div>
-        <p className="px-4 pb-3 text-[11px] text-ink-600">
-          Dólares y riesgo país (ARG), tasas + VIX + índice dólar (FRED), S&P 500/oro/BTC/ADR YPF
-          (Finnhub; S&P≈SPY×10, oro≈GLD×10) y Merval USD (Yahoo ^MERV ÷ CCL).
-        </p>
-      </Card>
+      <MacroContext readings={semaforos} resumen={resumen} />
 
       <Card>
         <CardHeader title="Distribución por posición" />
@@ -122,5 +108,94 @@ export function DashboardPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+const TONE_ALERTA: Record<'amarillo' | 'rojo', 'warn' | 'neg'> = { amarillo: 'warn', rojo: 'neg' };
+
+// Contexto macro: síntesis narrativa (rule-based) + alertas + tablero agrupado + lectura opcional de IA.
+function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: ResumenMacro }) {
+  const [ia, setIa] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const conDatos = readings.filter(r => r.luz);
+
+  async function explicar() {
+    setBusy(true); setErr(null);
+    const r = await api.analisisMacro({
+      indicadores: conDatos.map(r => ({
+        indicador: r.def.label,
+        grupo: r.def.grupo,
+        valor: r.valor != null && r.def.fmt ? r.def.fmt(r.valor) : r.valor,
+        estado: r.luz,
+      })),
+    });
+    if (r.error) setErr(r.error);
+    else setIa(r.analisis ?? '');
+    setBusy(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Contexto macro" sub="Semáforos de la planilla + lectura de la situación."
+        right={<Badge tone={resumen.luz === 'rojo' ? 'neg' : resumen.luz === 'amarillo' ? 'warn' : 'pos'}>
+          {resumen.titulo} · {resumen.conteo.rojos} 🔴 {resumen.conteo.amarillos} 🟡
+        </Badge>} />
+
+      {/* Síntesis narrativa (sin IA): siempre presente. */}
+      <div className="px-4 pt-3">
+        <p className="text-sm text-ink-800 leading-relaxed">{resumen.parrafo}</p>
+        {resumen.alertas.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {resumen.alertas.map(a => (
+              <Badge key={a.key} tone={TONE_ALERTA[a.luz]}>{a.label}: {a.msg}</Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tablero de indicadores agrupado por área. */}
+      <div className="p-3 space-y-3">
+        {GRUPOS.map(g => {
+          const items = readings.filter(r => r.def.grupo === g.key);
+          if (items.length === 0) return null;
+          return (
+            <div key={g.key}>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-600 mb-1.5 px-1">{g.label}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {items.map(({ def, valor, luz }) => (
+                  <div key={def.key} className={`rounded-xl px-3 py-2.5 ring-1 ring-inset ${luz ? `${LUZ_BG[luz]} ring-black/[0.04]` : 'bg-canvas text-ink-600 ring-line'}`}>
+                    <p className="text-[10px] uppercase tracking-wide font-semibold opacity-80">{def.label}</p>
+                    <p className="text-base font-bold tnum mt-0.5">{valor != null ? (def.fmt ? def.fmt(valor) : valor) : '—'}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Lectura de IA opcional (interpreta lo cualitativo; los números ya los calculó el código). */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="ghost" onClick={explicar} disabled={busy || conDatos.length === 0}>
+            <Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : ia ? 'Volver a analizar' : 'Explicar la situación (IA)'}
+          </Button>
+          {err && <span className="text-[11px] text-neg">No se pudo generar: {err}</span>}
+        </div>
+        {ia && (
+          <div className="mt-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5">
+            <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{ia}</p>
+            <p className="text-[10px] text-ink-600 mt-1.5">Lectura cualitativa generada por IA · los valores y semáforos los calcula el código.</p>
+          </div>
+        )}
+      </div>
+
+      <p className="px-4 pb-3 text-[11px] text-ink-600">
+        Dólares y riesgo país (ARG), tasas + VIX + índice dólar amplio (FRED), S&P 500/oro/BTC/ADR YPF
+        (Finnhub; S&P≈SPY×10, oro≈GLD×10) y Merval USD (Yahoo ^MERV ÷ CCL).
+      </p>
+    </Card>
   );
 }
