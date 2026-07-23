@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
+import { usePosiciones, useQuotes, useMacro, useCedearsPeso } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
 import { useFlujo } from '../hooks/useFlujo';
 import { useChartTheme } from '../hooks/usePrefs';
@@ -16,7 +16,7 @@ import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA'
 import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtPct } from '../components/ui';
 import { fmtArs } from './FinanzasPage';
 import { UpdatedAt } from '../components/UpdatedAt';
-import { unitValueUSD as unitUSD } from '../lib/valuation';
+import { resolveUnitUSD } from '../lib/valuation';
 
 const LUZ_DOT: Record<Luz, string> = { verde: 'bg-pos', amarillo: 'bg-warn', rojo: 'bg-neg' };
 // Paleta categórica estable para el donut (funciona en claro y oscuro).
@@ -29,6 +29,8 @@ export function DashboardPage() {
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
   const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
   const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
+  const cedearSinRatio = posiciones.filter(p => p.tipo === 'cedear' && (p.ratio_cedear == null || p.ratio_cedear <= 0)).map(p => p.ticker);
+  const { data: cedearPeso = {} } = useCedearsPeso(cedearSinRatio);
   const { data: macro = {} } = useMacro();
   const { data: aportes = [] } = useAportes(active?.id);
   const { data: flujo = [] } = useFlujo();
@@ -37,7 +39,7 @@ export function DashboardPage() {
     let patrimonio = 0, costo = 0;
     const parts: { ticker: string; mkt: number; target: number | null }[] = [];
     for (const p of posiciones) {
-      const u = unitUSD(p, quotes[p.ticker] ?? null);
+      const u = resolveUnitUSD(p, quotes[p.ticker] ?? null, cedearPeso[p.ticker]);
       const mkt = u != null ? u * p.cantidad : p.precio_compra * p.cantidad;
       patrimonio += mkt;
       costo += p.precio_compra * p.cantidad;
@@ -45,7 +47,7 @@ export function DashboardPage() {
     }
     parts.sort((a, b) => b.mkt - a.mkt);
     return { patrimonio, costo, pnl: patrimonio - costo, alloc: parts };
-  }, [posiciones, quotes]);
+  }, [posiciones, quotes, cedearPeso]);
 
   // TIR money-weighted: aportes (capital externo) + patrimonio actual como flujo terminal.
   const tir = useMemo(() => portfolioTir({

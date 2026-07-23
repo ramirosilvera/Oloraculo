@@ -182,6 +182,20 @@ export function useQuotes(tickers: string[], bondTickers: string[] = [], arTicke
   });
 }
 
+// Precio USD por CEDEAR desde la especie en pesos (BYMA ÷ MEP). Para CEDEARs que no cotizan por su
+// subyacente en Finnhub (p.ej. las especies dólar MELID/MAD/MSFTD). Devuelve { ticker: usd | null }.
+export function useCedearsPeso(tickers: string[]) {
+  return useQuery({
+    queryKey: ['cedears-peso', [...tickers].sort().join(',')],
+    enabled: tickers.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<Record<string, number | null>> => {
+      const r = await api.cedearsAr(tickers);
+      return r.precios ?? {};
+    },
+  });
+}
+
 // Última actualización de los caches de mercado (para mostrarle al usuario).
 export function useDataStatus() {
   return useQuery({
