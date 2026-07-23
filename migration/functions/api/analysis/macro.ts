@@ -23,7 +23,9 @@ export const onRequestPost = safe(async ({ request, env }) => {
   const body = await request.json().catch(() => ({})) as { indicadores?: unknown };
   if (!body.indicadores) return json({ error: 'indicadores requeridos' }, 400);
 
-  const input = JSON.stringify(body.indicadores);
+  // v2: se fuerza regenerar los análisis viejos que quedaron cortados (thinking-tokens comían el
+  // presupuesto). El bump del prompt-version cambia el hash → cache miss → se regenera completo.
+  const input = JSON.stringify({ v: 2, indicadores: body.indicadores });
   if (input.length > 8_000) return json({ error: 'contexto demasiado grande' }, 413);
   const inputHash = hash(input);
 
@@ -40,12 +42,16 @@ export const onRequestPost = safe(async ({ request, env }) => {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1200 } }),
+      // thinkingBudget: 0 → gemini-2.5-flash es un modelo "thinking" y esos tokens se descuentan de
+      // maxOutputTokens; sin desactivarlos, la respuesta se corta a la mitad. Es interpretación
+      // cualitativa (no cálculo), así que no necesita razonamiento interno.
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } } }),
     });
     if (res.status === 429 || res.status === 503) { await new Promise(r => setTimeout(r, 1500 * 2 ** attempt)); continue; }
     if (!res.ok) return json({ error: `gemini-${res.status}` }, 502);
     const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    // Unimos todas las partes (por si el modelo devuelve el texto fragmentado).
+    text = (data.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
     break;
   }
   if (!text) return json({ error: 'gemini-sin-respuesta' }, 502);

@@ -43,12 +43,14 @@ export const onRequestPost = safe(async ({ request, env }) => {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1200 } }),
+      // thinkingBudget: 0 → evita que los tokens de "thinking" de gemini-2.5-flash consuman
+      // maxOutputTokens y corten la respuesta. Interpretación cualitativa, no cálculo.
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } } }),
     });
     if (res.status === 429 || res.status === 503) { await new Promise(r => setTimeout(r, 1500 * 2 ** attempt)); continue; }
     if (!res.ok) return json({ error: `gemini-${res.status}` }, 502);
     const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    text = (data.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
     break;
   }
   if (!text) return json({ error: 'gemini-sin-respuesta' }, 502);
