@@ -10,7 +10,7 @@ import { computeRatios } from '../engine/ratios';
 import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod } from '../engine/dcf';
 import { useDcfInputs } from '../hooks/useDcfInputs';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import type { Fundamentals } from '../types/domain';
 
 export function AnalisisPage() {
@@ -114,7 +114,7 @@ export function AnalisisPage() {
         <Stat label="Precio" value={fmtUsd(price)} />
         <Stat label="Valor intrínseco / acc." value={fmtUsd(dcf.intrinsicPerShare)} hint="DCF Owner Earnings" />
         <Stat label="Margen de seguridad" value={fmtPct(dcf.marginOfSafety)} hint={`exigido ${fmtPct(inp.mosRequired)}`} />
-        <Stat label="Owner earnings norm." value={fmtUsd(dcf.ownerEarningsNorm, 0)} hint="promedio 5 años" />
+        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)} hint="promedio 5 años" />
       </div>
 
       {/* Ratios */}
@@ -188,10 +188,10 @@ export function AnalisisPage() {
               {dcf.ownerEarningsByYear.slice(-5).map(y => (
                 <tr key={y.fy} className="hover:bg-canvas">
                   <td className="px-4 py-1.5 text-ink-700">{y.fy}</td>
-                  <td className="text-right px-3 tnum">{fmtUsd(y.ocf, 0)}</td>
-                  <td className="text-right px-3 tnum text-ink-600">{fmtUsd(y.maintenanceCapex, 0)}</td>
-                  <td className="text-right px-3 tnum text-warn">{fmtUsd(y.growthCapex, 0)}</td>
-                  <td className="text-right px-4 tnum font-semibold text-ink-900">{fmtUsd(y.ownerEarnings, 0)}</td>
+                  <td className="text-right px-3 tnum">{fmtUsdCompact(y.ocf)}</td>
+                  <td className="text-right px-3 tnum text-ink-600">{fmtUsdCompact(y.maintenanceCapex)}</td>
+                  <td className="text-right px-3 tnum text-warn">{fmtUsdCompact(y.growthCapex)}</td>
+                  <td className="text-right px-4 tnum font-semibold text-ink-900">{fmtUsdCompact(y.ownerEarnings)}</td>
                 </tr>
               ))}
             </tbody>

@@ -5,7 +5,7 @@ import { usePosiciones, useQuotes } from '../hooks/usePosiciones';
 import { useChartTheme } from '../hooks/usePrefs';
 import { project } from '../engine/projection';
 import { marketValueUSD, costUSD } from '../lib/valuation';
-import { Card, CardHeader, Stat, fmtUsd } from '../components/ui';
+import { Card, CardHeader, Stat, fmtUsd, fmtUsdCompact } from '../components/ui';
 
 const anioActual = 2026;
 
@@ -41,10 +41,10 @@ export function ProyeccionesPage() {
       <h1 className="text-2xl font-bold text-ink-900 font-display">Proyección · {active.nombre}</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Stat label="Hoy" value={fmtUsd(valorActual, 0)} hint="patrimonio actual del portfolio" />
-        <Stat label={`En ${anios} años`} value={fmtUsd(fin?.valor, 0)} hint={`al ${tasaAnual * 100}% anual`} />
-        <Stat label="Aportado total" value={fmtUsd(fin?.aportadoTotal, 0)} />
-        <Stat label="Ganancia proyectada" value={fmtUsd(fin?.gananciaAcumulada, 0)} />
+        <Stat label="Hoy" value={fmtUsdCompact(valorActual)} hint="patrimonio actual del portfolio" />
+        <Stat label={`En ${anios} años`} value={fmtUsdCompact(fin?.valor)} hint={`al ${tasaAnual * 100}% anual`} />
+        <Stat label="Aportado total" value={fmtUsdCompact(fin?.aportadoTotal)} />
+        <Stat label="Ganancia proyectada" value={fmtUsdCompact(fin?.gananciaAcumulada)} />
       </div>
 
       <Card>
@@ -88,8 +88,8 @@ export function ProyeccionesPage() {
                 <tr key={r.anio} className="hover:bg-canvas">
                   <td className="px-4 py-1.5 text-ink-700">{r.anio}</td>
                   <td className="text-right px-3 tnum text-ink-600">{r.edad ?? '—'}</td>
-                  <td className="text-right px-3 tnum text-ink-600">{fmtUsd(r.aportadoTotal, 0)}</td>
-                  <td className="text-right px-4 tnum font-semibold text-accent">{fmtUsd(r.valor, 0)}</td>
+                  <td className="text-right px-3 tnum text-ink-600">{fmtUsdCompact(r.aportadoTotal)}</td>
+                  <td className="text-right px-4 tnum font-semibold text-accent">{fmtUsdCompact(r.valor)}</td>
                 </tr>
               ))}
             </tbody>

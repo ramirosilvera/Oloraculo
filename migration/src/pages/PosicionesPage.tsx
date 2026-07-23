@@ -4,7 +4,7 @@ import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff,
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
-import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
 import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct } from '../engine/rebalance';
 import { UpdatedAt } from '../components/UpdatedAt';
@@ -116,10 +116,10 @@ export function PosicionesPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Stat label="Valor de mercado" value={fmtUsd(totalMkt, 0)} />
-        <Stat label="Costo" value={fmtUsd(costoTotal, 0)} />
-        <Stat label="P&L no realizado" value={fmtUsd(pnlNoReal, 0)} delta={costoTotal > 0 ? pnlNoReal / costoTotal : undefined} hint="ganancia/pérdida de lo que tenés hoy" />
-        <Stat label="P&L realizado" value={fmtUsd(realized.total, 0)} hint="resultado de las ventas (según historial)" />
+        <Stat label="Valor de mercado" value={fmtUsdCompact(totalMkt)} />
+        <Stat label="Costo" value={fmtUsdCompact(costoTotal)} />
+        <Stat label="P&L no realizado" value={fmtUsdCompact(pnlNoReal)} delta={costoTotal > 0 ? pnlNoReal / costoTotal : undefined} hint="ganancia/pérdida de lo que tenés hoy" />
+        <Stat label="P&L realizado" value={fmtUsdCompact(realized.total)} hint="resultado de las ventas (según historial)" />
       </div>
 
       {showForm && (

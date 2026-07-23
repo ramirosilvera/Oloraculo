@@ -13,7 +13,7 @@ import { redondearPct } from '../engine/rebalance';
 import { portfolioTir } from '../engine/irr';
 import { api } from '../lib/api';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtPct } from '../components/ui';
 import { fmtArs, fmtArsCompact } from './FinanzasPage';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
@@ -76,8 +76,8 @@ export function DashboardPage() {
 
       {/* Hero: lo esencial, sin repetir. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <Stat label="Patrimonio" value={fmtUsd(patrimonio, 0)} hint={`costo ${fmtUsd(costo, 0)}`} />
-        <Stat label="P&L" value={<span className={pnl >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsd(pnl, 0)}</span>} delta={costo > 0 ? pnl / costo : undefined} />
+        <Stat label="Patrimonio" value={fmtUsdCompact(patrimonio)} hint={`costo ${fmtUsdCompact(costo)}`} />
+        <Stat label="P&L" value={<span className={pnl >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(pnl)}</span>} delta={costo > 0 ? pnl / costo : undefined} />
         <Stat label={`TIR anual${tir.aproximada ? ' ~' : ''}`}
           value={<span className={tir.anual == null ? '' : tir.anual >= 0 ? 'text-pos' : 'text-neg'}>{tir.anual != null ? fmtPct(tir.anual) : '—'}</span>}
           hint={tir.base === 'aportes' ? 'XIRR sobre tus aportes' : tir.base === 'costos' ? 'aprox. (sin aportes cargados)' : 'cargá aportes para calcularla'} />
@@ -92,14 +92,14 @@ export function DashboardPage() {
           <div className="px-4 py-3">
             <div className="flex items-center justify-between text-sm mb-1.5">
               <span className="font-semibold text-ink-800">Objetivo de capital</span>
-              <span className="tnum text-ink-600">{fmtUsd(patrimonio, 0)} / {fmtUsd(objetivo, 0)}</span>
+              <span className="tnum text-ink-600">{fmtUsdCompact(patrimonio)} / {fmtUsdCompact(objetivo)}</span>
             </div>
             <div className="h-2.5 rounded-full bg-canvas overflow-hidden">
               <div className="h-full rounded-full bg-celeste-500" style={{ width: `${Math.min(100, (patrimonio / objetivo) * 100)}%` }} />
             </div>
             <p className="text-[11px] text-ink-600 mt-1.5 tnum">
               {fmtPct(patrimonio / objetivo, 0)} alcanzado
-              {patrimonio < objetivo && <> · faltan {fmtUsd(objetivo - patrimonio, 0)}</>}
+              {patrimonio < objetivo && <> · faltan {fmtUsdCompact(objetivo - patrimonio)}</>}
             </p>
           </div>
         </Card>

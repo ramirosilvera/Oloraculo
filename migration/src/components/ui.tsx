@@ -120,6 +120,19 @@ export function Button({ children, onClick, variant = 'primary', disabled, type 
 // ── formatters ───────────────────────────────────────────────────────────────
 export const fmtUsd = (n: number | null | undefined, dp = 2): string =>
   n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dp, maximumFractionDigits: dp });
+
+// Compacto para magnitudes grandes (millones M / miles de millones B / billones T, escala en-US) —
+// evita que desborden las cajas. Debajo de 1M muestra el número completo (importes chicos exactos).
+// Decimales adaptativos: 2 si el número guía es <10 ($1,23 M), 1 si <100, 0 si no (conserva cifras).
+export const fmtUsdCompact = (n: number | null | undefined): string => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const abs = Math.abs(n), sign = n < 0 ? '-' : '';
+  const fmt = (v: number, suf: string) => `${sign}$${v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)} ${suf}`;
+  if (abs >= 1e12) return fmt(abs / 1e12, 'T');
+  if (abs >= 1e9) return fmt(abs / 1e9, 'B');
+  if (abs >= 1e6) return fmt(abs / 1e6, 'M');
+  return fmtUsd(n, 0);
+};
 export const fmtNum = (n: number | null | undefined, dp = 2): string =>
   n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 export const fmtPct = (n: number | null | undefined, dp = 1): string =>

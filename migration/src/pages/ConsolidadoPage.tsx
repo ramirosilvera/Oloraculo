@@ -3,7 +3,7 @@ import { Layers, Info } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAllPosiciones, useQuotes } from '../hooks/usePosiciones';
 import { PortfolioReview } from '../components/PortfolioReview';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct, Empty } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtPct, Empty } from '../components/ui';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
@@ -55,7 +55,7 @@ export function ConsolidadoPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <Stat label="Patrimonio total" value={fmtUsd(total, 0)} />
+        <Stat label="Patrimonio total" value={fmtUsdCompact(total)} />
         <Stat label="Portfolios" value={portfolios.length} />
         <Stat label="Activos distintos" value={porTicker.size} />
       </div>
@@ -91,7 +91,7 @@ export function ConsolidadoPage() {
                   <td className="px-4 py-2 font-semibold text-ink-900">{ticker}
                     {info.portfolios.size > 1 && <Badge tone="warn"><span className="ml-1">en {info.portfolios.size}</span></Badge>}
                   </td>
-                  <td className="text-right px-3 tnum">{fmtUsd(info.total, 0)}</td>
+                  <td className="text-right px-3 tnum">{fmtUsdCompact(info.total)}</td>
                   <td className="text-right px-3 tnum">{fmtPct(total > 0 ? info.total / total : 0, 0)}</td>
                   <td className="px-4 text-[11px] text-ink-600">{[...info.portfolios].map(id => pfName.get(id)).join(', ')}</td>
                 </tr>
