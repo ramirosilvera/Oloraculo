@@ -21,7 +21,8 @@ export const SEMAFOROS: SemaforoDef[] = [
   { key: 'riesgo_pais',   label: 'Riesgo país',   fmt: v => `${Math.round(v)}`, evalua: v => v < 400 ? 'verde' : v < 800 ? 'amarillo' : 'rojo' },
   { key: 'merval_usd',    label: 'Merval USD',    fmt: usd0, evalua: v => v > 2050 ? 'rojo' : v > 1500 ? 'amarillo' : 'verde' },
   { key: 'adr_ypf',       label: 'ADR YPF',       fmt: usd0, evalua: v => v > 40 ? 'verde' : v > 25 ? 'amarillo' : 'rojo' },
-  { key: 'dollar_index',  label: 'Dólar (índice)', fmt: v => v.toFixed(1), evalua: v => v > 126 ? 'rojo' : v > 118 ? 'amarillo' : 'verde' },
+  // DXY real (ICE, ~90-115). Dólar fuerte = viento en contra para emergentes/Argentina → rojo.
+  { key: 'dollar_index',  label: 'DXY (dólar)',    fmt: v => v.toFixed(2), evalua: v => v > 106 ? 'rojo' : v > 100 ? 'amarillo' : 'verde' },
   // Recalibrado 2026 (S&P ~7400): el umbral original (rojo >7000) quedó estructuralmente en rojo.
   { key: 'sp500',         label: 'S&P 500',       fmt: usd0, evalua: v => v > 8600 ? 'rojo' : v > 7800 ? 'amarillo' : 'verde' },
   { key: 'vix',           label: 'VIX',           fmt: v => v.toFixed(1), evalua: v => v < 20 ? 'verde' : v < 30 ? 'amarillo' : 'rojo' },

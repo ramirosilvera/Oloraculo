@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff, Pencil } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
@@ -14,7 +14,7 @@ export function PosicionesPage() {
   const { active } = usePortfolios();
   const { ratios: cedearRatios, saveRatio } = useCedearRatios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
-  const { add, sell, remove } = usePosicionMutations(active?.id);
+  const { add, sell, update, remove } = usePosicionMutations(active?.id);
 
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
@@ -44,6 +44,7 @@ export function PosicionesPage() {
   const [saving, setSaving] = useState(false);
   const [histTicker, setHistTicker] = useState<string | null>(null);
   const [sellData, setSellData] = useState<{ pos: Posicion; sugerido: number | null } | null>(null);
+  const [editPos, setEditPos] = useState<Posicion | null>(null);
   const [showClosed, setShowClosed] = useState(false);
 
   const cerradas = rows.filter(r => r.p.cantidad <= 0).length;
@@ -229,6 +230,7 @@ export function PosicionesPage() {
                         {p.cantidad > 0 && p.tipo !== 'cash' && (
                           <button onClick={() => setSellData({ pos: p, sugerido: unit ?? p.precio_compra })} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Vender" aria-label="Vender"><TrendingDown className="w-4 h-4" /></button>
                         )}
+                        <button onClick={() => setEditPos(p)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Editar" aria-label="Editar posición"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => setHistTicker(p.ticker)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Historial de movimientos" aria-label="Historial de movimientos"><History className="w-4 h-4" /></button>
                         {p.tipo !== 'bono' && p.tipo !== 'cash' && (
                           <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
@@ -249,6 +251,82 @@ export function PosicionesPage() {
       {sellData && <SellModal pos={sellData.pos} sugerido={sellData.sugerido}
         onClose={() => setSellData(null)}
         onSell={async (qty, precio, fecha) => { await sell(sellData.pos, qty, precio, fecha); setSellData(null); }} />}
+      {editPos && <EditModal pos={editPos} onClose={() => setEditPos(null)}
+        onSave={async (patch) => { await update(editPos.id, patch); setEditPos(null); }} />}
+    </div>
+  );
+}
+
+const MESES_E = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+// Edición/corrección directa de una posición (cantidad, costo promedio, objetivo, sector, ratio,
+// cupón). Es una corrección manual: no genera movimientos (no es una compra/venta real).
+function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
+  const [cantidad, setCantidad] = useState(String(pos.cantidad));
+  const [precio, setPrecio] = useState(String(pos.precio_compra));
+  const [objetivo, setObjetivo] = useState(pos.peso_objetivo != null ? String(+(pos.peso_objetivo * 100).toFixed(2)) : '');
+  const [sector, setSector] = useState(pos.sector ?? '');
+  const [ratio, setRatio] = useState(pos.ratio_cedear != null ? String(pos.ratio_cedear) : '');
+  const [cTasa, setCTasa] = useState(pos.cupon_tasa != null ? String(pos.cupon_tasa * 100) : '');
+  const [cFreq, setCFreq] = useState(pos.cupon_frecuencia != null ? String(pos.cupon_frecuencia) : '');
+  const [cMes, setCMes] = useState(pos.cupon_mes != null ? String(pos.cupon_mes) : '');
+  const [vto, setVto] = useState(pos.vencimiento ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const guardar = async () => {
+    setBusy(true); setErr(null);
+    const patch: Partial<Posicion> = {
+      cantidad: Number(cantidad) || 0,
+      precio_compra: Number(precio) || 0,
+      peso_objetivo: objetivo ? Number(objetivo) / 100 : null,
+      sector: sector || null,
+      ratio_cedear: ratio ? Number(ratio) : null,
+    };
+    if (pos.tipo === 'bono') {
+      patch.cupon_tasa = cTasa ? Number(cTasa) / 100 : null;
+      patch.cupon_frecuencia = cFreq ? Number(cFreq) : null;
+      patch.cupon_mes = cMes ? Number(cMes) : null;
+      patch.vencimiento = vto || null;
+    }
+    try { await onSave(patch); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo guardar'); setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <Card className="animate-rise">
+          <CardHeader title={`Editar · ${pos.ticker}`} sub="Corrección directa de los datos (no registra compra/venta)."
+            right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
+          <div className="p-4 grid grid-cols-2 gap-3 text-sm">
+            <Field label="Cantidad"><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} className={inputCls} /></Field>
+            <Field label="Costo promedio (USD)"><input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} /></Field>
+            <Field label="% objetivo"><input type="number" value={objetivo} onChange={e => setObjetivo(e.target.value)} className={inputCls} /></Field>
+            <Field label="Sector"><input value={sector} onChange={e => setSector(e.target.value)} className={inputCls} /></Field>
+            {pos.tipo === 'cedear' && <Field label="Ratio CEDEAR"><input type="number" value={ratio} onChange={e => setRatio(e.target.value)} className={inputCls} /></Field>}
+            {pos.tipo === 'bono' && <>
+              <Field label="Tasa cupón (% anual)"><input type="number" step="0.1" value={cTasa} onChange={e => setCTasa(e.target.value)} className={inputCls} /></Field>
+              <Field label="Frecuencia">
+                <select value={cFreq} onChange={e => setCFreq(e.target.value)} className={`${inputCls} appearance-none`}>
+                  <option value="">—</option><option value="1">Anual</option><option value="2">Semestral</option><option value="4">Trimestral</option>
+                </select>
+              </Field>
+              <Field label="Mes de pago">
+                <select value={cMes} onChange={e => setCMes(e.target.value)} className={`${inputCls} appearance-none`}>
+                  <option value="">—</option>{MESES_E.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+              </Field>
+              <Field label="Vencimiento"><input type="date" value={vto} onChange={e => setVto(e.target.value)} className={inputCls} /></Field>
+            </>}
+          </div>
+          {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
+          <div className="px-4 pb-4 flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+            <Button onClick={guardar} disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</Button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

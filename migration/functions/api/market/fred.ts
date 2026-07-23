@@ -7,7 +7,8 @@ const SERIES: Record<string, string> = {
   DGS3MO: 'dgs3mo',          // T-Bills 3M (%)
   BAMLH0A0HYM2: 'hy_spread', // High Yield OAS (%)
   VIXCLS: 'vix',             // CBOE VIX (nivel) — gratis en FRED (Finnhub free no da ^VIX)
-  DTWEXBGS: 'dollar_index',  // Índice dólar amplio (base 2006=100)
+  // dollar_index se movió a indicadores.ts (Yahoo DX-Y.NYB = el DXY real de ICE ~99, no el índice
+  // amplio de FRED ~121, que no coincidía con el valor que se ve en todos lados).
 };
 
 // Last numeric value in a fredgraph CSV (skips "." missing markers).
