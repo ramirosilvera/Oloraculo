@@ -9,6 +9,7 @@ import { useFlujo } from '../hooks/useFlujo';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
+import { redondearPct } from '../engine/rebalance';
 import { portfolioTir } from '../engine/irr';
 import { api } from '../lib/api';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
@@ -120,6 +121,8 @@ function Distribucion({ alloc, total }: { alloc: { ticker: string; mkt: number; 
     return <Card><CardHeader title="Distribución" /><p className="p-4 text-sm text-ink-600">Sin posiciones. Cargalas en Posiciones.</p></Card>;
   }
   const data = alloc.map(a => ({ name: a.ticker, value: a.mkt }));
+  // % objetivo mostrados como enteros que suman 100 (resto mayor), coherente con Posiciones.
+  const objPct = redondearPct(alloc.filter(a => a.target != null).map(a => ({ id: a.ticker, peso: a.target! })));
   return (
     <Card>
       <CardHeader title="Distribución" sub="Peso de cada activo · actual vs objetivo." />
@@ -146,7 +149,7 @@ function Distribucion({ alloc, total }: { alloc: { ticker: string; mkt: number; 
                 <span className="font-semibold text-ink-800 w-14 truncate">{a.ticker}</span>
                 <span className="tnum text-ink-700 w-12 text-right">{fmtPct(w, 0)}</span>
                 {a.target != null
-                  ? <span className="tnum text-[11px] text-ink-500 w-16 text-right">obj {fmtPct(a.target, 0)}</span>
+                  ? <span className="tnum text-[11px] text-ink-500 w-16 text-right">obj {objPct.get(a.ticker) ?? Math.round(a.target * 100)}%</span>
                   : <span className="w-16" />}
                 {off != null && Math.abs(off) >= 0.005
                   ? <span className={`tnum text-[10px] w-10 text-right ${off > 0 ? 'text-warn' : 'text-celeste-600'}`}>{off > 0 ? '+' : ''}{fmtPct(off, 0)}</span>

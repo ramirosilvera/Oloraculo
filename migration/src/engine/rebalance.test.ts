@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo } from './rebalance';
+import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct } from './rebalance';
 
 describe('montoParaObjetivo — cuánto comprar para llegar al objetivo', () => {
   it('lleva el peso exactamente al objetivo (contando que el total crece)', () => {
@@ -60,5 +60,27 @@ describe('aplicarObjetivo — sincroniza a 100%', () => {
     const r = aplicarObjetivo(items, 'a', 1.5);
     expect(r.find(x => x.id === 'a')!.peso_objetivo).toBe(1);
     expect(r.find(x => x.id === 'b')!.peso_objetivo).toBeCloseTo(0, 9);
+  });
+});
+
+describe('redondearPct — el % mostrado siempre suma 100', () => {
+  const suma = (m: Map<string, number>) => [...m.values()].reduce((s, v) => s + v, 0);
+  it('tercios: 34/33/33 = 100 (no 99)', () => {
+    const m = redondearPct([{ id: 'a', peso: 1 / 3 }, { id: 'b', peso: 1 / 3 }, { id: 'c', peso: 1 / 3 }]);
+    expect(suma(m)).toBe(100);
+    expect([...m.values()].sort()).toEqual([33, 33, 34]);
+  });
+  it('reparte la unidad sobrante al de mayor resto', () => {
+    // 16.6 + 16.6 + 66.6 → floors 16/16/66 = 98 → +1 a los dos mayores restos
+    const m = redondearPct([{ id: 'a', peso: 0.166 }, { id: 'b', peso: 0.166 }, { id: 'c', peso: 0.666 }]);
+    expect(suma(m)).toBe(100);
+  });
+  it('normaliza si no suman 1 exacto', () => {
+    const m = redondearPct([{ id: 'a', peso: 0.5 }, { id: 'b', peso: 0.3 }]); // suman 0.8
+    expect(suma(m)).toBe(100);
+    expect(m.get('a')!).toBe(63);  // 0.5/0.8 = 62.5 → 63 (resto mayor)
+  });
+  it('lista vacía → mapa vacío sin romper', () => {
+    expect(redondearPct([]).size).toBe(0);
   });
 });

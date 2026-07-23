@@ -22,6 +22,22 @@ export function cantidadPorMonto(monto: number, precioUnitario: number): number 
   return precioUnitario > 0 ? monto / precioUnitario : 0;
 }
 
+// Redondea una lista de objetivos (fracciones 0..1) a enteros de % que SUMAN 100 exactos (método
+// del resto mayor / Hamilton): así lo que se muestra nunca da 99% o 101% por redondeos sueltos.
+export function redondearPct(items: { id: string; peso: number }[]): Map<string, number> {
+  const total = items.reduce((s, i) => s + (i.peso || 0), 0);
+  const out = new Map<string, number>();
+  if (total <= 0 || items.length === 0) { items.forEach(i => out.set(i.id, 0)); return out; }
+  const exact = items.map(i => ({ id: i.id, e: ((i.peso || 0) / total) * 100 }));
+  const floors = exact.map(x => ({ id: x.id, base: Math.floor(x.e), rem: x.e - Math.floor(x.e) }));
+  floors.forEach(f => out.set(f.id, f.base));
+  let restante = 100 - floors.reduce((s, f) => s + f.base, 0);
+  // Las unidades que faltan para llegar a 100 van a los de mayor resto.
+  const orden = [...floors].sort((a, b) => b.rem - a.rem);
+  for (let i = 0; i < orden.length && restante > 0; i++) { out.set(orden[i].id, (out.get(orden[i].id) ?? 0) + 1); restante--; }
+  return out;
+}
+
 export interface ObjetivoItem { id: string; peso_objetivo: number | null }
 
 // Reajusta los objetivos del "plan" (las posiciones con objetivo asignado) para que sumen 100%

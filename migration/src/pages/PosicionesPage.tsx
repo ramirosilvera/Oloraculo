@@ -6,7 +6,7 @@ import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
-import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo } from '../engine/rebalance';
+import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct } from '../engine/rebalance';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
@@ -54,6 +54,8 @@ export function PosicionesPage() {
   const cerradas = rows.filter(r => r.p.cantidad <= 0).length;
   const visibleRows = showClosed ? rows : rows.filter(r => r.p.cantidad > 0);
   const openRows = rows.filter(r => r.p.cantidad > 0);
+  // % objetivo mostrados como enteros que SUMAN 100 exactos (resto mayor), no redondeos sueltos.
+  const objetivoPct = redondearPct(openRows.filter(r => r.p.peso_objetivo != null).map(r => ({ id: r.p.id, peso: r.p.peso_objetivo! })));
 
   // Edición inline del % objetivo con sincronización a 100%: el plan son las posiciones abiertas
   // con objetivo asignado (más la que se está tocando); el resto se reescala solo.
@@ -243,7 +245,7 @@ export function PosicionesPage() {
                     </td>
                     <td className="text-right px-3">
                       {p.cantidad > 0
-                        ? <TargetCell pos={p} actual={pesoAct} onCommit={v => setTargetFor(p, v)} />
+                        ? <TargetCell pos={p} actual={pesoAct} displayPct={objetivoPct.get(p.id) ?? null} onCommit={v => setTargetFor(p, v)} />
                         : <span className="tnum text-ink-600">—</span>}
                     </td>
                     <td className="px-2 text-right whitespace-nowrap">
@@ -286,14 +288,15 @@ export function PosicionesPage() {
 
 // Celda de peso: muestra el peso actual y permite editar el % objetivo inline (se sincroniza a 100%
 // con el resto). Debajo, la desviación actual−objetivo (verde = por debajo → hay lugar para comprar).
-function TargetCell({ pos, actual, onCommit }: { pos: Posicion; actual: number | null; onCommit: (v: string) => void }) {
-  const fromPos = () => (pos.peso_objetivo != null ? String(Math.round(pos.peso_objetivo * 100)) : '');
+function TargetCell({ pos, actual, displayPct, onCommit }: { pos: Posicion; actual: number | null; displayPct: number | null; onCommit: (v: string) => void }) {
+  // displayPct viene redondeado a nivel del conjunto (suma 100 exacta), no por celda suelta.
+  const fromPos = () => (displayPct != null ? String(displayPct) : '');
   const [val, setVal] = useState(fromPos());
   const [focused, setFocused] = useState(false);
   // Sincronizamos desde la base salvo mientras el usuario tipea (el rebalanceo de otra celda dispara
   // un refetch: sin este guard, pisaría lo que estás escribiendo). Al desenfocar, se re-sincroniza
   // (y así también se limpia un texto inválido que no llegó a guardarse).
-  useEffect(() => { if (!focused) setVal(fromPos()); }, [pos.peso_objetivo, focused]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!focused) setVal(fromPos()); }, [displayPct, focused]);   // eslint-disable-line react-hooks/exhaustive-deps
   const off = actual != null && pos.peso_objetivo != null ? actual - pos.peso_objetivo : null;
   return (
     <div className="flex flex-col items-end gap-0.5">
