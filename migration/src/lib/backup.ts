@@ -18,13 +18,24 @@ export interface BackupResult {
   errores: string[];
 }
 
+// Filtros por tabla: en analisis_ia excluimos las filas con portfolio_id NULL (análisis macro
+// escritos por el server, legibles por cualquier usuario y re-generables) para que el backup sea
+// ESTRICTAMENTE personal, no cache compartido.
+type Filtro = (q: ReturnType<ReturnType<typeof supabase.from>['select']>) => typeof q;
+const FILTROS: Record<string, Filtro> = {
+  analisis_ia: q => q.not('portfolio_id', 'is', null),
+};
+
 // Trae TODAS las filas de una tabla paginando de a 1000 (el default de PostgREST) para que un
 // backup nunca quede truncado silenciosamente.
 async function fetchAll(table: string): Promise<unknown[]> {
   const rows: unknown[] = [];
   const size = 1000;
   for (let from = 0; ; from += size) {
-    const { data, error } = await supabase.from(table).select('*').range(from, from + size - 1);
+    let q = supabase.from(table).select('*').range(from, from + size - 1);
+    const filtro = FILTROS[table];
+    if (filtro) q = filtro(q);
+    const { data, error } = await q;
     if (error) throw new Error(error.message);
     rows.push(...(data ?? []));
     if (!data || data.length < size) break;
@@ -56,6 +67,10 @@ export async function buildBackup(email: string | null): Promise<BackupResult> {
     backup_version: BACKUP_VERSION,
     exported_at: now.toISOString(),
     user_email: email,
+    // partial + errores quedan EN el archivo: así, al restaurar meses después, un backup incompleto
+    // no se confunde con uno completo (una tabla vacía por fallo vs. vacía de verdad).
+    partial: errores.length > 0,
+    errores,
     counts,
     tables,
   };
