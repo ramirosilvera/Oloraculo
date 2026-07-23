@@ -2,7 +2,7 @@ import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetc
 
 const TTL = 15 * 60 * 1000; // 15 min
 
-async function fetchOne(env: Env, symbol: string): Promise<number | null> {
+async function fetchPrice(env: Env, symbol: string): Promise<number | null> {
   // Finnhub primero (free tier generoso), FMP como fallback.
   if (env.FINNHUB_API_KEY) {
     try {
@@ -16,15 +16,6 @@ async function fetchOne(env: Env, symbol: string): Promise<number | null> {
       if (q[0]?.price) return q[0].price;
     } catch { /* none */ }
   }
-  return null;
-}
-
-async function fetchPrice(env: Env, symbol: string): Promise<number | null> {
-  const direct = await fetchOne(env, symbol);
-  if (direct != null) return direct;
-  // Especie dólar de un CEDEAR (termina en D): reintentamos con el subyacente (MELID → MELI).
-  // Así estos CEDEARs valúan por "subyacente ÷ ratio" igual que cualquier otro — un solo mecanismo.
-  if (symbol.length > 2 && symbol.endsWith('D')) return fetchOne(env, symbol.slice(0, -1));
   return null;
 }
 
