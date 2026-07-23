@@ -106,7 +106,12 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   }
 
   // Proyección: N años a tasa g, descontados a d, valor terminal de Gordon con gt.
-  const { g, d, gt, N } = inp;
+  // Saneamos los supuestos: un N no finito o enorme (dato guardado corrupto) haría que el bucle
+  // no termine y cuelgue el render; g/d/gt no finitos propagarían NaN. N se acota a 1..100.
+  const g = Number.isFinite(inp.g) ? inp.g : DEFAULT_DCF_INPUTS.g;
+  const d = Number.isFinite(inp.d) && inp.d > 0 ? inp.d : DEFAULT_DCF_INPUTS.d;
+  const gt = Number.isFinite(inp.gt) ? inp.gt : DEFAULT_DCF_INPUTS.gt;
+  const N = Number.isFinite(inp.N) ? Math.min(Math.max(Math.round(inp.N), 1), 100) : DEFAULT_DCF_INPUTS.N;
   let pvExplicit = 0;
   let oeT = ownerEarningsNorm;
   for (let t = 1; t <= N; t++) {

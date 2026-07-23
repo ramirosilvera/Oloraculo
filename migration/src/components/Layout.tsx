@@ -9,6 +9,7 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { usePrefs } from '../hooks/usePrefs';
 import { Wordmark } from './ui';
 import { UpdatedAt } from './UpdatedAt';
+import { ErrorBoundary } from './ErrorBoundary';
 
 const NAV_PRIMARY = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -116,7 +117,7 @@ export function Layout() {
             ? <EmptyState />
             : activeId === '__all__' && location.pathname !== '/consolidado'
               ? <ConsolidadoHint />
-              : <Outlet />}
+              : <ErrorBoundary key={location.pathname}><Outlet /></ErrorBoundary>}
       </main>
 
       <footer className="mx-auto max-w-6xl w-full px-4 py-6 text-center text-[11px] text-ink-500 space-y-1">

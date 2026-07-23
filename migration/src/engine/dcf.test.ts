@@ -128,3 +128,15 @@ describe('owner earnings + DCF', () => {
     expect(t[0].cells[2]!).toBeLessThan(t[0].cells[0]!);
   });
 });
+
+describe('computeDcf — robustez ante supuestos corruptos (no debe colgar ni dar NaN)', () => {
+  it('N enorme se acota (no cuelga el render) y devuelve valor finito', () => {
+    const r = computeDcf(MSFT, 420, 0.088, { ...DEFAULT_DCF_INPUTS, N: 1e9 });
+    expect(Number.isFinite(r.intrinsicValue)).toBe(true);
+    expect(r.intrinsicPerShare == null || Number.isFinite(r.intrinsicPerShare)).toBe(true);
+  });
+  it('N/g/d no finitos caen a defaults y no propagan NaN', () => {
+    const r = computeDcf(MSFT, 420, 0.088, { ...DEFAULT_DCF_INPUTS, N: NaN, g: Infinity, d: NaN });
+    expect(Number.isFinite(r.intrinsicValue)).toBe(true);
+  });
+});
