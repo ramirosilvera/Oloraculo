@@ -16,12 +16,34 @@ async function finnhub(env: Env, symbol: string): Promise<number | null> {
   } catch { return null; }
 }
 
+// Precio actual de un símbolo vía el chart de Yahoo Finance (gratis, sin auth). Server-side no hay
+// CORS. Se manda User-Agent porque Yahoo rechaza requests sin él.
+async function yahooPrice(symbol: string): Promise<number | null> {
+  try {
+    const j = await fetchJson<{ chart?: { result?: { meta?: { regularMarketPrice?: number } }[] } }>(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const p = j.chart?.result?.[0]?.meta?.regularMarketPrice;
+    return typeof p === 'number' && p > 0 ? p : null;
+  } catch { return null; }
+}
+
+// Merval en USD = índice Merval en pesos (Yahoo ^MERV) ÷ dólar CCL (o MEP) ya cacheado.
+async function mervalUsd(env: Env): Promise<number | null> {
+  const pesos = await yahooPrice('^MERV');
+  if (pesos == null) return null;
+  const SEIS_H = 6 * 60 * 60 * 1000;
+  const ccl = (await cacheFresh<{ valor: number }>(env, 'macro_cache', 'clave', 'dolar_ccl', SEIS_H))?.valor
+    ?? (await cacheFresh<{ valor: number }>(env, 'macro_cache', 'clave', 'dolar_mep', SEIS_H))?.valor;
+  return ccl && ccl > 0 ? Math.round(pesos / ccl) : null;
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/indicadores → { adr_ypf, bitcoin, sp500, oro, vix }  (para los semáforos)
 export const onRequestGet = guard(async ({ env }) => {
   const out: Record<string, number | null> = {};
-  const CLAVES = ['adr_ypf', 'bitcoin', 'sp500', 'oro']; // vix y dollar_index los provee FRED
+  const CLAVES = ['adr_ypf', 'bitcoin', 'sp500', 'oro', 'merval_usd']; // vix y dollar_index los provee FRED
 
   // Cache: devolvemos lo fresco, pedimos solo lo vencido.
   const stale: string[] = [];
@@ -36,6 +58,7 @@ export const onRequestGet = guard(async ({ env }) => {
       bitcoin: () => finnhub(env, 'BINANCE:BTCUSDT'),     // BTC spot
       sp500:   async () => { const spy = await finnhub(env, 'SPY'); return spy != null ? Math.round(spy * 10) : null; },
       oro:     async () => { const gld = await finnhub(env, 'GLD'); return gld != null ? Math.round(gld * 10) : null; },
+      merval_usd: () => mervalUsd(env),
     };
     const rows: { clave: string; valor: number; updated_at: string }[] = [];
     await Promise.all(stale.map(async (c) => {

@@ -95,8 +95,8 @@ export function DashboardPage() {
           ))}
         </div>
         <p className="px-4 pb-3 text-[11px] text-ink-600">
-          Dólares y riesgo país (ARG), tasas + VIX + índice dólar (FRED), y S&P 500/oro/BTC/ADR YPF
-          (Finnhub; S&P≈SPY×10, oro≈GLD×10). Merval USD queda en — (sin fuente gratuita confiable).
+          Dólares y riesgo país (ARG), tasas + VIX + índice dólar (FRED), S&P 500/oro/BTC/ADR YPF
+          (Finnhub; S&P≈SPY×10, oro≈GLD×10) y Merval USD (Yahoo ^MERV ÷ CCL).
         </p>
       </Card>
 
