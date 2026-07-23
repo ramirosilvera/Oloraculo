@@ -7,14 +7,14 @@ import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
 import { useFlujo } from '../hooks/useFlujo';
 import { useChartTheme } from '../hooks/usePrefs';
-import { SEMAFOROS, resumenMacro, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
+import { SEMAFOROS, GRUPOS, resumenMacro, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { redondearPct } from '../engine/rebalance';
 import { portfolioTir } from '../engine/irr';
 import { api } from '../lib/api';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtPct } from '../components/ui';
-import { fmtArs } from './FinanzasPage';
+import { fmtArs, fmtArsCompact } from './FinanzasPage';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 
@@ -164,16 +164,27 @@ function Distribucion({ alloc, total }: { alloc: { ticker: string; mkt: number; 
 }
 
 // Liquidez & FCI: la parte del flujo de caja que se muestra en el Dashboard (near-cash sleeve).
+// Montos en pesos formateados compactos ($22,9 M) para que no desborden las cajas; el valor exacto
+// queda en el tooltip.
 function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo>; mep: number | null }) {
-  const usd = (ars: number) => (mep ? `≈ US$${Math.round(ars / mep).toLocaleString('en-US')}` : '');
+  const usd = (ars: number) => (mep ? `≈ US$${Math.round(ars / mep).toLocaleString('en-US')}` : 'liquidez');
+  const tiles = [
+    { label: 'FCI + billetera', val: resumen.fci, sub: usd(resumen.fci), tone: 'text-ink-900' },
+    { label: 'Disponible', val: resumen.disponible, sub: 'ingresos − egresos', tone: resumen.disponible >= 0 ? 'text-pos' : 'text-neg' },
+    { label: 'Sin asignar', val: resumen.sinAsignar, sub: 'sin colocar', tone: resumen.sinAsignar >= 0 ? 'text-ink-900' : 'text-neg' },
+  ];
   return (
     <Card>
       <CardHeader title="Liquidez & FCI" sub="Fondos y billetera, según tu flujo de caja."
         right={<Link to="/finanzas" className="text-[11px] text-celeste-600 hover:underline">Editar flujo →</Link>} />
       <div className="grid grid-cols-3 gap-2 p-3">
-        <Stat label="FCI + billetera" value={fmtArs(resumen.fci)} hint={usd(resumen.fci)} />
-        <Stat label="Disponible" value={<span className={resumen.disponible >= 0 ? 'text-pos' : 'text-neg'}>{fmtArs(resumen.disponible)}</span>} hint="ingresos − egresos" />
-        <Stat label="Sin asignar" value={<span className={resumen.sinAsignar >= 0 ? 'text-ink-900' : 'text-neg'}>{fmtArs(resumen.sinAsignar)}</span>} hint="todavía sin colocar" />
+        {tiles.map(t => (
+          <div key={t.label} className="rounded-2xl border border-line bg-surface shadow-soft px-3 py-3 min-w-0" title={fmtArs(t.val)}>
+            <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold truncate">{t.label}</p>
+            <p className={`text-lg font-bold font-display tnum mt-1 truncate ${t.tone}`}>{fmtArsCompact(t.val)}</p>
+            <p className="text-[10px] text-ink-500 mt-0.5 truncate">{t.sub}</p>
+          </div>
+        ))}
       </div>
     </Card>
   );
@@ -202,53 +213,84 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
     setBusy(false);
   }
 
+  const tone = resumen.luz === 'rojo' ? 'neg' : resumen.luz === 'amarillo' ? 'warn' : 'pos';
+  const { verdes, amarillos, rojos, total } = resumen.conteo;
+  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+
   return (
     <Card>
-      <CardHeader title="Contexto macro" sub="Semáforos + lectura de la situación."
-        right={<Badge tone={resumen.luz === 'rojo' ? 'neg' : resumen.luz === 'amarillo' ? 'warn' : 'pos'}>
-          {resumen.titulo} · {resumen.conteo.rojos}🔴 {resumen.conteo.amarillos}🟡
-        </Badge>} />
+      <CardHeader title="Contexto macro" sub="Semáforos + lectura ejecutiva."
+        right={<Badge tone={tone}>{resumen.titulo}</Badge>} />
 
-      {/* Síntesis narrativa + alertas. */}
-      <div className="px-4 pt-3">
-        <p className="text-sm text-ink-800 leading-relaxed">{resumen.parrafo}</p>
-        {resumen.alertas.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
+      {/* Salud del tablero: barra verde/amarillo/rojo + leyenda (visual, de un vistazo). */}
+      {total === 0 ? (
+        <div className="px-4 pt-3.5"><p className="text-sm text-ink-600">Todavía no hay datos de mercado; se completan con el próximo refresco.</p></div>
+      ) : (
+        <div className="px-4 pt-3.5">
+          <div className="h-2.5 rounded-full bg-canvas overflow-hidden flex">
+            {verdes > 0 && <div className="bg-pos" style={{ width: `${pct(verdes)}%` }} />}
+            {amarillos > 0 && <div className="bg-warn" style={{ width: `${pct(amarillos)}%` }} />}
+            {rojos > 0 && <div className="bg-neg" style={{ width: `${pct(rojos)}%` }} />}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-ink-600">
+            <span className="inline-flex items-center gap-1.5 tnum"><span className="w-2 h-2 rounded-full bg-pos" /> {verdes} en verde</span>
+            <span className="inline-flex items-center gap-1.5 tnum"><span className="w-2 h-2 rounded-full bg-warn" /> {amarillos} atención</span>
+            <span className="inline-flex items-center gap-1.5 tnum"><span className="w-2 h-2 rounded-full bg-neg" /> {rojos} estrés</span>
+          </div>
+        </div>
+      )}
+
+      {/* Focos de atención: solo las señales que no están en verde (lo accionable). */}
+      {resumen.alertas.length > 0 && (
+        <div className="px-4 pt-3">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Focos de atención</p>
+          <div className="flex flex-wrap gap-1.5">
             {resumen.alertas.map(a => <Badge key={a.key} tone={TONE_ALERTA[a.luz]}>{a.label}: {a.msg}</Badge>)}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Tablero compacto: chips con punto de color (mucho más condensado que la grilla anterior). */}
+      {/* Indicadores agrupados por área (colapsable, para no saturar). */}
       <div className="px-4 pt-3">
-        <button onClick={() => setAbierto(v => !v)} className="text-[11px] font-semibold text-celeste-600 hover:underline mb-2">
+        <button onClick={() => setAbierto(v => !v)} className="text-[11px] font-semibold text-celeste-600 hover:underline">
           {abierto ? 'Ocultar indicadores' : `Ver los ${conDatos.length} indicadores`}
         </button>
         {abierto && (
-          <div className="flex flex-wrap gap-1.5">
-            {readings.filter(r => r.valor != null).map(({ def, valor, luz }) => (
-              <span key={def.key} className="inline-flex items-center gap-1.5 rounded-full bg-canvas ring-1 ring-inset ring-line px-2.5 py-1 text-[11px]">
-                <span className={`w-1.5 h-1.5 rounded-full ${luz ? LUZ_DOT[luz] : 'bg-ink-300'}`} />
-                <span className="text-ink-600">{def.label}</span>
-                <span className="tnum font-semibold text-ink-900">{def.fmt ? def.fmt(valor!) : valor}</span>
-              </span>
-            ))}
+          <div className="mt-2 space-y-2">
+            {GRUPOS.map(g => {
+              const items = readings.filter(r => r.def.grupo === g.key && r.valor != null);
+              if (!items.length) return null;
+              return (
+                <div key={g.key}>
+                  <p className="text-[9px] uppercase tracking-wide text-ink-500 mb-1">{g.label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {items.map(({ def, valor, luz }) => (
+                      <span key={def.key} className="inline-flex items-center gap-1.5 rounded-full bg-canvas ring-1 ring-inset ring-line px-2.5 py-1 text-[11px]">
+                        <span className={`w-1.5 h-1.5 rounded-full ${luz ? LUZ_DOT[luz] : 'bg-ink-300'}`} />
+                        <span className="text-ink-600">{def.label}</span>
+                        <span className="tnum font-semibold text-ink-900">{def.fmt ? def.fmt(valor!) : valor}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Lectura de IA (opcional, persistida). */}
+      {/* Lectura ejecutiva por IA: un solo párrafo. */}
       <div className="px-4 py-3">
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="ghost" onClick={explicar} disabled={busy || conDatos.length === 0}>
-            <Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : mostrado ? 'Volver a analizar' : 'Explicar la situación (IA)'}
+            <Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : mostrado ? 'Volver a analizar' : 'Lectura ejecutiva (IA)'}
           </Button>
           {err && <span className="text-[11px] text-neg">No se pudo generar: {err}</span>}
         </div>
         {mostrado && (
           <div className="mt-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5">
             <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{mostrado}</p>
-            <p className="text-[10px] text-ink-600 mt-1.5">Lectura cualitativa por IA · los valores los calcula el código.{!ia && fecha && ` · guardada ${new Date(fecha).toLocaleString('es-AR')}`}</p>
+            <p className="text-[10px] text-ink-600 mt-1.5">Lectura por IA · los valores los calcula el código.{!ia && fecha && ` · ${new Date(fecha).toLocaleDateString('es-AR')}`}</p>
           </div>
         )}
       </div>

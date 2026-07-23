@@ -27,6 +27,15 @@ const SECCIONES: { cat: FlujoCategoria; titulo: string; sub: string; icon: typeo
 export const fmtArs = (n: number | null | undefined): string =>
   n == null || !Number.isFinite(n) ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`;
 
+// Formato compacto para montos grandes (millones/miles) — evita que desborden cajas angostas.
+export const fmtArsCompact = (n: number | null | undefined): string => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return `$${(n / 1e6).toLocaleString('es-AR', { maximumFractionDigits: abs >= 1e7 ? 1 : 2 })} M`;
+  if (abs >= 1e4) return `$${(n / 1e3).toLocaleString('es-AR', { maximumFractionDigits: 0 })} k`;
+  return `$${Math.round(n).toLocaleString('es-AR')}`;
+};
+
 export function FinanzasPage() {
   const { data: items = [], isLoading } = useFlujo();
   const { add } = useFlujoMutations();

@@ -3,11 +3,10 @@ import { type Env, json, preflight, safe, sbSelect, sbUpsert } from '../_shared'
 const SYSTEM = `Sos un estratega macro para un inversor argentino de largo plazo. Te paso el estado
 de un tablero de indicadores (Argentina: dólares, riesgo país, Merval, ADR YPF; global/EE.UU.:
 índice dólar, S&P, VIX, spread high yield, tasa corta; refugios: oro, BTC) con su valor y su
-semáforo (verde/amarillo/rojo). En español rioplatense, en 5-8 frases:
-- Explicá cómo está la situación general y por qué (conectá las señales, no las listes sueltas).
-- Distinguí el frente local (Argentina) del externo (tasas, dólar global, riesgo).
-- Qué implica para una cartera de calidad de largo plazo (postura defensiva/ofensiva, no timing).
-NO inventes números ni des recomendación de compra/venta de un activo puntual. Sé concreto y sobrio.`;
+semáforo (verde/amarillo/rojo). Escribí una lectura EJECUTIVA: UN SOLO PÁRRAFO de 3-4 frases, en
+español rioplatense, sin viñetas ni títulos. Conectá las señales (frente local vs externo) y cerrá
+con qué postura sugiere para una cartera de calidad de largo plazo (defensiva/ofensiva, no timing).
+NO inventes números ni des recomendación de compra/venta de un activo puntual. Directo y sobrio.`;
 
 function hash(s: string): string {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
@@ -23,9 +22,9 @@ export const onRequestPost = safe(async ({ request, env }) => {
   const body = await request.json().catch(() => ({})) as { indicadores?: unknown };
   if (!body.indicadores) return json({ error: 'indicadores requeridos' }, 400);
 
-  // v2: se fuerza regenerar los análisis viejos que quedaron cortados (thinking-tokens comían el
-  // presupuesto). El bump del prompt-version cambia el hash → cache miss → se regenera completo.
-  const input = JSON.stringify({ v: 2, indicadores: body.indicadores });
+  // v3: nuevo formato ejecutivo (un párrafo). El bump del prompt-version cambia el hash → cache
+  // miss → regenera con el formato nuevo (los guardados largos anteriores no se reusan).
+  const input = JSON.stringify({ v: 3, indicadores: body.indicadores });
   if (input.length > 8_000) return json({ error: 'contexto demasiado grande' }, 413);
   const inputHash = hash(input);
 
