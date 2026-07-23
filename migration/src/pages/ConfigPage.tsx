@@ -7,7 +7,7 @@ import { Trash2 } from 'lucide-react';
 import { Card, CardHeader, Button, Badge, fmtUsd, Field, inputCls, Empty } from '../components/ui';
 
 export function ConfigPage() {
-  const { portfolios, active, createPortfolio, updatePortfolio, archivePortfolio } = usePortfolios();
+  const { portfolios, active, defaultId, setDefaultId, setActiveId, createPortfolio, updatePortfolio, archivePortfolio } = usePortfolios();
   const [nuevo, setNuevo] = useState({ nombre: '', descripcion: '', capital_objetivo: '', moneda_ref: 'USD' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
@@ -60,6 +60,23 @@ export function ConfigPage() {
           </div>
         </div>
       </Card>
+
+      {portfolios.length > 1 && (
+        <Card>
+          <CardHeader title="Portfolio por defecto" sub="Cuál se muestra primero al abrir la app. Podés seguir cambiando de portfolio cuando quieras." />
+          <div className="p-4 flex flex-wrap items-center gap-3">
+            <Field label="Mostrar por defecto" className="flex-1 min-w-[200px]">
+              <select value={defaultId ?? ''}
+                onChange={e => { const v = e.target.value || null; setDefaultId(v); if (v) setActiveId(v); }}
+                className={`${inputCls} appearance-none`}>
+                <option value="">Automático (la última que usé)</option>
+                {portfolios.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            </Field>
+            {defaultId && <span className="text-xs text-pos self-end pb-2">Abrirá en «{portfolios.find(p => p.id === defaultId)?.nombre ?? '—'}»</span>}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="Mis portfolios" />

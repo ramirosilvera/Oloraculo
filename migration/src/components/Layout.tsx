@@ -34,7 +34,11 @@ const pill = (isActive: boolean) =>
 
 export function Layout() {
   const { signOut, session } = useAuth();
-  const { portfolios, active, activeId, setActiveId, loading } = usePortfolios();
+  const { portfolios, active, activeId, defaultId, setActiveId, loading } = usePortfolios();
+  // El portfolio por defecto aparece primero en el selector.
+  const orderedPortfolios = defaultId
+    ? [...portfolios].sort((a, b) => (a.id === defaultId ? -1 : b.id === defaultId ? 1 : 0))
+    : portfolios;
   const { theme, density, toggleTheme, toggleDensity } = usePrefs();
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,7 +56,7 @@ export function Layout() {
               onChange={e => { const v = e.target.value; setActiveId(v); if (v === '__all__') navigate('/consolidado'); }}
               className="w-full max-w-full truncate appearance-none bg-canvas border border-line rounded-full pl-4 pr-9 py-2 text-sm font-semibold text-ink-800 focus:outline-none focus:ring-2 focus:ring-celeste-300"
             >
-              {portfolios.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              {orderedPortfolios.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               <option value="__all__">Todos (consolidado)</option>
             </select>
             <ChevronDown className="w-4 h-4 text-ink-600 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />

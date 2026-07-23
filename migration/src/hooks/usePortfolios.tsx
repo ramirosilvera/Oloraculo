@@ -5,13 +5,16 @@ import { useAuth } from './useAuth';
 import type { Portfolio } from '../types/domain';
 
 const ACTIVE_KEY = 'pf.activeId';
+const DEFAULT_KEY = 'pf.defaultId';   // portfolio que se muestra primero al abrir la app
 
 interface PortfoliosCtx {
   portfolios: Portfolio[];
   loading: boolean;
   activeId: string | null;              // null = vista consolidada ("todos")
   active: Portfolio | null;
+  defaultId: string | null;             // preferencia: cuál aparece por defecto
   setActiveId: (id: string | null) => void;
+  setDefaultId: (id: string | null) => void;
   createPortfolio: (p: Pick<Portfolio, 'nombre' | 'descripcion' | 'capital_objetivo' | 'moneda_ref'>) => Promise<void>;
   updatePortfolio: (id: string, patch: Partial<Portfolio>) => Promise<void>;
   archivePortfolio: (id: string) => Promise<void>;
@@ -23,7 +26,9 @@ export const usePortfolios = () => useContext(Ctx);
 export function PortfoliosProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const qc = useQueryClient();
-  const [activeId, setActiveIdState] = useState<string | null>(() => localStorage.getItem(ACTIVE_KEY) || null);
+  // Al abrir, prioriza el portfolio por defecto elegido en Configuración; si no hay, la última usada.
+  const [activeId, setActiveIdState] = useState<string | null>(() => localStorage.getItem(DEFAULT_KEY) || localStorage.getItem(ACTIVE_KEY) || null);
+  const [defaultId, setDefaultIdState] = useState<string | null>(() => localStorage.getItem(DEFAULT_KEY) || null);
 
   const { data: portfolios = [], isLoading } = useQuery({
     queryKey: ['portfolios', session?.user.id],
@@ -40,12 +45,18 @@ export function PortfoliosProvider({ children }: { children: ReactNode }) {
     setActiveIdState(id);
     if (id) localStorage.setItem(ACTIVE_KEY, id); else localStorage.removeItem(ACTIVE_KEY);
   };
+  const setDefaultId = (id: string | null) => {
+    setDefaultIdState(id);
+    if (id) localStorage.setItem(DEFAULT_KEY, id); else localStorage.removeItem(DEFAULT_KEY);
+  };
 
-  // Default the active portfolio to the first one once loaded (unless "consolidado" chosen).
+  // Portfolio activo: el elegido; si no es válido, el por defecto; si no, el primero.
   const active = useMemo(() => {
     if (activeId === '__all__') return null;
-    return portfolios.find(p => p.id === activeId) ?? portfolios[0] ?? null;
-  }, [portfolios, activeId]);
+    return portfolios.find(p => p.id === activeId)
+        ?? portfolios.find(p => p.id === defaultId)
+        ?? portfolios[0] ?? null;
+  }, [portfolios, activeId, defaultId]);
 
   const createM = useMutation({
     mutationFn: async (p: Pick<Portfolio, 'nombre' | 'descripcion' | 'capital_objetivo' | 'moneda_ref'>) => {
@@ -62,7 +73,9 @@ export function PortfoliosProvider({ children }: { children: ReactNode }) {
     loading: isLoading,
     activeId: activeId === '__all__' ? '__all__' : (active?.id ?? null),
     active,
+    defaultId,
     setActiveId,
+    setDefaultId,
     createPortfolio: async (p) => { await createM.mutateAsync(p); },
     updatePortfolio: async (id, patch) => {
       const { error } = await supabase.from('portfolios').update(patch).eq('id', id);
