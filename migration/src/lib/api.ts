@@ -24,10 +24,6 @@ export const api = {
   accionesAr: (tickers: string[]) =>
     get<{ mep: number | null; precios: Record<string, number | null> }>(
       `/api/market/acciones-ar?tickers=${tickers.map(encodeURIComponent).join(',')}`),
-  // CEDEARs valuados por su especie en pesos (BYMA ÷ MEP) → USD por CEDEAR.
-  cedearsAr: (tickers: string[]) =>
-    get<{ mep: number | null; precios: Record<string, number | null> }>(
-      `/api/market/cedears-ar?tickers=${tickers.map(encodeURIComponent).join(',')}`),
 
   analisisEmpresa: (body: unknown) => postAnalisis('/api/analysis/empresa', body),
   analisisPortfolio: (body: unknown) => postAnalisis('/api/analysis/portfolio', body),

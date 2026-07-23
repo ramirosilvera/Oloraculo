@@ -2,16 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff, Pencil, ShoppingCart, Target } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos, useCedearsPeso } from '../hooks/usePosiciones';
+import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
 import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct } from '../engine/rebalance';
 import { UpdatedAt } from '../components/UpdatedAt';
-import { resolveUnitUSD } from '../lib/valuation';
-
-// CEDEARs sin ratio (no valuables por subyacente) → se valúan por su especie en pesos ÷ MEP.
-const cedearsSinRatio = (ps: Posicion[]) => ps.filter(p => p.tipo === 'cedear' && (p.ratio_cedear == null || p.ratio_cedear <= 0)).map(p => p.ticker);
+import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
 type Row = { p: Posicion; live: number | null; unit: number | null; mkt: number | null; cost: number; pnl: number | null; pnlPct: number | null };
@@ -26,17 +23,16 @@ export function PosicionesPage() {
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
   const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
   const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
-  const { data: cedearPeso = {} } = useCedearsPeso(cedearsSinRatio(posiciones));
 
   const rows = useMemo(() => posiciones.map(p => {
     const live = quotes[p.ticker] ?? null;
-    const unit = resolveUnitUSD(p, live, cedearPeso[p.ticker]);
+    const unit = unitValueUSD(p, live);
     const mkt = unit != null ? unit * p.cantidad : null;
     const cost = p.precio_compra * p.cantidad;
     const pnl = mkt != null ? mkt - cost : null;
     const pnlPct = mkt != null && cost > 0 ? mkt / cost - 1 : null;
     return { p, live, unit, mkt, cost, pnl, pnlPct };
-  }), [posiciones, quotes, cedearPeso]);
+  }), [posiciones, quotes]);
 
   const totalMkt = rows.reduce((s, r) => s + (r.mkt ?? r.cost), 0);
   const pnlNoReal = rows.reduce((s, r) => s + (r.pnl ?? 0), 0);

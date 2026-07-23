@@ -9,16 +9,6 @@ export function unitValueUSD(p: Posicion, live: number | null): number | null {
   return live; // etf/bono (precio ya por nominal) / cash
 }
 
-// Valor USD de una unidad, con soporte para valuar CEDEARs por su especie en pesos (BYMA ÷ MEP).
-// Si la posición es un CEDEAR sin ratio (no valuable por subyacente) y hay precio de la especie en
-// pesos, ese precio YA es USD por CEDEAR y se usa directo. Si no, cae al modelo subyacente/ratio.
-export function resolveUnitUSD(p: Posicion, live: number | null, cedearPesoUsd?: number | null): number | null {
-  if (p.tipo === 'cedear' && (p.ratio_cedear == null || p.ratio_cedear <= 0) && cedearPesoUsd != null && cedearPesoUsd > 0) {
-    return cedearPesoUsd;
-  }
-  return unitValueUSD(p, live);
-}
-
 // Valor de mercado de la posición, o null si no hay precio válido.
 export function marketValueUSD(p: Posicion, live: number | null): number | null {
   const u = unitValueUSD(p, live);
