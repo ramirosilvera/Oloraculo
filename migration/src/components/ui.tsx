@@ -45,11 +45,11 @@ export function Logo({ size = 32 }: { size?: number }) {
   );
 }
 
-export function Wordmark({ size = 32 }: { size?: number }) {
+export function Wordmark({ size = 32, hideTextOnMobile = false }: { size?: number; hideTextOnMobile?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2 shrink-0">
       <Logo size={size} />
-      <span className="font-display font-extrabold tracking-tight text-ink-900 text-lg leading-none">
+      <span className={`font-display font-extrabold tracking-tight text-ink-900 text-lg leading-none ${hideTextOnMobile ? 'hidden sm:inline' : ''}`}>
         Porta<span className="text-celeste-600">folio</span>
       </span>
     </span>

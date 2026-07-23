@@ -43,9 +43,9 @@ export function Layout() {
     <div className="min-h-full flex flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-3">
-          <Link to="/" className="shrink-0"><Wordmark /></Link>
+          <Link to="/" className="shrink-0"><Wordmark hideTextOnMobile /></Link>
 
-          <div className="relative min-w-0 flex-1 sm:flex-none sm:ml-2">
+          <div className="relative min-w-0 flex-1 sm:flex-none sm:ml-2 sm:min-w-[10rem]">
             <select
               value={activeId ?? ''}
               onChange={e => { const v = e.target.value; setActiveId(v); if (v === '__all__') navigate('/consolidado'); }}
