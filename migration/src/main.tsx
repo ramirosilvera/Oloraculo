@@ -8,11 +8,12 @@ import { App } from './App';
 import { AuthProvider } from './hooks/useAuth';
 import './index.css';
 
+const WEEK = 7 * 24 * 60 * 60 * 1000;
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60_000,
-      gcTime: 24 * 60 * 60 * 1000, // conservar en memoria 24h para poder persistir
+      gcTime: WEEK, // conservar en memoria una semana para poder persistir entre días
       retry: 1,
       refetchOnWindowFocus: false,
     },
@@ -31,7 +32,7 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: 24 * 60 * 60 * 1000 }}
+      persistOptions={{ persister, maxAge: WEEK }}
     >
       <AuthProvider>
         <BrowserRouter>

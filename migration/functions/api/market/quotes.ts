@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 15 * 60 * 1000; // 15 min
 
@@ -34,8 +34,9 @@ export const onRequestGet = guard(async ({ request, env }) => {
     const cached = await cacheFresh<{ precio: number }>(env, 'precios_cache', 'ticker', t, TTL);
     if (cached) { out[t] = cached.precio; return; }
     const p = await fetchPrice(env, t);
-    out[t] = p;
-    if (p != null) rows.push({ ticker: t, precio: p, moneda: 'USD', updated_at: new Date().toISOString() });
+    if (p != null) { out[t] = p; rows.push({ ticker: t, precio: p, moneda: 'USD', updated_at: new Date().toISOString() }); }
+    // Proveedor caído: último precio conocido (aunque vencido) antes que vaciar la cotización.
+    else out[t] = (await cacheLast<{ precio: number }>(env, 'precios_cache', 'ticker', t))?.precio ?? null;
   }));
   if (rows.length) await sbUpsert(env, 'precios_cache', rows, 'ticker');
   return json(out);

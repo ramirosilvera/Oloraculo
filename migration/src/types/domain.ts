@@ -68,6 +68,25 @@ export interface Aporte {
   descripcion: string | null;
 }
 
+// ── Flujo de caja personal (por usuario, no por portfolio) ────────────────────
+export type FlujoCategoria = 'ingreso' | 'egreso' | 'inversion';
+export type FlujoDestino = 'fci' | 'mercadopago' | 'cedears' | 'bonos' | 'efectivo' | 'otro';
+
+export interface FlujoItem {
+  id: string;
+  user_id: string;
+  categoria: FlujoCategoria;
+  concepto: string;
+  monto: number;
+  moneda: 'ARS' | 'USD';
+  destino: FlujoDestino | null;
+  orden: number;
+  activo: boolean;
+  nota: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
 // ── Fundamentals derived from EDGAR (computed, not stored hardcoded) ──────────
 export interface AnnualPoint { fy: number; end: string; val: number; }
 

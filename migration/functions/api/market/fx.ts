@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 30 * 60 * 1000; // 30 min
 const TIPOS = ['oficial', 'blue', 'bolsa', 'contadoconliqui'] as const;
@@ -22,9 +22,12 @@ export const onRequestGet = guard(async ({ env }) => {
       try {
         const d = await fetchJson<{ venta?: number; compra?: number }>(`https://dolarapi.com/v1/dolares/${t}`);
         const val = d.venta ?? d.compra ?? null;
-        out[CLAVE[t]] = val;
-        if (val != null) rows.push({ clave: CLAVE[t], valor: val, updated_at: new Date().toISOString() });
-      } catch { out[CLAVE[t]] = out[CLAVE[t]] ?? null; }
+        if (val != null) { out[CLAVE[t]] = val; rows.push({ clave: CLAVE[t], valor: val, updated_at: new Date().toISOString() }); }
+        else out[CLAVE[t]] = (await cacheLast<{ valor: number }>(env, 'macro_cache', 'clave', CLAVE[t]))?.valor ?? null;
+      } catch {
+        // dolarapi caído: último valor conocido (aunque vencido) antes que vaciar el dólar.
+        out[CLAVE[t]] = (await cacheLast<{ valor: number }>(env, 'macro_cache', 'clave', CLAVE[t]))?.valor ?? null;
+      }
     }));
     if (rows.length) await sbUpsert(env, 'macro_cache', rows, 'clave');
   }

@@ -94,6 +94,16 @@ export async function cacheFresh<T = { updated_at: string }>(
   return age >= 0 && age < ttlMs ? (row as T) : null;
 }
 
+// Último valor cacheado IGNORANDO el TTL. Sirve de fallback cuando el proveedor externo cae:
+// preferimos mostrar el último dato conocido (aunque esté viejo) antes que un campo vacío.
+// Persistencia entre sesiones/días: un dato bueno de ayer no debe borrarse por un fallo de hoy.
+export async function cacheLast<T = { updated_at: string }>(
+  env: Env, table: string, keyCol: string, keyVal: string,
+): Promise<T | null> {
+  const rows = await sbSelect<T>(env, table, `${keyCol}=eq.${encodeURIComponent(keyVal)}&limit=1`);
+  return rows[0] ?? null;
+}
+
 // Timed fetch with a sane timeout + JSON parse.
 export async function fetchJson<T = unknown>(url: string, init?: RequestInit, timeoutMs = 20_000): Promise<T> {
   const ctrl = new AbortController();

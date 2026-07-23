@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, sbUpsert } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert } from '../_shared';
 import { DEFAULT_CIK, fetchFundamentals } from '../_edgar';
 
 const TTL = 12 * 60 * 60 * 1000; // 12h
@@ -42,6 +42,10 @@ export const onRequestGet = guard(async ({ request, env }) => {
     }
     return json(data);
   } catch (e) {
+    // EDGAR caído: si hay algo cacheado (aunque vencido), lo servimos en vez de un error que vacía
+    // la pantalla. Solo devolvemos 502 si nunca tuvimos fundamentals de este ticker.
+    const last = await cacheLast<{ data_json: object }>(env, 'fundamentals_cache', 'ticker', ticker);
+    if (last?.data_json) return json({ ...(last.data_json as object), cached: true, stale: true });
     return json({ error: 'edgar-fetch-failed', detail: String(e) }, 502);
   }
 });

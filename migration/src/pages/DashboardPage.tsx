@@ -4,10 +4,14 @@ import { Sparkles } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
+import { useFlujo } from '../hooks/useFlujo';
 import { SEMAFOROS, GRUPOS, resumenMacro, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
+import { resumenFlujo, DESTINOS_FCI } from '../engine/flujo';
 import { portfolioTir } from '../engine/irr';
 import { api } from '../lib/api';
+import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { fmtArs, destinoLabel } from './FinanzasPage';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 
@@ -22,6 +26,7 @@ export function DashboardPage() {
   const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
   const { data: macro = {} } = useMacro();
   const { data: aportes = [] } = useAportes(active?.id);
+  const { data: flujo = [] } = useFlujo();
 
   const { patrimonio, costo, pnl } = useMemo(() => {
     let patrimonio = 0, costo = 0;
@@ -47,6 +52,9 @@ export function DashboardPage() {
     return { def: s, valor: v ?? null, luz: v != null ? s.evalua(v) : null };
   });
   const resumen = resumenMacro(semaforos);
+
+  const mep = (macro as Record<string, number | null>).dolar_mep ?? (macro as Record<string, number | null>).dolar_ccl ?? null;
+  const flujoR = resumenFlujo(flujo, mep);
 
   if (!active) return null;
 
@@ -84,6 +92,8 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
+
       <MacroContext readings={semaforos} resumen={resumen} />
 
       <Card>
@@ -111,13 +121,42 @@ export function DashboardPage() {
   );
 }
 
+// Liquidez & FCI: la parte del flujo de caja que se muestra en el Dashboard (near-cash sleeve).
+function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo>; mep: number | null }) {
+  const sleeve = DESTINOS_FCI.map(d => ({ d, monto: resumen.porDestino[d] ?? 0 })).filter(x => x.monto > 0);
+  const usd = (ars: number) => (mep ? `≈ US$${Math.round(ars / mep).toLocaleString('en-US')}` : '');
+  return (
+    <Card>
+      <CardHeader title="Liquidez & FCI" sub="Lo que tenés en fondos y billetera, según tu flujo de caja."
+        right={<Link to="/finanzas" className="text-[11px] text-celeste-600 hover:underline">Editar flujo →</Link>} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+        <Stat label="FCI + billetera" value={fmtArs(resumen.fci)} hint={usd(resumen.fci)} />
+        <Stat label="Disponible del mes" value={<span className={resumen.disponible >= 0 ? 'text-pos' : 'text-neg'}>{fmtArs(resumen.disponible)}</span>} hint="ingresos − egresos" />
+        <Stat label="Asignado" value={fmtArs(resumen.invertido)} hint="ya colocado en inversiones" />
+        <Stat label="Sin asignar" value={<span className={resumen.sinAsignar >= 0 ? 'text-ink-900' : 'text-neg'}>{fmtArs(resumen.sinAsignar)}</span>} hint="todavía sin colocar" />
+      </div>
+      {sleeve.length > 0 && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+          {sleeve.map(({ d, monto }) => (
+            <Badge key={d} tone="celeste">{destinoLabel(d)}: {fmtArs(monto)}</Badge>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 const TONE_ALERTA: Record<'amarillo' | 'rojo', 'warn' | 'neg'> = { amarillo: 'warn', rojo: 'neg' };
 
 // Contexto macro: síntesis narrativa (rule-based) + alertas + tablero agrupado + lectura opcional de IA.
 function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: ResumenMacro }) {
+  // Persistencia: la última lectura de IA guardada se muestra al abrir (no se pierde entre sesiones).
+  const { texto: guardado, fecha } = useUltimoAnalisis('MACRO', 'macro');
+  const setUltimo = useSetUltimoAnalisis();
   const [ia, setIa] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const mostrado = ia ?? guardado;
 
   const conDatos = readings.filter(r => r.luz);
 
@@ -132,7 +171,7 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
       })),
     });
     if (r.error) setErr(r.error);
-    else setIa(r.analisis ?? '');
+    else { setIa(r.analisis ?? ''); if (r.analisis) setUltimo('MACRO', 'macro', r.analisis); }
     setBusy(false);
   }
 
@@ -180,14 +219,17 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
       <div className="px-4 pb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="ghost" onClick={explicar} disabled={busy || conDatos.length === 0}>
-            <Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : ia ? 'Volver a analizar' : 'Explicar la situación (IA)'}
+            <Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : mostrado ? 'Volver a analizar' : 'Explicar la situación (IA)'}
           </Button>
           {err && <span className="text-[11px] text-neg">No se pudo generar: {err}</span>}
         </div>
-        {ia && (
+        {mostrado && (
           <div className="mt-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5">
-            <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{ia}</p>
-            <p className="text-[10px] text-ink-600 mt-1.5">Lectura cualitativa generada por IA · los valores y semáforos los calcula el código.</p>
+            <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{mostrado}</p>
+            <p className="text-[10px] text-ink-600 mt-1.5">
+              Lectura cualitativa generada por IA · los valores y semáforos los calcula el código.
+              {!ia && fecha && ` · guardada ${new Date(fecha).toLocaleString('es-AR')}`}
+            </p>
           </div>
         )}
       </div>

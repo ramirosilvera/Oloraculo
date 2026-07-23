@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent,
-  CalendarClock, Radar, Sparkles, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal,
+  CalendarClock, Radar, Sparkles, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal, PiggyBank,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
@@ -13,6 +13,7 @@ import { UpdatedAt } from './UpdatedAt';
 const NAV_PRIMARY = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/posiciones', label: 'Posiciones', icon: Table2 },
+  { to: '/finanzas', label: 'Finanzas', icon: PiggyBank },
   { to: '/radar', label: 'Radar', icon: Radar },
   { to: '/bonos', label: 'Renta fija', icon: Landmark },
 ];

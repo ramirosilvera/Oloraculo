@@ -9,6 +9,7 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { computeRatios } from '../engine/ratios';
 import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod } from '../engine/dcf';
 import { useDcfInputs } from '../hooks/useDcfInputs';
+import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 import type { Fundamentals } from '../types/domain';
 
@@ -247,21 +248,29 @@ export function AnalisisPage() {
 }
 
 function GeminiAnalysis({ ticker, portfolioId, context }: { ticker: string; portfolioId: string | null; context: unknown }) {
+  // Persistencia: al abrir el ticker mostramos el último análisis guardado (server + cache) en vez
+  // de una caja vacía. Solo se regenera si el usuario lo pide.
+  const { texto: guardado, fecha } = useUltimoAnalisis(ticker, 'empresa');
+  const setUltimo = useSetUltimoAnalisis();
   const [txt, setTxt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const mostrado = txt ?? guardado;
   const run = async () => {
     setBusy(true);
     const r = await api.analisisEmpresa({ ticker, portfolio_id: portfolioId, context });
-    setTxt(r.analisis ?? r.error ?? 'Sin respuesta');
+    const res = r.analisis ?? r.error ?? 'Sin respuesta';
+    setTxt(res);
+    if (r.analisis) setUltimo(ticker, 'empresa', r.analisis);
     setBusy(false);
   };
   return (
     <Card>
       <CardHeader title="Análisis cualitativo (IA)" sub="Gemini interpreta los números calculados por el código. No es recomendación de inversión."
-        right={<Button variant="ghost" onClick={run} disabled={busy}><Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : txt ? 'Regenerar' : 'Analizar'}</Button>} />
-      {txt && (
+        right={<Button variant="ghost" onClick={run} disabled={busy}><Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : mostrado ? 'Regenerar' : 'Analizar'}</Button>} />
+      {mostrado && (
         <div className="px-4 py-3">
-          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{txt}</p>
+          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{mostrado}</p>
+          {!txt && fecha && <p className="text-[10px] text-ink-500 mt-1.5">Guardado · {new Date(fecha).toLocaleString('es-AR')}</p>}
         </div>
       )}
     </Card>

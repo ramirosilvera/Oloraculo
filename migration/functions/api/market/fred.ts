@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchText } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchText } from '../_shared';
 
 const TTL = 6 * 60 * 60 * 1000; // 6h
 // FRED series → clave en macro_cache. Valores en % (ej. DGS10 = 4.3 → guardamos 4.3).
@@ -33,9 +33,12 @@ export const onRequestGet = guard(async ({ env }) => {
     try {
       const csv = await fetchText(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${serie}`);
       const val = lastValue(csv);
-      out[clave] = val;
-      if (val != null) rows.push({ clave, valor: val, updated_at: new Date().toISOString() });
-    } catch { out[clave] = null; }
+      if (val != null) { out[clave] = val; rows.push({ clave, valor: val, updated_at: new Date().toISOString() }); }
+      else out[clave] = (await cacheLast<{ valor: number }>(env, 'macro_cache', 'clave', clave))?.valor ?? null;
+    } catch {
+      // Proveedor caído: servimos el último valor conocido (aunque esté vencido) en vez de vaciar.
+      out[clave] = (await cacheLast<{ valor: number }>(env, 'macro_cache', 'clave', clave))?.valor ?? null;
+    }
   }));
   if (rows.length) await sbUpsert(env, 'macro_cache', rows, 'clave');
   return json(out);

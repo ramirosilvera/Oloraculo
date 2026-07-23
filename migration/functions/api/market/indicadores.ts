@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 20 * 60 * 1000; // 20 min
 
@@ -63,8 +63,9 @@ export const onRequestGet = guard(async ({ env }) => {
     const rows: { clave: string; valor: number; updated_at: string }[] = [];
     await Promise.all(stale.map(async (c) => {
       const v = await fuente[c]?.();
-      out[c] = v ?? out[c] ?? null;
-      if (v != null) rows.push({ clave: c, valor: v, updated_at: new Date().toISOString() });
+      if (v != null) { out[c] = v; rows.push({ clave: c, valor: v, updated_at: new Date().toISOString() }); }
+      // Fuente caída: último valor conocido (aunque vencido) antes que vaciar el campo.
+      else out[c] = (await cacheLast<{ valor: number }>(env, 'macro_cache', 'clave', c))?.valor ?? null;
     }));
     if (rows.length) await sbUpsert(env, 'macro_cache', rows, 'clave');
   }
