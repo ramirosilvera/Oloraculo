@@ -19,6 +19,8 @@ export const api = {
   riesgoPais: () => get<{ riesgo_pais: number | null }>('/api/market/riesgo-pais'),
   fred: () => get<Record<string, number | null>>('/api/market/fred'),
   indicadores: () => get<Record<string, number | null>>('/api/market/indicadores'),
+  // Distancia al máximo de 52s (drawdown) de S&P 500, oro y Merval.
+  drawdowns: () => get<Record<string, { actual: number; max: number; dd: number } | null>>('/api/market/drawdowns'),
   status: () => get<{ precios: string | null; macro: string | null; fundamentals: string | null; last: string | null }>('/api/market/status'),
   bonos: () => get<Record<string, number>>('/api/market/bonos'),
   accionesAr: (tickers: string[]) =>

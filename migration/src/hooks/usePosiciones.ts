@@ -191,6 +191,15 @@ export function useDataStatus() {
   });
 }
 
+// Distancia al máximo de 52 semanas (drawdown) de S&P 500, oro y Merval.
+export function useDrawdowns() {
+  return useQuery({
+    queryKey: ['drawdowns'],
+    staleTime: 20 * 60_000,
+    queryFn: () => api.drawdowns(),
+  });
+}
+
 export function useMacro() {
   return useQuery({
     queryKey: ['macro'],

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SEMAFOROS, sintesis, resumenMacro, type Lectura } from './semaforos';
+import { SEMAFOROS, sintesis, resumenMacro, distanciaMaximo, type Lectura } from './semaforos';
 
 const ev = (key: string, v: number) => SEMAFOROS.find(s => s.key === key)!.evalua(v);
 
@@ -56,5 +56,14 @@ describe('semáforos — umbrales exactos sección 9', () => {
     const r = resumenMacro([]);
     expect(r.conteo.total).toBe(0);
     expect(r.parrafo).toContain('Todavía no hay datos');
+  });
+
+  it('distanciaMaximo: drawdown desde el máximo', () => {
+    expect(distanciaMaximo(90, 100)).toBeCloseTo(-0.10, 9);   // 10% abajo del máximo
+    expect(distanciaMaximo(100, 100)).toBe(0);                 // en máximos
+    expect(distanciaMaximo(50, 100)).toBeCloseTo(-0.50, 9);
+    expect(distanciaMaximo(null, 100)).toBeNull();
+    expect(distanciaMaximo(90, 0)).toBeNull();                 // sin máximo válido
+    expect(distanciaMaximo(90, null)).toBeNull();
   });
 });

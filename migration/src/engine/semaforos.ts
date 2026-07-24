@@ -59,6 +59,12 @@ const SIGNIFICADO: Record<string, { amarillo: string; rojo: string }> = {
   bitcoin:       { amarillo: 'BTC elevado', rojo: 'BTC en zona eufórica' },
 };
 
+// Distancia porcentual al máximo (drawdown): actual/max − 1. 0 = en máximos; negativo = por debajo.
+export function distanciaMaximo(actual: number | null | undefined, max: number | null | undefined): number | null {
+  if (actual == null || max == null || !(max > 0) || !Number.isFinite(actual)) return null;
+  return actual / max - 1;
+}
+
 // Variación del S&P vs máximo histórico: >20% alerta extrema, >0% rojo (caída), si no verde.
 export function sp500Drawdown(actual: number, maximoHistorico: number): { pct: number; luz: Luz } {
   const caida = maximoHistorico > 0 ? (maximoHistorico - actual) / maximoHistorico : 0;

@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones, useQuotes, useMacro } from '../hooks/usePosiciones';
+import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
 import { useFlujo } from '../hooks/useFlujo';
 import { useChartTheme } from '../hooks/usePrefs';
-import { SEMAFOROS, GRUPOS, resumenMacro, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
+import { SEMAFOROS, GRUPOS, resumenMacro, distanciaMaximo, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { redondearPct } from '../engine/rebalance';
 import { portfolioTir } from '../engine/irr';
@@ -193,9 +193,14 @@ function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo
 const TONE_ALERTA: Record<'amarillo' | 'rojo', 'warn' | 'neg'> = { amarillo: 'warn', rojo: 'neg' };
 
 // Contexto macro: síntesis narrativa (rule-based) + alertas + tablero compacto + lectura de IA.
+const DD_ITEMS: { key: string; label: string }[] = [
+  { key: 'sp500', label: 'S&P 500' }, { key: 'merval', label: 'Merval' }, { key: 'oro', label: 'Oro' },
+];
+
 function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: ResumenMacro }) {
   const { texto: guardado, fecha } = useUltimoAnalisis('MACRO', 'macro');
   const setUltimo = useSetUltimoAnalisis();
+  const { data: dd = {} } = useDrawdowns();
   const [ia, setIa] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -221,6 +226,28 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
     <Card>
       <CardHeader title="Contexto macro" sub="Semáforos + lectura ejecutiva."
         right={<Badge tone={tone}>{resumen.titulo}</Badge>} />
+
+      {/* Indicadores clave: distancia al máximo de 52 semanas (S&P 500, Merval, Oro). */}
+      <div className="px-4 pt-3.5">
+        <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Distancia al máximo · 52 semanas</p>
+        <div className="grid grid-cols-3 gap-2">
+          {DD_ITEMS.map(({ key, label }) => {
+            const d = dd[key];
+            const pct = d ? distanciaMaximo(d.actual, d.max) : null;
+            // Cerca del máximo = caro (warn); caída grande = posible oportunidad (celeste); medio = neutral.
+            const cls = pct == null ? 'text-ink-500' : pct > -0.02 ? 'text-warn' : pct < -0.15 ? 'text-celeste-600' : 'text-ink-900';
+            return (
+              <div key={key} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 min-w-0"
+                title={d ? `Actual ${Math.round(d.actual).toLocaleString('en-US')} · máx 52s ${Math.round(d.max).toLocaleString('en-US')}` : undefined}>
+                <p className="text-[10px] uppercase text-ink-600 font-semibold truncate">{label}</p>
+                <p className={`text-lg font-bold tnum mt-0.5 ${cls}`}>{pct == null ? '—' : pct === 0 ? 'en máx.' : fmtPct(pct, 1)}</p>
+                <p className="text-[10px] text-ink-500">vs máx</p>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-ink-500 mt-1.5">S&P 500 y oro en USD · Merval en pesos (nominal).</p>
+      </div>
 
       {/* Salud del tablero: barra verde/amarillo/rojo + leyenda (visual, de un vistazo). */}
       {total === 0 ? (
