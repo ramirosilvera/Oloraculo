@@ -47,13 +47,16 @@ describe('ratios', () => {
     expect(r.wacc!).toBeLessThanOrEqual(r.costOfEquity! + 1e-9);
     expect(r.wacc!).toBeGreaterThan(0);
   });
-  it('dcfDefaultsFor: g = EG5Y − 1pto ACOTADO (≤ G_MAX y < d), d = WACC, gt 3%, N 20, MoS 20%', () => {
+  it('dcfDefaultsFor: g = EG5Y − 1pto ACOTADO (≤ G_MAX y < d), d = Ke, gt 3%, N 20, MoS 20%', () => {
     const def = dcfDefaultsFor(r);  // redondea a 4 decimales
     // MSFT: EG5Y ≈ 19,6% y WACC ≈ 8,7%. Sin tope, g=18,6% > d → 20 años de composición hacia
     // arriba → valor intrínseco inflado y COMPRAR falso. El default se acota por debajo de d.
     expect(def.g).toBeCloseTo(Math.min(Math.max(0, (r.eg5y ?? 0) - 0.01), G_MAX, def.d - 0.01), 4);
     expect(def.g).toBeLessThan(def.d);
-    expect(def.d).toBeCloseTo(Math.max(0.06, r.wacc!), 4);
+    // d = Ke (CAPM), NO WACC: los owner earnings son flujo del accionista y no se resta deuda
+    // neta, así que descontar al WACC (más bajo) sobrevaluaría a las empresas apalancadas.
+    expect(def.d).toBeCloseTo(Math.max(0.06, r.costOfEquity!), 4);
+    expect(def.d).toBeGreaterThanOrEqual(r.wacc!);   // Ke ≥ WACC cuando hay deuda
     expect(def.gt).toBe(0.03);
     expect(def.N).toBe(20);
     expect(def.mosRequired).toBe(0.20);
@@ -150,7 +153,7 @@ describe('computeDcf — gate de estabilidad (no afirmar COMPRAR con supuestos f
 
   it('dcfDefaultsFor acota g: nunca por encima de G_MAX ni de d', () => {
     const base = computeRatios(MSFT, 420, 0.9, 0.043);
-    const growth = dcfDefaultsFor({ ...base, eg5y: 0.45, wacc: 0.09 });  // EPS CAGR 45%
+    const growth = dcfDefaultsFor({ ...base, eg5y: 0.45, costOfEquity: 0.09 });  // EPS CAGR 45%
     expect(growth.g).toBeLessThanOrEqual(G_MAX);
     expect(growth.g).toBeLessThan(growth.d);
   });

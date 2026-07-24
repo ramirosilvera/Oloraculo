@@ -26,12 +26,19 @@ export const DEFAULT_DCF_INPUTS: DcfInputs = {
 // tope, un EG5Y histórico alto (growth) proyectado 20 años produce un valor intrínseco absurdo.
 export const G_MAX = 0.15;
 
-// Supuestos por defecto CALCULADOS por empresa: g = EG5Y real − 1 punto; d = WACC real;
+// Supuestos por defecto CALCULADOS por empresa: g = EG5Y real − 1 punto; d = Ke (CAPM);
 // gt 3%, N 20 años, MoS exigido 20%. Son el punto de partida; el usuario puede editar y guardar.
+//
+// POR QUÉ Ke Y NO WACC: los owner earnings (OCF − capex mant.) ya están DESPUÉS de intereses, o sea
+// son flujo del ACCIONISTA, y el valor resultante se divide directo por acciones sin restar deuda
+// neta → es una valuación de equity. Descontarla al WACC (que mezcla deuda más barata) infla el
+// valor cuanto más apalancada esté la empresa. El WACC correspondería solo si se descontara un
+// flujo unlevered (FCFF) y luego se restara la deuda neta, que no es lo que hace este modelo.
+//
 // g se acota a G_MAX y, además, por debajo de d: con g ≥ d el período explícito compone hacia
 // arriba y el modelo deja de ser estable (ver el gate del veredicto en computeDcf).
 export function dcfDefaultsFor(r: Ratios): DcfInputs {
-  const d = r.wacc != null ? Math.max(0.06, +r.wacc.toFixed(4)) : DEFAULT_DCF_INPUTS.d; // piso 6%
+  const d = r.costOfEquity != null ? Math.max(0.06, +r.costOfEquity.toFixed(4)) : DEFAULT_DCF_INPUTS.d; // piso 6%
   const gBruto = r.eg5y != null ? Math.max(0, r.eg5y - 0.01) : DEFAULT_DCF_INPUTS.g;
   const g = +Math.max(0, Math.min(gBruto, G_MAX, d - 0.01)).toFixed(4);
   return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20 };
@@ -153,9 +160,11 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
 
   const mungerChecks: MungerCheck[] = [
     {
-      label: '¿ROIC > Ke? (crea valor)',
+      // ROIC es retorno sobre el capital TOTAL (equity + deuda), así que el benchmark correcto es el
+      // WACC (costo del capital total), no Ke. El rótulo decía "Ke" aunque recibía el WACC.
+      label: '¿ROIC > WACC? (crea valor)',
       ok: roic != null && wacc != null ? roic > wacc : false,
-      detail: roic != null && wacc != null ? `ROIC ${(roic * 100).toFixed(1)}% vs Ke ${(wacc * 100).toFixed(1)}%` : 'ROIC/Ke no disponible',
+      detail: roic != null && wacc != null ? `ROIC ${(roic * 100).toFixed(1)}% vs WACC ${(wacc * 100).toFixed(1)}%` : 'ROIC/WACC no disponible',
     },
     {
       label: '¿g ≤ CAGR histórico de owner earnings? (supuesto no optimista)',

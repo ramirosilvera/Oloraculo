@@ -61,7 +61,7 @@ export function AnalisisPage() {
 
   // Al abrir un ticker (una vez que hay ratios y cargó lo guardado): si el usuario ya guardó
   // supuestos para ese ticker, los usamos; si no, calculamos los defaults por empresa
-  // (g = EG5Y−1pto, d = WACC, gt 3%, N 20, MoS 20%).
+  // (g = EG5Y−1pto acotado, d = Ke, gt 3%, N 20, MoS 20%).
   useEffect(() => {
     if (!ratios || dcfLoading || seededFor.current === T) return;
     seededFor.current = T;
@@ -155,7 +155,7 @@ export function AnalisisPage() {
         {saveMsg && <p className="px-4 pt-3 -mb-1 text-xs text-pos">{saveMsg}</p>}
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <NumIn l="Crecimiento g" v={inp.g} step={0.01} onChange={g => setInp({ ...inp, g })} pct />
-          <NumIn l="Tasa descuento d" v={inp.d} step={0.01} onChange={d => setInp({ ...inp, d })} pct />
+          <NumIn l="Tasa descuento d (Ke)" v={inp.d} step={0.01} onChange={d => setInp({ ...inp, d })} pct />
           <NumIn l="Crec. terminal gt" v={inp.gt} step={0.005} onChange={gt => setInp({ ...inp, gt })} pct />
           <NumIn l="Años N" v={inp.N} step={1} onChange={N => setInp({ ...inp, N })} />
           <NumIn l="MoS exigido" v={inp.mosRequired} step={0.05} onChange={mosRequired => setInp({ ...inp, mosRequired })} pct />
