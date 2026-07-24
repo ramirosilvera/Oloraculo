@@ -20,7 +20,7 @@ describe('rendimientoPorAnio — corte por año calendario (pasado, no anualizad
     const r = rendimientoPorAnio(pts, 2025, '2026-12-31');
     expect(r.map(x => x.anio)).toEqual([2025, 2026]);
     expect(r[0].rendimiento!).toBeCloseTo((11000 - 10000) / 10000, 6);                 // +10%
-    expect(r[1].rendimiento!).toBeCloseTo((14300 - 11000 - 2000) / (11000 + 2000), 6); // +10,83%
+    expect(r[1].rendimiento!).toBeCloseTo((14300 - 11000 - 2000) / (11000 + 2000), 6); // 1300/13000 = +10%
   });
 
   it('portfolio de años previos SIN snapshots históricos → esos años null (no se inventa)', () => {

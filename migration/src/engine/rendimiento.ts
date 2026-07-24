@@ -27,8 +27,10 @@ export function rendimientoPorAnio(puntos: Punto[], inceptionYear: number, hoy: 
   for (let y = inceptionYear; y <= hasta; y++) {
     const yStart = `${y}-01-01`;
     const yEnd = `${y}-12-31`;
-    // Apertura: 0 si es el año de creación; si no, el último snapshot ANTES del año (cierre previo).
-    const prior = [...pts].reverse().find(p => p.fecha < yStart);
+    // Apertura: 0 si es el año de creación; si no, el último snapshot DEL AÑO PREVIO (su cierre).
+    // Debe ser del año Y−1 específicamente: si falta todo un año de datos, no arrastramos un cierre
+    // viejo (eso metería la ganancia de los años faltantes en este → null honesto).
+    const prior = [...pts].reverse().find(p => p.fecha >= `${y - 1}-01-01` && p.fecha < yStart);
     const vIni = y === inceptionYear ? 0 : (prior ? prior.valor : null);
     const aIni = y === inceptionYear ? 0 : (prior ? prior.aportado : null);
     // Cierre: último punto DENTRO del año (≥ inicio, ≤ fin). Para el año en curso, hoy cae adentro.
@@ -37,7 +39,8 @@ export function rendimientoPorAnio(puntos: Punto[], inceptionYear: number, hoy: 
     if (vIni == null || aIni == null || !fin) { out.push({ anio: y, rendimiento: null }); continue; }
     const fNeto = fin.aportado - aIni;     // aportes netos del año (aportes − retiros)
     const base = vIni + fNeto;             // capital que estuvo trabajando
-    const rend = Math.abs(base) > 1e-9 ? (fin.valor - vIni - fNeto) / base : null;
+    // base > 0: si un retiro deja la base ≤ 0, el % no es representativo → null (no un número raro).
+    const rend = base > 1e-9 ? (fin.valor - vIni - fNeto) / base : null;
     out.push({ anio: y, rendimiento: rend });
   }
   return out;

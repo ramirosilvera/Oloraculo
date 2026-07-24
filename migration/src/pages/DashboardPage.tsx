@@ -125,7 +125,7 @@ export function DashboardPage() {
           hint={`rendimiento acumulado desde la creación${tir.aproximada ? ' (aprox., sin aportes cargados)' : ''}`} />
         <Stat label={`Rend. ${anioActual}`}
           value={<span className={rendActual == null ? '' : rendActual >= 0 ? 'text-pos' : 'text-neg'}>{rendActual != null ? fmtPct(rendActual) : '—'}</span>}
-          hint={`rendimiento del año en curso${inceptionYear === anioActual ? ' (= total, nació este año)' : ''}`} />
+          hint={`rendimiento del año en curso${inceptionYear === anioActual ? ' (nació este año)' : ''}`} />
       </div>
 
       {/* Progreso hacia el objetivo de capital. */}
