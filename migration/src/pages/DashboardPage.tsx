@@ -26,13 +26,16 @@ const PIE = ['#4F97D4', '#F4C752', '#5FB49C', '#B08BD6', '#E08E6D', '#9BCFEF', '
 
 export function DashboardPage() {
   const { active } = usePortfolios();
-  const { data: posiciones = [] } = usePosiciones(active?.id);
+  const qPos = usePosiciones(active?.id);
+  const posiciones = qPos.data ?? [];
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
   const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
-  const { data: quotes = {} } = useQuotes(equity, bonds, arStocks);
+  const qQuotes = useQuotes(equity, bonds, arStocks);
+  const quotes = qQuotes.data ?? {};
   const { data: macro = {} } = useMacro();
-  const { data: aportes = [] } = useAportes(active?.id);
+  const qAportes = useAportes(active?.id);
+  const aportes = qAportes.data ?? [];
   const { data: flujo = [] } = useFlujo();
 
   const { patrimonio, costo, pnl, alloc } = useMemo(() => {
@@ -75,9 +78,17 @@ export function DashboardPage() {
   const aportadoNeto = aportes.length
     ? aportes.reduce((s, a) => s + (a.tipo === 'retiro' ? -a.monto : a.monto), 0)
     : costo;
-  const { data: snaps = [] } = useSnapshots(active?.id);
+  const qSnaps = useSnapshots(active?.id);
+  const snaps = qSnaps.data ?? [];
   const record = useRecordSnapshot();
   const recordedRef = useRef('');
+
+  // El snapshot solo es fiable cuando TODO resolvió: si se graba antes de que lleguen las
+  // cotizaciones, el patrimonio cae a costo; y si se graba antes que los aportes, `aportadoNeto`
+  // usa el fallback de costo. Cualquiera de las dos cosas ensucia el histórico de rendimiento.
+  const sinTickers = equity.length + bonds.length + arStocks.length === 0;
+  const datosListos = qPos.isSuccess && qAportes.isSuccess && qSnaps.isSuccess
+    && (sinTickers || (qQuotes.isSuccess && !qQuotes.isFetching));
 
   // Año de creación real (primer aporte o primera compra), para no atribuir mal el rendimiento.
   const inceptionYear = useMemo(() => {
@@ -95,17 +106,22 @@ export function DashboardPage() {
   }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear]);
   const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
 
-  // Registra el snapshot de hoy una vez por sesión (idempotente por día); si cambió >0,5% lo actualiza.
+  // Registra el snapshot de hoy (idempotente por día). El lock incluye el valor grabado, así que si
+  // el patrimonio se corrige (llegan cotizaciones frescas) el snapshot del día se actualiza en vez
+  // de quedar clavado en un valor provisorio.
   useEffect(() => {
-    if (!active?.id || !(patrimonio > 0)) return;
-    const key = `${active.id}:${hoy}`;
+    if (!active?.id || !datosListos || !(patrimonio > 0)) return;
+    const key = `${active.id}:${hoy}:${Math.round(patrimonio)}:${Math.round(aportadoNeto)}`;
     if (recordedRef.current === key) return;
     const hoySnap = snaps.find(s => s.fecha === hoy);
-    if (!hoySnap || Math.abs(hoySnap.valor - patrimonio) / Math.max(1, patrimonio) > 0.005) {
+    const cambió = !hoySnap
+      || Math.abs(hoySnap.valor - patrimonio) / Math.max(1, patrimonio) > 0.005
+      || Math.abs(hoySnap.aportado - aportadoNeto) > 0.01;
+    if (cambió) {
       recordedRef.current = key;
       void record(active.id, hoy, patrimonio, aportadoNeto).catch(() => { recordedRef.current = ''; });
     }
-  }, [active?.id, patrimonio, aportadoNeto, snaps, hoy, record]);
+  }, [active?.id, datosListos, patrimonio, aportadoNeto, snaps, hoy, record]);
 
   if (!active) return null;
 

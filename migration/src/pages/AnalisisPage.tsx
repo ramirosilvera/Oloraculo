@@ -108,6 +108,12 @@ export function AnalisisPage() {
       {(fund as { warning?: string }).warning && (
         <p className="text-[11px] text-warn">{(fund as { warning?: string }).warning}</p>
       )}
+      {dcf.motivoInestable && (
+        <div className="rounded-xl bg-warn/10 ring-1 ring-inset ring-warn/25 px-3 py-2 text-[11px] text-ink-700 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
+          <p>El veredicto no puede ser COMPRAR: {dcf.motivoInestable}. Revisá los supuestos abajo — con estos, el valor intrínseco no es confiable.</p>
+        </div>
+      )}
 
       {/* Veredicto + valuación */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

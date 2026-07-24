@@ -27,7 +27,10 @@ export function useWatchlist() {
   return {
     ...q,
     add: async (ticker: string, cik?: string | null, nota?: string | null) => {
-      const { error } = await supabase.from('watchlist').insert({ ticker: ticker.toUpperCase().trim(), cik: cik || null, nota: nota || null });
+      // upsert (no insert): la tabla tiene unique(user_id,ticker); seguir un ticker que ya estaba
+      // devolvía un error crudo de constraint. Ahora es idempotente y actualiza la nota.
+      const { error } = await supabase.from('watchlist')
+        .upsert({ ticker: ticker.toUpperCase().trim(), cik: cik || null, nota: nota || null }, { onConflict: 'user_id,ticker' });
       if (error) throw error; invalidate();
     },
     remove: async (id: string) => {

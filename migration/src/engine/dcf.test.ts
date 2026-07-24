@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Fundamentals, AnnualPoint } from '../types/domain';
 import { computeRatios, eg5y } from './ratios';
-import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS } from './dcf';
+import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, G_MAX } from './dcf';
 
 const P = (vals: [number, number][]): AnnualPoint[] =>
   vals.map(([fy, val]) => ({ fy, end: `${fy}-06-30`, val }));
@@ -47,9 +47,12 @@ describe('ratios', () => {
     expect(r.wacc!).toBeLessThanOrEqual(r.costOfEquity! + 1e-9);
     expect(r.wacc!).toBeGreaterThan(0);
   });
-  it('dcfDefaultsFor: g = EG5Y − 1pto, d = WACC, gt 3%, N 20, MoS 20%', () => {
+  it('dcfDefaultsFor: g = EG5Y − 1pto ACOTADO (≤ G_MAX y < d), d = WACC, gt 3%, N 20, MoS 20%', () => {
     const def = dcfDefaultsFor(r);  // redondea a 4 decimales
-    expect(def.g).toBeCloseTo(Math.max(0, (r.eg5y ?? 0) - 0.01), 4);
+    // MSFT: EG5Y ≈ 19,6% y WACC ≈ 8,7%. Sin tope, g=18,6% > d → 20 años de composición hacia
+    // arriba → valor intrínseco inflado y COMPRAR falso. El default se acota por debajo de d.
+    expect(def.g).toBeCloseTo(Math.min(Math.max(0, (r.eg5y ?? 0) - 0.01), G_MAX, def.d - 0.01), 4);
+    expect(def.g).toBeLessThan(def.d);
     expect(def.d).toBeCloseTo(Math.max(0.06, r.wacc!), 4);
     expect(def.gt).toBe(0.03);
     expect(def.N).toBe(20);
@@ -126,6 +129,30 @@ describe('owner earnings + DCF', () => {
     expect(t[2].cells[0]!).toBeGreaterThan(t[0].cells[0]!);
     // subiendo d (columnas) baja el valor para una misma g
     expect(t[0].cells[2]!).toBeLessThan(t[0].cells[0]!);
+  });
+});
+
+describe('computeDcf — gate de estabilidad (no afirmar COMPRAR con supuestos frágiles)', () => {
+  it('g >= d: NO devuelve COMPRAR aunque el MoS sea altísimo, y explica por qué', () => {
+    // g 25% > d 10% a 20 años infla el valor intrínseco → antes daba COMPRAR falso.
+    const r = computeDcf(MSFT, 420, 0.10, { ...DEFAULT_DCF_INPUTS, g: 0.25, d: 0.10, N: 20 });
+    expect(r.marginOfSafety!).toBeGreaterThan(0.20);   // el MoS "da" para comprar…
+    expect(r.verdict).not.toBe('COMPRAR');             // …pero el gate lo degrada
+    expect(r.verdict).toBe('ESPERAR');
+    expect(r.motivoInestable).toMatch(/g .* ≥ d/);
+  });
+
+  it('g < d y terminal razonable: el veredicto normal sigue funcionando', () => {
+    const r = computeDcf(MSFT, 1, 0.09, { ...DEFAULT_DCF_INPUTS, g: 0.06, d: 0.09, N: 10 });
+    expect(r.motivoInestable).toBeNull();
+    expect(r.verdict).toBe('COMPRAR');   // precio irrisorio → MoS enorme, sin inestabilidad
+  });
+
+  it('dcfDefaultsFor acota g: nunca por encima de G_MAX ni de d', () => {
+    const base = computeRatios(MSFT, 420, 0.9, 0.043);
+    const growth = dcfDefaultsFor({ ...base, eg5y: 0.45, wacc: 0.09 });  // EPS CAGR 45%
+    expect(growth.g).toBeLessThanOrEqual(G_MAX);
+    expect(growth.g).toBeLessThan(growth.d);
   });
 });
 

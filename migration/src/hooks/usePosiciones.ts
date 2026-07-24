@@ -119,8 +119,11 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       // Si la posición no tiene historial (fue cargada antes de que existieran los movimientos),
       // registramos su compra base con la cantidad y costo actuales, para que el P&L realizado
       // se calcule sobre una base de costo correcta.
-      const { count } = await supabase.from('movimientos')
+      // Chequear el error: si esta query falla (red), `count` queda undefined y se insertaría una
+      // "compra base" duplicada que infla el costo y rompe el P&L realizado. Mejor abortar.
+      const { count, error: cntErr } = await supabase.from('movimientos')
         .select('id', { count: 'exact', head: true }).eq('posicion_id', pos.id);
+      if (cntErr) throw new Error(`No se pudo verificar el historial de ${pos.ticker}: ${cntErr.message}`);
       if (!count) {
         const { error: baseErr } = await supabase.from('movimientos').insert({
           portfolio_id: portfolioId, posicion_id: pos.id, ticker: pos.ticker,

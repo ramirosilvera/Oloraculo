@@ -22,11 +22,18 @@ export const DEFAULT_DCF_INPUTS: DcfInputs = {
   g: 0.08, d: 0.10, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20,
 };
 
+// Techo de crecimiento explícito: ninguna empresa sostiene >15% anual durante N años. Sin este
+// tope, un EG5Y histórico alto (growth) proyectado 20 años produce un valor intrínseco absurdo.
+export const G_MAX = 0.15;
+
 // Supuestos por defecto CALCULADOS por empresa: g = EG5Y real − 1 punto; d = WACC real;
 // gt 3%, N 20 años, MoS exigido 20%. Son el punto de partida; el usuario puede editar y guardar.
+// g se acota a G_MAX y, además, por debajo de d: con g ≥ d el período explícito compone hacia
+// arriba y el modelo deja de ser estable (ver el gate del veredicto en computeDcf).
 export function dcfDefaultsFor(r: Ratios): DcfInputs {
-  const g = r.eg5y != null ? Math.max(0, +(r.eg5y - 0.01).toFixed(4)) : DEFAULT_DCF_INPUTS.g;
   const d = r.wacc != null ? Math.max(0.06, +r.wacc.toFixed(4)) : DEFAULT_DCF_INPUTS.d; // piso 6%
+  const gBruto = r.eg5y != null ? Math.max(0, r.eg5y - 0.01) : DEFAULT_DCF_INPUTS.g;
+  const g = +Math.max(0, Math.min(gBruto, G_MAX, d - 0.01)).toFixed(4);
   return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20 };
 }
 
@@ -50,6 +57,7 @@ export interface DcfResult {
   terminalShare: number;            // % del valor total que viene de la perpetuidad
   marginOfSafety: number | null;    // 1 − precio/valor
   verdict: 'COMPRAR' | 'ESPERAR' | 'CARO' | 'SIN_DATOS';
+  motivoInestable: string | null;   // si != null, el veredicto NO puede ser COMPRAR (supuestos frágiles)
   mungerChecks: MungerCheck[];
   shares: number | null;
   price: number | null;
@@ -87,7 +95,7 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
     return {
       ownerEarningsByYear: oeYears, ownerEarningsNorm: 0, histCagrOE: null,
       intrinsicValue: 0, intrinsicPerShare: null, terminalPV: 0, terminalShare: 0,
-      marginOfSafety: null, verdict: 'SIN_DATOS', mungerChecks: [], shares, price,
+      marginOfSafety: null, verdict: 'SIN_DATOS', motivoInestable: null, mungerChecks: [], shares, price,
     };
   }
 
@@ -100,7 +108,7 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
     return {
       ownerEarningsByYear: oeYears, ownerEarningsNorm, histCagrOE,
       intrinsicValue: 0, intrinsicPerShare: null, terminalPV: 0, terminalShare: 0,
-      marginOfSafety: null, verdict: 'SIN_DATOS',
+      marginOfSafety: null, verdict: 'SIN_DATOS', motivoInestable: null,
       mungerChecks: [], shares, price,
     };
   }
@@ -128,9 +136,19 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   const terminalShare = intrinsicValue > 0 ? terminalPV / intrinsicValue : 0;
   const marginOfSafety = intrinsicPerShare && intrinsicPerShare > 0 && price ? 1 - price / intrinsicPerShare : null;
 
+  // Gate de estabilidad: con g ≥ d el período explícito compone hacia arriba (el valor intrínseco
+  // se infla y daría un COMPRAR falso), y un valor terminal que es casi todo el total significa que
+  // la valuación depende de una perpetuidad, no del negocio proyectado. En esos casos NO afirmamos
+  // COMPRAR: degradamos a ESPERAR y exponemos el motivo para que el usuario revise los supuestos.
+  const motivoInestable = !(g < d)
+    ? `supuesto inestable: g ${(g * 100).toFixed(1)}% ≥ d ${(d * 100).toFixed(1)}%`
+    : terminalShare > 0.85
+      ? `el ${(terminalShare * 100).toFixed(0)}% del valor viene de la perpetuidad`
+      : null;
+
   const verdict: DcfResult['verdict'] =
     marginOfSafety == null ? 'SIN_DATOS'
-    : marginOfSafety >= inp.mosRequired ? 'COMPRAR'
+    : (marginOfSafety >= inp.mosRequired && !motivoInestable) ? 'COMPRAR'
     : marginOfSafety >= 0 ? 'ESPERAR' : 'CARO';
 
   const mungerChecks: MungerCheck[] = [
@@ -159,7 +177,7 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   return {
     ownerEarningsByYear: oeYears, ownerEarningsNorm, histCagrOE,
     intrinsicValue, intrinsicPerShare, terminalPV, terminalShare,
-    marginOfSafety, verdict, mungerChecks, shares, price,
+    marginOfSafety, verdict, motivoInestable, mungerChecks, shares, price,
   };
 }
 

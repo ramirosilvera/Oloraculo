@@ -82,7 +82,9 @@ export function computeRatios(f: Fundamentals, price: number | null, beta: numbe
     // payout con EPS ≤ 0 daría un número negativo engañoso (dividendo pagado con pérdidas) → null.
     payout: eps && eps > 0 ? dps / eps : null,
     operatingMargin: opInc != null && revenue ? opInc / revenue : null,
-    debtToEquity: equity ? debt / equity : null,
+    // Equity NEGATIVO (habitual por recompras: MCD, SBUX, PM…) daría D/E negativo, que el score
+    // interpretaba como solidez perfecta (100/100). Igual criterio que roic/netDebtToEbitda → null.
+    debtToEquity: equity != null && equity > 0 ? debt / equity : null,
     // EBITDA ≤ 0 con deuda neta positiva daría un ratio negativo que "parece" sano → null.
     netDebtToEbitda: ebitda && ebitda > 0 ? (debt - cash - sti) / ebitda : null,
     roic,

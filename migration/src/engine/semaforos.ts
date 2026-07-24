@@ -65,10 +65,12 @@ export function distanciaMaximo(actual: number | null | undefined, max: number |
   return actual / max - 1;
 }
 
-// Variación del S&P vs máximo histórico: >20% alerta extrema, >0% rojo (caída), si no verde.
+// Caída desde el máximo: >20% = estrés (rojo), >5% = corrección para vigilar (amarillo), si no
+// verde. Antes ambas ramas devolvían 'rojo', así que un retroceso trivial del 0,1% marcaba estrés
+// y el tramo ">20%" era código muerto.
 export function sp500Drawdown(actual: number, maximoHistorico: number): { pct: number; luz: Luz } {
   const caida = maximoHistorico > 0 ? (maximoHistorico - actual) / maximoHistorico : 0;
-  return { pct: caida, luz: caida > 0.20 ? 'rojo' : caida > 0 ? 'rojo' : 'verde' };
+  return { pct: caida, luz: caida > 0.20 ? 'rojo' : caida > 0.05 ? 'amarillo' : 'verde' };
 }
 
 export interface Sintesis { rojos: number; texto: string; luz: Luz; }

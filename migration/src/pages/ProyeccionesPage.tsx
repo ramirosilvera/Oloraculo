@@ -7,7 +7,9 @@ import { project } from '../engine/projection';
 import { marketValueUSD, costUSD } from '../lib/valuation';
 import { Card, CardHeader, Stat, fmtUsd, fmtUsdCompact } from '../components/ui';
 
-const anioActual = 2026;
+// Año en curso real: si se hardcodea, a partir del año siguiente el eje temporal y las edades
+// quedan desfasados del calendario.
+const anioActual = new Date().getFullYear();
 
 export function ProyeccionesPage() {
   const { active } = usePortfolios();
