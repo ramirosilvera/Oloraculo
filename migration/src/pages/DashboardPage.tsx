@@ -80,7 +80,8 @@ export function DashboardPage() {
         <Stat label="P&L" value={<span className={pnl >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(pnl)}</span>} delta={costo > 0 ? pnl / costo : undefined} />
         <Stat label={`TIR anual${tir.aproximada ? ' ~' : ''}`}
           value={<span className={tir.anual == null ? '' : tir.anual >= 0 ? 'text-pos' : 'text-neg'}>{tir.anual != null ? fmtPct(tir.anual) : '—'}</span>}
-          hint={tir.base === 'aportes' ? 'XIRR sobre tus aportes' : tir.base === 'costos' ? 'aprox. (sin aportes cargados)' : 'cargá aportes para calcularla'} />
+          hint={tir.horizonteCorto ? `Poco tiempo para anualizar (llevás ${tir.horizonteDias} días, hacen falta ~90). Mirá la TIR histórica.`
+            : tir.base === 'aportes' ? 'XIRR sobre tus aportes' : tir.base === 'costos' ? 'aprox. (sin aportes cargados)' : 'cargá aportes para calcularla'} />
         <Stat label="TIR histórica"
           value={<span className={tir.historica == null ? '' : tir.historica >= 0 ? 'text-pos' : 'text-neg'}>{tir.historica != null ? fmtPct(tir.historica) : '—'}</span>}
           hint="rendimiento total acumulado" />

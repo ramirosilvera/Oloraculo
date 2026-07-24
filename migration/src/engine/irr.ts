@@ -67,12 +67,27 @@ function clampResult(r: number): number | null {
 }
 
 // ── TIR del portfolio ─────────────────────────────────────────────────────────
+// Anualizar un rendimiento de pocos días/semanas es engañoso: la XIRR eleva a (365/días), así que
+// una ganancia chica en poco tiempo se dispara a cientos de % "anuales" que no reflejan la realidad.
+// Por debajo de este horizonte no mostramos la TIR anual (la histórica sí es válida siempre).
+const MIN_DIAS_ANUAL = 90;
+
 export interface PortfolioTir {
-  anual: number | null;        // XIRR anualizada (money-weighted)
+  anual: number | null;        // XIRR anualizada (money-weighted); null si el horizonte es muy corto
   historica: number | null;    // rendimiento total acumulado sobre el capital aportado
   invertido: number;           // base de capital externo (aportes) o costo (fallback)
   base: 'aportes' | 'costos' | 'sin-datos';
   aproximada: boolean;         // true si se usó el fallback por costos (sin registro de aportes)
+  horizonteDias: number;       // días desde el primer flujo hasta hoy
+  horizonteCorto: boolean;     // true si el horizonte es < MIN_DIAS_ANUAL (por eso anual = null)
+}
+
+// Días desde el flujo más antiguo hasta hoy.
+function diasHorizonte(fechas: string[], hoy: string): number {
+  const ts = fechas.map(f => Date.parse(f)).filter(Number.isFinite);
+  const h = Date.parse(hoy);
+  if (!ts.length || !Number.isFinite(h)) return 0;
+  return Math.max(0, Math.round((h - Math.min(...ts)) / DAY));
 }
 
 // Construye la TIR del portfolio. PRIMARIO: aportes (capital externo con fecha) + retiros (salidas
@@ -100,11 +115,13 @@ export function portfolioTir(params: {
       ...validos.map(a => ({ date: a.fecha, amount: a.retiro ? a.monto : -a.monto })),
       terminal,
     ];
+    const dias = diasHorizonte(validos.map(a => a.fecha), hoy);
+    const corto = dias < MIN_DIAS_ANUAL;
     return {
-      anual: xirr(flows),
+      anual: corto ? null : xirr(flows),   // horizonte corto → no anualizamos (sería engañoso)
       // Rendimiento total = ganancia neta (valor hoy + lo retirado − lo aportado) sobre lo aportado.
       historica: invertido > 0 ? (valorActual + retirado - invertido) / invertido : null,
-      invertido, base: 'aportes', aproximada: false,
+      invertido, base: 'aportes', aproximada: false, horizonteDias: dias, horizonteCorto: corto,
     };
   }
 
@@ -112,12 +129,14 @@ export function portfolioTir(params: {
   if (costosOk.length) {
     const invertido = costosOk.reduce((s, c) => s + c.costo, 0);
     const flows: CashFlow[] = [...costosOk.map(c => ({ date: c.fecha!, amount: -c.costo })), terminal];
+    const dias = diasHorizonte(costosOk.map(c => c.fecha!), hoy);
+    const corto = dias < MIN_DIAS_ANUAL;
     return {
-      anual: xirr(flows),
+      anual: corto ? null : xirr(flows),
       historica: invertido > 0 ? valorActual / invertido - 1 : null,
-      invertido, base: 'costos', aproximada: true,
+      invertido, base: 'costos', aproximada: true, horizonteDias: dias, horizonteCorto: corto,
     };
   }
 
-  return { anual: null, historica: null, invertido: 0, base: 'sin-datos', aproximada: false };
+  return { anual: null, historica: null, invertido: 0, base: 'sin-datos', aproximada: false, horizonteDias: 0, horizonteCorto: false };
 }

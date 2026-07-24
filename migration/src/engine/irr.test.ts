@@ -107,4 +107,19 @@ describe('portfolioTir', () => {
     });
     expect(r.anual!).toBeCloseTo(0.10, 3);   // aporté 1000, retiré 1100 al año → 10%
   });
+
+  it('horizonte corto (< 90 días): NO anualiza (evita el número absurdo) pero la histórica sí', () => {
+    // Caso Herencia: aporté 3000 hace 7 días, hoy vale 3245. Anualizar +8% en 7 días daría cientos de %.
+    const r = portfolioTir({ aportes: [{ monto: 3000, fecha: '2026-07-17' }], costos: [], valorActual: 3245, hoy: '2026-07-24' });
+    expect(r.horizonteDias).toBe(7);
+    expect(r.horizonteCorto).toBe(true);
+    expect(r.anual).toBeNull();
+    expect(r.historica!).toBeCloseTo((3245 - 3000) / 3000, 6);   // +8,17% real (no anualizado)
+  });
+
+  it('horizonte >= 90 días: sí anualiza', () => {
+    const r = portfolioTir({ aportes: [{ monto: 1000, fecha: '2025-01-01' }], costos: [], valorActual: 1100, hoy: '2026-01-01' });
+    expect(r.horizonteCorto).toBe(false);
+    expect(r.anual!).toBeCloseTo(0.10, 3);
+  });
 });
