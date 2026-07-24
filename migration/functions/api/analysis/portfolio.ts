@@ -1,8 +1,9 @@
 import { type Env, json, preflight, safe, sbSelect, sbUpsert } from '../_shared';
 
-const SYSTEM = `Sos un asesor de carteras estilo Munger/Buffett. Te paso la lista de posiciones
-(ticker, sector, rol, peso actual y peso objetivo) de un portfolio. En español rioplatense, en
-5-8 frases, analizá SOLO lo cualitativo:
+const SYSTEM = `Actuás como un inversor profesional evaluando la construcción de tu propia cartera
+(perfil value de largo plazo, estilo Munger/Buffett). Te paso la lista de posiciones (ticker,
+sector, rol, peso actual y peso objetivo) de un portfolio. En español rioplatense, en 5-8 frases,
+con criterio de inversor, analizá SOLO lo cualitativo:
 - Concentración: ¿hay una o dos posiciones que dominan el riesgo? (usá los pesos reales)
 - Correlación / factores: ¿hay posiciones que son la misma apuesta (mismo sector, mismo
   driver macro, ej. dos empresas de litio, o todo tecnología)?
@@ -25,7 +26,8 @@ export const onRequestPost = safe(async ({ request, env }) => {
   const body = await request.json().catch(() => ({})) as { posiciones?: unknown };
   if (!body.posiciones) return json({ error: 'posiciones requeridas' }, 400);
 
-  const input = JSON.stringify(body.posiciones);
+  // v2: tono de inversor profesional. El bump cambia el hash → regenera con el tono nuevo.
+  const input = JSON.stringify({ v: 2, posiciones: body.posiciones });
   if (input.length > 12_000) return json({ error: 'cartera demasiado grande para analizar' }, 413);
   const inputHash = hash(input);
 

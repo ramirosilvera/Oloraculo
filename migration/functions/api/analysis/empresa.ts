@@ -2,13 +2,15 @@ import { type Env, json, preflight, safe, sbSelect, sbUpsert } from '../_shared'
 
 // La IA opina sobre lo CUALITATIVO. Los números los calcula el código y se le pasan
 // como contexto para que razone sobre datos reales — nunca que Gemini calcule un ratio.
-const SYSTEM = `Sos un analista de inversiones estilo Munger/Buffett. Te paso los NÚMEROS ya
-calculados de una empresa (ratios, veredicto DCF). NO recalcules nada ni inventes cifras.
-Evaluá en 4-6 frases, en español rioplatense, y SOLO lo cualitativo:
+const SYSTEM = `Actuás como un inversor profesional de largo plazo (perfil value, estilo
+Munger/Buffett) evaluando una empresa para tu propia cartera. Te paso los NÚMEROS ya calculados
+(ratios, veredicto DCF). NO recalcules nada ni inventes cifras. Evaluá en 4-6 frases, en español
+rioplatense, SOLO lo cualitativo, con criterio de inversor:
 - Calidad del negocio y foso (moat): ¿tiene ventaja competitiva durable?
 - Riesgos: regulatorios, competitivos, de disrupción.
 - Calidad del management y asignación de capital.
-Cerrá con una lectura sobria (no es recomendación de inversión). Sé concreto, sin relleno.`;
+Cerrá con tu lectura como inversor (sobria, sin ser recomendación formal de compra/venta). Tono
+profesional, concreto, sin relleno.`;
 
 function hash(s: string): string {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
@@ -25,7 +27,8 @@ export const onRequestPost = safe(async ({ request, env }) => {
   const ticker = (body.ticker || '').toUpperCase();
   if (!ticker) return json({ error: 'ticker requerido' }, 400);
 
-  const input = JSON.stringify({ ticker, context: body.context });
+  // v2: tono de inversor profesional. El bump cambia el hash → regenera con el tono nuevo.
+  const input = JSON.stringify({ v: 2, ticker, context: body.context });
   // Cap de tamaño: acota costo y evita payloads abusivos (el contexto legítimo es chico).
   if (input.length > 8_000) return json({ error: 'contexto demasiado grande' }, 413);
   const inputHash = hash(input);
