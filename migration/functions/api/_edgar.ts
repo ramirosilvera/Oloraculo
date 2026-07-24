@@ -118,6 +118,19 @@ function parseLatest(raw: Raw[] | null): number | null {
   return sorted[sorted.length - 1].val;
 }
 
+// Acciones diluidas ≈ netIncome / EPS diluido del último año común. Fallback robusto para empresas
+// MULTI-CLASE (ej. GOOGL: clases A/B/C) que no reportan un total único de acciones en
+// dei:EntityCommonStockSharesOutstanding → sin esto no hay valor por acción y el DCF queda SIN_DATOS.
+function sharesFromEps(ni: AnnualPoint[], eps: AnnualPoint[]): number | null {
+  const epsBy = new Map(eps.map(p => [p.fy, p.val]));
+  const cand = [...ni]
+    .filter(p => { const e = epsBy.get(p.fy); return e != null && Math.abs(e) > 1e-9; })
+    .sort((a, b) => b.fy - a.fy)[0];
+  if (!cand) return null;
+  const s = cand.val / epsBy.get(cand.fy)!;
+  return Number.isFinite(s) && s > 0 ? Math.round(s) : null;
+}
+
 // Sum two annual series by fiscal year (long + short debt → total debt).
 function sumByFy(a: AnnualPoint[], b: AnnualPoint[]): AnnualPoint[] {
   const m = new Map<number, AnnualPoint>();
@@ -161,5 +174,9 @@ export async function fetchFundamentals(env: Env, ticker: string, cik: string): 
   ];
   const ungradeable = criticos.filter(([, v]) => v.length === 0).map(([k]) => k);
 
-  return { ticker, cik, entityName: null, shares: parseLatest(sharesRaw), ...P, ungradeable };
+  // Acciones: total de dei; si falta (multi-clase), se deriva de netIncome / EPS diluido.
+  const sharesDei = parseLatest(sharesRaw);
+  const shares = sharesDei && sharesDei > 0 ? sharesDei : sharesFromEps(P.netIncome, P.epsDiluted);
+
+  return { ticker, cik, entityName: null, shares, ...P, ungradeable };
 }
