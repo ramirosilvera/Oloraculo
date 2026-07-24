@@ -102,8 +102,13 @@ export function DashboardPage() {
   // Serie de puntos = snapshots históricos + el valor de HOY en vivo (fresco).
   const porAnio = useMemo(() => {
     const puntos = [...snaps.filter(s => s.fecha !== hoy), { fecha: hoy, valor: patrimonio, aportado: aportadoNeto }];
-    return rendimientoPorAnio(puntos, inceptionYear, hoy);
-  }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear]);
+    // Flujos fechados → el rendimiento del año usa Modified Dietz (pondera por tiempo invertido),
+    // así un aporte grande a fin de año no distorsiona el %.
+    const flujos = aportes
+      .filter(a => a.fecha && !Number.isNaN(Date.parse(a.fecha)))
+      .map(a => ({ fecha: a.fecha, monto: a.tipo === 'retiro' ? -a.monto : a.monto }));
+    return rendimientoPorAnio(puntos, inceptionYear, hoy, flujos);
+  }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear, aportes]);
   const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
 
   // Registra el snapshot de hoy (idempotente por día). El lock incluye el valor grabado, así que si

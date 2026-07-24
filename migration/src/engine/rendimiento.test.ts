@@ -41,3 +41,32 @@ describe('rendimientoPorAnio — corte por año calendario (pasado, no anualizad
     expect(r).toEqual([{ anio: 2026, rendimiento: null }]);
   });
 });
+
+describe('rendimientoPorAnio — Modified Dietz (flujos ponderados por tiempo)', () => {
+  it('aporte grande en diciembre NO hunde el rendimiento del año', () => {
+    // Vini 100 el 1-ene, aporte de 900 el 20-dic, cierra en 1015.
+    // Método simple: (1015−100−900)/1000 = 1,5% (absurdo: el capital real trabajó ~100).
+    // Dietz: el aporte pesa solo ~11 días de 364 → base mucho menor → rendimiento realista.
+    const pts = [p('2025-12-31', 100, 100), p('2026-12-31', 1015, 1000)];
+    const flujos = [{ fecha: '2026-12-20', monto: 900 }];
+    const simple = rendimientoPorAnio(pts, 2025, '2026-12-31')[1].rendimiento!;
+    const dz = rendimientoPorAnio(pts, 2025, '2026-12-31', flujos)[1].rendimiento!;
+    expect(simple).toBeCloseTo(0.015, 3);
+    expect(dz).toBeGreaterThan(0.08);
+  });
+
+  it('sin flujos dentro del año, Dietz y simple coinciden', () => {
+    const pts = [p('2025-12-31', 1000, 1000), p('2026-12-31', 1100, 1000)];
+    const sinF = rendimientoPorAnio(pts, 2025, '2026-12-31')[1].rendimiento!;
+    const conF = rendimientoPorAnio(pts, 2025, '2026-12-31', [{ fecha: '2025-06-01', monto: 1000 }])[1].rendimiento!;
+    expect(sinF).toBeCloseTo(0.10, 6);
+    expect(conF).toBeCloseTo(0.10, 6);   // el flujo es de otro año → no afecta 2026
+  });
+
+  it('retiro ponderado: rendimiento positivo y razonable', () => {
+    const pts = [p('2025-12-31', 1000, 1000), p('2026-12-31', 560, 500)];
+    const r = rendimientoPorAnio(pts, 2025, '2026-12-31', [{ fecha: '2026-06-30', monto: -500 }])[1].rendimiento!;
+    expect(r).toBeGreaterThan(0);
+    expect(r).toBeLessThan(0.15);
+  });
+});

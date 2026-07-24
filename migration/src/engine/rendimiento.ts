@@ -13,9 +13,34 @@
 // =============================================================================
 
 export interface Punto { fecha: string; valor: number; aportado: number } // aportado = neto acumulado
+export interface Flujo { fecha: string; monto: number }                   // firmado: aporte +, retiro −
 export interface RendAnio { anio: number; rendimiento: number | null }
 
-export function rendimientoPorAnio(puntos: Punto[], inceptionYear: number, hoy: string): RendAnio[] {
+const DIA = 86_400_000;
+const dias = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / DIA;
+
+// Modified Dietz: pondera cada flujo por la fracción del período que estuvo invertido.
+// R = (Vfin − Vini − ΣF) / (Vini + Σ w_i·F_i),  w_i = (T − t_i)/T
+// Sin esto, un aporte grande en diciembre entra al denominador como si hubiera estado todo el año
+// y hunde el rendimiento (o lo infla, si fue un retiro).
+function dietz(vIni: number, vFin: number, flujos: Flujo[], desde: string, hasta: string): number | null {
+  const T = dias(desde, hasta);
+  if (!(T > 0)) return null;
+  let sumF = 0, sumPond = 0;
+  for (const f of flujos) {
+    const t = dias(desde, f.fecha);
+    const w = Math.min(1, Math.max(0, (T - t) / T));
+    sumF += f.monto;
+    sumPond += w * f.monto;
+  }
+  const base = vIni + sumPond;
+  return base > 1e-9 ? (vFin - vIni - sumF) / base : null;
+}
+
+// `flujos` (aportes/retiros fechados) es opcional: si se pasan, el rendimiento del año se calcula
+// con Modified Dietz (ponderado por tiempo). Si no, se usa el método simple (todo el flujo neto en
+// el denominador), que es exacto solo cuando no hubo movimientos de capital dentro del año.
+export function rendimientoPorAnio(puntos: Punto[], inceptionYear: number, hoy: string, flujos: Flujo[] = []): RendAnio[] {
   const pts = puntos
     .filter(p => p && !Number.isNaN(Date.parse(p.fecha)) && Number.isFinite(p.valor) && Number.isFinite(p.aportado))
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -37,6 +62,17 @@ export function rendimientoPorAnio(puntos: Punto[], inceptionYear: number, hoy: 
     const fin = [...pts].reverse().find(p => p.fecha >= yStart && p.fecha <= yEnd);
 
     if (vIni == null || aIni == null || !fin) { out.push({ anio: y, rendimiento: null }); continue; }
+
+    // Con flujos fechados dentro del año usamos Modified Dietz (ponderado por tiempo).
+    const delAnio = flujos.filter(f => f.fecha >= yStart && f.fecha <= fin.fecha && !Number.isNaN(Date.parse(f.fecha)));
+    if (delAnio.length) {
+      // El período arranca en el 1-ene, salvo el año de creación (ahí, en el primer flujo real).
+      const desde = y === inceptionYear ? delAnio.map(f => f.fecha).sort()[0] : yStart;
+      const r = dietz(vIni, fin.valor, delAnio.filter(f => f.fecha >= desde), desde, fin.fecha);
+      out.push({ anio: y, rendimiento: r });
+      continue;
+    }
+
     const fNeto = fin.aportado - aIni;     // aportes netos del año (aportes − retiros)
     const base = vIni + fNeto;             // capital que estuvo trabajando
     // base > 0: si un retiro deja la base ≤ 0, el % no es representativo → null (no un número raro).
