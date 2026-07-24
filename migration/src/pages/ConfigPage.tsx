@@ -151,7 +151,7 @@ function BackupSection() {
 
 const TABLA_LABEL: Record<string, string> = {
   portfolios: 'portfolios', posiciones: 'posiciones', movimientos: 'movimientos', aportes: 'aportes',
-  flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist', analisis_ia: 'análisis IA', profiles: 'perfil',
+  portfolio_snapshots: 'histórico', flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist', analisis_ia: 'análisis IA', profiles: 'perfil',
 };
 
 function RestoreSection() {

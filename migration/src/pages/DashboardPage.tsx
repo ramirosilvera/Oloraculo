@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -11,6 +11,8 @@ import { SEMAFOROS, GRUPOS, resumenMacro, distanciaMaximo, type Luz, type Lectur
 import { resumenFlujo } from '../engine/flujo';
 import { redondearPct } from '../engine/rebalance';
 import { portfolioTir } from '../engine/irr';
+import { rendimientoPorAnio } from '../engine/rendimiento';
+import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
 import { api } from '../lib/api';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtPct } from '../components/ui';
@@ -65,6 +67,46 @@ export function DashboardPage() {
   const flujoR = resumenFlujo(flujo, mep);
   const objetivo = active?.capital_objetivo ?? null;
 
+  // ── Rendimiento por año calendario (a partir de snapshots diarios del valor) ──
+  const hoy = new Date().toISOString().slice(0, 10);
+  const anioActual = Number(hoy.slice(0, 10).slice(0, 4));
+  // Capital aportado neto: aportes (aportes − retiros) si están cargados; si no, el costo de las
+  // posiciones (mismo criterio que portfolioTir) para que el rendimiento se pueda calcular igual.
+  const aportadoNeto = aportes.length
+    ? aportes.reduce((s, a) => s + (a.tipo === 'retiro' ? -a.monto : a.monto), 0)
+    : costo;
+  const { data: snaps = [] } = useSnapshots(active?.id);
+  const record = useRecordSnapshot();
+  const recordedRef = useRef('');
+
+  // Año de creación real (primer aporte o primera compra), para no atribuir mal el rendimiento.
+  const inceptionYear = useMemo(() => {
+    const fechas = [
+      ...aportes.map(a => a.fecha),
+      ...posiciones.map(p => p.fecha_compra).filter((f): f is string => !!f),
+    ].filter(f => f && !Number.isNaN(Date.parse(f))).sort();
+    return fechas.length ? Number(fechas[0].slice(0, 4)) : anioActual;
+  }, [aportes, posiciones, anioActual]);
+
+  // Serie de puntos = snapshots históricos + el valor de HOY en vivo (fresco).
+  const porAnio = useMemo(() => {
+    const puntos = [...snaps.filter(s => s.fecha !== hoy), { fecha: hoy, valor: patrimonio, aportado: aportadoNeto }];
+    return rendimientoPorAnio(puntos, inceptionYear, hoy);
+  }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear]);
+  const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
+
+  // Registra el snapshot de hoy una vez por sesión (idempotente por día); si cambió >0,5% lo actualiza.
+  useEffect(() => {
+    if (!active?.id || !(patrimonio > 0)) return;
+    const key = `${active.id}:${hoy}`;
+    if (recordedRef.current === key) return;
+    const hoySnap = snaps.find(s => s.fecha === hoy);
+    if (!hoySnap || Math.abs(hoySnap.valor - patrimonio) / Math.max(1, patrimonio) > 0.005) {
+      recordedRef.current = key;
+      void record(active.id, hoy, patrimonio, aportadoNeto).catch(() => { recordedRef.current = ''; });
+    }
+  }, [active?.id, patrimonio, aportadoNeto, snaps, hoy, record]);
+
   if (!active) return null;
 
   return (
@@ -78,13 +120,12 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <Stat label="Patrimonio" value={fmtUsdCompact(patrimonio)} hint={`costo ${fmtUsdCompact(costo)}`} />
         <Stat label="P&L" value={<span className={pnl >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(pnl)}</span>} delta={costo > 0 ? pnl / costo : undefined} />
-        <Stat label={`TIR anual${tir.aproximada ? ' ~' : ''}`}
-          value={<span className={tir.anual == null ? '' : tir.anual >= 0 ? 'text-pos' : 'text-neg'}>{tir.anual != null ? fmtPct(tir.anual) : '—'}</span>}
-          hint={tir.horizonteCorto ? `Poco tiempo para anualizar (llevás ${tir.horizonteDias} días, hacen falta ~90). Mirá la TIR histórica.`
-            : tir.base === 'aportes' ? 'XIRR sobre tus aportes' : tir.base === 'costos' ? 'aprox. (sin aportes cargados)' : 'cargá aportes para calcularla'} />
-        <Stat label="TIR histórica"
+        <Stat label="Rend. total"
           value={<span className={tir.historica == null ? '' : tir.historica >= 0 ? 'text-pos' : 'text-neg'}>{tir.historica != null ? fmtPct(tir.historica) : '—'}</span>}
-          hint="rendimiento total acumulado" />
+          hint={`rendimiento acumulado desde la creación${tir.aproximada ? ' (aprox., sin aportes cargados)' : ''}`} />
+        <Stat label={`Rend. ${anioActual}`}
+          value={<span className={rendActual == null ? '' : rendActual >= 0 ? 'text-pos' : 'text-neg'}>{rendActual != null ? fmtPct(rendActual) : '—'}</span>}
+          hint={`rendimiento del año en curso${inceptionYear === anioActual ? ' (= total, nació este año)' : ''}`} />
       </div>
 
       {/* Progreso hacia el objetivo de capital. */}
@@ -103,6 +144,26 @@ export function DashboardPage() {
               {patrimonio < objetivo && <> · faltan {fmtUsdCompact(objetivo - patrimonio)}</>}
             </p>
           </div>
+        </Card>
+      )}
+
+      {/* Rendimiento por año calendario (estilo fondo). */}
+      {tir.base !== 'sin-datos' && (
+        <Card>
+          <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)." />
+          <div className="p-4 flex flex-wrap gap-2">
+            {[...porAnio].reverse().map(({ anio, rendimiento }) => (
+              <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
+                <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
+                <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
+                  {rendimiento != null ? fmtPct(rendimiento) : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+          {porAnio.some(r => r.rendimiento == null) && (
+            <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+          )}
         </Card>
       )}
 

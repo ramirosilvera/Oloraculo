@@ -23,6 +23,7 @@ const RESTORE_ORDER: { table: string; onConflict: string; userScoped: boolean }[
   { table: 'posiciones',  onConflict: 'id',           userScoped: false },
   { table: 'movimientos', onConflict: 'id',           userScoped: false },
   { table: 'aportes',     onConflict: 'id',           userScoped: false },
+  { table: 'portfolio_snapshots', onConflict: 'portfolio_id,fecha', userScoped: false },
   { table: 'analisis_ia', onConflict: 'id',           userScoped: false },
   { table: 'cik_map',     onConflict: 'user_id,ticker', userScoped: true },
   { table: 'flujo_items', onConflict: 'id',           userScoped: true },

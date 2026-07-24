@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 export const BACKUP_VERSION = 1;
 
 const TABLAS = [
-  'portfolios', 'posiciones', 'movimientos', 'aportes',
+  'portfolios', 'posiciones', 'movimientos', 'aportes', 'portfolio_snapshots',
   'flujo_items', 'dcf_inputs', 'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;
 
