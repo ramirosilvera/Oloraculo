@@ -3,6 +3,7 @@ import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
 import { Card, CardHeader, Button, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
+import { ytm } from '../engine/coupons';
 import type { Posicion } from '../types/domain';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -15,6 +16,7 @@ export function BonosPage() {
   const bonos = posiciones.filter(p => p.tipo === 'bono');
   const { data: quotes = {} } = useQuotes([], bonos.map(b => b.ticker));
   const [editBono, setEditBono] = useState<Posicion | null>(null);
+  const hoy = new Date().toISOString().slice(0, 10);
 
   if (!active) return null;
 
@@ -41,6 +43,7 @@ export function BonosPage() {
                 <th className="text-right px-3">Valor mercado</th>
                 <th className="text-right px-3">Resultado</th>
                 <th className="text-right px-3">Cupón</th>
+                <th className="text-right px-3">TIR (YTM)</th>
                 <th className="text-right px-3">Venc.</th>
                 <th className="px-2"></th>
               </tr>
@@ -53,6 +56,11 @@ export function BonosPage() {
                 const mkt = px != null ? px * b.cantidad : null;
                 const res = mkt != null ? mkt - capital : null;
                 const cuponOk = b.cupon_tasa != null && b.cupon_frecuencia != null && b.cupon_mes != null;
+                // TIR al vencimiento sobre el precio de MERCADO (si no hay, sobre el costo).
+                const precioNominal = px ?? (b.precio_compra > 0 ? b.precio_compra : null);
+                const tir = precioNominal != null && b.cupon_tasa != null && b.cupon_frecuencia != null && b.vencimiento
+                  ? ytm({ precio: precioNominal, tasaAnual: b.cupon_tasa, frecuencia: b.cupon_frecuencia, vencimiento: b.vencimiento, hoy })
+                  : null;
                 return (
                   <tr key={b.id} className="hover:bg-canvas align-top">
                     <td className="px-4 py-2" title={b.notas ?? undefined}>
@@ -69,6 +77,11 @@ export function BonosPage() {
                         ? <span className="text-ink-800">{fmtPct(b.cupon_tasa!, 1)}<span className="text-[10px] text-ink-500"> · {FREC[b.cupon_frecuencia!] ?? `${b.cupon_frecuencia!}/año`}</span></span>
                         : <span className="text-warn text-[11px]">sin cupón</span>}
                     </td>
+                    <td className="text-right px-3 tnum">
+                      {tir != null
+                        ? <span className={tir >= 0 ? 'text-pos font-semibold' : 'text-neg'}>{fmtPct(tir, 1)}</span>
+                        : <span className="text-ink-500">—</span>}
+                    </td>
                     <td className="text-right px-3 tnum text-ink-600">{b.vencimiento ?? '—'}</td>
                     <td className="px-2 text-right">
                       <button onClick={() => setEditBono(b)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Editar cupón" aria-label="Editar cupón"><Pencil className="w-4 h-4" /></button>
@@ -76,7 +89,7 @@ export function BonosPage() {
                   </tr>
                 );
               })}
-              {bonos.length === 0 && <tr><td colSpan={9}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
+              {bonos.length === 0 && <tr><td colSpan={10}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
             </tbody>
           </table>
         </div>

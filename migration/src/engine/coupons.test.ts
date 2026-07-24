@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { couponEvents, couponCalendar, cuponAnualTotal, type CouponBond } from './coupons';
+import { couponEvents, couponCalendar, cuponAnualTotal, ytm, type CouponBond } from './coupons';
 
 const semestral: CouponBond = { ticker: 'GD46', faceValue: 1000, tasaAnual: 0.08, frecuencia: 2, mesRef: 1 };
 // paga en enero y julio; cupón por período = 1000 × 0.08/2 = 40
@@ -46,5 +46,32 @@ describe('couponCalendar', () => {
 describe('cuponAnualTotal', () => {
   it('suma el cupón anual de todos los bonos', () => {
     expect(cuponAnualTotal([semestral])).toBe(80); // 1000 × 0.08
+  });
+});
+
+describe('ytm — TIR al vencimiento (vs current yield)', () => {
+  it('a la par: YTM ≈ tasa del cupón', () => {
+    const r = ytm({ precio: 1, tasaAnual: 0.06, frecuencia: 2, vencimiento: '2031-07-24', hoy: '2026-07-24' })!;
+    expect(r).toBeCloseTo(0.0609, 2);   // ≈6% (levemente más por capitalización semestral)
+  });
+
+  it('bajo la par: YTM MUY superior al current yield (pull-to-par)', () => {
+    // Cupón 7% comprado a 60 de paridad: current yield = 7/60 = 11,7%; la YTM debe ser bastante mayor.
+    const r = ytm({ precio: 0.60, tasaAnual: 0.07, frecuencia: 2, vencimiento: '2031-07-24', hoy: '2026-07-24' })!;
+    const currentYield = 0.07 / 0.60;
+    expect(r).toBeGreaterThan(currentYield);
+    expect(r).toBeGreaterThan(0.17);
+  });
+
+  it('sobre la par: YTM menor que el cupón', () => {
+    const r = ytm({ precio: 1.15, tasaAnual: 0.08, frecuencia: 2, vencimiento: '2030-07-24', hoy: '2026-07-24' })!;
+    expect(r).toBeLessThan(0.08);
+    expect(r).toBeGreaterThan(0);
+  });
+
+  it('datos inválidos o bono vencido → null (no inventa)', () => {
+    expect(ytm({ precio: 0, tasaAnual: 0.07, frecuencia: 2, vencimiento: '2030-01-01', hoy: '2026-07-24' })).toBeNull();
+    expect(ytm({ precio: 1, tasaAnual: 0.07, frecuencia: 2, vencimiento: '2020-01-01', hoy: '2026-07-24' })).toBeNull();
+    expect(ytm({ precio: 1, tasaAnual: 0.07, frecuencia: 2, vencimiento: 'nope', hoy: '2026-07-24' })).toBeNull();
   });
 });
