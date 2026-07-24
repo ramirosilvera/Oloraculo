@@ -246,7 +246,7 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
             );
           })}
         </div>
-        <p className="text-[10px] text-ink-500 mt-1.5">S&P 500 y oro en USD · Merval en pesos (nominal).</p>
+        <p className="text-[10px] text-ink-500 mt-1.5">Todo en USD · Merval = ^MERV ÷ CCL (con CCL histórico).</p>
       </div>
 
       {/* Salud del tablero: barra verde/amarillo/rojo + leyenda (visual, de un vistazo). */}
