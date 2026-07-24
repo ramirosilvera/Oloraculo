@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { Plus, Archive, Save, KeyRound, Layers, Download, ShieldCheck } from 'lucide-react';
+import { useState, type ChangeEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Archive, Save, KeyRound, Layers, Download, ShieldCheck, Upload, AlertTriangle } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAuth } from '../hooks/useAuth';
 import { useCikMap } from '../hooks/useCikMap';
 import { Trash2 } from 'lucide-react';
 import { Card, CardHeader, Button, Badge, fmtUsd, Field, inputCls, Empty } from '../components/ui';
 import { buildBackup, descargarBackup } from '../lib/backup';
+import { parseBackup, restoreBackup, type Preview } from '../lib/restore';
 
 export function ConfigPage() {
   const { portfolios, active, defaultId, setDefaultId, setActiveId, createPortfolio, updatePortfolio, archivePortfolio } = usePortfolios();
@@ -104,6 +106,7 @@ export function ConfigPage() {
         onSave={(patch) => updatePortfolio(active.id, patch)} />}
 
       <BackupSection />
+      <RestoreSection />
       <CikMapSection />
       <ChangePassword />
     </div>
@@ -141,6 +144,86 @@ function BackupSection() {
           <Button onClick={descargar} disabled={busy}><Download className="w-4 h-4" /> {busy ? 'Generando…' : 'Descargar backup (JSON)'}</Button>
           {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+const TABLA_LABEL: Record<string, string> = {
+  portfolios: 'portfolios', posiciones: 'posiciones', movimientos: 'movimientos', aportes: 'aportes',
+  flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist', analisis_ia: 'análisis IA', profiles: 'perfil',
+};
+
+function RestoreSection() {
+  const { session } = useAuth();
+  const qc = useQueryClient();
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ text: string; ok?: boolean; err?: boolean } | null>(null);
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    setResult(null); setConfirm(false);
+    const input = e.target;
+    const file = input.files?.[0];
+    if (!file) { setPreview(null); return; }
+    try { setPreview(parseBackup(await file.text())); }
+    catch { setPreview({ ok: false, error: 'No se pudo leer el archivo.', counts: {}, total: 0, avisos: [] }); }
+    input.value = ''; // permite volver a elegir el MISMO archivo (si no, onChange no dispara)
+  };
+
+  const restaurar = async () => {
+    if (!preview?.backup || !session) return;
+    setBusy(true); setResult(null);
+    try {
+      const r = await restoreBackup(preview.backup, session.user.id);
+      await qc.invalidateQueries();
+      setResult(r.errores.length
+        ? { text: `Restauración PARCIAL — ${r.total} registros. Errores: ${r.errores.join('; ')}`, err: true }
+        : { text: `Restaurado ✓ — ${r.total} registros. Si algo no aparece, recargá la app.`, ok: true });
+      setPreview(null); setConfirm(false);
+    } catch (e) {
+      setResult({ text: `Falló la restauración: ${e instanceof Error ? e.message : 'error'}`, err: true });
+    } finally { setBusy(false); }
+  };
+
+  const distintoUsuario = preview?.fromEmail && session?.user.email && preview.fromEmail !== session.user.email;
+
+  return (
+    <Card>
+      <CardHeader title="Restaurar backup" sub="Cargá un archivo de backup (JSON) para recuperar tus datos en esta cuenta." />
+      <div className="p-4 space-y-3">
+        <div className="flex items-start gap-2 rounded-xl bg-warn/10 ring-1 ring-inset ring-warn/20 px-3 py-2.5 text-[11px] text-ink-700">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
+          <p><b>Agrega y sobrescribe</b> con los datos del backup (no borra lo que no esté en él). Ideal para una cuenta <b>vacía</b> o recuperación. Si ya tenés portfolios, podrían quedar duplicados.</p>
+        </div>
+
+        <input type="file" accept="application/json,.json" onChange={onFile}
+          className="block w-full text-sm text-ink-700 file:mr-3 file:rounded-full file:border-0 file:bg-celeste-500 file:text-white file:px-4 file:py-2 file:text-sm file:font-semibold hover:file:bg-celeste-600 file:cursor-pointer" />
+
+        {preview && !preview.ok && <p className="text-xs text-warn">{preview.error}</p>}
+
+        {preview?.ok && (
+          <div className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-3 space-y-2">
+            <p className="text-xs text-ink-700">
+              <b>{preview.total} registros</b>{preview.exportedAt ? ` · exportado ${new Date(preview.exportedAt).toLocaleString('es-AR')}` : ''}{preview.fromEmail ? ` · por ${preview.fromEmail}` : ''}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(preview.counts).filter(([, n]) => n > 0).map(([t, n]) => (
+                <Badge key={t} tone="gray">{TABLA_LABEL[t] ?? t}: {n}</Badge>
+              ))}
+            </div>
+            {distintoUsuario && <p className="text-[11px] text-warn">El backup es de otra cuenta ({preview.fromEmail}); se restaurará bajo la tuya ({session?.user.email}).</p>}
+            {preview.avisos.map((a, i) => <p key={i} className="text-[11px] text-warn">{a}</p>)}
+            <label className="flex items-center gap-2 text-xs text-ink-700 pt-1">
+              <input type="checkbox" checked={confirm} onChange={e => setConfirm(e.target.checked)} className="w-4 h-4 accent-celeste-500" />
+              Entiendo que se agregan/sobrescriben mis datos con los del backup.
+            </label>
+            <Button onClick={restaurar} disabled={!confirm || busy}><Upload className="w-4 h-4" /> {busy ? 'Restaurando…' : 'Restaurar ahora'}</Button>
+          </div>
+        )}
+
+        {result && <p className={`text-xs ${result.ok ? 'text-pos' : result.err ? 'text-neg' : 'text-warn'}`}>{result.text}</p>}
       </div>
     </Card>
   );
