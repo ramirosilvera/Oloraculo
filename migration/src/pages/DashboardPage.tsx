@@ -227,9 +227,9 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
       <CardHeader title="Contexto macro" sub="Semáforos + lectura ejecutiva."
         right={<Badge tone={tone}>{resumen.titulo}</Badge>} />
 
-      {/* Indicadores clave: distancia al máximo de 52 semanas (S&P 500, Merval, Oro). */}
+      {/* Indicadores clave: distancia al máximo histórico (S&P 500, Merval, Oro). */}
       <div className="px-4 pt-3.5">
-        <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Distancia al máximo · 52 semanas</p>
+        <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Distancia al máximo histórico</p>
         <div className="grid grid-cols-3 gap-2">
           {DD_ITEMS.map(({ key, label }) => {
             const d = dd[key];
@@ -238,7 +238,7 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
             const cls = pct == null ? 'text-ink-500' : pct > -0.02 ? 'text-warn' : pct < -0.15 ? 'text-celeste-600' : 'text-ink-900';
             return (
               <div key={key} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 min-w-0"
-                title={d ? `Actual ${Math.round(d.actual).toLocaleString('en-US')} · máx 52s ${Math.round(d.max).toLocaleString('en-US')}` : undefined}>
+                title={d ? `Actual ${Math.round(d.actual).toLocaleString('en-US')} · máx histórico ${Math.round(d.max).toLocaleString('en-US')}` : undefined}>
                 <p className="text-[10px] uppercase text-ink-600 font-semibold truncate">{label}</p>
                 <p className={`text-lg font-bold tnum mt-0.5 ${cls}`}>{pct == null ? '—' : pct === 0 ? 'en máx.' : fmtPct(pct, 1)}</p>
                 <p className="text-[10px] text-ink-500">vs máx</p>
@@ -246,7 +246,7 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
             );
           })}
         </div>
-        <p className="text-[10px] text-ink-500 mt-1.5">Todo en USD · Merval = ^MERV ÷ CCL (con CCL histórico).</p>
+        <p className="text-[10px] text-ink-500 mt-1.5">Todo en USD, vs máximo histórico · Merval = ^MERV ÷ CCL (histórico desde ~2011).</p>
       </div>
 
       {/* Salud del tablero: barra verde/amarillo/rojo + leyenda (visual, de un vistazo). */}

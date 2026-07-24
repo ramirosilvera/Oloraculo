@@ -2,32 +2,35 @@ import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetc
 
 const TTL = 30 * 60 * 1000; // 30 min
 
-// Indicadores clave: distancia al máximo de 52 semanas (drawdown). Fuente: Yahoo Finance (histórico
-// 1 año). ^GSPC = S&P 500 (USD), GC=F = oro COMEX (USD). El Merval se mide en USD: ^MERV (pesos) ÷
-// CCL, usando el CCL HISTÓRICO (argentinadatos) para que el máximo también sea en dólares — así la
-// inflación no lo distorsiona. El máximo sale de los cierres/highs reales, no de un número inventado.
+// Indicadores clave: distancia al MÁXIMO HISTÓRICO (all-time high). Fuente: Yahoo Finance con datos
+// SEMANALES sobre toda la historia (interval=1wk&range=max) — captura el ATH (está en el high de
+// alguna semana) con payload chico. ^GSPC = S&P 500 (USD), GC=F = oro COMEX (USD). El Merval se mide
+// en USD: ^MERV (pesos) de cada semana ÷ CCL de esa fecha (histórico argentinadatos), así el máximo y
+// el actual quedan en dólares y la inflación no lo distorsiona. Todo es dato real, nada inventado.
 interface DD { actual: number; max: number; dd: number }
 
-async function yahoo1y(symbol: string) {
+async function yahooHist(symbol: string) {
   const j = await fetchJson<{ chart?: { result?: {
     timestamp?: number[]; meta?: { regularMarketPrice?: number };
     indicators?: { quote?: { close?: (number | null)[]; high?: (number | null)[] }[] };
-  }[] } }>(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y`,
+  }[] } }>(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=max`,
     { headers: { 'User-Agent': 'Mozilla/5.0' } });
   return j.chart?.result?.[0];
 }
 
 const num = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? x : null);
+// Máximo con un loop (no spread): la historia completa puede tener miles de puntos.
+const maxOf = (arr: number[]): number => { let m = 0; for (const v of arr) if (v > m) m = v; return m; };
 
-// S&P 500 / oro: ya están en USD. Máximo con los highs intradiarios (52-week high clásico).
+// S&P 500 / oro: ya están en USD. Máximo histórico con los highs semanales.
 async function drawdownUsd(symbol: string): Promise<DD | null> {
-  const r = await yahoo1y(symbol);
+  const r = await yahooHist(symbol);
   const q = r?.indicators?.quote?.[0];
   const highs = (q?.high ?? []).map(num).filter((x): x is number => x != null);
   const closes = (q?.close ?? []).map(num).filter((x): x is number => x != null);
   if (!closes.length) return null;
   const actual = num(r?.meta?.regularMarketPrice) ?? closes[closes.length - 1];
-  const max = Math.max(...(highs.length ? highs : closes), actual);
+  const max = Math.max(maxOf(highs.length ? highs : closes), actual);
   if (!(max > 0)) return null;
   return { actual, max, dd: actual / max - 1 };
 }
@@ -42,10 +45,9 @@ async function cclHistory(): Promise<{ fecha: string; venta: number }[]> {
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
-// Merval en USD: ^MERV (pesos) de cada día ÷ CCL de ese día. El máximo y el actual quedan ambos en
-// dólares → drawdown real, sin la distorsión de la inflación en pesos.
+// Merval en USD: ^MERV (pesos) de cada semana ÷ CCL de esa fecha. Máximo histórico y actual en USD.
 async function drawdownMervalUsd(): Promise<DD | null> {
-  const r = await yahoo1y('^MERV');
+  const r = await yahooHist('^MERV');
   const ts = r?.timestamp ?? [];
   const q = r?.indicators?.quote?.[0];
   const highs = q?.high ?? [];
@@ -69,6 +71,7 @@ async function drawdownMervalUsd(): Promise<DD | null> {
   for (let i = 0; i < ts.length; i++) {
     const px = num(highs[i]) ?? num(closes[i]);
     if (px == null) continue;
+    // El CCL histórico arranca ~2011: semanas anteriores del Merval quedan sin CCL y se saltean.
     const ccl = cclOn(new Date(ts[i] * 1000).toISOString().slice(0, 10));
     if (!ccl) continue;
     const usd = px / ccl;
@@ -90,7 +93,7 @@ const CALCS: Record<string, () => Promise<DD | null>> = {
 
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
-// GET /api/market/drawdowns → { sp500: {actual,max,dd}, oro: {...}, merval: {...} }  (dd fracción ≤ 0)
+// GET /api/market/drawdowns → { sp500: {actual,max,dd}, oro: {...}, merval: {...} }  (dd vs máx histórico, ≤ 0)
 export const onRequestGet = guard(async ({ env }) => {
   const out: Record<string, DD | null> = {};
   const rows: unknown[] = [];
