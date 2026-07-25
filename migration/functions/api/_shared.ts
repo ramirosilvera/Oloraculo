@@ -145,11 +145,19 @@ export async function cacheFresh<T = { updated_at: string }>(
 // Último valor cacheado IGNORANDO el TTL. Sirve de fallback cuando el proveedor externo cae:
 // preferimos mostrar el último dato conocido (aunque esté viejo) antes que un campo vacío.
 // Persistencia entre sesiones/días: un dato bueno de ayer no debe borrarse por un fallo de hoy.
+// Tope de antigüedad del fallback: servir un precio de hace meses como si fuera el de hoy es peor
+// que no tener dato (el usuario decide sobre un número falso). Pasado el tope devolvemos null.
+export const MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
+
 export async function cacheLast<T = { updated_at: string }>(
-  env: Env, table: string, keyCol: string, keyVal: string,
+  env: Env, table: string, keyCol: string, keyVal: string, maxAgeMs = MAX_STALE_MS,
 ): Promise<T | null> {
-  const rows = await sbSelect<T>(env, table, `${keyCol}=eq.${encodeURIComponent(keyVal)}&limit=1`);
-  return rows[0] ?? null;
+  const rows = await sbSelect<T & { updated_at?: string }>(env, table, `${keyCol}=eq.${encodeURIComponent(keyVal)}&limit=1`);
+  const row = rows[0];
+  if (!row) return null;
+  const ts = row.updated_at ? Date.parse(row.updated_at) : NaN;
+  if (Number.isFinite(ts) && Date.now() - ts > maxAgeMs) return null;  // demasiado viejo → sin dato
+  return (row as T) ?? null;
 }
 
 // Timed fetch with a sane timeout + JSON parse.
