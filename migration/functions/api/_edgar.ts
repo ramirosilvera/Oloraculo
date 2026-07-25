@@ -54,7 +54,7 @@ export const CONCEPTS = {
   interestExpense: ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense', 'InterestExpenseNonoperating'],
 } as const;
 
-interface Raw { start?: string; end: string; val: number; fy?: number; fp?: string; form?: string; filed?: string; }
+export interface Raw { start?: string; end: string; val: number; fy?: number; fp?: string; form?: string; filed?: string; }
 export interface AnnualPoint { fy: number; end: string; val: number; }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -87,18 +87,42 @@ async function fetchConcept(env: Env, cik: string, taxonomy: string, concept: st
   return null; // reintentos agotados
 }
 
-// Try each alias; return the first concept that yields data.
+// Año del dato más reciente de una serie (por el CIERRE del período, que es el año real).
+export function ultimoAnio(raw: Raw[]): number {
+  let max = -Infinity;
+  for (const x of raw) {
+    const a = Number((x.end ?? '').slice(0, 4));
+    if (Number.isFinite(a) && a > max) max = a;
+  }
+  return max;
+}
+
+// Elige, entre los alias del concepto, el que tenga los datos MÁS RECIENTES (desempate: el de
+// historia más larga). Antes devolvía el PRIMER alias con datos: si una empresa cambió de etiqueta
+// XBRL —algo muy común— quedaba clavada en la etiqueta vieja y la serie terminaba años atrás
+// (caso WMT: owner earnings de 2015-2019 cuando ya había datos hasta hoy).
+// NO se mezclan alias entre sí: son conceptos con definiciones distintas (p. ej. "Depreciation" vs
+// "DepreciationDepletionAndAmortization") y combinarlos crearía saltos falsos en la serie.
 async function fetchFirst(env: Env, cik: string, taxonomy: string, aliases: readonly string[]): Promise<Raw[] | null> {
+  const anioActual = new Date().getUTCFullYear();
+  let mejor: Raw[] | null = null;
+  let mejorAnio = -Infinity;
   for (const a of aliases) {
     const r = await fetchConcept(env, cik, taxonomy, a);
-    if (r && r.length) return r;
+    if (!r || !r.length) continue;
+    const anio = ultimoAnio(r);
+    if (anio > mejorAnio || (anio === mejorAnio && mejor && r.length > mejor.length)) {
+      mejor = r; mejorAnio = anio;
+    }
+    // Ya tenemos datos actuales: no seguimos pidiendo (cada alias es otro request al proxy).
+    if (mejorAnio >= anioActual - 1) break;
   }
-  return null;
+  return mejor;
 }
 
 // Annual flow series: only 10-K FY points; when a period repeats across filings,
 // keep the latest-filed value; sorted oldest→newest.
-function parseAnnual(raw: Raw[] | null): AnnualPoint[] {
+export function parseAnnual(raw: Raw[] | null): AnnualPoint[] {
   if (!raw) return [];
   const tenK = raw.filter(x => (x.form ?? '').startsWith('10-K') && (x.fp === 'FY' || x.fp == null));
   // Conceptos de FLUJO (traen `start`): quedarnos solo con períodos ANUALES (~12 meses). Un 10-K
