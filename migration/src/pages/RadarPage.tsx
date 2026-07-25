@@ -131,9 +131,9 @@ function RadarRow({ item, riskFree, saved, onRemove }: { item: WatchItem; riskFr
     // refleja SU valuación. Si no, defaults calculados por empresa (g=EG5Y−1pto, d=WACC…).
     const beta = saved?.beta ?? 1.0;
     const r = computeRatios(f, price, beta, riskFree);
-    const inputs = saved
-      ? { g: saved.g, d: saved.d, gt: saved.gt, N: saved.N, capexMethod: saved.capexMethod, mosRequired: saved.mosRequired }
-      : dcfDefaultsFor(r);
+    // `saved` completo (no campo por campo): reconstruirlo a mano perdía oeMethod, así que el Radar
+    // puntuaba con OTRA base que la de Análisis, en silencio. El `beta` extra es inofensivo.
+    const inputs = saved ?? dcfDefaultsFor(r);
     const d = computeDcf(f, price, r.wacc, inputs, r.roic);
     const s = computeScore({
       marginOfSafety: d.marginOfSafety, roic: r.roic, wacc: r.wacc,

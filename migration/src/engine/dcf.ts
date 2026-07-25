@@ -9,17 +9,30 @@ import type { Fundamentals, AnnualPoint, Ratios } from '../types/domain';
 
 export type CapexMethod = 'dna' | 'capex' | 'avg';
 
+// Cómo se normalizan los owner earnings (la BASE que después se proyecta a tasa g).
+// Buffett NO dio una regla de N años para las ganancias: en la carta de 1986 el "promedio" que
+// menciona corresponde al CAPEX DE MANTENIMIENTO (que es lumpy y hay que estimar). La regla de
+// promediar 5-10 años viene de Graham & Dodd (Security Analysis), y de ahí desciende el CAPE.
+// El principio común es usar la capacidad de generación SOSTENIBLE, y eso depende del negocio: en
+// uno estable el último año es la mejor información; en uno cíclico hay que promediar el ciclo.
+//
+// OJO con el sesgo silencioso: promediar hacia atrás no solo normaliza el MARGEN, también achica la
+// ESCALA. En una empresa que crece, cada método de promedio equivale a valuar un negocio de hace
+// ~1-2 años (prom5 ≈ 1,9 años de rezago). Es conservadurismo legítimo, pero conviene saberlo.
+export type OeMethod = 'ultimo' | 'prom3' | 'prom5' | 'ponderado' | 'mediana5' | 'margen';
+
 export interface DcfInputs {
   g: number;                 // crecimiento explícito anual (ej. 0.08)
   d: number;                 // tasa de descuento (ej. 0.10)
   gt: number;                // crecimiento terminal (ej. 0.025)
   N: number;                 // años explícitos (default 10)
   capexMethod: CapexMethod;  // capex de mantenimiento
+  oeMethod?: OeMethod;       // normalización de los owner earnings (default: 'ponderado')
   mosRequired: number;       // margen de seguridad exigido (ej. 0.30)
 }
 
 export const DEFAULT_DCF_INPUTS: DcfInputs = {
-  g: 0.08, d: 0.10, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20,
+  g: 0.08, d: 0.10, gt: 0.03, N: 20, capexMethod: 'dna', oeMethod: 'ponderado', mosRequired: 0.20,
 };
 
 // Techo de crecimiento explícito: ninguna empresa sostiene >15% anual durante N años. Sin este
@@ -41,7 +54,7 @@ export function dcfDefaultsFor(r: Ratios): DcfInputs {
   const d = r.costOfEquity != null ? Math.max(0.06, +r.costOfEquity.toFixed(4)) : DEFAULT_DCF_INPUTS.d; // piso 6%
   const gBruto = r.eg5y != null ? Math.max(0, r.eg5y - 0.01) : DEFAULT_DCF_INPUTS.g;
   const g = +Math.max(0, Math.min(gBruto, G_MAX, d - 0.01)).toFixed(4);
-  return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', mosRequired: 0.20 };
+  return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', oeMethod: 'ponderado', mosRequired: 0.20 };
 }
 
 export interface OwnerEarningsYear {
@@ -56,7 +69,7 @@ export interface MungerCheck { label: string; ok: boolean; detail: string; }
 
 export interface DcfResult {
   ownerEarningsByYear: OwnerEarningsYear[];
-  ownerEarningsNorm: number;        // promedio PONDERADO por recencia de los últimos 5 años
+  ownerEarningsNorm: number;        // base normalizada según inp.oeMethod (default: ponderado 5a)
   histCagrOE: number | null;        // CAGR histórico de owner earnings
   intrinsicValue: number;           // equity total
   intrinsicPerShare: number | null;
@@ -94,17 +107,49 @@ export function ownerEarningsByYear(f: Fundamentals, method: CapexMethod): Owner
   });
 }
 
-// Normalización de owner earnings PONDERADA POR RECENCIA (pesos lineales 1..n, del más viejo al más
-// nuevo). Un promedio simple castiga a las empresas que crecen: promedia el nivel de hace 5 años con
-// el de hoy y ancla la base del DCF muy por debajo de la capacidad de generación actual (MELI:
-// promedio simple ~5.300 vs ~7.000 ponderado, con el último año en 11.300). Sigue suavizando un año
-// atípico —que es el objetivo de "normalizar"— pero sin borrar la tendencia.
-// La serie debe venir ordenada de MÁS VIEJA a MÁS RECIENTE.
-export function normalizarOwnerEarnings(serie: number[]): number {
+// Mediana del MARGEN de owner earnings sobre ventas × ventas del último año. Normaliza la
+// rentabilidad (no capitaliza un margen pico) pero conserva la escala ACTUAL del negocio → sin el
+// rezago que arrastran los promedios. Es la mejor opción para una empresa que creció y además es
+// cíclica. Devuelve null si no hay ventas para emparejar.
+export function normalizarPorMargen(oe: { fy: number; ownerEarnings: number }[], ventasPorFy: Map<number, number>): number | null {
+  const margenes: number[] = [];
+  for (const y of oe) {
+    const v = ventasPorFy.get(y.fy);
+    if (v != null && v > 0) margenes.push(y.ownerEarnings / v);
+  }
+  const ultimoFy = oe.length ? oe[oe.length - 1].fy : null;
+  const ventasHoy = ultimoFy != null ? ventasPorFy.get(ultimoFy) : null;
+  if (!margenes.length || ventasHoy == null || !(ventasHoy > 0)) return null;
+  const a = [...margenes].sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  const mediana = a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  return mediana * ventasHoy;
+}
+
+// Normaliza la serie de owner earnings según el método elegido. La serie debe venir ordenada de MÁS
+// VIEJA a MÁS RECIENTE. Un método desconocido (dato guardado corrupto) cae al ponderado.
+export function normalizarOwnerEarnings(serie: number[], metodo: OeMethod = 'ponderado'): number {
   if (!serie.length) return 0;
-  let num = 0, den = 0;
-  serie.forEach((v, i) => { const w = i + 1; num += v * w; den += w; });
-  return den > 0 ? num / den : 0;
+  const prom = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+  switch (metodo) {
+    case 'ultimo':                                  // negocio estable: el dato más actual
+      return serie[serie.length - 1];
+    case 'prom3':
+      return prom(serie.slice(-3));
+    case 'prom5':                                   // cíclicos: promedia el ciclo
+      return prom(serie.slice(-5));
+    case 'mediana5': {                              // robusto a UN año atípico (cargo/venta puntual)
+      const a = [...serie.slice(-5)].sort((x, y) => x - y);
+      const m = Math.floor(a.length / 2);
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    }
+    case 'ponderado':
+    default: {                                      // pesos lineales: sigue la tendencia sin saltar al pico
+      let num = 0, den = 0;
+      serie.forEach((v, i) => { const w = i + 1; num += v * w; den += w; });
+      return den > 0 ? num / den : 0;
+    }
+  }
 }
 
 // CAGR histórico de owner earnings (para el chequeo Munger de "supuesto no optimista").
@@ -128,7 +173,11 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
     };
   }
 
-  const ownerEarningsNorm = normalizarOwnerEarnings(last5.map(y => y.ownerEarnings));
+  const oeMethod = inp.oeMethod ?? 'ponderado';
+  const serieOe = last5.map(y => y.ownerEarnings);
+  // 'margen' necesita las ventas; si no se pueden emparejar, cae al ponderado (no inventa).
+  const porMargen = oeMethod === 'margen' ? normalizarPorMargen(last5, byFy(f.revenue)) : null;
+  const ownerEarningsNorm = porMargen ?? normalizarOwnerEarnings(serieOe, oeMethod === 'margen' ? 'ponderado' : oeMethod);
   const histCagrOE = cagr(last5.map(y => y.ownerEarnings));
 
   // Owner earnings normalizados ≤ 0 (capex agresivo / OCF < capex mant.): el DCF no
@@ -169,11 +218,38 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   // se infla y daría un COMPRAR falso), y un valor terminal que es casi todo el total significa que
   // la valuación depende de una perpetuidad, no del negocio proyectado. En esos casos NO afirmamos
   // COMPRAR: degradamos a ESPERAR y exponemos el motivo para que el usuario revise los supuestos.
+  // Guard de BASE (además de los de tasas): el valor intrínseco es LINEAL en ownerEarningsNorm, así
+  // que un error del 25% en la base se come entero el margen de seguridad — y ninguno de los otros
+  // chequeos lo detecta (todos son invariantes de escala). Si se eligió el último año y ese año está
+  // muy por encima de la mediana, probablemente estemos capitalizando ruido (swing de capital de
+  // trabajo, venta puntual, margen pico) a perpetuidad.
+  // Comparar contra la mediana NO sirve: en una empresa que crece sano el último año siempre está
+  // por encima (MSFT: +31%) y daría falso positivo. Lo que delata ruido es que el último año se
+  // salga de SU PROPIA tendencia: que el salto interanual sea muy superior al salto típico.
+  const saltoAnomalo = (serie: number[]): number | null => {
+    if (serie.length < 3) return null;
+    const ratios: number[] = [];
+    for (let i = 1; i < serie.length; i++) {
+      if (serie[i - 1] > 0 && serie[i] > 0) ratios.push(serie[i] / serie[i - 1]);
+    }
+    if (ratios.length < 2) return null;
+    const ultimo = ratios[ratios.length - 1];
+    const previos = [...ratios.slice(0, -1)].sort((a, b) => a - b);
+    const m = Math.floor(previos.length / 2);
+    const tipico = previos.length % 2 ? previos[m] : (previos[m - 1] + previos[m]) / 2;
+    if (!(tipico > 0)) return null;
+    return ultimo > Math.max(1.5, 2 * tipico) ? ultimo / tipico : null;
+  };
+  const anomalia = oeMethod === 'ultimo' ? saltoAnomalo(serieOe) : null;
+  const baseInflada = anomalia != null;
+
   const motivoInestable = !(g < d)
     ? `supuesto inestable: g ${(g * 100).toFixed(1)}% ≥ d ${(d * 100).toFixed(1)}%`
-    : terminalShare > 0.85
-      ? `el ${(terminalShare * 100).toFixed(0)}% del valor viene de la perpetuidad`
-      : null;
+    : baseInflada
+      ? `la base es el último año y saltó ${anomalia!.toFixed(1)}× más que su salto habitual (¿ruido puntual?)`
+      : terminalShare > 0.85
+        ? `el ${(terminalShare * 100).toFixed(0)}% del valor viene de la perpetuidad`
+        : null;
 
   const verdict: DcfResult['verdict'] =
     marginOfSafety == null ? 'SIN_DATOS'

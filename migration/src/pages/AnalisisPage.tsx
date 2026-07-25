@@ -7,7 +7,7 @@ import { useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { computeRatios } from '../engine/ratios';
-import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod } from '../engine/dcf';
+import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod, type OeMethod } from '../engine/dcf';
 import { useDcfInputs } from '../hooks/useDcfInputs';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
@@ -137,7 +137,8 @@ export function AnalisisPage() {
         <Stat label="Precio" value={fmtUsd(price)} />
         <Stat label="Valor intrínseco / acc." value={fmtUsd(dcf.intrinsicPerShare)} hint="DCF Owner Earnings" />
         <Stat label="Margen de seguridad" value={fmtPct(dcf.marginOfSafety)} hint={`exigido ${fmtPct(inp.mosRequired)}`} />
-        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)} hint="promedio ponderado de 5 años (pesan más los recientes)" />
+        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)}
+          hint={({ ultimo: 'último año', ponderado: 'ponderado 5 años (recientes pesan más)', prom3: 'promedio 3 años', prom5: 'promedio 5 años', mediana5: 'mediana 5 años', margen: 'margen mediano × ventas de hoy' } as Record<string, string>)[inp.oeMethod ?? 'ponderado'] ?? 'ponderado 5 años'} />
       </div>
 
       {/* Ratios */}
@@ -176,6 +177,42 @@ export function AnalisisPage() {
           <NumIn l="Crec. terminal gt" v={inp.gt} step={0.005} onChange={gt => setInp({ ...inp, gt })} pct />
           <NumIn l="Años N" v={inp.N} step={1} onChange={N => setInp({ ...inp, N })} />
           <NumIn l="MoS exigido" v={inp.mosRequired} step={0.05} onChange={mosRequired => setInp({ ...inp, mosRequired })} pct />
+          <div className="col-span-2 sm:col-span-3">
+            <label className="text-[10px] uppercase text-ink-600">Base de owner earnings (normalización)</label>
+            <select value={inp.oeMethod ?? 'ponderado'} onChange={e => setInp({ ...inp, oeMethod: e.target.value as OeMethod })}
+              className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
+              <option value="ultimo">Último año — negocio estable/predecible</option>
+              <option value="ponderado">Ponderado 5 años (recientes pesan más) — equilibrado</option>
+              <option value="prom3">Promedio 3 años</option>
+              <option value="prom5">Promedio 5 años — negocio cíclico</option>
+              <option value="mediana5">Mediana 5 años — hubo un año atípico</option>
+              <option value="margen">Margen mediano × ventas de hoy — creció Y es cíclica</option>
+            </select>
+            <p className="text-[10px] text-ink-600 mt-1 tnum">
+              {(() => {
+                const fys = dcf.ownerEarningsByYear.slice(-5).map(y => y.fy);
+                if (!fys.length) return 'Sin años disponibles.';
+                const m = inp.oeMethod ?? 'ponderado';
+                const usados = m === 'ultimo' ? fys.slice(-1) : m === 'prom3' ? fys.slice(-3) : fys;
+                return usados.length === 1
+                  ? `Usando el año ${usados[0]}.`
+                  : `Usando ${usados.length} años: ${usados[0]}–${usados[usados.length - 1]}.`;
+              })()}
+            </p>
+            <p className="text-[10px] text-ink-500 mt-1">
+              {inp.oeMethod === 'ultimo'
+                ? 'Refleja la escala real de hoy. Riesgo: si ese año tuvo margen pico, un swing de capital de trabajo o una venta puntual, capitalizás ese ruido a perpetuidad. El valor es LINEAL en esta base: 25% de error acá se come todo el margen de seguridad.'
+                : inp.oeMethod === 'prom5'
+                  ? 'Promedia el ciclo completo. Correcto en cíclicas. En una que crece, equivale a valuar el negocio de hace ~2 años.'
+                  : inp.oeMethod === 'mediana5'
+                    ? 'Descarta el año atípico (un cargo puntual o una venta de activos) sin promediar todo a ciegas.'
+                    : inp.oeMethod === 'prom3'
+                      ? 'Ventana corta: más actual que 5 años, con algo de suavizado.'
+                      : inp.oeMethod === 'margen'
+                        ? 'Normaliza la RENTABILIDAD (mediana del margen) pero mantiene la ESCALA de hoy: sin rezago y sin capitalizar un margen pico. Si no hay ventas para emparejar, usa el ponderado.'
+                        : 'Sigue la tendencia sin saltar al último año, con un rezago de ~1,3 años. Buen punto de partida.'}
+            </p>
+          </div>
           <div>
             <label className="text-[10px] uppercase text-ink-600">Capex mant.</label>
             <select value={inp.capexMethod} onChange={e => setInp({ ...inp, capexMethod: e.target.value as CapexMethod })}

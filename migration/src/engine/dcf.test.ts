@@ -230,3 +230,102 @@ describe('normalizarOwnerEarnings — ponderado por recencia', () => {
 
   it('serie vacía → 0', () => { expect(normalizarOwnerEarnings([])).toBe(0); });
 });
+
+describe('normalizarOwnerEarnings — métodos elegibles', () => {
+  const meli = [761, 2537, 4616, 7301, 11298];   // creciente (MELI real)
+  const ciclica = [1000, 200, 1500, 300, 1400];  // cíclica: el último año no representa el ciclo
+  const conCargo = [1000, 1050, 100, 1100, 1150]; // un año con cargo puntual
+
+  it("'ultimo' toma el año más reciente", () => {
+    expect(normalizarOwnerEarnings(meli, 'ultimo')).toBe(11298);
+  });
+
+  it("en una creciente: ultimo > ponderado > prom5 (el orden esperado)", () => {
+    const u = normalizarOwnerEarnings(meli, 'ultimo');
+    const p = normalizarOwnerEarnings(meli, 'ponderado');
+    const c = normalizarOwnerEarnings(meli, 'prom5');
+    expect(u).toBeGreaterThan(p);
+    expect(p).toBeGreaterThan(c);
+  });
+
+  it("'prom5' en una cíclica promedia el ciclo (no capitaliza el pico)", () => {
+    expect(normalizarOwnerEarnings(ciclica, 'prom5')).toBeCloseTo(880, 6);
+    expect(normalizarOwnerEarnings(ciclica, 'ultimo')).toBe(1400);   // capitalizar esto sería un error
+  });
+
+  it("'mediana5' ignora el año atípico; el promedio no", () => {
+    expect(normalizarOwnerEarnings(conCargo, 'mediana5')).toBe(1050);
+    expect(normalizarOwnerEarnings(conCargo, 'prom5')).toBeLessThan(1000);   // el cargo lo arrastra
+  });
+
+  it("'prom3' usa solo los últimos 3", () => {
+    expect(normalizarOwnerEarnings(meli, 'prom3')).toBeCloseTo((4616 + 7301 + 11298) / 3, 6);
+  });
+
+  it('sin método explícito (guardados viejos) usa ponderado', () => {
+    expect(normalizarOwnerEarnings(meli)).toBeCloseTo(normalizarOwnerEarnings(meli, 'ponderado'), 9);
+  });
+
+  it('computeDcf respeta el método elegido: ultimo da mayor valor que prom5', () => {
+    const conUltimo = computeDcf(MSFT, 420, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'ultimo' });
+    const conProm5 = computeDcf(MSFT, 420, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'prom5' });
+    expect(conUltimo.ownerEarningsNorm).toBeGreaterThan(conProm5.ownerEarningsNorm);
+    expect(conUltimo.intrinsicPerShare!).toBeGreaterThan(conProm5.intrinsicPerShare!);
+  });
+});
+
+describe("guard de BASE: 'ultimo' inflado no puede dar COMPRAR", () => {
+  // El valor intrínseco es LINEAL en la base, así que un año atípico se come el margen de seguridad
+  // y ninguno de los otros chequeos lo ve (todos son invariantes de escala).
+  const pico: Fundamentals = {
+    ...MSFT,
+    ocf: P([[2020, 10000], [2021, 10000], [2022, 10000], [2023, 10000], [2024, 30000]]),
+    dna: P([[2020, 1000], [2021, 1000], [2022, 1000], [2023, 1000], [2024, 1000]]),
+    capex: P([[2020, 1000], [2021, 1000], [2022, 1000], [2023, 1000], [2024, 1000]]),
+  };
+
+  it("con 'ultimo' y un año 3x sobre la mediana: bloquea COMPRAR y explica", () => {
+    const r = computeDcf(pico, 1, 0.09, { ...DEFAULT_DCF_INPUTS, g: 0.05, d: 0.09, oeMethod: 'ultimo' });
+    expect(r.verdict).not.toBe('COMPRAR');
+    expect(r.motivoInestable).toMatch(/último año/);
+  });
+
+  it("el mismo caso con 'mediana5' no se bloquea (la base ya está normalizada)", () => {
+    const r = computeDcf(pico, 1, 0.09, { ...DEFAULT_DCF_INPUTS, g: 0.05, d: 0.09, oeMethod: 'mediana5' });
+    expect(r.motivoInestable).toBeNull();
+    expect(r.verdict).toBe('COMPRAR');
+  });
+
+  it("'ultimo' en una empresa que CRECE SANO no se bloquea (evita el falso positivo)", () => {
+    // MSFT real: el último año está 31% sobre la mediana solo porque viene creciendo. Comparar
+    // contra la mediana lo marcaría mal; lo que importa es si el salto se sale de su tendencia.
+    const r = computeDcf(MSFT, 1, 0.09, { ...DEFAULT_DCF_INPUTS, g: 0.05, d: 0.09, oeMethod: 'ultimo' });
+    expect(r.motivoInestable).toBeNull();
+    expect(r.verdict).toBe('COMPRAR');
+  });
+});
+
+describe("método 'margen': normaliza rentabilidad sin perder escala", () => {
+  it('sin rezago: usa las ventas del último año', () => {
+    // margen OE/ventas estable 20%; ventas crecen. La base debe ser ~20% de las ventas de HOY.
+    const crece: Fundamentals = {
+      ...MSFT,
+      revenue: P([[2020, 1000], [2021, 2000], [2022, 4000], [2023, 8000], [2024, 16000]]),
+      ocf:     P([[2020, 300], [2021, 600], [2022, 1200], [2023, 2400], [2024, 4800]]),
+      dna:     P([[2020, 100], [2021, 200], [2022, 400], [2023, 800], [2024, 1600]]),
+      capex:   P([[2020, 100], [2021, 200], [2022, 400], [2023, 800], [2024, 1600]]),
+    };
+    const r = computeDcf(crece, 100, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'margen' });
+    expect(r.ownerEarningsNorm).toBeCloseTo(0.20 * 16000, 6);   // margen 20% × ventas de hoy
+    // El ponderado, en cambio, arrastra los años chicos:
+    const pond = computeDcf(crece, 100, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'ponderado' });
+    expect(pond.ownerEarningsNorm).toBeLessThan(r.ownerEarningsNorm);
+  });
+
+  it('sin ventas para emparejar cae al ponderado (no inventa)', () => {
+    const sinVentas: Fundamentals = { ...MSFT, revenue: [] };
+    const r = computeDcf(sinVentas, 420, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'margen' });
+    const pond = computeDcf(sinVentas, 420, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'ponderado' });
+    expect(r.ownerEarningsNorm).toBeCloseTo(pond.ownerEarningsNorm, 9);
+  });
+});
