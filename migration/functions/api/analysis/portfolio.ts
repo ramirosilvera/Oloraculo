@@ -1,4 +1,4 @@
-import { type Env, json, preflight, safe, sbSelect, sbUpsert } from '../_shared';
+import { type Env, json, preflight, safe, usuarioAutenticado, sbSelect, sbUpsert } from '../_shared';
 
 const SYSTEM = `Actuás como un inversor profesional evaluando la construcción de tu propia cartera
 (perfil value de largo plazo, estilo Munger/Buffett). Te paso la lista de posiciones (ticker,
@@ -22,6 +22,8 @@ function hash(s: string): string {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 export const onRequestPost = safe(async ({ request, env }) => {
+  // Gemini es cuota PAGA: sin sesión, cualquiera podría dispararlo desde afuera.
+  if (!(await usuarioAutenticado(env, request))) return json({ error: 'no-autorizado' }, 401);
   if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY no configurada' }, 503);
   const body = await request.json().catch(() => ({})) as { posiciones?: unknown };
   if (!body.posiciones) return json({ error: 'posiciones requeridas' }, 400);

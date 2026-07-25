@@ -1,4 +1,4 @@
-import { type Env, json, preflight, safe, sbSelect, sbUpsert } from '../_shared';
+import { type Env, json, preflight, safe, usuarioAutenticado, sbSelect, sbUpsert } from '../_shared';
 
 // La IA opina sobre lo CUALITATIVO. Los números los calcula el código y se le pasan
 // como contexto para que razone sobre datos reales — nunca que Gemini calcule un ratio.
@@ -22,6 +22,8 @@ function hash(s: string): string {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 export const onRequestPost = safe(async ({ request, env }) => {
+  // Gemini es cuota PAGA: sin sesión, cualquiera podría dispararlo desde afuera.
+  if (!(await usuarioAutenticado(env, request))) return json({ error: 'no-autorizado' }, 401);
   if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY no configurada' }, 503);
   const body = await request.json().catch(() => ({})) as { ticker?: string; portfolio_id?: string | null; context?: unknown };
   const ticker = (body.ticker || '').toUpperCase();

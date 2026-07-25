@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guardAuth, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 15 * 60 * 1000; // 15 min
 
@@ -22,7 +22,7 @@ async function fetchPrice(env: Env, symbol: string): Promise<number | null> {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/quotes?tickers=MSFT,MA,KO  → { MSFT: 420.1, MA: ..., ... }
-export const onRequestGet = guard(async ({ request, env }) => {
+export const onRequestGet = guardAuth(async ({ request, env }) => {
   const url = new URL(request.url);
   const tickers = (url.searchParams.get('tickers') || url.searchParams.get('ticker') || '')
     .toUpperCase().split(',').map(s => s.trim()).filter(Boolean);

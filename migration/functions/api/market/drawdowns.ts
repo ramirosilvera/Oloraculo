@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guardAuth, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 30 * 60 * 1000; // 30 min
 
@@ -94,7 +94,7 @@ const CALCS: Record<string, () => Promise<DD | null>> = {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/drawdowns → { sp500: {actual,max,dd}, oro: {...}, merval: {...} }  (dd vs máx histórico, ≤ 0)
-export const onRequestGet = guard(async ({ env }) => {
+export const onRequestGet = guardAuth(async ({ env }) => {
   const out: Record<string, DD | null> = {};
   const rows: unknown[] = [];
   await Promise.all(Object.entries(CALCS).map(async ([key, calc]) => {

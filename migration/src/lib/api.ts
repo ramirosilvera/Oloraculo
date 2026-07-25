@@ -1,8 +1,17 @@
 // Typed fetchers for the Pages Functions (all external data goes through them).
 import type { Fundamentals } from '../types/domain';
+import { supabase } from './supabase';
+
+// Las Functions exigen sesión (si no, cualquiera podría llamarlas y quemar cuota paga de
+// Gemini/Finnhub). Adjuntamos el JWT del usuario en cada request.
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' } });
+  const res = await fetch(path, { headers: await authHeaders() });
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
   return res.json();
 }
@@ -35,7 +44,7 @@ export const api = {
 // Nunca rechaza: devuelve {error} ante fallo de red/HTTP para que el botón no quede colgado.
 async function postAnalisis(path: string, body: unknown): Promise<{ analisis?: string; error?: string; cached?: boolean }> {
   try {
-    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(path, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: (data as { error?: string }).error ?? `HTTP ${res.status}` };
     return data;

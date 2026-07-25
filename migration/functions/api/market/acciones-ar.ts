@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guardAuth, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 20 * 60 * 1000; // 20 min
 
@@ -22,7 +22,7 @@ function symbolOf(x: Record<string, unknown>): string | null {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/acciones-ar?tickers=YPFD,GGAL,PAMP  → { YPFD: <usd>, ... }
-export const onRequestGet = guard(async ({ request, env }) => {
+export const onRequestGet = guardAuth(async ({ request, env }) => {
   const url = new URL(request.url);
   const tickers = (url.searchParams.get('tickers') || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
 

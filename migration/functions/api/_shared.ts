@@ -5,6 +5,7 @@
 export interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
+  SUPABASE_ANON_KEY?: string;   // para validar el JWT del usuario (auth de las Functions)
   SEC_PROXY_BASE: string;   // e.g. https://sec-proxy.<sub>.workers.dev
   SEC_PROXY_TOKEN: string;
   GEMINI_API_KEY?: string;
@@ -25,10 +26,46 @@ export const json = (data: unknown, status = 200): Response =>
 
 export const preflight = (): Response => new Response(null, { status: 204, headers: CORS });
 
+type Ctx = Parameters<PagesFunction<Env>>[0];
+
+// ── Autenticación ────────────────────────────────────────────────────────────
+// Las Functions son públicas por defecto: sin esto, cualquiera que conozca la URL puede llamarlas
+// y consumir cuota PAGA (Gemini, Finnhub/FMP) o usarlas de proxy. Validamos el JWT del usuario
+// contra Supabase; solo un usuario logueado de este proyecto puede usarlas.
+export async function usuarioAutenticado(env: Env, request: Request): Promise<boolean> {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!token || !env.SUPABASE_URL) return false;
+  // apikey: usamos la service-role que YA existe (guard() la exige), con fallback a la anon. Así no
+  // hace falta configurar un secret nuevo — si faltara, todos los endpoints devolverían 401 y la
+  // app quedaría rota en producción. El que se valida es el JWT del usuario, no esta clave.
+  const apikey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+  if (!apikey) return false;
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey },
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// Envuelve un handler exigiendo sesión válida. Devuelve 401 si no la hay.
+export function authed(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<Env> {
+  return async (ctx) => {
+    try {
+      if (!(await usuarioAutenticado(ctx.env, ctx.request))) {
+        return json({ error: 'no-autorizado', detail: 'Necesitás iniciar sesión.' }, 401);
+      }
+      return await handler(ctx);
+    } catch (e) {
+      return json({ error: 'function-error', detail: String(e) }, 500);
+    }
+  };
+}
+
 // Envuelve un handler GET: valida los secrets base de Supabase y convierte CUALQUIER excepción
 // en un JSON 500 con detalle. Evita el error 1101 opaco de Cloudflare (Worker threw exception)
 // cuando falta un secret (ej. fetch("undefined/rest/v1/...")) o cuando un proveedor externo cae.
-type Ctx = Parameters<PagesFunction<Env>>[0];
 export function guard(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<Env> {
   return async (ctx) => {
     const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = ctx.env;
@@ -41,6 +78,17 @@ export function guard(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<E
     } catch (e) {
       return json({ error: 'function-error', detail: String(e) }, 500);
     }
+  };
+}
+
+// guard() + sesión válida: para los endpoints que consumen cuota paga (mercado/fundamentals).
+export function guardAuth(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<Env> {
+  const inner = guard(handler);
+  return async (ctx) => {
+    if (!(await usuarioAutenticado(ctx.env, ctx.request))) {
+      return json({ error: 'no-autorizado', detail: 'Necesitás iniciar sesión.' }, 401);
+    }
+    return inner(ctx);
   };
 }
 

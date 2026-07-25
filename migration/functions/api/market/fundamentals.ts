@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert } from '../_shared';
+import { type Env, json, preflight, guardAuth, cacheFresh, cacheLast, sbUpsert } from '../_shared';
 import { DEFAULT_CIK, fetchFundamentals } from '../_edgar';
 
 const TTL = 12 * 60 * 60 * 1000; // 12h
@@ -6,12 +6,16 @@ const TTL = 12 * 60 * 60 * 1000; // 12h
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/fundamentals?ticker=MSFT[&cik=...][&fresh=1]
-export const onRequestGet = guard(async ({ request, env }) => {
+export const onRequestGet = guardAuth(async ({ request, env }) => {
   const url = new URL(request.url);
   const ticker = (url.searchParams.get('ticker') || '').toUpperCase().trim();
   // Para tickers conocidos usamos SIEMPRE el CIK oficial (ignoramos el ?cik del query) para que
   // nadie pueda envenenar fundamentals_cache[ticker] con el CIK de otra empresa.
-  const cik = DEFAULT_CIK[ticker] || url.searchParams.get('cik') || '';
+  const cikOficial = DEFAULT_CIK[ticker] || '';
+  const cik = cikOficial || url.searchParams.get('cik') || '';
+  // Solo se persiste en el cache COMPARTIDO si el CIK es el oficial: con un ?cik= arbitrario
+  // cualquiera podía envenenar fundamentals_cache[ticker] con los datos de otra empresa.
+  const cacheable = !!cikOficial;
   const force = url.searchParams.get('fresh') === '1';
 
   if (!ticker) return json({ error: 'ticker requerido' }, 400);
@@ -32,7 +36,7 @@ export const onRequestGet = guard(async ({ request, env }) => {
   try {
     const data = await fetchFundamentals(env, ticker, cik);
     const nucleoIncompleto = !data.ocf.length || !data.epsDiluted.length || !data.revenue.length;
-    if (!nucleoIncompleto) {
+    if (!nucleoIncompleto && cacheable) {
       await sbUpsert(env, 'fundamentals_cache', [{
         ticker, cik, data_json: data, updated_at: new Date().toISOString(),
       }], 'ticker');

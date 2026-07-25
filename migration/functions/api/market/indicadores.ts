@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guardAuth, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 20 * 60 * 1000; // 20 min
 
@@ -41,7 +41,7 @@ async function mervalUsd(env: Env): Promise<number | null> {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 // GET /api/market/indicadores → { adr_ypf, bitcoin, sp500, oro, vix }  (para los semáforos)
-export const onRequestGet = guard(async ({ env }) => {
+export const onRequestGet = guardAuth(async ({ env }) => {
   const out: Record<string, number | null> = {};
   const CLAVES = ['adr_ypf', 'bitcoin', 'sp500', 'oro', 'merval_usd']; // vix y dollar_index los provee FRED
 
