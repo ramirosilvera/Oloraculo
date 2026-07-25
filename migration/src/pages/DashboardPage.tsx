@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertTriangle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
@@ -38,18 +38,22 @@ export function DashboardPage() {
   const aportes = qAportes.data ?? [];
   const { data: flujo = [] } = useFlujo();
 
-  const { patrimonio, costo, pnl, alloc } = useMemo(() => {
+  const { patrimonio, costo, pnl, alloc, sinPrecio } = useMemo(() => {
     let patrimonio = 0, costo = 0;
     const parts: { ticker: string; mkt: number; target: number | null }[] = [];
+    // Posiciones ABIERTAS con ticker cotizable que quedaron sin precio: se valúan a costo, así que
+    // el patrimonio no es "de mercado". Hay que decirlo (y no grabar ese valor en el histórico).
+    const sinPrecio: string[] = [];
     for (const p of posiciones) {
       const u = unitUSD(p, quotes[p.ticker] ?? null);
       const mkt = u != null ? u * p.cantidad : p.precio_compra * p.cantidad;
+      if (u == null && p.cantidad > 0 && p.tipo !== 'cash') sinPrecio.push(p.ticker);
       patrimonio += mkt;
       costo += p.precio_compra * p.cantidad;
       if (mkt > 0) parts.push({ ticker: p.ticker, mkt, target: p.peso_objetivo });
     }
     parts.sort((a, b) => b.mkt - a.mkt);
-    return { patrimonio, costo, pnl: patrimonio - costo, alloc: parts };
+    return { patrimonio, costo, pnl: patrimonio - costo, alloc: parts, sinPrecio };
   }, [posiciones, quotes]);
 
   // TIR money-weighted: aportes (capital externo) + patrimonio actual como flujo terminal.
@@ -88,7 +92,10 @@ export function DashboardPage() {
   // usa el fallback de costo. Cualquiera de las dos cosas ensucia el histórico de rendimiento.
   const sinTickers = equity.length + bonds.length + arStocks.length === 0;
   const datosListos = qPos.isSuccess && qAportes.isSuccess && qSnaps.isSuccess
-    && (sinTickers || (qQuotes.isSuccess && !qQuotes.isFetching));
+    && (sinTickers || (qQuotes.isSuccess && !qQuotes.isFetching))
+    // Clave: isSuccess es true aunque la respuesta venga VACÍA (allSettled). Si alguna posición
+    // quedó sin precio, el patrimonio es costo disfrazado de mercado: no se graba el snapshot.
+    && sinPrecio.length === 0;
 
   // Año de creación real (primer aporte o primera compra), para no atribuir mal el rendimiento.
   const inceptionYear = useMemo(() => {
@@ -136,6 +143,17 @@ export function DashboardPage() {
         <h1 className="text-2xl font-bold text-ink-900 font-display">Dashboard · {active.nombre}</h1>
         <UpdatedAt icon />
       </div>
+
+      {sinPrecio.length > 0 && (
+        <div className="flex items-start gap-2 rounded-xl bg-warn/10 ring-1 ring-inset ring-warn/25 px-3 py-2.5 text-[11px] text-ink-700">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
+          <p>
+            Sin cotización de <b>{sinPrecio.slice(0, 4).join(', ')}{sinPrecio.length > 4 ? ` +${sinPrecio.length - 4}` : ''}</b>:
+            esas posiciones se muestran <b>a costo</b>, así que el patrimonio y el P&L no reflejan el mercado.
+            No se registra el histórico del día hasta que vuelvan los precios.
+          </p>
+        </div>
+      )}
 
       {/* Hero: lo esencial, sin repetir. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">

@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, cacheFresh, sbUpsert, fetchJson } from '../_shared';
+import { type Env, json, preflight, guard, cacheFresh, cacheLast, sbUpsert, fetchJson } from '../_shared';
 
 const TTL = 20 * 60 * 1000; // 20 min
 
@@ -48,7 +48,10 @@ export const onRequestGet = guard(async ({ request, env }) => {
   const wanted = tickers.length ? tickers : Object.keys(arsMap);
   for (const t of wanted) {
     const ars = arsMap[t];
-    const usd = ars != null && mep ? +(ars / mep).toFixed(4) : null;
+    let usd = ars != null && mep ? +(ars / mep).toFixed(4) : null;
+    // data912 caído (o sin MEP) devolvía 200 con el mapa vacío → el front valuaba a COSTO sin
+    // ninguna señal. Servimos el último precio conocido, como ya hace quotes.ts.
+    if (usd == null) usd = (await cacheLast<{ precio: number }>(env, 'precios_cache', 'ticker', t))?.precio ?? null;
     out[t] = usd;
     if (usd != null) rows.push({ ticker: t, precio: usd, moneda: 'USD', updated_at: new Date().toISOString() });
   }

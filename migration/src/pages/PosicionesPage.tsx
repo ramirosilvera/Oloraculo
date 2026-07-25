@@ -79,6 +79,8 @@ export function PosicionesPage() {
 
   const guardar = async () => {
     if (!form.ticker) { setFormErr('Ingresá el ticker.'); return; }
+    if (!(Number(form.cantidad) > 0)) { setFormErr('La cantidad debe ser mayor a 0.'); return; }
+    if (!(Number(form.precio_compra) > 0)) { setFormErr('Ingresá el precio de compra.'); return; }
     if (form.tipo === 'cedear' && !(form.ratio_cedear && form.ratio_cedear > 0)) {
       setFormErr('Un CEDEAR necesita su ratio (subyacentes por CEDEAR) — sin eso el valor se calcula mal.'); return;
     }
@@ -150,6 +152,9 @@ export function PosicionesPage() {
             </Field>
             <Field label="% objetivo">
               <input placeholder="% objetivo (0-100)" type="number" onChange={e => setForm({ ...form, peso_objetivo: e.target.value ? Number(e.target.value) / 100 : null })} className={inputCls} />
+            </Field>
+            <Field label="Fecha de compra">
+              <input type="date" value={form.fecha_compra ?? ''} onChange={e => setForm({ ...form, fecha_compra: e.target.value || null })} className={inputCls} />
             </Field>
             <Field label="Sector">
               <input placeholder="Sector" onChange={e => setForm({ ...form, sector: e.target.value })} className={`${inputCls} text-base sm:text-sm`} />
@@ -410,6 +415,7 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
 
   const confirmar = async () => {
     if (!(n > 0)) { setErr('Ingresá una cantidad válida.'); return; }
+    if (!(p > 0)) { setErr('Ingresá el precio de venta (no puede ser 0).'); return; }
     if (n > pos.cantidad) { setErr(`No podés vender más de ${fmtNum(pos.cantidad, 0)} que tenés.`); return; }
     setBusy(true); setErr(null);
     try { await onSell(n, p, fecha); }

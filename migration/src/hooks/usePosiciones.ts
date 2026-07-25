@@ -65,6 +65,10 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       const addQty = Number(p.cantidad) || 0;
       const addPrice = Number(p.precio_compra) || 0;
       if (!p.tipo) throw new Error('Elegí el tipo de activo.'); // sin tipo, .eq('tipo','') nunca consolida
+      // Sin esto, una cantidad negativa RESTABA de la posición sin registrar movimiento (el insert
+      // del movimiento está bajo `addQty > 0`), dejando cantidad y costo promedio inconsistentes.
+      if (!(addQty > 0)) throw new Error('La cantidad debe ser mayor a 0.');
+      if (addPrice < 0) throw new Error('El precio no puede ser negativo.');
 
       const { data: existing, error: selErr } = await supabase.from('posiciones')
         .select('*').eq('portfolio_id', portfolioId).eq('ticker', ticker).eq('tipo', p.tipo)
@@ -92,7 +96,10 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
         posId = existing.id;
       } else {
         const { data: created, error: insErr } = await supabase.from('posiciones')
-          .insert({ ...p, ticker, portfolio_id: portfolioId }).select('id').single();
+          // fecha_compra por defecto = hoy: el form no la pedía y quedaba NULL, lo que dejaba sin
+          // base a la TIR por costos y al año de inicio del rendimiento.
+          .insert({ ...p, ticker, portfolio_id: portfolioId, fecha_compra: p.fecha_compra ?? new Date().toISOString().slice(0, 10) })
+          .select('id').single();
         if (insErr) throw insErr;
         posId = created.id;
       }

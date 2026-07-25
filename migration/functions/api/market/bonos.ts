@@ -67,6 +67,10 @@ export const onRequestGet = guard(async ({ request, env }) => {
   const rows = Object.entries(map).map(([ticker, precio]) => ({ ticker, precio, moneda: 'USD', updated_at: new Date().toISOString() }));
   if (rows.length) await sbUpsert(env, 'precios_cache', rows, 'ticker');
 
-  if (one) return json({ ticker: one, precio: map[one] ?? null });
+  // Fuente caída: último precio conocido por ticker (evita que el front valúe a costo en silencio).
+  if (one) {
+    const px = map[one] ?? (await cacheLast<{ precio: number }>(env, 'precios_cache', 'ticker', one))?.precio ?? null;
+    return json({ ticker: one, precio: px });
+  }
   return json(map);
 });
