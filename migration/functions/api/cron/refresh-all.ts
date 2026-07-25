@@ -19,9 +19,11 @@ export const onRequestGet = guard(async ({ request, env }) => {
   }
   const origin = new URL(request.url).origin;
 
+  // Los endpoints de mercado exigen sesión; el cron se identifica con el mismo CRON_SECRET.
+  const cronHeader = env.CRON_SECRET ? { 'X-Cron-Secret': env.CRON_SECRET } : undefined;
   const hit = async (path: string) => {
     try {
-      const r = await fetch(`${origin}${path}`);
+      const r = await fetch(`${origin}${path}`, cronHeader ? { headers: cronHeader } : undefined);
       return r.ok;
     } catch { return false; }
   };

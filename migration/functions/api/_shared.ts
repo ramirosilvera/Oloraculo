@@ -85,7 +85,10 @@ export function guard(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<E
 export function guardAuth(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<Env> {
   const inner = guard(handler);
   return async (ctx) => {
-    if (!(await usuarioAutenticado(ctx.env, ctx.request))) {
+    // El cron (refresh-all) llama estos mismos endpoints server-side para calentar las caches sin
+    // que la app esté abierta: no tiene JWT de usuario, así que se acepta también el CRON_SECRET.
+    const esCron = !!ctx.env.CRON_SECRET && ctx.request.headers.get('X-Cron-Secret') === ctx.env.CRON_SECRET;
+    if (!esCron && !(await usuarioAutenticado(ctx.env, ctx.request))) {
       return json({ error: 'no-autorizado', detail: 'Necesitás iniciar sesión.' }, 401);
     }
     return inner(ctx);
