@@ -163,14 +163,27 @@ export interface EdgarFundamentals {
   pretaxIncome: AnnualPoint[]; interestExpense: AnnualPoint[]; ungradeable: string[];
 }
 
+// Ejecuta las tareas de a `limite` en simultáneo. EDGAR/el proxy limitan por tasa: disparar los ~17
+// conceptos (más sus alias) todos juntos provocaba 429 y devolvía series vacías, que la app mostraba
+// como "SIN_DATOS" (diagnóstico equivocado: el dato existe, no se pudo traer).
+async function enTandas<T>(tareas: (() => Promise<T>)[], limite = 4): Promise<T[]> {
+  const out: T[] = new Array(tareas.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limite, tareas.length) }, async () => {
+    while (i < tareas.length) { const idx = i++; out[idx] = await tareas[idx](); }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 export async function fetchFundamentals(env: Env, ticker: string, cik: string): Promise<EdgarFundamentals> {
   const g = (aliases: readonly string[]) => fetchFirst(env, cik, 'us-gaap', aliases);
-  const [ocf, ni, dna, capex, rev, opInc, eps, dps, eq, dl, ds, cash, sti, tax, pre, intExp, sharesRaw] = await Promise.all([
-    g(CONCEPTS.ocf), g(CONCEPTS.netIncome), g(CONCEPTS.dna), g(CONCEPTS.capex),
-    g(CONCEPTS.revenue), g(CONCEPTS.operatingIncome), g(CONCEPTS.epsDiluted), g(CONCEPTS.dividendPerShare),
-    g(CONCEPTS.equity), g(CONCEPTS.totalDebtLong), g(CONCEPTS.totalDebtShort), g(CONCEPTS.cash),
-    g(CONCEPTS.shortTermInvestments), g(CONCEPTS.taxes), g(CONCEPTS.pretaxIncome), g(CONCEPTS.interestExpense),
-    fetchConcept(env, cik, 'dei', 'EntityCommonStockSharesOutstanding'),
+  const [ocf, ni, dna, capex, rev, opInc, eps, dps, eq, dl, ds, cash, sti, tax, pre, intExp, sharesRaw] = await enTandas([
+    () => g(CONCEPTS.ocf), () => g(CONCEPTS.netIncome), () => g(CONCEPTS.dna), () => g(CONCEPTS.capex),
+    () => g(CONCEPTS.revenue), () => g(CONCEPTS.operatingIncome), () => g(CONCEPTS.epsDiluted), () => g(CONCEPTS.dividendPerShare),
+    () => g(CONCEPTS.equity), () => g(CONCEPTS.totalDebtLong), () => g(CONCEPTS.totalDebtShort), () => g(CONCEPTS.cash),
+    () => g(CONCEPTS.shortTermInvestments), () => g(CONCEPTS.taxes), () => g(CONCEPTS.pretaxIncome), () => g(CONCEPTS.interestExpense),
+    () => fetchConcept(env, cik, 'dei', 'EntityCommonStockSharesOutstanding'),
   ]);
 
   const P = {

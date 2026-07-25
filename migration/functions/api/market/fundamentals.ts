@@ -41,6 +41,19 @@ export const onRequestGet = guardAuth(async ({ request, env }) => {
         ticker, cik, data_json: data, updated_at: new Date().toISOString(),
       }], 'ticker');
     }
+    // Si NO vino nada del núcleo, no es que la empresa no se pueda valuar: EDGAR no respondió
+    // (rate-limit del proxy o caída). Hay que decirlo explícito — mostrarlo como "SIN_DATOS" se lee
+    // como "esta empresa no aplica", que es un diagnóstico equivocado. Antes de rendirnos, servimos
+    // lo último cacheado si existe.
+    if (!data.ocf.length && !data.epsDiluted.length && !data.revenue.length) {
+      const last = await cacheLast<{ data_json: object }>(env, 'fundamentals_cache', 'ticker', ticker);
+      if (last?.data_json) return json({ ...(last.data_json as object), cached: true, stale: true });
+      return json({
+        error: 'edgar-sin-datos',
+        detail: `EDGAR no devolvió datos de ${ticker} en este intento (suele ser rate-limit). Probá "Actualizar datos" en unos segundos.`,
+        reintentable: true,
+      }, 503);
+    }
     if (data.ungradeable.length) {
       return json({ ...data, warning: `datos incompletos vía EDGAR: falta ${data.ungradeable.join(', ')} (posible 20-F/IFRS o rate-limit)` });
     }

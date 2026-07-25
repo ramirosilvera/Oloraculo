@@ -26,7 +26,7 @@ export function AnalisisPage() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const { data: fund, isLoading, error } = useQuery({
+  const { data: fund, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['fundamentals', T, cik ?? ''],
     enabled: !cikLoading,   // esperar el cik_map para tickers fuera del set por defecto
     queryFn: () => api.fundamentals(T, cik),
@@ -80,15 +80,32 @@ export function AnalisisPage() {
   };
 
   if (cikLoading || isLoading) return <p className="text-ink-600">Cargando fundamentals de {T}…</p>;
-  if (error) return (
-    <div className="space-y-3">
-      <Link to="/analisis" className="text-xs text-celeste-600 hover:underline">← Volver a Análisis</Link>
-      <div className="text-sm text-warn space-y-1">
-        <p>No hay fundamentals de <b>{T}</b> vía EDGAR.</p>
-        <p className="text-ink-600">Solo funciona con empresas que reportan a la SEC. Si es una grande de EE.UU. que no reconocemos, cargá su par ticker → CIK en <b>Configuración</b>.</p>
+  if (error) {
+    // 503 = EDGAR no respondió en este intento (rate-limit): es REINTENTABLE, no "la empresa no
+    // aplica". Distinguirlo evita el diagnóstico equivocado.
+    const reintentable = /HTTP 50\d/.test(error instanceof Error ? error.message : '');
+    return (
+      <div className="space-y-3">
+        <Link to="/analisis" className="text-xs text-celeste-600 hover:underline">← Volver a Análisis</Link>
+        <div className="text-sm space-y-2">
+          {reintentable ? (
+            <>
+              <p className="text-warn">EDGAR no devolvió los datos de <b>{T}</b> en este intento.</p>
+              <p className="text-ink-600">Suele ser un límite de tasa momentáneo de la SEC, no un problema de la empresa. Reintentá en unos segundos.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-warn">No hay fundamentals de <b>{T}</b> vía EDGAR.</p>
+              <p className="text-ink-600">Solo funciona con empresas que reportan a la SEC. Si es una grande de EE.UU. que no reconocemos, cargá su par ticker → CIK en <b>Configuración</b>.</p>
+            </>
+          )}
+          <Button variant="ghost" onClick={() => void refetch()} disabled={isFetching}>
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} /> {isFetching ? 'Reintentando…' : 'Reintentar'}
+          </Button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
   if (!fund || !ratios || !dcf) return null;
 
   const verdictTone = dcf.verdict === 'COMPRAR' ? 'pos' : dcf.verdict === 'CARO' ? 'neg' : 'warn';
