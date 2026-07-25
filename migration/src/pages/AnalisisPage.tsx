@@ -120,7 +120,7 @@ export function AnalisisPage() {
         <Stat label="Precio" value={fmtUsd(price)} />
         <Stat label="Valor intrínseco / acc." value={fmtUsd(dcf.intrinsicPerShare)} hint="DCF Owner Earnings" />
         <Stat label="Margen de seguridad" value={fmtPct(dcf.marginOfSafety)} hint={`exigido ${fmtPct(inp.mosRequired)}`} />
-        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)} hint="promedio 5 años" />
+        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)} hint="promedio ponderado de 5 años (pesan más los recientes)" />
       </div>
 
       {/* Ratios */}

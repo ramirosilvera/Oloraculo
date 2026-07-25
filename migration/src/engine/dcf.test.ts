@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Fundamentals, AnnualPoint } from '../types/domain';
 import { computeRatios, eg5y } from './ratios';
-import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, G_MAX } from './dcf';
+import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, normalizarOwnerEarnings, DEFAULT_DCF_INPUTS, G_MAX } from './dcf';
 
 const P = (vals: [number, number][]): AnnualPoint[] =>
   vals.map(([fy, val]) => ({ fy, end: `${fy}-06-30`, val }));
@@ -200,4 +200,33 @@ describe('ownerEarningsByYear — no descartar años por falta de capex (caso ME
     expect(oe.find(y => y.fy === 2025)!.growthCapex).toBe(0);
     expect(oe.find(y => y.fy === 2023)!.growthCapex).toBe(509 - 524);
   });
+});
+
+describe('normalizarOwnerEarnings — ponderado por recencia', () => {
+  it('serie plana: igual al promedio simple', () => {
+    expect(normalizarOwnerEarnings([100, 100, 100, 100, 100])).toBeCloseTo(100, 9);
+  });
+
+  it('serie creciente: queda por ENCIMA del promedio simple pero por debajo del último año', () => {
+    const serie = [761, 2537, 4616, 7301, 11298];            // MELI real (owner earnings, M USD)
+    const simple = serie.reduce((a, b) => a + b, 0) / serie.length;
+    const pond = normalizarOwnerEarnings(serie);
+    expect(pond).toBeGreaterThan(simple);                     // no castiga el crecimiento
+    expect(pond).toBeLessThan(serie.at(-1)!);                 // sigue siendo conservador
+    expect(pond).toBeCloseTo(105377 / 15, 6);                 // pesos 1..5 → suma 15
+  });
+
+  it('un año atípico puntual no domina (sigue normalizando)', () => {
+    const conPico = normalizarOwnerEarnings([100, 100, 900, 100, 100]);
+    expect(conPico).toBeLessThan(300);   // el pico se suaviza
+    expect(conPico).toBeGreaterThan(100);
+  });
+
+  it('serie decreciente: por DEBAJO del promedio simple (refleja el deterioro)', () => {
+    const serie = [1000, 800, 600, 400, 200];
+    const simple = serie.reduce((a, b) => a + b, 0) / serie.length;
+    expect(normalizarOwnerEarnings(serie)).toBeLessThan(simple);
+  });
+
+  it('serie vacía → 0', () => { expect(normalizarOwnerEarnings([])).toBe(0); });
 });

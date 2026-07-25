@@ -56,7 +56,7 @@ export interface MungerCheck { label: string; ok: boolean; detail: string; }
 
 export interface DcfResult {
   ownerEarningsByYear: OwnerEarningsYear[];
-  ownerEarningsNorm: number;        // promedio 5 años
+  ownerEarningsNorm: number;        // promedio PONDERADO por recencia de los últimos 5 años
   histCagrOE: number | null;        // CAGR histórico de owner earnings
   intrinsicValue: number;           // equity total
   intrinsicPerShare: number | null;
@@ -94,6 +94,19 @@ export function ownerEarningsByYear(f: Fundamentals, method: CapexMethod): Owner
   });
 }
 
+// Normalización de owner earnings PONDERADA POR RECENCIA (pesos lineales 1..n, del más viejo al más
+// nuevo). Un promedio simple castiga a las empresas que crecen: promedia el nivel de hace 5 años con
+// el de hoy y ancla la base del DCF muy por debajo de la capacidad de generación actual (MELI:
+// promedio simple ~5.300 vs ~7.000 ponderado, con el último año en 11.300). Sigue suavizando un año
+// atípico —que es el objetivo de "normalizar"— pero sin borrar la tendencia.
+// La serie debe venir ordenada de MÁS VIEJA a MÁS RECIENTE.
+export function normalizarOwnerEarnings(serie: number[]): number {
+  if (!serie.length) return 0;
+  let num = 0, den = 0;
+  serie.forEach((v, i) => { const w = i + 1; num += v * w; den += w; });
+  return den > 0 ? num / den : 0;
+}
+
 // CAGR histórico de owner earnings (para el chequeo Munger de "supuesto no optimista").
 function cagr(series: number[]): number | null {
   if (series.length < 2) return null;
@@ -115,7 +128,7 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
     };
   }
 
-  const ownerEarningsNorm = last5.reduce((s, y) => s + y.ownerEarnings, 0) / last5.length;
+  const ownerEarningsNorm = normalizarOwnerEarnings(last5.map(y => y.ownerEarnings));
   const histCagrOE = cagr(last5.map(y => y.ownerEarnings));
 
   // Owner earnings normalizados ≤ 0 (capex agresivo / OCF < capex mant.): el DCF no
