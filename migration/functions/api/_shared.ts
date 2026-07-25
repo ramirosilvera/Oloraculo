@@ -82,13 +82,27 @@ export function guard(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<E
 }
 
 // guard() + sesión válida: para los endpoints que consumen cuota paga (mercado/fundamentals).
+// Token INTERNO para que el cron pueda llamar a los endpoints protegidos sin configuración nueva.
+// Se deriva de un secret que SIEMPRE existe en la Function (service-role; CRON_SECRET si está), y
+// se envía el HASH, no la clave: filtrarlo no expone el secret. Sin esto, el refresco programado
+// quedaba en 401 porque no tiene JWT de usuario (y CRON_SECRET puede no estar configurado).
+export async function tokenInterno(env: Env): Promise<string> {
+  const base = env.CRON_SECRET || env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!base) return '';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`refresh-interno:${base}`));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function guardAuth(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<Env> {
   const inner = guard(handler);
   return async (ctx) => {
     // El cron (refresh-all) llama estos mismos endpoints server-side para calentar las caches sin
-    // que la app esté abierta: no tiene JWT de usuario, así que se acepta también el CRON_SECRET.
-    const esCron = !!ctx.env.CRON_SECRET && ctx.request.headers.get('X-Cron-Secret') === ctx.env.CRON_SECRET;
-    if (!esCron && !(await usuarioAutenticado(ctx.env, ctx.request))) {
+    // que la app esté abierta: no tiene JWT de usuario, así que se aceptan sus credenciales propias.
+    const cronOk = !!ctx.env.CRON_SECRET && ctx.request.headers.get('X-Cron-Secret') === ctx.env.CRON_SECRET;
+    const enviado = ctx.request.headers.get('X-Internal-Refresh') || '';
+    const esperado = enviado ? await tokenInterno(ctx.env) : '';
+    const internoOk = !!esperado && enviado === esperado;
+    if (!cronOk && !internoOk && !(await usuarioAutenticado(ctx.env, ctx.request))) {
       return json({ error: 'no-autorizado', detail: 'Necesitás iniciar sesión.' }, 401);
     }
     return inner(ctx);

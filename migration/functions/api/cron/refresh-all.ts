@@ -1,4 +1,4 @@
-import { type Env, json, preflight, guard, sbSelect } from '../_shared';
+import { type Env, json, preflight, guard, sbSelect, tokenInterno } from '../_shared';
 import { DEFAULT_CIK } from '../_edgar';
 
 // GET /api/cron/refresh-all
@@ -19,11 +19,13 @@ export const onRequestGet = guard(async ({ request, env }) => {
   }
   const origin = new URL(request.url).origin;
 
-  // Los endpoints de mercado exigen sesión; el cron se identifica con el mismo CRON_SECRET.
-  const cronHeader = env.CRON_SECRET ? { 'X-Cron-Secret': env.CRON_SECRET } : undefined;
+  // Los endpoints de mercado exigen sesión; el cron se identifica con su token interno (derivado de
+  // un secret que siempre existe), así el refresco funciona aunque CRON_SECRET no esté configurado.
+  const headers: Record<string, string> = { 'X-Internal-Refresh': await tokenInterno(env) };
+  if (env.CRON_SECRET) headers['X-Cron-Secret'] = env.CRON_SECRET;
   const hit = async (path: string) => {
     try {
-      const r = await fetch(`${origin}${path}`, cronHeader ? { headers: cronHeader } : undefined);
+      const r = await fetch(`${origin}${path}`, { headers });
       return r.ok;
     } catch { return false; }
   };
