@@ -11,6 +11,8 @@ export function AportesPage() {
   const { active } = usePortfolios();
   const { data: aportes = [] } = useAportes(active?.id);
   const { add, remove } = useAporteMutations(active?.id);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [f, setF] = useState<{ monto: string; fecha: string; tipo: AporteTipo; descripcion: string }>({
     monto: '', fecha: new Date().toISOString().slice(0, 10), tipo: 'recurrente', descripcion: '',
   });
@@ -42,11 +44,24 @@ export function AportesPage() {
             <input placeholder="Descripción" value={f.descripcion} onChange={e => setF({ ...f, descripcion: e.target.value })} className={inputCls} />
           </Field>
           <div className="flex items-end">
-            <Button onClick={async () => { if (f.monto) { await add({ monto: Number(f.monto), fecha: f.fecha, tipo: f.tipo, descripcion: f.descripcion || null }); setF({ ...f, monto: '', descripcion: '' }); } }}>
-              <Plus className="w-4 h-4" /> Agregar
+            <Button disabled={busy} onClick={async () => {
+              // Antes: sin validar (aceptaba negativos y fechas futuras) y el error se tragaba, así
+              // que un fallo parecía "no hizo nada" y el doble tap duplicaba el aporte.
+              const monto = Number(f.monto);
+              if (!(monto > 0)) { setErr('El monto debe ser mayor a 0.'); return; }
+              if (f.fecha > new Date().toISOString().slice(0, 10)) { setErr('La fecha no puede ser futura.'); return; }
+              setBusy(true); setErr(null);
+              try {
+                await add({ monto, fecha: f.fecha, tipo: f.tipo, descripcion: f.descripcion || null });
+                setF({ ...f, monto: '', descripcion: '' });
+              } catch (e) { setErr(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`); }
+              finally { setBusy(false); }
+            }}>
+              <Plus className="w-4 h-4" /> {busy ? 'Guardando…' : 'Agregar'}
             </Button>
           </div>
         </div>
+        {err && <p className="px-4 pb-3 text-xs text-warn">{err}</p>}
       </Card>
 
       <Card>

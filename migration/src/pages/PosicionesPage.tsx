@@ -331,7 +331,6 @@ const MESES_E = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 
 function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
   const [cantidad, setCantidad] = useState(String(pos.cantidad));
   const [precio, setPrecio] = useState(String(pos.precio_compra));
-  const [objetivo, setObjetivo] = useState(pos.peso_objetivo != null ? String(+(pos.peso_objetivo * 100).toFixed(2)) : '');
   const [sector, setSector] = useState(pos.sector ?? '');
   const [ratio, setRatio] = useState(pos.ratio_cedear != null ? String(pos.ratio_cedear) : '');
   const [cTasa, setCTasa] = useState(pos.cupon_tasa != null ? String(pos.cupon_tasa * 100) : '');
@@ -346,7 +345,6 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
     const patch: Partial<Posicion> = {
       cantidad: Number(cantidad) || 0,
       precio_compra: Number(precio) || 0,
-      peso_objetivo: objetivo ? Number(objetivo) / 100 : null,
       sector: sector || null,
       ratio_cedear: ratio ? Number(ratio) : null,
     };
@@ -369,7 +367,6 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
           <div className="p-4 grid grid-cols-2 gap-3 text-sm">
             <Field label="Cantidad"><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} className={inputCls} /></Field>
             <Field label="Costo promedio (USD)"><input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} /></Field>
-            <Field label="% objetivo"><input type="number" value={objetivo} onChange={e => setObjetivo(e.target.value)} className={inputCls} /></Field>
             <Field label="Sector"><input value={sector} onChange={e => setSector(e.target.value)} className={inputCls} /></Field>
             {pos.tipo === 'cedear' && <Field label="Ratio CEDEAR"><input type="number" value={ratio} onChange={e => setRatio(e.target.value)} className={inputCls} /></Field>}
             {pos.tipo === 'bono' && <>
@@ -621,6 +618,8 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
 
 function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: string; ticker: string; onClose: () => void }) {
   const { data: movs = [], isLoading } = useMovimientos(portfolioId, ticker);
+  const { removeMovimiento } = usePosicionMutations(portfolioId);
+  const [errMov, setErrMov] = useState<string | null>(null);
   const totalQty = movs.reduce((s, m) => s + (m.tipo === 'venta' ? -1 : 1) * m.cantidad, 0);
   const realizado = realizedPnl(movs).total;
 
@@ -630,6 +629,7 @@ function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: strin
         <Card className="animate-rise">
           <CardHeader title={`Movimientos · ${ticker}`} sub="Registro de cada compra que consolidó esta posición."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
+          {errMov && <p className="px-4 pt-2 text-xs text-warn">{errMov}</p>}
           <div className="max-h-[55vh] overflow-y-auto divide-y divide-line">
             {isLoading
               ? <p className="p-4 text-sm text-ink-600">Cargando…</p>
@@ -641,6 +641,10 @@ function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: strin
                     <Badge tone={m.tipo === 'compra' ? 'pos' : m.tipo === 'venta' ? 'neg' : 'gray'}>{m.tipo}</Badge>
                     <span className="flex-1 text-right text-ink-700 tnum">{fmtNum(m.cantidad, 0)} × {fmtUsd(m.precio)}</span>
                     <span className="font-semibold tnum text-ink-900 w-24 text-right">{fmtUsd(m.cantidad * m.precio, 0)}</span>
+                    <button
+                      onClick={() => { setErrMov(null); if (window.confirm(`¿Borrar este movimiento (${m.tipo} ${fmtNum(m.cantidad, 0)} × ${fmtUsd(m.precio)})? Se recalculan la cantidad y el costo promedio.`)) removeMovimiento(m).catch(e => setErrMov(e instanceof Error ? e.message : 'No se pudo borrar')); }}
+                      title="Borrar movimiento" aria-label="Borrar movimiento"
+                      className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-8 h-8 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
           </div>

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
 import { useAuth } from './useAuth';
+import { consolidarCompra, reconstruirTenencia } from '../engine/tenencia';
 import type { Posicion, Movimiento } from '../types/domain';
 
 // Historial de movimientos de un portfolio (opcionalmente filtrado por ticker).
@@ -77,11 +78,11 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
 
       let posId: string;
       if (existing) {
-        const oldQty = Number(existing.cantidad) || 0;
-        const oldPrice = Number(existing.precio_compra) || 0;
-        const newQty = oldQty + addQty;
-        const newPrice = newQty > 0 ? (oldQty * oldPrice + addQty * addPrice) / newQty : oldPrice;
-        const patch: Partial<Posicion> = { cantidad: newQty, precio_compra: newPrice };
+        // Motor puro y testeado (engine/tenencia): costo promedio ponderado.
+        const t = consolidarCompra(
+          { cantidad: Number(existing.cantidad) || 0, costoPromedio: Number(existing.precio_compra) || 0 },
+          addQty, addPrice);
+        const patch: Partial<Posicion> = { cantidad: t.cantidad, precio_compra: t.costoPromedio };
         // completar campos que faltaban en la posición existente
         if (existing.ratio_cedear == null && p.ratio_cedear != null) patch.ratio_cedear = p.ratio_cedear;
         if (!existing.sector && p.sector) patch.sector = p.sector;
@@ -162,6 +163,25 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
         supabase.from('posiciones').update({ peso_objetivo: x.peso_objetivo }).eq('id', x.id)));
       const failed = results.find(r => r.error);
       if (failed?.error) throw failed.error;
+      invalidate();
+    },
+    // Borrar un movimiento mal cargado y RECALCULAR la posición desde los que quedan. Sin esto,
+    // `movimientos` era la única tabla append-only: una venta con precio 0 (o un dedo gordo)
+    // envenenaba el P&L realizado para siempre, y la única salida era borrar toda la posición.
+    removeMovimiento: async (mov: Movimiento) => {
+      const { error } = await supabase.from('movimientos').delete().eq('id', mov.id);
+      if (error) throw error;
+      if (mov.posicion_id) {
+        const { data: resto, error: selErr } = await supabase.from('movimientos')
+          .select('*').eq('posicion_id', mov.posicion_id)
+          .order('fecha', { ascending: true }).order('created_at', { ascending: true });
+        if (selErr) throw selErr;
+        // Motor puro y testeado (engine/tenencia): reconstruye desde el historial restante.
+        const t = reconstruirTenencia((resto ?? []) as Movimiento[]);
+        const { error: updErr } = await supabase.from('posiciones')
+          .update({ cantidad: t.cantidad, precio_compra: t.costoPromedio }).eq('id', mov.posicion_id);
+        if (updErr) throw updErr;
+      }
       invalidate();
     },
     remove: async (id: string) => {
