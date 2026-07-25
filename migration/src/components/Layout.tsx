@@ -56,11 +56,17 @@ export function Layout() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => { setMoreOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreOpen(false); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [moreOpen]);
 
   return (
     <div className="min-h-full flex flex-col">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-xl pt-safe">
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center gap-3">
           <Link to="/" className="shrink-0"><Wordmark hideTextOnMobile /></Link>
 
@@ -145,7 +151,7 @@ export function Layout() {
               <span className="text-[10px] font-semibold leading-none">{mobileLabel ?? label}</span>
             </NavLink>
           ))}
-          <button onClick={() => setMoreOpen(o => !o)}
+          <button onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen} aria-label="Más opciones"
             className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
               moreOpen || isMoreRoute(location.pathname, MOBILE_SHEET) ? 'text-celeste-500' : 'text-ink-500 active:text-ink-700'}`}>
             <MoreHorizontal className="w-5 h-5" />
@@ -157,11 +163,12 @@ export function Layout() {
       {/* ── Mobile "Más" bottom sheet ─────────────────────────── */}
       {moreOpen && (
         <div className="md:hidden">
-          <div className="fixed inset-0 z-50 bg-ink-950/40 backdrop-blur-sm animate-fade-in"
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm animate-fade-in"
             onClick={() => setMoreOpen(false)} />
-          <div className="fixed bottom-0 inset-x-0 z-50 rounded-t-3xl bg-surface border-t border-line shadow-card animate-slide-up pb-safe">
+          <div role="dialog" aria-modal="true" aria-label="Más opciones"
+            className="fixed bottom-0 inset-x-0 z-50 rounded-t-3xl bg-surface border-t border-line shadow-card animate-slide-up pb-safe">
             <div className="w-10 h-1 rounded-full bg-ink-400 mx-auto mt-3 mb-4" />
-            <div className="grid grid-cols-3 gap-1 px-4 pb-6">
+            <div className="grid grid-cols-3 gap-1 px-4 pb-6 max-h-[70vh] overflow-y-auto">
               {MOBILE_SHEET.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
                   className={({ isActive }) => `flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-colors ${

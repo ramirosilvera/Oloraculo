@@ -77,8 +77,9 @@ button, a, [role="button"] { touch-action: manipulation; }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Safe-area bottom (iPhone X+ home indicator) */
+/* Safe-area insets (iPhone X+ notch / home indicator, PWA standalone) */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
 
 /* Scrollbars finos, adaptados al tema */
 * { scrollbar-width: thin; scrollbar-color: rgb(var(--ink-400)) transparent; }
