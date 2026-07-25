@@ -44,10 +44,12 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
         'rise': 'rise 0.4s cubic-bezier(0.16,1,0.3,1)',
+        'slide-up': 'slideUp 0.35s cubic-bezier(0.16,1,0.3,1)',
       },
       keyframes: {
         fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
         rise: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        slideUp: { '0%': { transform: 'translateY(100%)' }, '100%': { transform: 'translateY(0)' } },
       },
     },
   },

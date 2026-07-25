@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent,
   CalendarClock, Radar, Sparkles, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal, PiggyBank,
@@ -11,31 +12,41 @@ import { Wordmark } from './ui';
 import { UpdatedAt } from './UpdatedAt';
 import { ErrorBoundary } from './ErrorBoundary';
 
-const NAV_PRIMARY = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+// ── Navegación ────────────────────────────────────────────────────────────────
+interface NavItem { to: string; label: string; mobileLabel?: string; icon: LucideIcon; end?: boolean }
+
+const NAV_MAIN: NavItem[] = [
+  { to: '/', label: 'Dashboard', mobileLabel: 'Inicio', icon: LayoutDashboard, end: true },
   { to: '/posiciones', label: 'Posiciones', icon: Table2 },
   { to: '/finanzas', label: 'Finanzas', icon: PiggyBank },
   { to: '/radar', label: 'Radar', icon: Radar },
-  { to: '/bonos', label: 'Renta fija', icon: Landmark },
-];
-const NAV_SECONDARY = [
-  { to: '/analisis', label: 'Análisis', icon: Sparkles },
-  { to: '/tasas', label: 'Tasas EEUU', icon: Percent },
+  { to: '/bonos', label: 'Renta fija', mobileLabel: 'Bonos', icon: Landmark },
   { to: '/cupones', label: 'Cupones', icon: CalendarClock },
+];
+
+const NAV_MORE: NavItem[] = [
+  { to: '/analisis', label: 'Análisis', icon: Sparkles },
+  { to: '/tasas', label: 'Tasas', icon: Percent },
   { to: '/aportes', label: 'Aportes', icon: Wallet },
   { to: '/proyeccion', label: 'Proyección', icon: TrendingUp },
   { to: '/consolidado', label: 'Consolidado', icon: Layers },
-  { to: '/config', label: 'Configuración', icon: Settings },
+  { to: '/config', label: 'Config', icon: Settings },
 ];
+
+const MOBILE_TABS = NAV_MAIN.slice(0, 5);
+const MOBILE_SHEET: NavItem[] = [NAV_MAIN[5], ...NAV_MORE];
 
 const pill = (isActive: boolean) =>
   `flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
     isActive ? 'bg-celeste-500 text-white shadow-glow' : 'text-ink-600 hover:bg-canvas hover:text-ink-800'}`;
 
+function isMoreRoute(pathname: string, items: NavItem[]) {
+  return items.some(n => pathname === n.to || pathname.startsWith(n.to + '/'));
+}
+
 export function Layout() {
   const { signOut, session } = useAuth();
   const { portfolios, active, activeId, defaultId, setActiveId, loading } = usePortfolios();
-  // El portfolio por defecto aparece primero en el selector.
   const orderedPortfolios = defaultId
     ? [...portfolios].sort((a, b) => (a.id === defaultId ? -1 : b.id === defaultId ? 1 : 0))
     : portfolios;
@@ -44,10 +55,13 @@ export function Layout() {
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
 
+  useEffect(() => { setMoreOpen(false); }, [location.pathname]);
+
   return (
     <div className="min-h-full flex flex-col">
+      {/* ── Header ─────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-xl">
-        <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-3">
+        <div className="mx-auto max-w-6xl px-4 h-14 flex items-center gap-3">
           <Link to="/" className="shrink-0"><Wordmark hideTextOnMobile /></Link>
 
           <div className="relative min-w-0 flex-1 sm:flex-none sm:ml-2 sm:min-w-[10rem]">
@@ -74,34 +88,24 @@ export function Layout() {
           </div>
         </div>
 
-        {/* Nav — pills; en móvil los secundarios van al menú "Más".
-            El scroll horizontal va SOLO en el contenedor de pills; el menú "Más" queda fuera
-            para que su dropdown no lo recorte el overflow. */}
-        <div className="mx-auto max-w-6xl px-3 pb-2.5 flex items-center gap-1.5">
-          <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
-            {NAV_PRIMARY.map(({ to, label, icon: Icon, end }) => (
-              <NavLink key={to} to={to} end={end} className={({ isActive }) => pill(isActive)}>
-                <Icon className="w-3.5 h-3.5" /> {label}
-              </NavLink>
-            ))}
-            {/* Secundarios: pills en desktop */}
-            {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} className={({ isActive }) => `${pill(isActive)} hidden lg:flex`}>
-                <Icon className="w-3.5 h-3.5" /> {label}
-              </NavLink>
-            ))}
-          </nav>
-          {/* "Más" en móvil/tablet (fuera del scroll) */}
-          <div className="relative lg:hidden shrink-0">
-            <button onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen} className={pill(NAV_SECONDARY.some(n => location.pathname === n.to))}>
+        {/* Desktop nav — pills + "Más" dropdown */}
+        <nav className="mx-auto max-w-6xl px-3 pb-2 hidden md:flex items-center gap-1.5">
+          {NAV_MAIN.map(({ to, label, icon: Icon, end }) => (
+            <NavLink key={to} to={to} end={end} className={({ isActive }) => pill(isActive)}>
+              <Icon className="w-3.5 h-3.5" /> {label}
+            </NavLink>
+          ))}
+          <div className="relative shrink-0 ml-auto">
+            <button onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen}
+              className={pill(isMoreRoute(location.pathname, NAV_MORE))}>
               <MoreHorizontal className="w-3.5 h-3.5" /> Más
             </button>
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
                 <div className="absolute right-0 mt-1.5 z-50 w-48 rounded-2xl border border-line bg-surface shadow-card p-1.5 animate-fade-in">
-                  {NAV_SECONDARY.map(({ to, label, icon: Icon }) => (
-                    <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
+                  {NAV_MORE.map(({ to, label, icon: Icon }) => (
+                    <NavLink key={to} to={to}
                       className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
                         isActive ? 'bg-celeste-100 text-celeste-700 dark:bg-celeste-500/20 dark:text-celeste-300' : 'text-ink-700 hover:bg-canvas'}`}>
                       <Icon className="w-4 h-4" /> {label}
@@ -111,9 +115,10 @@ export function Layout() {
               </>
             )}
           </div>
-        </div>
+        </nav>
       </header>
 
+      {/* ── Main ──────────────────────────────────────────────── */}
       <main className="mx-auto max-w-6xl w-full px-4 py-6 flex-1 animate-fade-in">
         {loading
           ? <div className="text-center py-20 text-ink-600">Cargando…</div>
@@ -124,10 +129,52 @@ export function Layout() {
               : <ErrorBoundary key={location.pathname}><Outlet /></ErrorBoundary>}
       </main>
 
-      <footer className="mx-auto max-w-6xl w-full px-4 py-6 text-center text-[11px] text-ink-500 space-y-1">
+      <footer className="mx-auto max-w-6xl w-full px-4 pt-6 pb-24 md:pb-6 text-center text-[11px] text-ink-500 space-y-1">
         <div><UpdatedAt /></div>
         <p>Portafolio · los números los calcula el código, la IA solo interpreta lo cualitativo.</p>
       </footer>
+
+      {/* ── Mobile bottom tab bar ─────────────────────────────── */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t border-line bg-surface/95 backdrop-blur-xl pb-safe">
+        <div className="flex items-stretch h-14">
+          {MOBILE_TABS.map(({ to, mobileLabel, label, icon: Icon, end }) => (
+            <NavLink key={to} to={to} end={end}
+              className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
+                isActive ? 'text-celeste-500' : 'text-ink-500 active:text-ink-700'}`}>
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-semibold leading-none">{mobileLabel ?? label}</span>
+            </NavLink>
+          ))}
+          <button onClick={() => setMoreOpen(o => !o)}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
+              moreOpen || isMoreRoute(location.pathname, MOBILE_SHEET) ? 'text-celeste-500' : 'text-ink-500 active:text-ink-700'}`}>
+            <MoreHorizontal className="w-5 h-5" />
+            <span className="text-[10px] font-semibold leading-none">Más</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* ── Mobile "Más" bottom sheet ─────────────────────────── */}
+      {moreOpen && (
+        <div className="md:hidden">
+          <div className="fixed inset-0 z-50 bg-ink-950/40 backdrop-blur-sm animate-fade-in"
+            onClick={() => setMoreOpen(false)} />
+          <div className="fixed bottom-0 inset-x-0 z-50 rounded-t-3xl bg-surface border-t border-line shadow-card animate-slide-up pb-safe">
+            <div className="w-10 h-1 rounded-full bg-ink-400 mx-auto mt-3 mb-4" />
+            <div className="grid grid-cols-3 gap-1 px-4 pb-6">
+              {MOBILE_SHEET.map(({ to, label, icon: Icon }) => (
+                <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
+                  className={({ isActive }) => `flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-colors ${
+                    isActive ? 'bg-celeste-100 text-celeste-700 dark:bg-celeste-500/20 dark:text-celeste-300'
+                    : 'text-ink-600 hover:bg-canvas active:bg-canvas'}`}>
+                  <Icon className="w-6 h-6" />
+                  <span className="text-[11px] font-semibold text-center leading-tight">{label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
