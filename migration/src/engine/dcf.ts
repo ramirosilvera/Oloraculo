@@ -21,18 +21,29 @@ export type CapexMethod = 'dna' | 'capex' | 'avg';
 // ~1-2 años (prom5 ≈ 1,9 años de rezago). Es conservadurismo legítimo, pero conviene saberlo.
 export type OeMethod = 'ultimo' | 'prom3' | 'prom5' | 'ponderado' | 'mediana5' | 'margen';
 
+// Default: el ÚLTIMO año. Fuente única de verdad (defaults, fallback de guardados viejos y el
+// parámetro por defecto del normalizador) para que no queden comportamientos inconsistentes.
+// Por qué: todo promedio hacia atrás no solo normaliza el margen, también achica la ESCALA — en una
+// empresa que crece equivale a valuar el negocio de hace 1-2 años; y en una que se deteriora
+// SOBREVALÚA (promediar años buenos que ya no existen). El último año refleja la escala real de hoy.
+// Contrapartida: el valor intrínseco es LINEAL en esta base, así que un año con ruido (swing de
+// capital de trabajo, venta puntual, margen pico) se traslada 1:1 → por eso existe el guard de base
+// que bloquea COMPRAR si el último año se sale de su propia tendencia.
+// Para negocios con volatilidad RECURRENTE (farma con cargos de I+D, cíclicas) conviene prom5.
+export const OE_METHOD_DEFAULT: OeMethod = 'ultimo';
+
 export interface DcfInputs {
   g: number;                 // crecimiento explícito anual (ej. 0.08)
   d: number;                 // tasa de descuento (ej. 0.10)
   gt: number;                // crecimiento terminal (ej. 0.025)
   N: number;                 // años explícitos (default 10)
   capexMethod: CapexMethod;  // capex de mantenimiento
-  oeMethod?: OeMethod;       // normalización de los owner earnings (default: 'ponderado')
+  oeMethod?: OeMethod;       // normalización de los owner earnings (default: OE_METHOD_DEFAULT)
   mosRequired: number;       // margen de seguridad exigido (ej. 0.30)
 }
 
 export const DEFAULT_DCF_INPUTS: DcfInputs = {
-  g: 0.08, d: 0.10, gt: 0.03, N: 20, capexMethod: 'dna', oeMethod: 'ponderado', mosRequired: 0.20,
+  g: 0.08, d: 0.10, gt: 0.03, N: 20, capexMethod: 'dna', oeMethod: OE_METHOD_DEFAULT, mosRequired: 0.20,
 };
 
 // Techo de crecimiento explícito: ninguna empresa sostiene >15% anual durante N años. Sin este
@@ -54,7 +65,7 @@ export function dcfDefaultsFor(r: Ratios): DcfInputs {
   const d = r.costOfEquity != null ? Math.max(0.06, +r.costOfEquity.toFixed(4)) : DEFAULT_DCF_INPUTS.d; // piso 6%
   const gBruto = r.eg5y != null ? Math.max(0, r.eg5y - 0.01) : DEFAULT_DCF_INPUTS.g;
   const g = +Math.max(0, Math.min(gBruto, G_MAX, d - 0.01)).toFixed(4);
-  return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', oeMethod: 'ponderado', mosRequired: 0.20 };
+  return { g, d, gt: 0.03, N: 20, capexMethod: 'dna', oeMethod: OE_METHOD_DEFAULT, mosRequired: 0.20 };
 }
 
 export interface OwnerEarningsYear {
@@ -69,7 +80,7 @@ export interface MungerCheck { label: string; ok: boolean; detail: string; }
 
 export interface DcfResult {
   ownerEarningsByYear: OwnerEarningsYear[];
-  ownerEarningsNorm: number;        // base normalizada según inp.oeMethod (default: ponderado 5a)
+  ownerEarningsNorm: number;        // base normalizada según inp.oeMethod (default: último año)
   histCagrOE: number | null;        // CAGR histórico de owner earnings
   intrinsicValue: number;           // equity total
   intrinsicPerShare: number | null;
@@ -128,7 +139,7 @@ export function normalizarPorMargen(oe: { fy: number; ownerEarnings: number }[],
 
 // Normaliza la serie de owner earnings según el método elegido. La serie debe venir ordenada de MÁS
 // VIEJA a MÁS RECIENTE. Un método desconocido (dato guardado corrupto) cae al ponderado.
-export function normalizarOwnerEarnings(serie: number[], metodo: OeMethod = 'ponderado'): number {
+export function normalizarOwnerEarnings(serie: number[], metodo: OeMethod = OE_METHOD_DEFAULT): number {
   if (!serie.length) return 0;
   const prom = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
   switch (metodo) {
@@ -173,7 +184,7 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
     };
   }
 
-  const oeMethod = inp.oeMethod ?? 'ponderado';
+  const oeMethod = inp.oeMethod ?? OE_METHOD_DEFAULT;   // guardados viejos siguen el default actual
   const serieOe = last5.map(y => y.ownerEarnings);
   // 'margen' necesita las ventas; si no se pueden emparejar, cae al ponderado (no inventa).
   const porMargen = oeMethod === 'margen' ? normalizarPorMargen(last5, byFy(f.revenue)) : null;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Fundamentals, AnnualPoint } from '../types/domain';
 import { computeRatios, eg5y } from './ratios';
-import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, normalizarOwnerEarnings, DEFAULT_DCF_INPUTS, G_MAX } from './dcf';
+import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, normalizarOwnerEarnings, DEFAULT_DCF_INPUTS, OE_METHOD_DEFAULT, G_MAX } from './dcf';
 
 const P = (vals: [number, number][]): AnnualPoint[] =>
   vals.map(([fy, val]) => ({ fy, end: `${fy}-06-30`, val }));
@@ -204,20 +204,20 @@ describe('ownerEarningsByYear — no descartar años por falta de capex (caso ME
 
 describe('normalizarOwnerEarnings — ponderado por recencia', () => {
   it('serie plana: igual al promedio simple', () => {
-    expect(normalizarOwnerEarnings([100, 100, 100, 100, 100])).toBeCloseTo(100, 9);
+    expect(normalizarOwnerEarnings([100, 100, 100, 100, 100], 'ponderado')).toBeCloseTo(100, 9);
   });
 
   it('serie creciente: queda por ENCIMA del promedio simple pero por debajo del último año', () => {
     const serie = [761, 2537, 4616, 7301, 11298];            // MELI real (owner earnings, M USD)
     const simple = serie.reduce((a, b) => a + b, 0) / serie.length;
-    const pond = normalizarOwnerEarnings(serie);
+    const pond = normalizarOwnerEarnings(serie, 'ponderado');
     expect(pond).toBeGreaterThan(simple);                     // no castiga el crecimiento
     expect(pond).toBeLessThan(serie.at(-1)!);                 // sigue siendo conservador
     expect(pond).toBeCloseTo(105377 / 15, 6);                 // pesos 1..5 → suma 15
   });
 
   it('un año atípico puntual no domina (sigue normalizando)', () => {
-    const conPico = normalizarOwnerEarnings([100, 100, 900, 100, 100]);
+    const conPico = normalizarOwnerEarnings([100, 100, 900, 100, 100], 'ponderado');
     expect(conPico).toBeLessThan(300);   // el pico se suaviza
     expect(conPico).toBeGreaterThan(100);
   });
@@ -225,7 +225,7 @@ describe('normalizarOwnerEarnings — ponderado por recencia', () => {
   it('serie decreciente: por DEBAJO del promedio simple (refleja el deterioro)', () => {
     const serie = [1000, 800, 600, 400, 200];
     const simple = serie.reduce((a, b) => a + b, 0) / serie.length;
-    expect(normalizarOwnerEarnings(serie)).toBeLessThan(simple);
+    expect(normalizarOwnerEarnings(serie, 'ponderado')).toBeLessThan(simple);
   });
 
   it('serie vacía → 0', () => { expect(normalizarOwnerEarnings([])).toBe(0); });
@@ -262,8 +262,15 @@ describe('normalizarOwnerEarnings — métodos elegibles', () => {
     expect(normalizarOwnerEarnings(meli, 'prom3')).toBeCloseTo((4616 + 7301 + 11298) / 3, 6);
   });
 
-  it('sin método explícito (guardados viejos) usa ponderado', () => {
-    expect(normalizarOwnerEarnings(meli)).toBeCloseTo(normalizarOwnerEarnings(meli, 'ponderado'), 9);
+  it('sin método explícito (guardados viejos) sigue el DEFAULT actual, no un valor fijo', () => {
+    expect(OE_METHOD_DEFAULT).toBe('ultimo');
+    expect(normalizarOwnerEarnings(meli)).toBeCloseTo(normalizarOwnerEarnings(meli, OE_METHOD_DEFAULT), 9);
+  });
+
+  it('los defaults del DCF traen el método por defecto (una sola fuente de verdad)', () => {
+    expect(DEFAULT_DCF_INPUTS.oeMethod).toBe(OE_METHOD_DEFAULT);
+    const base = computeRatios(MSFT, 420, 0.9, 0.043);
+    expect(dcfDefaultsFor(base).oeMethod).toBe(OE_METHOD_DEFAULT);
   });
 
   it('computeDcf respeta el método elegido: ultimo da mayor valor que prom5', () => {

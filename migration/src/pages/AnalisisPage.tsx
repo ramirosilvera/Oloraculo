@@ -7,7 +7,7 @@ import { useQuotes, useMacro } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { computeRatios } from '../engine/ratios';
-import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, type DcfInputs, type CapexMethod, type OeMethod } from '../engine/dcf';
+import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, OE_METHOD_DEFAULT, type DcfInputs, type CapexMethod, type OeMethod } from '../engine/dcf';
 import { useDcfInputs } from '../hooks/useDcfInputs';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
@@ -61,7 +61,7 @@ export function AnalisisPage() {
 
   // Al abrir un ticker (una vez que hay ratios y cargó lo guardado): si el usuario ya guardó
   // supuestos para ese ticker, los usamos; si no, calculamos los defaults por empresa
-  // (g = EG5Y−1pto acotado, d = Ke, gt 3%, N 20, MoS 20%).
+  // (g = EG5Y−1pto acotado, d = Ke, gt 3%, N 20, MoS 20%, base = último año).
   useEffect(() => {
     if (!ratios || dcfLoading || seededFor.current === T) return;
     seededFor.current = T;
@@ -138,7 +138,7 @@ export function AnalisisPage() {
         <Stat label="Valor intrínseco / acc." value={fmtUsd(dcf.intrinsicPerShare)} hint="DCF Owner Earnings" />
         <Stat label="Margen de seguridad" value={fmtPct(dcf.marginOfSafety)} hint={`exigido ${fmtPct(inp.mosRequired)}`} />
         <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)}
-          hint={({ ultimo: 'último año', ponderado: 'ponderado 5 años (recientes pesan más)', prom3: 'promedio 3 años', prom5: 'promedio 5 años', mediana5: 'mediana 5 años', margen: 'margen mediano × ventas de hoy' } as Record<string, string>)[inp.oeMethod ?? 'ponderado'] ?? 'ponderado 5 años'} />
+          hint={({ ultimo: 'último año (por defecto)', ponderado: 'ponderado 5 años (recientes pesan más)', prom3: 'promedio 3 años', prom5: 'promedio 5 años', mediana5: 'mediana 5 años', margen: 'margen mediano × ventas de hoy' } as Record<string, string>)[inp.oeMethod ?? OE_METHOD_DEFAULT] ?? 'último año'} />
       </div>
 
       {/* Ratios */}
@@ -179,10 +179,10 @@ export function AnalisisPage() {
           <NumIn l="MoS exigido" v={inp.mosRequired} step={0.05} onChange={mosRequired => setInp({ ...inp, mosRequired })} pct />
           <div className="col-span-2 sm:col-span-3">
             <label className="text-[10px] uppercase text-ink-600">Base de owner earnings (normalización)</label>
-            <select value={inp.oeMethod ?? 'ponderado'} onChange={e => setInp({ ...inp, oeMethod: e.target.value as OeMethod })}
+            <select value={inp.oeMethod ?? OE_METHOD_DEFAULT} onChange={e => setInp({ ...inp, oeMethod: e.target.value as OeMethod })}
               className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
-              <option value="ultimo">Último año — negocio estable/predecible</option>
-              <option value="ponderado">Ponderado 5 años (recientes pesan más) — equilibrado</option>
+              <option value="ultimo">Último año — escala real de hoy (por defecto)</option>
+              <option value="ponderado">Ponderado 5 años (recientes pesan más)</option>
               <option value="prom3">Promedio 3 años</option>
               <option value="prom5">Promedio 5 años — negocio cíclico</option>
               <option value="mediana5">Mediana 5 años — hubo un año atípico</option>
@@ -192,7 +192,7 @@ export function AnalisisPage() {
               {(() => {
                 const fys = dcf.ownerEarningsByYear.slice(-5).map(y => y.fy);
                 if (!fys.length) return 'Sin años disponibles.';
-                const m = inp.oeMethod ?? 'ponderado';
+                const m = inp.oeMethod ?? OE_METHOD_DEFAULT;
                 const usados = m === 'ultimo' ? fys.slice(-1) : m === 'prom3' ? fys.slice(-3) : fys;
                 return usados.length === 1
                   ? `Usando el año ${usados[0]}.`
@@ -210,7 +210,7 @@ export function AnalisisPage() {
                       ? 'Ventana corta: más actual que 5 años, con algo de suavizado.'
                       : inp.oeMethod === 'margen'
                         ? 'Normaliza la RENTABILIDAD (mediana del margen) pero mantiene la ESCALA de hoy: sin rezago y sin capitalizar un margen pico. Si no hay ventas para emparejar, usa el ponderado.'
-                        : 'Sigue la tendencia sin saltar al último año, con un rezago de ~1,3 años. Buen punto de partida.'}
+                        : 'Sigue la tendencia sin saltar al último año, con un rezago de ~1,3 años.'}
             </p>
           </div>
           <div>
