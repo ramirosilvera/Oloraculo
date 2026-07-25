@@ -170,3 +170,34 @@ describe('computeDcf — robustez ante supuestos corruptos (no debe colgar ni da
     expect(Number.isFinite(r.intrinsicValue)).toBe(true);
   });
 });
+
+describe('ownerEarningsByYear — no descartar años por falta de capex (caso MELI)', () => {
+  // MELI real: EDGAR trae OCF y D&A hasta 2025 pero el capex se corta en 2023. Con el método 'dna'
+  // (default) el capex NO se usa, así que 2024/2025 deben entrar igual.
+  const MELI: Fundamentals = {
+    ...MSFT, ticker: 'MELI',
+    ocf:   P([[2021, 965], [2022, 2940], [2023, 5140], [2024, 7918], [2025, 12116]]),
+    dna:   P([[2021, 204], [2022, 403], [2023, 524], [2024, 617], [2025, 818]]),
+    capex: P([[2021, 573], [2022, 454], [2023, 509]]),   // sin 2024/2025
+  };
+
+  it("método 'dna': incluye los años sin capex y normaliza sobre el nivel real", () => {
+    const oe = ownerEarningsByYear(MELI, 'dna');
+    expect(oe.map(y => y.fy)).toEqual([2021, 2022, 2023, 2024, 2025]);
+    expect(oe.at(-1)!.ownerEarnings).toBe(12116 - 818);   // 2025 entra
+    const d = computeDcf(MELI, 2000, 0.10, DEFAULT_DCF_INPUTS);
+    // Antes, al caerse 2024/2025, normalizaba sobre años viejos y chicos (~2.000); ahora refleja el nivel actual.
+    expect(d.ownerEarningsNorm).toBeGreaterThan(4000);
+  });
+
+  it("método 'capex': sí exige capex, así que solo usa los años que lo tienen", () => {
+    const oe = ownerEarningsByYear(MELI, 'capex');
+    expect(oe.map(y => y.fy)).toEqual([2021, 2022, 2023]);
+  });
+
+  it('growthCapex es 0 cuando no se conoce el capex del año (no se inventa)', () => {
+    const oe = ownerEarningsByYear(MELI, 'dna');
+    expect(oe.find(y => y.fy === 2025)!.growthCapex).toBe(0);
+    expect(oe.find(y => y.fy === 2023)!.growthCapex).toBe(509 - 524);
+  });
+});

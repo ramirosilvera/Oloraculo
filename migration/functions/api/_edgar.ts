@@ -54,7 +54,7 @@ export const CONCEPTS = {
   interestExpense: ['InterestExpense', 'InterestExpenseDebt', 'InterestAndDebtExpense', 'InterestExpenseNonoperating'],
 } as const;
 
-interface Raw { end: string; val: number; fy?: number; fp?: string; form?: string; filed?: string; }
+interface Raw { start?: string; end: string; val: number; fy?: number; fp?: string; form?: string; filed?: string; }
 export interface AnnualPoint { fy: number; end: string; val: number; }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -101,14 +101,29 @@ async function fetchFirst(env: Env, cik: string, taxonomy: string, aliases: read
 function parseAnnual(raw: Raw[] | null): AnnualPoint[] {
   if (!raw) return [];
   const tenK = raw.filter(x => (x.form ?? '').startsWith('10-K') && (x.fp === 'FY' || x.fp == null));
-  const byEnd = new Map<string, Raw>();
-  for (const x of tenK) {
-    const prev = byEnd.get(x.end);
-    if (!prev || (x.filed ?? '') > (prev.filed ?? '')) byEnd.set(x.end, x);
+  // Conceptos de FLUJO (traen `start`): quedarnos solo con períodos ANUALES (~12 meses). Un 10-K
+  // también publica trimestres que terminan el mismo día del cierre; sin este filtro, un Q4 podía
+  // colarse como si fuera el año entero y subestimar el flujo.
+  const anuales = tenK.filter(x => {
+    if (!x.start) return true;               // concepto instantáneo (balance) → no aplica
+    const dias = (Date.parse(x.end) - Date.parse(x.start)) / 86_400_000;
+    return dias >= 300 && dias <= 400;
+  });
+  // EL AÑO DEL DATO ES EL DE SU CIERRE (`end`), NO `x.fy`: en la SEC `fy` es el año fiscal del
+  // INFORME en que se publicó, así que un 10-K de 2025 trae los comparativos de 2024 y 2023 TODOS
+  // con fy=2025. Usar x.fy desalineaba las series entre sí (OCF de un año contra capex de otro) y
+  // hacía que los años recientes se descartaran por no encontrar pareja → owner earnings muy
+  // subestimados (caso MELI: normalizaba ~US$500M en vez de miles de millones).
+  const byFy = new Map<number, Raw>();
+  for (const x of anuales) {
+    const fy = Number(x.end.slice(0, 4));
+    if (!Number.isFinite(fy)) continue;
+    const prev = byFy.get(fy);
+    if (!prev || (x.filed ?? '') > (prev.filed ?? '')) byFy.set(fy, x);   // ante restatements, el último presentado
   }
-  return [...byEnd.values()]
-    .map(x => ({ fy: x.fy ?? Number(x.end.slice(0, 4)), end: x.end, val: x.val }))
-    .sort((a, b) => a.end.localeCompare(b.end));
+  return [...byFy.entries()]
+    .map(([fy, x]) => ({ fy, end: x.end, val: x.val }))
+    .sort((a, b) => a.fy - b.fy);
 }
 
 // Latest instant value (balance-sheet / share count): max by (end, filed).

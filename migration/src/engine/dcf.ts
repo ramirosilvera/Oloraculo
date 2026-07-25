@@ -75,13 +75,22 @@ const byFy = (arr: AnnualPoint[]) => new Map(arr.map(p => [p.fy, p.val]));
 // Join OCF / D&A / capex por año fiscal y arma owner earnings por año.
 export function ownerEarningsByYear(f: Fundamentals, method: CapexMethod): OwnerEarningsYear[] {
   const ocf = byFy(f.ocf), dna = byFy(f.dna), capex = byFy(f.capex);
-  const years = [...ocf.keys()].filter(fy => dna.has(fy) && capex.has(fy)).sort((a, b) => a - b);
+  // Exigir SOLO lo que el método necesita. Antes se pedía capex siempre, incluso con el método
+  // 'dna' (el default), que no lo usa: si EDGAR no traía el capex del último año, ese año se
+  // descartaba entero y los owner earnings normalizados quedaban anclados a años viejos y chicos.
+  const needsDna = method === 'dna' || method === 'avg';
+  const needsCapex = method === 'capex' || method === 'avg';
+  const years = [...ocf.keys()]
+    .filter(fy => (!needsDna || dna.has(fy)) && (!needsCapex || capex.has(fy)))
+    .sort((a, b) => a - b);
   return years.map(fy => {
     const cf = ocf.get(fy)!;
-    const d = Math.abs(dna.get(fy)!);
-    const cx = Math.abs(capex.get(fy)!);
+    const d = dna.has(fy) ? Math.abs(dna.get(fy)!) : 0;
+    const tieneCapex = capex.has(fy);
+    const cx = tieneCapex ? Math.abs(capex.get(fy)!) : 0;
     const maint = method === 'dna' ? d : method === 'capex' ? cx : (d + cx) / 2;
-    return { fy, ocf: cf, maintenanceCapex: maint, growthCapex: cx - maint, ownerEarnings: cf - maint };
+    // El capex de crecimiento solo tiene sentido si conocemos el capex total del año.
+    return { fy, ocf: cf, maintenanceCapex: maint, growthCapex: tieneCapex ? cx - maint : 0, ownerEarnings: cf - maint };
   });
 }
 
