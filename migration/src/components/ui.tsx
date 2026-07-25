@@ -129,7 +129,9 @@ export const fmtUsd = (n: number | null | undefined, dp = 2): string =>
 export const fmtUsdCompact = (n: number | null | undefined): string => {
   if (n == null || !Number.isFinite(n)) return '—';
   const abs = Math.abs(n), sign = n < 0 ? '-' : '';
-  const fmt = (v: number, suf: string) => `${sign}US$${v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)} ${suf}`;
+  // Siempre al menos 1 decimal: con 0 decimales, 143,577 M se mostraba "US$144 B" y no se podía
+  // cruzar contra la tabla de owner earnings por año (parecía otro número).
+  const fmt = (v: number, suf: string) => `${sign}US$${v.toFixed(v < 10 ? 2 : 1)} ${suf}`;
   if (abs >= 1e12) return fmt(abs / 1e12, 'T');
   if (abs >= 1e9) return fmt(abs / 1e9, 'B');
   if (abs >= 1e6) return fmt(abs / 1e6, 'M');

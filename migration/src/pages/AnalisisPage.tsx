@@ -110,6 +110,24 @@ export function AnalisisPage() {
 
   const verdictTone = dcf.verdict === 'COMPRAR' ? 'pos' : dcf.verdict === 'CARO' ? 'neg' : 'warn';
 
+  // Qué base usa el DCF, en texto: sin esto el número normalizado no se podía cruzar contra la
+  // tabla de owner earnings por año (parecía "otro" valor aunque fuera el del último ejercicio).
+  const oeMetodo = inp.oeMethod ?? OE_METHOD_DEFAULT;
+  const oeEtiqueta: Record<OeMethod, string> = {
+    ultimo: 'último año',
+    ponderado: 'ponderado 5 años (recientes pesan más)',
+    prom3: 'promedio 3 años',
+    prom5: 'promedio 5 años',
+    mediana5: 'mediana 5 años',
+    margen: 'margen mediano × ventas de hoy',
+  };
+  const oeAnios = dcf.ownerEarningsByYear.slice(-5).map(y => y.fy);
+  const oeVentana = oeMetodo === 'ultimo' ? oeAnios.slice(-1) : oeMetodo === 'prom3' ? oeAnios.slice(-3) : oeAnios;
+  const oeRango = oeVentana.length === 0 ? ''
+    : oeVentana.length === 1 ? ` · ${oeVentana[0]}`
+    : ` · ${oeVentana[0]}–${oeVentana[oeVentana.length - 1]}`;
+  const oeHint = `${oeEtiqueta[oeMetodo]}${oeRango} · ${fmtUsd(dcf.ownerEarningsNorm, 0)}`;
+
   return (
     <div className="space-y-4">
       <Link to="/analisis" className="inline-flex items-center text-xs text-celeste-600 hover:underline">← Volver a Análisis</Link>
@@ -137,8 +155,7 @@ export function AnalisisPage() {
         <Stat label="Precio" value={fmtUsd(price)} />
         <Stat label="Valor intrínseco / acc." value={fmtUsd(dcf.intrinsicPerShare)} hint="DCF Owner Earnings" />
         <Stat label="Margen de seguridad" value={fmtPct(dcf.marginOfSafety)} hint={`exigido ${fmtPct(inp.mosRequired)}`} />
-        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)}
-          hint={({ ultimo: 'último año (por defecto)', ponderado: 'ponderado 5 años (recientes pesan más)', prom3: 'promedio 3 años', prom5: 'promedio 5 años', mediana5: 'mediana 5 años', margen: 'margen mediano × ventas de hoy' } as Record<string, string>)[inp.oeMethod ?? OE_METHOD_DEFAULT] ?? 'último año'} />
+        <Stat label="Owner earnings norm." value={fmtUsdCompact(dcf.ownerEarningsNorm)} hint={oeHint} />
       </div>
 
       {/* Ratios */}
@@ -189,15 +206,10 @@ export function AnalisisPage() {
               <option value="margen">Margen mediano × ventas de hoy — creció Y es cíclica</option>
             </select>
             <p className="text-[10px] text-ink-600 mt-1 tnum">
-              {(() => {
-                const fys = dcf.ownerEarningsByYear.slice(-5).map(y => y.fy);
-                if (!fys.length) return 'Sin años disponibles.';
-                const m = inp.oeMethod ?? OE_METHOD_DEFAULT;
-                const usados = m === 'ultimo' ? fys.slice(-1) : m === 'prom3' ? fys.slice(-3) : fys;
-                return usados.length === 1
-                  ? `Usando el año ${usados[0]}.`
-                  : `Usando ${usados.length} años: ${usados[0]}–${usados[usados.length - 1]}.`;
-              })()}
+              {oeVentana.length === 0 ? 'Sin años disponibles.'
+                : oeVentana.length === 1
+                  ? `Usando el año ${oeVentana[0]} → ${fmtUsd(dcf.ownerEarningsNorm, 0)}.`
+                  : `Usando ${oeVentana.length} años: ${oeVentana[0]}–${oeVentana[oeVentana.length - 1]} → ${fmtUsd(dcf.ownerEarningsNorm, 0)}.`}
             </p>
             <p className="text-[10px] text-ink-500 mt-1">
               {inp.oeMethod === 'ultimo'
