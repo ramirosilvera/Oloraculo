@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, LineChart, Radar, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, LineChart, Radar, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { api } from '../lib/api';
 import { useMacro, useQuotes } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
@@ -16,6 +16,13 @@ import type { Fundamentals } from '../types/domain';
 
 const RATING_TONE: Record<Rating, 'pos' | 'accent' | 'warn' | 'neg'> = { A: 'pos', B: 'accent', C: 'warn', D: 'neg' };
 
+// Orden por columna: cada fila calcula su propio score/DCF de forma independiente (fetch por
+// ticker), así que esos valores se reportan al padre (onComputed) para poder ordenar sin
+// duplicar el fetch ni levantar el cálculo entero acá arriba.
+type SortKey = 'ticker' | 'price' | 'mos' | 'roic' | 'eg5y' | 'score';
+interface RowSortData { price: number | null; mos: number | null; roic: number | null; eg5y: number | null; score: number | null }
+const DEFAULT_DIR: Record<SortKey, 'asc' | 'desc'> = { ticker: 'asc', price: 'desc', mos: 'desc', roic: 'desc', eg5y: 'desc', score: 'desc' };
+
 export function RadarPage() {
   const { data: items = [], isLoading, add, remove } = useWatchlist();
   const qc = useQueryClient();
@@ -24,6 +31,35 @@ export function RadarPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [rowData, setRowData] = useState<Record<string, RowSortData>>({});
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
+
+  const onRowComputed = useCallback((t: string, d: RowSortData) => {
+    setRowData(prev => {
+      const cur = prev[t];
+      if (cur && cur.price === d.price && cur.mos === d.mos && cur.roic === d.roic && cur.eg5y === d.eg5y && cur.score === d.score) return prev;
+      return { ...prev, [t]: d };
+    });
+  }, []);
+
+  const handleSort = (key: SortKey) => setSort(prev => prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: DEFAULT_DIR[key] });
+
+  // Los tickers sin dato (fundamentals aún no cargados / sin CIK) quedan siempre al final,
+  // sea cual sea la dirección — si no, "sin dato" saltaría de arriba a abajo al invertir el orden.
+  const sortedItems = useMemo(() => {
+    if (!sort) return items;
+    const { key, dir } = sort;
+    const factor = dir === 'asc' ? 1 : -1;
+    return [...items].sort((a, b) => {
+      if (key === 'ticker') return a.ticker.localeCompare(b.ticker) * factor;
+      const av = rowData[a.ticker.toUpperCase()]?.[key] ?? null;
+      const bv = rowData[b.ticker.toUpperCase()]?.[key] ?? null;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * factor;
+    });
+  }, [items, sort, rowData]);
 
   const { data: macro = {} } = useMacro();
   const riskFree = ((macro as Record<string, number | null>).dgs10 ?? 4.3) / 100;
@@ -83,18 +119,18 @@ export function RadarPage() {
           <table className="w-full text-sm min-w-[720px]">
             <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr>
-                <th className="text-left px-4 py-2">Ticker</th>
-                <th className="text-right px-3">Precio</th>
-                <th className="text-right px-3">MoS</th>
-                <th className="text-right px-3">ROIC</th>
-                <th className="text-right px-3">EG5Y</th>
+                <ThSort label="Ticker" align="left" sortKey="ticker" sort={sort} onClick={handleSort} />
+                <ThSort label="Precio" sortKey="price" sort={sort} onClick={handleSort} />
+                <ThSort label="MoS" sortKey="mos" sort={sort} onClick={handleSort} />
+                <ThSort label="ROIC" sortKey="roic" sort={sort} onClick={handleSort} />
+                <ThSort label="EG5Y" sortKey="eg5y" sort={sort} onClick={handleSort} />
                 <th className="text-right px-3">Veredicto</th>
-                <th className="text-right px-3">Score</th>
+                <ThSort label="Score" sortKey="score" sort={sort} onClick={handleSort} />
                 <th className="px-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {items.map(it => <RadarRow key={it.id} item={it} riskFree={riskFree} saved={dcfMap.get(it.ticker.toUpperCase())} onRemove={() => remove(it.id)} />)}
+              {sortedItems.map(it => <RadarRow key={it.id} item={it} riskFree={riskFree} saved={dcfMap.get(it.ticker.toUpperCase())} onRemove={() => remove(it.id)} onComputed={onRowComputed} />)}
               {!isLoading && items.length === 0 && (
                 <tr><td colSpan={8}><Empty icon={Radar} title="Radar vacío">Agregá un ticker arriba para ver su score.</Empty></td></tr>
               )}
@@ -109,7 +145,25 @@ export function RadarPage() {
   );
 }
 
-function RadarRow({ item, riskFree, saved, onRemove }: { item: WatchItem; riskFree: number; saved?: StoredDcf; onRemove: () => void }) {
+function ThSort({ label, sortKey, sort, onClick, align = 'right' }: {
+  label: string; sortKey: SortKey; sort: { key: SortKey; dir: 'asc' | 'desc' } | null; onClick: (key: SortKey) => void; align?: 'left' | 'right';
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <th className={align === 'left' ? 'text-left px-4 py-2' : 'text-right px-3'}>
+      <button onClick={() => onClick(sortKey)} className={`inline-flex items-center gap-1 hover:text-ink-900 transition-colors ${active ? 'text-ink-900 font-semibold' : ''}`}>
+        {label}
+        {active
+          ? (sort!.dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+      </button>
+    </th>
+  );
+}
+
+function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
+  item: WatchItem; riskFree: number; saved?: StoredDcf; onRemove: () => void; onComputed: (ticker: string, d: RowSortData) => void;
+}) {
   const T = item.ticker.toUpperCase();
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
   const cik = item.cik || cikMap.get(T)?.cik;
@@ -141,6 +195,10 @@ function RadarRow({ item, riskFree, saved, onRemove }: { item: WatchItem; riskFr
     });
     return { ratios: r, dcf: d, score: s };
   }, [fund, price, riskFree, saved]);
+
+  useEffect(() => {
+    onComputed(T, { price, mos: dcf?.marginOfSafety ?? null, roic: ratios?.roic ?? null, eg5y: ratios?.eg5y ?? null, score: score?.score ?? null });
+  }, [T, price, dcf, ratios, score, onComputed]);
 
   const verdictTone = dcf?.verdict === 'COMPRAR' ? 'pos' : dcf?.verdict === 'CARO' ? 'neg' : 'warn';
 
