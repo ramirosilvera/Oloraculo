@@ -6,7 +6,7 @@ import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
-import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct } from '../engine/rebalance';
+import { cantidadPorMonto, aplicarObjetivo, redondearPct, resolverObjetivosSimultaneos, pesoResultanteConjunto, type SimTarget } from '../engine/rebalance';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
@@ -286,7 +286,7 @@ export function PosicionesPage() {
         onSave={async (patch) => { await update(editPos.id, patch); setEditPos(null); }} />}
       {simular && <SimularCompraModal openRows={openRows} totalMkt={totalMkt} cedearRatios={cedearRatios}
         initial={simular.pos} onClose={() => setSimular(null)}
-        onEjecutar={async (payload) => { await add(payload); setSimular(null); }} />}
+        onEjecutar={async (payload) => { await add(payload); }} />}
     </div>
   );
 }
@@ -455,160 +455,307 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
 // Simulador de compra: elegís un activo (existente o nuevo), un método (por monto, por cantidad, o
 // "llegar al objetivo") y ves el costo y el peso resultante ANTES de ejecutar. Al ejecutar, se
 // consolida con la posición existente (costo promedio) igual que una compra normal.
+// Una fila de simulación (una compra). El objetivo (%) NO se resuelve acá con el total de hoy: se
+// resuelve más abajo, todas las filas con método "objetivo" juntas contra el total final combinado
+// (ver resolverObjetivosSimultaneos) — si no, "llegar a 20% de A" ignoraría que "llegar a 15% de B"
+// agranda el total contra el que se mide ese 20%.
+interface SimDraft {
+  key: string;
+  modo: 'existente' | 'nuevo';
+  selId: string;
+  nTicker: string;
+  nTipo: Posicion['tipo'];
+  nRatio: string;
+  precio: string;
+  metodo: 'monto' | 'cantidad' | 'objetivo';
+  montoStr: string;
+  cantStr: string;
+  objStr: string;
+}
+
+// Precio precargado con más decimales si es chico (ej. bono/ON por nominal muy castigado, < 1
+// USD): con 2 decimales fijos un precio de 0,003 se prellenaba "0.00" y la fila quedaba
+// inejecutable sin que se entendiera por qué.
+const precioStr = (v: number) => String(+v.toFixed(v < 1 ? 4 : 2));
+
+function nuevaSim(usadas: Set<string>, comprables: Row[]): SimDraft {
+  const disponibles = comprables.filter(r => !usadas.has(r.p.id));
+  const sel = disponibles[0];
+  return {
+    key: crypto.randomUUID(),
+    modo: disponibles.length > 0 ? 'existente' : 'nuevo',
+    selId: sel?.p.id ?? '',
+    nTicker: '', nTipo: 'cedear', nRatio: '',
+    precio: sel ? precioStr(sel.unit ?? sel.p.precio_compra) : '',
+    metodo: 'objetivo', montoStr: '', cantStr: '',
+    objStr: sel?.p.peso_objetivo != null ? String(Math.round(sel.p.peso_objetivo * 100)) : '',
+  };
+}
+
 function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose, onEjecutar }: {
   openRows: Row[]; totalMkt: number; cedearRatios: Record<string, number>;
   initial?: Posicion; onClose: () => void; onEjecutar: (payload: Partial<Posicion>) => Promise<void>;
 }) {
   const comprables = openRows.filter(r => r.p.tipo !== 'cash');
-  const [modo, setModo] = useState<'existente' | 'nuevo'>(initial || comprables.length > 0 ? 'existente' : 'nuevo');
-  const [selId, setSelId] = useState<string>(initial?.id ?? comprables[0]?.p.id ?? '');
-  const [nTicker, setNTicker] = useState('');
-  const [nTipo, setNTipo] = useState<Posicion['tipo']>('cedear');
-  const [nRatio, setNRatio] = useState('');
-  const [precio, setPrecio] = useState('');
-  const [metodo, setMetodo] = useState<'monto' | 'cantidad' | 'objetivo'>('objetivo');
-  const [montoStr, setMontoStr] = useState('');
-  const [cantStr, setCantStr] = useState('');
-  const [objStr, setObjStr] = useState('');
+  const [sims, setSims] = useState<SimDraft[]>(() => {
+    if (!initial) return [nuevaSim(new Set(), comprables)];
+    const selInicial = comprables.find(r => r.p.id === initial.id);
+    return [{
+      key: crypto.randomUUID(), modo: 'existente', selId: initial.id,
+      nTicker: '', nTipo: 'cedear', nRatio: '',
+      precio: precioStr(selInicial?.unit ?? initial.precio_compra),
+      metodo: 'objetivo', montoStr: '', cantStr: '',
+      objStr: initial.peso_objetivo != null ? String(Math.round(initial.peso_objetivo * 100)) : '',
+    }];
+  });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const sel = modo === 'existente' ? comprables.find(r => r.p.id === selId) : undefined;
-  const esNuevoCedear = modo === 'nuevo' && nTipo === 'cedear';
+  const patchSim = (key: string, patch: Partial<SimDraft>) => setSims(prev => prev.map(s => s.key === key ? { ...s, ...patch } : s));
 
-  // Al cambiar de activo/modo: precargar precio (valuación viva o costo prom.) y objetivo del activo
-  // elegido; en "nuevo" limpiar ambos para no arrastrar los del activo anterior.
-  useEffect(() => {
-    if (modo === 'existente' && sel) {
-      setPrecio(String(+(sel.unit ?? sel.p.precio_compra).toFixed(2)));
-      setObjStr(sel.p.peso_objetivo != null ? String(Math.round(sel.p.peso_objetivo * 100)) : '');
-    } else if (modo === 'nuevo') {
-      setPrecio(''); setObjStr('');
-    }
-  }, [modo, selId]);   // eslint-disable-line react-hooks/exhaustive-deps
-  // CEDEAR nuevo: si la base tiene su ratio, precargarlo.
-  useEffect(() => {
-    if (esNuevoCedear && nTicker && cedearRatios[nTicker] && !nRatio) setNRatio(String(cedearRatios[nTicker]));
-  }, [nTicker, nTipo]);   // eslint-disable-line react-hooks/exhaustive-deps
-
-  const unitPrice = Number(precio) || 0;
-  // vi con la MISMA base que el total (totalMkt usa mkt ?? cost): si la posición no tiene precio
-  // vivo, contamos su costo — si no, quedaría en 0 acá pero como costo en V y el objetivo daría mal.
-  const vi = sel ? (sel.mkt ?? sel.cost) : 0;     // valor actual de la posición
-  const V = totalMkt;                              // total actual de la cartera
-  const objetivo = objStr ? Math.max(0, Math.min(100, Number(objStr))) / 100 : null;
-
-  // Monto/cantidad según el método elegido.
-  let monto = 0;
-  if (metodo === 'monto') monto = Number(montoStr) || 0;
-  else if (metodo === 'cantidad') monto = (Number(cantStr) || 0) * unitPrice;
-  else if (objetivo != null) monto = montoParaObjetivo(vi, V, objetivo);
-  const cantidad = metodo === 'cantidad' ? (Number(cantStr) || 0) : cantidadPorMonto(monto, unitPrice);
-
-  const sobreponderada = metodo === 'objetivo' && monto < 0;
-  const costo = Math.max(0, monto);
-  const pesoNuevo = pesoResultante(vi, V, costo);
-  const nuevoProm = sel && sel.p.cantidad + cantidad > 0
-    ? (sel.p.cantidad * sel.p.precio_compra + cantidad * unitPrice) / (sel.p.cantidad + cantidad) : unitPrice;
-
-  const ticker = modo === 'existente' ? (sel?.p.ticker ?? '') : nTicker.trim().toUpperCase();
-  const puedeEjecutar = !!ticker && unitPrice > 0 && cantidad > 0 && costo > 0
-    && !(esNuevoCedear && !(Number(nRatio) > 0));
-
-  const ejecutar = async () => {
-    if (!puedeEjecutar) { setErr('Completá activo, precio y monto/cantidad válidos.'); return; }
-    setBusy(true); setErr(null);
-    // No seteamos peso_objetivo acá: el % objetivo se administra con el editor inline (que mantiene
-    // el plan en 100%). Escribirlo directo desde el simulador rompería esa suma. El objetivo del
-    // simulador se usa solo para dimensionar la compra.
-    const payload: Partial<Posicion> = modo === 'existente'
-      ? { ticker: sel!.p.ticker, tipo: sel!.p.tipo, cantidad, precio_compra: unitPrice, ratio_cedear: sel!.p.ratio_cedear }
-      : { ticker, tipo: nTipo, cantidad, precio_compra: unitPrice, ratio_cedear: nTipo === 'cedear' ? Number(nRatio) : null };
-    try { await onEjecutar(payload); }
-    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo ejecutar'); setBusy(false); }
+  // Elegir una posición puntual del <select>: precarga precio y objetivo de ESE activo.
+  const elegirPosicion = (key: string, selId: string) => {
+    const sel = comprables.find(r => r.p.id === selId);
+    patchSim(key, {
+      modo: 'existente', selId,
+      precio: sel ? precioStr(sel.unit ?? sel.p.precio_compra) : '',
+      objStr: sel?.p.peso_objetivo != null ? String(Math.round(sel.p.peso_objetivo * 100)) : '',
+    });
+  };
+  // Botón "Activo existente": si la fila YA estaba en ese modo, no tocar la selección (un
+  // reclick no debe voltear la posición elegida) — solo al entrar desde "nuevo" se preselecciona
+  // la primera disponible.
+  const elegirExistente = (key: string) => setSims(prev => prev.map(s => {
+    if (s.key !== key || s.modo === 'existente') return s;
+    const usadas = new Set(prev.filter(o => o.key !== key && o.modo === 'existente').map(o => o.selId));
+    const sel = comprables.find(r => !usadas.has(r.p.id));
+    return {
+      ...s, modo: 'existente', selId: sel?.p.id ?? '',
+      precio: sel ? precioStr(sel.unit ?? sel.p.precio_compra) : '',
+      objStr: sel?.p.peso_objetivo != null ? String(Math.round(sel.p.peso_objetivo * 100)) : '',
+    };
+  }));
+  // Igual criterio para "Nuevo activo": un reclick sobre el modo ya activo no debe borrar lo tipeado.
+  const elegirNuevo = (key: string) => setSims(prev => prev.map(s =>
+    s.key === key && s.modo !== 'nuevo' ? { ...s, modo: 'nuevo', precio: '', objStr: '' } : s));
+  const cambiarTicker = (key: string, nTicker: string) => {
+    const upper = nTicker.toUpperCase();
+    setSims(prev => prev.map(s => {
+      if (s.key !== key) return s;
+      const nRatio = s.nTipo === 'cedear' && upper && cedearRatios[upper] && !s.nRatio ? String(cedearRatios[upper]) : s.nRatio;
+      return { ...s, nTicker: upper, nRatio };
+    }));
   };
 
-  const tabBtn = (k: typeof metodo, label: string) =>
-    <button type="button" onClick={() => setMetodo(k)}
-      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${metodo === k ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600 hover:text-ink-900'}`}>{label}</button>;
+  // Solo las filas EN modo "existente" bloquean su posición para las demás — una fila que pasó a
+  // "nuevo" libera la que tenía elegida antes, aunque su selId interno quede como resto.
+  const usadasPorOtras = (key: string) => new Set(sims.filter(s => s.key !== key && s.modo === 'existente').map(s => s.selId));
+  const agregarSim = () => setSims(prev => [...prev, nuevaSim(new Set(prev.filter(s => s.modo === 'existente').map(s => s.selId)), comprables)]);
+  const quitarSim = (key: string) => setSims(prev => prev.length > 1 ? prev.filter(s => s.key !== key) : prev);
+
+  // Paso 1: por fila, valores independientes del resto (posición, precio, tipo, y el monto si el
+  // método es "monto"/"cantidad" — esos NO dependen del total). Las de método "objetivo" quedan con
+  // montoFijo=null: se resuelven en el paso 2, todas juntas.
+  const derivadas = useMemo(() => sims.map(s => {
+    const sel = s.modo === 'existente' ? comprables.find(r => r.p.id === s.selId) : undefined;
+    const esNuevoCedear = s.modo === 'nuevo' && s.nTipo === 'cedear';
+    const unitPrice = Number(s.precio) || 0;
+    const ticker = s.modo === 'existente' ? (sel?.p.ticker ?? '') : s.nTicker.trim().toUpperCase();
+    // "Nuevo activo" con un ticker que YA existe en la cartera: al ejecutar, `add()` lo consolida
+    // en esa posición (mismo ticker+tipo) — así que el valor base para el peso resultante tiene
+    // que ser el de esa posición real, no 0, o el % objetivo sale mal (ver tickerDuplicado más
+    // abajo para el caso en que esa MISMA posición además esté elegida en otra fila).
+    const posicionReal = s.modo === 'nuevo' && ticker ? comprables.find(r => r.p.ticker === ticker && r.p.tipo === s.nTipo) : undefined;
+    const vi = sel ? (sel.mkt ?? sel.cost) : posicionReal ? (posicionReal.mkt ?? posicionReal.cost) : 0;
+    let montoFijo: number | null = null;
+    if (s.metodo === 'monto') montoFijo = Math.max(0, Number(s.montoStr) || 0);
+    else if (s.metodo === 'cantidad') montoFijo = Math.max(0, (Number(s.cantStr) || 0) * unitPrice);
+    const objetivo = s.metodo === 'objetivo' && s.objStr ? Math.max(0, Math.min(100, Number(s.objStr))) / 100 : null;
+    // Fila "completa": tiene lo mínimo para participar del sistema compartido (targets/montosFijos
+    // del paso 2). Una fila a medias (sin ticker, sin precio, CEDEAR nuevo sin ratio) NO debe
+    // distorsionar el cálculo de las OTRAS filas — cuenta como si no estuviera.
+    const completa = !!ticker && unitPrice > 0 && !(esNuevoCedear && !(Number(s.nRatio) > 0));
+    return { key: s.key, sel, esNuevoCedear, vi, unitPrice, ticker, montoFijo, objetivo, completa };
+  }), [sims, comprables]);
+
+  // Paso 2: todas las filas por objetivo (%) COMPLETAS, resueltas juntas contra el total final.
+  const targets: SimTarget[] = derivadas.filter(d => d.completa && d.objetivo != null).map(d => ({ id: d.key, valorActual: d.vi, objetivo: d.objetivo! }));
+  const montosFijos = derivadas.reduce((s, d) => s + (d.completa ? (d.montoFijo ?? 0) : 0), 0);
+  const solved = targets.length > 0 ? resolverObjetivosSimultaneos(targets, totalMkt, montosFijos) : new Map<string, number>();
+  const objetivosInalcanzables = targets.length > 0 && solved == null;
+
+  // Paso 3: monto final por fila + total final de la cartera con TODAS las compras incluidas
+  // (las sobreponderadas/negativas y las filas incompletas no suman: acá no se ejecuta nada de eso).
+  const montoPorKey = new Map<string, number>();
+  for (const d of derivadas) {
+    if (!d.completa) montoPorKey.set(d.key, 0);
+    else if (d.montoFijo != null) montoPorKey.set(d.key, d.montoFijo);
+    else if (d.objetivo != null) montoPorKey.set(d.key, solved ? (solved.get(d.key) ?? 0) : 0);
+    else montoPorKey.set(d.key, 0);
+  }
+  const totalInvertido = [...montoPorKey.values()].reduce((s, v) => s + Math.max(0, v), 0);
+  const totalFinalCartera = totalMkt + totalInvertido;
+
+  const tickersActivos = derivadas.filter(d => d.ticker && (montoPorKey.get(d.key) ?? 0) > 0).map(d => d.ticker);
+  const tickerDuplicado = new Set(tickersActivos).size !== tickersActivos.length;
+
+  const filaValida = (d: (typeof derivadas)[number]) => {
+    if (!d.completa) return false;
+    const costo = Math.max(0, montoPorKey.get(d.key) ?? 0);
+    return costo > 0;
+  };
+  const filasEjecutables = sims.filter((_, i) => filaValida(derivadas[i]));
+  const puedeEjecutarAlgo = filasEjecutables.length > 0 && !objetivosInalcanzables && !tickerDuplicado;
+
+  const ejecutarTodas = async () => {
+    if (objetivosInalcanzables) { setErr('Los objetivos combinados no son alcanzables comprando (suman demasiado del total resultante) — bajá alguno.'); return; }
+    if (tickerDuplicado) { setErr('Hay un ticker repetido entre las simulaciones activas.'); return; }
+    if (filasEjecutables.length === 0) { setErr('Completá activo, precio y monto/cantidad/objetivo válidos en al menos una simulación.'); return; }
+    setBusy(true); setErr(null);
+    try {
+      for (const s of filasEjecutables) {
+        const d = derivadas.find(x => x.key === s.key)!;
+        const monto = montoPorKey.get(d.key) ?? 0;
+        const costo = Math.max(0, monto);
+        const cantidad = s.metodo === 'cantidad' ? (Number(s.cantStr) || 0) : cantidadPorMonto(costo, d.unitPrice);
+        // No seteamos peso_objetivo acá: el % objetivo se administra con el editor inline (que
+        // mantiene el plan en 100%). El objetivo del simulador se usa solo para dimensionar la compra.
+        const payload: Partial<Posicion> = s.modo === 'existente'
+          ? { ticker: d.sel!.p.ticker, tipo: d.sel!.p.tipo, cantidad, precio_compra: d.unitPrice, ratio_cedear: d.sel!.p.ratio_cedear }
+          : { ticker: d.ticker, tipo: s.nTipo, cantidad, precio_compra: d.unitPrice, ratio_cedear: s.nTipo === 'cedear' ? Number(s.nRatio) : null };
+        await onEjecutar(payload);
+        // Sacarla apenas se ejecuta: si una fila más adelante falla, un reintento no debe volver a
+        // comprar esta (el catch de abajo NO cierra el modal, así que `sims` sigue visible).
+        setSims(prev => prev.filter(x => x.key !== s.key));
+      }
+      onClose();
+    } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo ejecutar una de las compras — las que ya se ejecutaron no se repiten si reintentás'); }
+    finally { setBusy(false); }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <Card className="animate-rise max-h-[90vh] overflow-y-auto">
-          <CardHeader title="Simular compra" sub="Mirá el costo y el peso resultante antes de ejecutar."
+          <CardHeader title="Simular compra" sub="Agregá una o varias en simultáneo — el peso resultante de cada una se ajusta con todas."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
 
-          <div className="p-4 space-y-3 text-sm">
-            {/* Activo */}
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setModo('existente')} disabled={comprables.length === 0}
-                className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${modo === 'existente' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'} disabled:opacity-40`}>Activo existente</button>
-              <button type="button" onClick={() => setModo('nuevo')}
-                className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${modo === 'nuevo' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'}`}>Nuevo activo</button>
-            </div>
+          <div className="p-4 space-y-4 text-sm">
+            {sims.map((s, i) => {
+              const d = derivadas[i];
+              const monto = montoPorKey.get(d.key) ?? 0;
+              const sobreponderada = d.objetivo != null && monto < 0;
+              const costo = Math.max(0, monto);
+              const cantidad = s.metodo === 'cantidad' ? (Number(s.cantStr) || 0) : cantidadPorMonto(costo, d.unitPrice);
+              const pesoNuevo = pesoResultanteConjunto(d.vi, monto, totalFinalCartera);
+              const nuevoProm = d.sel && d.sel.p.cantidad + cantidad > 0
+                ? (d.sel.p.cantidad * d.sel.p.precio_compra + cantidad * d.unitPrice) / (d.sel.p.cantidad + cantidad) : d.unitPrice;
+              // El fallback "|| r.p.id === s.selId" solo aplica en modo "existente" (mantiene visible
+              // la posición ya elegida en el <select>). En "nuevo" el selId queda de resto de un
+              // modo anterior — sin este distingo, el botón "Activo existente" se mostraba habilitado
+              // (con esa opción fantasma) aunque ya no quedara ninguna posición realmente libre.
+              const disponibles = comprables.filter(r => !usadasPorOtras(s.key).has(r.p.id) || (s.modo === 'existente' && r.p.id === s.selId));
 
-            {modo === 'existente' ? (
-              <Field label="Posición">
-                <select value={selId} onChange={e => setSelId(e.target.value)} className={`${inputCls} appearance-none`}>
-                  {comprables.map(r => <option key={r.p.id} value={r.p.id}>{r.p.ticker} · {fmtNum(r.p.cantidad, 0)} un · {fmtUsd(r.mkt, 0)}</option>)}
-                </select>
-              </Field>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Ticker"><input value={nTicker} onChange={e => setNTicker(e.target.value.toUpperCase())} className={inputCls} placeholder="ej. GOOGL" /></Field>
-                <Field label="Tipo">
-                  <select value={nTipo} onChange={e => setNTipo(e.target.value as Posicion['tipo'])} className={`${inputCls} appearance-none`}>
-                    <option value="cedear">CEDEAR</option><option value="accion">Acción (US)</option><option value="accion_ar">Acción ARG</option><option value="etf">ETF</option><option value="bono">Bono / ON</option>
-                  </select>
-                </Field>
-                {esNuevoCedear && <Field label="Ratio CEDEAR" className="col-span-2"><input type="number" value={nRatio} onChange={e => setNRatio(e.target.value)} className={inputCls} placeholder="subyacentes por CEDEAR" /></Field>}
-              </div>
-            )}
+              const tabBtn = (k: SimDraft['metodo'], label: string) =>
+                <button type="button" onClick={() => patchSim(s.key, { metodo: k })}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${s.metodo === k ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600 hover:text-ink-900'}`}>{label}</button>;
 
-            <Field label="Precio unitario (USD)" hint={sel?.unit != null ? `valuación viva ${fmtUsd(sel.unit)}` : undefined}>
-              <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} placeholder="USD por unidad" />
-            </Field>
+              return (
+                <div key={s.key} className={i > 0 ? 'pt-4 border-t border-line space-y-3' : 'space-y-3'}>
+                  {sims.length > 1 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-ink-600 uppercase tracking-wide">Simulación {i + 1}</span>
+                      <button onClick={() => quitarSim(s.key)} className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7" title="Quitar esta simulación" aria-label="Quitar esta simulación"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
 
-            {/* Método */}
-            <div>
-              <span className="block text-[11px] font-semibold text-ink-600 mb-1">Método</span>
-              <div className="flex flex-wrap items-center gap-1.5">{tabBtn('objetivo', 'Llegar al objetivo')}{tabBtn('monto', 'Por monto')}{tabBtn('cantidad', 'Por cantidad')}</div>
-            </div>
+                  {/* Activo */}
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => elegirExistente(s.key)} disabled={disponibles.length === 0}
+                      className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${s.modo === 'existente' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'} disabled:opacity-40`}>Activo existente</button>
+                    <button type="button" onClick={() => elegirNuevo(s.key)}
+                      className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${s.modo === 'nuevo' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'}`}>Nuevo activo</button>
+                  </div>
 
-            {metodo === 'monto' && <Field label="Monto a invertir (USD)"><input type="number" value={montoStr} onChange={e => setMontoStr(e.target.value)} className={inputCls} placeholder="USD" /></Field>}
-            {metodo === 'cantidad' && <Field label="Cantidad a comprar"><input type="number" value={cantStr} onChange={e => setCantStr(e.target.value)} className={inputCls} placeholder="unidades" /></Field>}
-            {metodo === 'objetivo' && (
-              <Field label="% objetivo del activo" hint="cuánto querés que pese en la cartera">
-                <input type="number" value={objStr} onChange={e => setObjStr(e.target.value)} className={inputCls} placeholder="ej. 10" />
-              </Field>
-            )}
+                  {s.modo === 'existente' ? (
+                    <Field label="Posición">
+                      <select value={s.selId} onChange={e => elegirPosicion(s.key, e.target.value)} className={`${inputCls} appearance-none`}>
+                        {disponibles.map(r => <option key={r.p.id} value={r.p.id}>{r.p.ticker} · {fmtNum(r.p.cantidad, 0)} un · {fmtUsd(r.mkt, 0)}</option>)}
+                      </select>
+                    </Field>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Field label="Ticker"><input value={s.nTicker} onChange={e => cambiarTicker(s.key, e.target.value)} className={inputCls} placeholder="ej. GOOGL" /></Field>
+                      <Field label="Tipo">
+                        <select value={s.nTipo} onChange={e => patchSim(s.key, { nTipo: e.target.value as Posicion['tipo'] })} className={`${inputCls} appearance-none`}>
+                          <option value="cedear">CEDEAR</option><option value="accion">Acción (US)</option><option value="accion_ar">Acción ARG</option><option value="etf">ETF</option><option value="bono">Bono / ON</option>
+                        </select>
+                      </Field>
+                      {d.esNuevoCedear && <Field label="Ratio CEDEAR" className="col-span-2"><input type="number" value={s.nRatio} onChange={e => patchSim(s.key, { nRatio: e.target.value })} className={inputCls} placeholder="subyacentes por CEDEAR" /></Field>}
+                    </div>
+                  )}
+
+                  <Field label="Precio unitario (USD)" hint={d.sel?.unit != null ? `valuación viva ${fmtUsd(d.sel.unit)}` : undefined}>
+                    <input type="number" value={s.precio} onChange={e => patchSim(s.key, { precio: e.target.value })} className={inputCls} placeholder="USD por unidad" />
+                  </Field>
+
+                  <div>
+                    <span className="block text-[11px] font-semibold text-ink-600 mb-1">Método</span>
+                    <div className="flex flex-wrap items-center gap-1.5">{tabBtn('objetivo', 'Llegar al objetivo')}{tabBtn('monto', 'Por monto')}{tabBtn('cantidad', 'Por cantidad')}</div>
+                  </div>
+
+                  {s.metodo === 'monto' && <Field label="Monto a invertir (USD)"><input type="number" value={s.montoStr} onChange={e => patchSim(s.key, { montoStr: e.target.value })} className={inputCls} placeholder="USD" /></Field>}
+                  {s.metodo === 'cantidad' && <Field label="Cantidad a comprar"><input type="number" value={s.cantStr} onChange={e => patchSim(s.key, { cantStr: e.target.value })} className={inputCls} placeholder="unidades" /></Field>}
+                  {s.metodo === 'objetivo' && (
+                    <Field label="% objetivo del activo" hint={targets.length > 1 ? 'se resuelve junto con las demás simulaciones por objetivo' : 'cuánto querés que pese en la cartera'}>
+                      <input type="number" value={s.objStr} onChange={e => patchSim(s.key, { objStr: e.target.value })} className={inputCls} placeholder="ej. 10" />
+                    </Field>
+                  )}
+
+                  {/* Preview de esta fila */}
+                  <div className="rounded-xl bg-canvas ring-1 ring-inset ring-line p-3">
+                    {sobreponderada ? (
+                      <p className="text-xs text-warn flex items-center gap-1.5"><Target className="w-4 h-4 shrink-0" /> {d.ticker || 'El activo'} ya está por encima del objetivo — para llegar deberías vender ~{fmtUsd(Math.abs(monto), 0)}, no comprar.</p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Cantidad</p><p className="tnum font-bold text-ink-900 mt-0.5">{cantidad > 0 ? fmtNum(cantidad, cantidad < 10 ? 2 : 0) : '—'}</p></div>
+                        <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Costo</p><p className="tnum font-bold text-ink-900 mt-0.5">{costo > 0 ? fmtUsd(costo, 0) : '—'}</p></div>
+                        <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Peso result.</p><p className="tnum font-bold text-celeste-600 mt-0.5">{costo > 0 ? fmtPct(pesoNuevo, 1) : '—'}</p></div>
+                      </div>
+                    )}
+                    {!sobreponderada && costo > 0 && (
+                      <p className="text-[11px] text-ink-600 mt-2 text-center">
+                        {d.sel ? <>Peso hoy {fmtPct(totalMkt > 0 ? d.vi / totalMkt : 0, 1)} → {fmtPct(pesoNuevo, 1)} · nuevo costo prom. {fmtUsd(nuevoProm)}</>
+                             : <>Nueva posición · pesaría {fmtPct(pesoNuevo, 1)} de la cartera</>}
+                        {d.objetivo != null && <> · objetivo {fmtPct(d.objetivo, 0)}</>}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            <button type="button" onClick={agregarSim} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-line px-3 py-2 text-xs font-semibold text-ink-600 hover:text-celeste-600 hover:border-celeste-300 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Agregar otra simulación
+            </button>
           </div>
 
-          {/* Preview */}
-          <div className="mx-4 mb-3 rounded-xl bg-canvas ring-1 ring-inset ring-line p-3">
-            {sobreponderada ? (
-              <p className="text-xs text-warn flex items-center gap-1.5"><Target className="w-4 h-4 shrink-0" /> {ticker || 'El activo'} ya está por encima del objetivo — para llegar deberías vender ~{fmtUsd(Math.abs(monto), 0)}, no comprar.</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Cantidad</p><p className="tnum font-bold text-ink-900 mt-0.5">{cantidad > 0 ? fmtNum(cantidad, cantidad < 10 ? 2 : 0) : '—'}</p></div>
-                <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Costo</p><p className="tnum font-bold text-ink-900 mt-0.5">{costo > 0 ? fmtUsd(costo, 0) : '—'}</p></div>
-                <div><p className="text-[10px] uppercase text-ink-600 font-semibold">Peso result.</p><p className="tnum font-bold text-celeste-600 mt-0.5">{costo > 0 ? fmtPct(pesoNuevo, 1) : '—'}</p></div>
-              </div>
-            )}
-            {!sobreponderada && costo > 0 && (
-              <p className="text-[11px] text-ink-600 mt-2 text-center">
-                {sel ? <>Peso hoy {fmtPct(V > 0 ? vi / V : 0, 1)} → {fmtPct(pesoNuevo, 1)} · nuevo costo prom. {fmtUsd(nuevoProm)}</>
-                     : <>Nueva posición · pesaría {fmtPct(pesoNuevo, 1)} de la cartera</>}
-                {objetivo != null && <> · objetivo {fmtPct(objetivo, 0)}</>}
+          {/* Resumen combinado (solo tiene sentido con 2+ simulaciones) */}
+          {sims.length > 1 && (
+            <div className="mx-4 mb-3 rounded-xl bg-celeste-50 dark:bg-celeste-500/10 ring-1 ring-inset ring-celeste-200 dark:ring-celeste-500/20 p-3 text-center">
+              <p className="text-[11px] text-ink-700">
+                Invertirías en total <b className="tnum">{fmtUsd(totalInvertido, 0)}</b> · cartera {fmtUsd(totalMkt, 0)} → <b className="tnum">{fmtUsd(totalFinalCartera, 0)}</b>
               </p>
-            )}
-          </div>
-
+            </div>
+          )}
+          {objetivosInalcanzables && <p className="px-4 pb-2 text-xs text-warn">Los objetivos combinados suman demasiado del total resultante — no son alcanzables comprando. Bajá alguno.</p>}
+          {tickerDuplicado && <p className="px-4 pb-2 text-xs text-warn">Hay un ticker repetido entre las simulaciones activas.</p>}
           {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
           <div className="px-4 pb-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button onClick={ejecutar} disabled={busy || !puedeEjecutar}><ShoppingCart className="w-4 h-4" /> {busy ? 'Ejecutando…' : 'Ejecutar compra'}</Button>
+            <Button onClick={ejecutarTodas} disabled={busy || !puedeEjecutarAlgo}>
+              <ShoppingCart className="w-4 h-4" /> {busy ? 'Ejecutando…' : filasEjecutables.length > 1 ? `Ejecutar ${filasEjecutables.length} compras` : 'Ejecutar compra'}
+            </Button>
           </div>
         </Card>
       </div>

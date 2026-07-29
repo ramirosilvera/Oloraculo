@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct } from './rebalance';
+import {
+  montoParaObjetivo, pesoResultante, cantidadPorMonto, aplicarObjetivo, redondearPct,
+  resolverObjetivosSimultaneos, pesoResultanteConjunto,
+} from './rebalance';
 
 describe('montoParaObjetivo — cuánto comprar para llegar al objetivo', () => {
   it('lleva el peso exactamente al objetivo (contando que el total crece)', () => {
@@ -60,6 +63,82 @@ describe('aplicarObjetivo — sincroniza a 100%', () => {
     const r = aplicarObjetivo(items, 'a', 1.5);
     expect(r.find(x => x.id === 'a')!.peso_objetivo).toBe(1);
     expect(r.find(x => x.id === 'b')!.peso_objetivo).toBeCloseTo(0, 9);
+  });
+});
+
+describe('resolverObjetivosSimultaneos — varias compras a la vez', () => {
+  it('con un solo target, coincide exacto con montoParaObjetivo (n=1 es caso particular)', () => {
+    const V = 10000, vi = 1000, t = 0.20;
+    const m = resolverObjetivosSimultaneos([{ id: 'a', valorActual: vi, objetivo: t }], V, 0);
+    expect(m!.get('a')).toBeCloseTo(montoParaObjetivo(vi, V, t), 9);
+  });
+
+  it('dos targets simultáneos: cada uno llega EXACTO a su % sobre el total final combinado', () => {
+    const V = 10000;
+    const targets = [{ id: 'a', valorActual: 1000, objetivo: 0.20 }, { id: 'b', valorActual: 500, objetivo: 0.15 }];
+    const m = resolverObjetivosSimultaneos(targets, V, 0)!;
+    const xa = m.get('a')!, xb = m.get('b')!;
+    const F = V + xa + xb;
+    expect(pesoResultanteConjunto(1000, xa, F)).toBeCloseTo(0.20, 9);
+    expect(pesoResultanteConjunto(500, xb, F)).toBeCloseTo(0.15, 9);
+  });
+
+  it('agregar un segundo target agranda el monto necesario del primero (mismo objetivo %)', () => {
+    const V = 10000;
+    const soloA = resolverObjetivosSimultaneos([{ id: 'a', valorActual: 1000, objetivo: 0.20 }], V, 0)!.get('a')!;
+    const conB = resolverObjetivosSimultaneos(
+      [{ id: 'a', valorActual: 1000, objetivo: 0.20 }, { id: 'b', valorActual: 500, objetivo: 0.15 }], V, 0,
+    )!.get('a')!;
+    expect(conB).toBeGreaterThan(soloA);
+  });
+
+  it('respeta montos fijos de otras simulaciones (método monto/cantidad) al resolver el objetivo', () => {
+    const V = 10000;
+    const sinFijo = resolverObjetivosSimultaneos([{ id: 'a', valorActual: 1000, objetivo: 0.20 }], V, 0)!.get('a')!;
+    const conFijo = resolverObjetivosSimultaneos([{ id: 'a', valorActual: 1000, objetivo: 0.20 }], V, 2000)!.get('a')!;
+    expect(conFijo).toBeCloseTo(montoParaObjetivo(1000, V + 2000, 0.20), 9);
+    expect(conFijo).toBeGreaterThan(sinFijo);
+  });
+
+  it('un target ya sobreponderado queda excluido del sistema (no infla el total) y devuelve negativo', () => {
+    const V = 10000;
+    const targets = [
+      { id: 'a', valorActual: 5000, objetivo: 0.20 }, // ya es 50% del total, objetivo 20% → sobreponderada
+      { id: 'b', valorActual: 500, objetivo: 0.15 },
+    ];
+    const m = resolverObjetivosSimultaneos(targets, V, 0)!;
+    expect(m.get('a')!).toBeLessThan(0);
+    // b se resuelve como si 'a' no estuviera en el sistema (a no compra nada realmente)
+    expect(m.get('b')!).toBeCloseTo(montoParaObjetivo(500, V, 0.15), 9);
+  });
+
+  it('objetivos combinados ≥100% del total: inalcanzable, devuelve null', () => {
+    const targets = [{ id: 'a', valorActual: 0, objetivo: 0.60 }, { id: 'b', valorActual: 0, objetivo: 0.55 }];
+    expect(resolverObjetivosSimultaneos(targets, 10000, 0)).toBeNull();
+  });
+
+  it('un solo target de exactamente 100%: inalcanzable (no debe devolver un F absurdo)', () => {
+    const targets = [{ id: 'a', valorActual: 1000, objetivo: 1 }];
+    const m = resolverObjetivosSimultaneos(targets, 10000, 0);
+    expect(m).toBeNull();
+  });
+
+  it('posición nueva (valorActual=0) en simultáneo con una existente', () => {
+    const V = 10000;
+    const targets = [{ id: 'nueva', valorActual: 0, objetivo: 0.10 }, { id: 'vieja', valorActual: 2000, objetivo: 0.25 }];
+    const m = resolverObjetivosSimultaneos(targets, V, 0)!;
+    const F = V + m.get('nueva')! + m.get('vieja')!;
+    expect(pesoResultanteConjunto(0, m.get('nueva')!, F)).toBeCloseTo(0.10, 9);
+    expect(pesoResultanteConjunto(2000, m.get('vieja')!, F)).toBeCloseTo(0.25, 9);
+  });
+});
+
+describe('pesoResultanteConjunto', () => {
+  it('peso = (valor + monto) / total final (el total YA incluye el monto)', () => {
+    expect(pesoResultanteConjunto(1000, 500, 15000)).toBeCloseTo(1500 / 15000, 9);
+  });
+  it('total final 0 → 0 (no divide por cero)', () => {
+    expect(pesoResultanteConjunto(0, 0, 0)).toBe(0);
   });
 });
 

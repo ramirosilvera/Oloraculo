@@ -38,6 +38,63 @@ export function redondearPct(items: { id: string; peso: number }[]): Map<string,
   return out;
 }
 
+// ── Simulación de VARIAS compras a la vez ───────────────────────────────────
+// Simular "llegar al 20% de A" y, a la vez, "llegar al 15% de B" no es lo mismo que resolver cada
+// una por separado: comprar B agranda el total contra el que se mide el 20% de A. Hay que resolver
+// el sistema junto. Para posiciones con método "monto"/"cantidad" el monto ya es fijo (no depende
+// del total); para las que apuntan a un %-objetivo, se resuelven todas juntas.
+export interface SimTarget { id: string; valorActual: number; objetivo: number }
+
+// Clamp defensivo a [0,1] — SIN acotar por debajo de 1 (a diferencia de otras funciones de este
+// archivo): un objetivo de exactamente 100% tiene que poder producir denom=0 y devolver
+// "inalcanzable" más abajo. Si se lo empuja artificialmente a 99,9999% para "no dividir por cero",
+// el resultado es un F financieramente absurdo (miles de millones) en vez del error correcto.
+const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
+
+// Total final F si TODAS las `targets` llegan exacto a su objetivo, dado el total base V y lo ya
+// comprometido en montos fijos (compras por monto/cantidad de otras simulaciones activas).
+// Se despeja de: para cada i, (vi+xi)/F = ti, y F = V + montosFijos + Σxi.
+function totalFinal(targets: SimTarget[], valorTotalBase: number, montosFijos: number): number | null {
+  const sumT = targets.reduce((s, t) => s + clamp01(t.objetivo), 0);
+  const sumV = targets.reduce((s, t) => s + t.valorActual, 0);
+  const denom = 1 - sumT;
+  if (denom <= 1e-9) return null; // los objetivos combinados suman ≥100%: inalcanzable comprando
+  return (valorTotalBase + montosFijos - sumV) / denom;
+}
+
+// Resuelve el monto de cada target para llegar exacto a su %-objetivo, todos a la vez sobre el
+// mismo total final. Si alguno ya está por ENCIMA de su objetivo (monto negativo, habría que
+// vender), se excluye del sistema —no infla el total con una "compra negativa" que no se va a
+// ejecutar— y se recalcula el resto; ese excluido igual devuelve su monto negativo (para avisar en
+// la UI), calculado contra el total final ya sin él. `null` global = objetivos inalcanzables.
+export function resolverObjetivosSimultaneos(
+  targets: SimTarget[], valorTotalBase: number, montosFijos: number,
+): Map<string, number> | null {
+  let activos = targets;
+  const excluidos: SimTarget[] = [];
+  for (let i = 0; i <= targets.length; i++) {
+    const F = totalFinal(activos, valorTotalBase, montosFijos);
+    if (F == null) return null;
+    const negativos = activos.filter(t => clamp01(t.objetivo) * F - t.valorActual < 0);
+    if (negativos.length === 0) {
+      const out = new Map<string, number>();
+      for (const t of activos) out.set(t.id, clamp01(t.objetivo) * F - t.valorActual);
+      for (const t of excluidos) out.set(t.id, clamp01(t.objetivo) * F - t.valorActual);
+      return out;
+    }
+    excluidos.push(...negativos);
+    activos = activos.filter(t => !negativos.includes(t));
+  }
+  return null; // no debería llegar acá (el loop converge en ≤ targets.length pasadas)
+}
+
+// Peso resultante de una posición dado su monto simulado y el total FINAL de la cartera (ya con
+// TODAS las compras simuladas incluidas) — a diferencia de `pesoResultante`, acá `valorTotalFinal`
+// ya incluye este mismo `monto` (no hay que sumarlo de nuevo).
+export function pesoResultanteConjunto(valorPosicion: number, monto: number, valorTotalFinal: number): number {
+  return valorTotalFinal > 0 ? (valorPosicion + monto) / valorTotalFinal : 0;
+}
+
 export interface ObjetivoItem { id: string; peso_objetivo: number | null }
 
 // Reajusta los objetivos del "plan" (las posiciones con objetivo asignado) para que sumen 100%
