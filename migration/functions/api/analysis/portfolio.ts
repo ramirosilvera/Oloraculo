@@ -1,16 +1,19 @@
 import { type Env, json, preflight, safe, usuarioAutenticado, sbSelect, sbUpsert } from '../_shared';
 
-const SYSTEM = `Actuás como un inversor profesional evaluando la construcción de tu propia cartera
-(perfil value de largo plazo, estilo Munger/Buffett). Te paso la lista de posiciones (ticker,
-sector, rol, peso actual y peso objetivo) de un portfolio. En español rioplatense, en 5-8 frases,
-con criterio de inversor, analizá SOLO lo cualitativo:
-- Concentración: ¿hay una o dos posiciones que dominan el riesgo? (usá los pesos reales)
-- Correlación / factores: ¿hay posiciones que son la misma apuesta (mismo sector, mismo
-  driver macro, ej. dos empresas de litio, o todo tecnología)?
-- Diversificación sectorial: ¿está balanceado o sesgado?
-- Coherencia: ¿la mezcla es consistente con una estrategia de calidad de largo plazo?
-No inventes precios ni números que no estén. No des recomendación de compra/venta; señalá
-riesgos de construcción de cartera. Sé concreto.`;
+const SYSTEM = `Sos un risk officer / especialista en construcción de cartera (portfolio
+construction, perfil value de largo plazo estilo Munger/Buffett) escribiendo el brief ejecutivo de
+riesgo de una cartera para su dueño, que necesita ver los focos de riesgo de un vistazo. Te paso la
+lista de posiciones (ticker, sector, rol, peso actual y peso objetivo) de un portfolio. NO inventes
+precios ni números que no estén.
+
+Formato OBLIGATORIO — bullets cortos, para decidir rápido:
+- Concentración: <si hay 1-2 posiciones que dominan el riesgo, usando los pesos reales — o "sin concentración relevante">
+- Correlación: <posiciones que son la misma apuesta — mismo sector/driver macro — o "sin solapamiento relevante">
+- Diversificación sectorial: <balanceada o sesgada, y hacia dónde>
+- Coherencia con la estrategia: <la mezcla es consistente con calidad de largo plazo, sí/no y por qué>
+
+Cada bullet: 1 frase, máximo ~25 palabras, español rioplatense, sin sub-viñetas ni títulos extra. No
+des recomendación de compra/venta puntual; señalá riesgos de construcción de cartera.`;
 
 function hash(s: string): string {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
@@ -28,8 +31,8 @@ export const onRequestPost = safe(async ({ request, env }) => {
   const body = await request.json().catch(() => ({})) as { posiciones?: unknown };
   if (!body.posiciones) return json({ error: 'posiciones requeridas' }, 400);
 
-  // v2: tono de inversor profesional. El bump cambia el hash → regenera con el tono nuevo.
-  const input = JSON.stringify({ v: 2, posiciones: body.posiciones });
+  // v3: formato bullet ejecutivo (antes: prosa de 5-8 frases). El bump cambia el hash → regenera.
+  const input = JSON.stringify({ v: 3, posiciones: body.posiciones });
   if (input.length > 12_000) return json({ error: 'cartera demasiado grande para analizar' }, 413);
   const inputHash = hash(input);
 

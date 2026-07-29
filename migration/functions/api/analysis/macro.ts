@@ -1,14 +1,18 @@
 import { type Env, json, preflight, safe, usuarioAutenticado, sbSelect, sbUpsert } from '../_shared';
 
-const SYSTEM = `Actuás como un economista profesional (perfil macro) escribiendo para un inversor
-argentino de largo plazo. Te paso el estado de un tablero de indicadores (Argentina: dólares, riesgo
-país, Merval, ADR YPF; global/EE.UU.: índice dólar, S&P, VIX, spread high yield, tasa corta; refugios:
-oro, BTC) con su valor y su semáforo (verde/amarillo/rojo). Escribí una lectura EJECUTIVA con rigor de
-economista: UN SOLO PÁRRAFO de 3-4 frases, en español rioplatense, sin viñetas ni títulos. Interpretá
-el régimen macro conectando las señales (frente local vs externo, tasas, liquidez global, riesgo) y
-cerrá con qué postura sugieren las condiciones para una cartera de calidad de largo plazo
-(defensiva/ofensiva, no timing). Tono profesional y sobrio; NO inventes números ni des recomendación
-de compra/venta de un activo puntual.`;
+const SYSTEM = `Sos un economista jefe (perfil macro) escribiendo el brief ejecutivo diario para un
+inversor argentino de largo plazo que NO tiene tiempo de leer un informe largo. Te paso el estado de
+un tablero de indicadores (Argentina: dólares, riesgo país, Merval, ADR YPF; global/EE.UU.: índice
+dólar, S&P, VIX, spread high yield, tasa corta; refugios: oro, BTC) con su valor y su semáforo
+(verde/amarillo/rojo).
+
+Formato OBLIGATORIO — bullets cortos, cero relleno, para decidir en 10 segundos:
+- Régimen: <una frase conectando el frente local con el externo — no repitas el semáforo, interpretalo>
+- Riesgo principal: <la señal más preocupante ahora mismo, o "sin foco de riesgo" si no hay>
+- Postura sugerida: <defensiva | neutral | ofensiva — para una cartera de calidad de largo plazo, no timing>
+
+Cada bullet: UNA sola frase, máximo ~20 palabras, español rioplatense, sin sub-viñetas ni títulos
+extra. NO inventes números. NO des recomendación de compra/venta de un activo puntual.`;
 
 function hash(s: string): string {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
@@ -26,9 +30,9 @@ export const onRequestPost = safe(async ({ request, env }) => {
   const body = await request.json().catch(() => ({})) as { indicadores?: unknown };
   if (!body.indicadores) return json({ error: 'indicadores requeridos' }, 400);
 
-  // v4: tono de economista profesional. El bump del prompt-version cambia el hash → cache miss →
-  // regenera con el tono nuevo (los guardados anteriores no se reusan).
-  const input = JSON.stringify({ v: 4, indicadores: body.indicadores });
+  // v5: formato bullet ejecutivo (antes: un párrafo). El bump del prompt-version cambia el hash →
+  // cache miss → regenera con el formato nuevo (los guardados anteriores no se reusan).
+  const input = JSON.stringify({ v: 5, indicadores: body.indicadores });
   if (input.length > 8_000) return json({ error: 'contexto demasiado grande' }, 413);
   const inputHash = hash(input);
 

@@ -4,6 +4,7 @@ import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff,
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
+import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
 import { cantidadPorMonto, aplicarObjetivo, redondearPct, resolverObjetivosSimultaneos, pesoResultanteConjunto, type SimTarget } from '../engine/rebalance';
@@ -277,6 +278,17 @@ export function PosicionesPage() {
           </table>
         </div>
       </Card>
+
+      {/* Mismo componente/endpoint que usa Consolidado (una sola cartera acá) — no es un llamado
+          nuevo a Gemini, es la misma revisión de riesgo de cartera ya construida, disponible sin
+          tener que ir a la vista "todos". */}
+      {openRows.length > 0 && (
+        <PortfolioReview
+          posiciones={openRows.map(r => r.p)}
+          pfName={new Map([[active.id, active.nombre]])}
+          pesos={new Map(openRows.map(r => [r.p.ticker, totalMkt > 0 ? (r.mkt ?? r.cost) / totalMkt : 0]))}
+        />
+      )}
 
       {histTicker && <MovimientosModal portfolioId={active.id} ticker={histTicker} onClose={() => setHistTicker(null)} />}
       {sellData && <SellModal pos={sellData.pos} sugerido={sellData.sugerido}
