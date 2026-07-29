@@ -113,17 +113,29 @@ export function ConfigPage() {
   );
 }
 
+// Recordatorio de "hace cuánto no hacés backup", en localStorage (nada que ver con los datos del
+// portfolio, es solo un timestamp del navegador). Sin esto, tener el botón no garantiza que se use:
+// el plan gratuito de Supabase no tiene red de seguridad propia, así que este archivo ES el backup.
+const LAST_BACKUP_KEY = 'lastBackupAt';
+const leerUltimoBackup = (): Date | null => {
+  try { const v = localStorage.getItem(LAST_BACKUP_KEY); return v ? new Date(v) : null; } catch { return null; }
+};
+const marcarBackupHecho = () => { try { localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch { /* */ } };
+const DIAS_AVISO = 30;
+
 function BackupSection() {
   const { session } = useAuth();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
+  const [ultimo, setUltimo] = useState(() => leerUltimoBackup());
 
   const descargar = async () => {
     setBusy(true); setMsg(null);
     try {
       const r = await buildBackup(session?.user.email ?? null);
       descargarBackup(r);
-      const detalle = `${r.counts.portfolios ?? 0} portfolios · ${r.counts.posiciones ?? 0} posiciones · ${r.counts.movimientos ?? 0} movimientos · ${r.counts.aportes ?? 0} aportes · ${r.counts.flujo_items ?? 0} flujo`;
+      marcarBackupHecho(); setUltimo(new Date());
+      const detalle = `${r.counts.portfolios ?? 0} portfolios · ${r.counts.posiciones ?? 0} posiciones · ${r.counts.movimientos ?? 0} movimientos · ${r.counts.aportes ?? 0} aportes · ${r.counts.cobros ?? 0} cobros · ${r.counts.flujo_items ?? 0} flujo`;
       setMsg(r.errores.length
         ? { text: `Backup descargado (${r.total} registros), con avisos: ${r.errores.join('; ')}` }
         : { text: `Backup descargado ✓ — ${r.total} registros (${detalle}). Guardalo en tu Drive.`, ok: true });
@@ -132,14 +144,23 @@ function BackupSection() {
     } finally { setBusy(false); }
   };
 
+  const diasDesde = ultimo ? Math.floor((Date.now() - ultimo.getTime()) / 86_400_000) : null;
+  const haceFalta = diasDesde == null || diasDesde > DIAS_AVISO;
+
   return (
     <Card>
       <CardHeader title="Backup de tus datos" sub="Descargá un archivo JSON con TODOS tus portfolios y datos para guardarlo por tu cuenta (ej. en tu Drive)." />
       <div className="p-4 space-y-3">
         <div className="flex items-start gap-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 text-[11px] text-ink-600">
           <ShieldCheck className="w-4 h-4 shrink-0 text-pos mt-0.5" />
-          <p>Incluye portfolios, posiciones, movimientos, aportes, flujo de caja, supuestos de DCF, watchlist, mapa de CIK y análisis de IA. Se genera en tu navegador (no se sube a ningún lado). Sirve para reconstruir la cuenta si Supabase deja de estar, si te comprometen la app, o lo que sea.</p>
+          <p>Incluye portfolios, posiciones, movimientos, aportes, cobros (dividendos/intereses/amortizaciones), flujo de caja, supuestos de DCF y de Proyección, watchlist, mapa de CIK y análisis de IA. Se genera en tu navegador (no se sube a ningún lado). El proyecto está en el plan gratuito de Supabase, que NO incluye backups automáticos — este archivo es la única copia de tus datos fuera de la base. Guardalo en tu Drive u otro lugar seguro cada tanto.</p>
         </div>
+        {haceFalta && (
+          <p className="flex items-center gap-1.5 text-[11px] text-warn">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            {diasDesde == null ? 'Nunca descargaste un backup desde este navegador.' : `Tu último backup (desde este navegador) fue hace ${diasDesde} días.`}
+          </p>
+        )}
         <div className="flex items-center gap-3 flex-wrap">
           <Button onClick={descargar} disabled={busy}><Download className="w-4 h-4" /> {busy ? 'Generando…' : 'Descargar backup (JSON)'}</Button>
           {msg && <span className={`text-xs ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</span>}
@@ -151,7 +172,8 @@ function BackupSection() {
 
 const TABLA_LABEL: Record<string, string> = {
   portfolios: 'portfolios', posiciones: 'posiciones', movimientos: 'movimientos', aportes: 'aportes',
-  portfolio_snapshots: 'histórico', flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist', analisis_ia: 'análisis IA', profiles: 'perfil',
+  portfolio_snapshots: 'histórico', flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist',
+  analisis_ia: 'análisis IA', profiles: 'perfil', cobros: 'cobros', proyeccion_inputs: 'supuestos proyección',
 };
 
 function RestoreSection() {

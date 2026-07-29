@@ -3,11 +3,15 @@ import { supabase } from './supabase';
 // Backup completo de los datos del usuario. Todo pasa por el cliente con RLS (user_id = auth.uid()),
 // así que cada select('*') devuelve SOLO los datos del usuario. Se excluyen los caches de mercado
 // (precios/fundamentos/macro) porque son datos compartidos y re-descargables, no personales.
-export const BACKUP_VERSION = 1;
+// v2: agrega proyeccion_inputs y cobros (tablas nuevas — sin esto quedaban fuera del backup y
+// una restauración en una cuenta nueva perdía los supuestos de Proyección y el historial de
+// dividendos/intereses/amortizaciones cobrados).
+export const BACKUP_VERSION = 2;
 
 const TABLAS = [
   'portfolios', 'posiciones', 'movimientos', 'aportes', 'portfolio_snapshots',
-  'flujo_items', 'dcf_inputs', 'cik_map', 'watchlist', 'analisis_ia', 'profiles',
+  'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros',
+  'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;
 
 export interface BackupResult {

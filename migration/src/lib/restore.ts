@@ -22,8 +22,12 @@ const RESTORE_ORDER: { table: string; onConflict: string; userScoped: boolean }[
   { table: 'portfolios',  onConflict: 'id',           userScoped: true },
   { table: 'posiciones',  onConflict: 'id',           userScoped: false },
   { table: 'movimientos', onConflict: 'id',           userScoped: false },
+  // Depende de posiciones Y movimientos (movimiento_id del ajuste de una amortización): tiene
+  // que restaurarse después de ambas o la FK rechaza el insert.
+  { table: 'cobros',      onConflict: 'id',           userScoped: false },
   { table: 'aportes',     onConflict: 'id',           userScoped: false },
   { table: 'portfolio_snapshots', onConflict: 'portfolio_id,fecha', userScoped: false },
+  { table: 'proyeccion_inputs', onConflict: 'portfolio_id', userScoped: false },
   { table: 'analisis_ia', onConflict: 'id',           userScoped: false },
   { table: 'cik_map',     onConflict: 'user_id,ticker', userScoped: true },
   { table: 'flujo_items', onConflict: 'id',           userScoped: true },
@@ -50,7 +54,10 @@ export function parseBackup(text: string): Preview {
     return { ok: false, error: 'El archivo no tiene la estructura de un backup (falta "tables").', counts: {}, total: 0, avisos };
   }
   if (data.app && data.app !== 'portfolio-inversiones') avisos.push(`El backup dice ser de otra app ("${data.app}").`);
-  if (data.backup_version && data.backup_version > 1) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v1).`);
+  // v1 igual se puede restaurar (solo le faltan proyeccion_inputs/cobros, que no existían) — el
+  // aviso es solo para versiones FUTURAS que este código todavía no sepa interpretar.
+  if (data.backup_version && data.backup_version > 2) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v2).`);
+  if (data.backup_version === 1) avisos.push('Backup v1 (anterior a Cobros y Proyección): no va a traer el historial de dividendos/intereses/amortizaciones ni los supuestos de Proyección guardados, porque todavía no existían.');
   // El propio backup avisa si se generó incompleto (ver backup.ts): lo mostramos antes de restaurar.
   if (data.partial) avisos.push(`El backup se generó INCOMPLETO${data.errores?.length ? ` (falló: ${data.errores.join('; ')})` : ''}: puede faltar información.`);
   const counts: Record<string, number> = {};
