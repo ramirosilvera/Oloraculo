@@ -3,6 +3,7 @@ import { consolidarCompra, reconstruirTenencia, type MovimientoLike } from './te
 
 const compra = (cantidad: number, precio: number): MovimientoLike => ({ tipo: 'compra', cantidad, precio });
 const venta = (cantidad: number, precio: number): MovimientoLike => ({ tipo: 'venta', cantidad, precio });
+const ajuste = (cantidad: number, precio = 0): MovimientoLike => ({ tipo: 'ajuste', cantidad, precio });
 
 describe('consolidarCompra — costo promedio ponderado', () => {
   it('primera compra: el costo es el precio pagado', () => {
@@ -64,5 +65,16 @@ describe('reconstruirTenencia — desde el historial', () => {
     const corregido = [compra(10, 100)];                     // se borra el movimiento malo
     expect(reconstruirTenencia(conError).cantidad).toBe(0);
     expect(reconstruirTenencia(corregido)).toEqual({ cantidad: 10, costoPromedio: 100 });
+  });
+
+  it('un "ajuste" cambia la cantidad SIN tocar el costo promedio (ej. amortización de capital)', () => {
+    // 10@100 → amortización de 4 nominales (ajuste con precio 0, no es una venta a mercado) → 6@100
+    const t = reconstruirTenencia([compra(10, 100), ajuste(-4)]);
+    expect(t.cantidad).toBe(6);
+    expect(t.costoPromedio).toBeCloseTo(100, 9);   // NO se diluye con el precio 0 del ajuste
+  });
+
+  it('un ajuste no deja cantidad negativa', () => {
+    expect(reconstruirTenencia([compra(5, 100), ajuste(-50)]).cantidad).toBe(0);
   });
 });

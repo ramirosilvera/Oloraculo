@@ -59,6 +59,25 @@ export interface Movimiento {
   created_at: string;
 }
 
+// Cobro REAL (no proyectado) de dividendo/interés/amortización de una posición. 'amortizacion' es
+// devolución de capital (reduce el nominal vía un movimiento 'ajuste'), no renta — ver 0011_cobros.sql.
+export type CobroTipo = 'dividendo' | 'interes' | 'amortizacion';
+export type CobroEstado = 'disponible' | 'reinvertido';
+
+export interface Cobro {
+  id: string;
+  portfolio_id: string;
+  posicion_id: string | null;
+  ticker: string;
+  tipo: CobroTipo;
+  fecha: string;
+  monto: number;
+  estado: CobroEstado;
+  movimiento_id: string | null;
+  nota: string | null;
+  created_at: string;
+}
+
 export interface Aporte {
   id: string;
   portfolio_id: string;

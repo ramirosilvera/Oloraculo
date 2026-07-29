@@ -30,6 +30,12 @@ export function reconstruirTenencia(movs: MovimientoLike[]): Tenencia {
   for (const m of movs) {
     const q = Number(m.cantidad) || 0, px = Number(m.precio) || 0;
     if (m.tipo === 'venta') { t = { cantidad: Math.max(0, t.cantidad - q), costoPromedio: t.costoPromedio }; continue; }
+    // 'ajuste' (split, amortización de capital, corrección): cambia la cantidad SIN tocar el costo
+    // promedio — igual criterio que realizedPnl (engine/pnl.ts). Antes caía en la rama de "compra"
+    // de acá abajo y el costo promedio se recalculaba mezclado con el precio del ajuste (a veces 0,
+    // por ejemplo en una amortización): un movimiento borrado y reconstruido daba OTRO costo base
+    // que el que tenía antes de borrarlo.
+    if (m.tipo === 'ajuste') { t = { cantidad: Math.max(0, t.cantidad + q), costoPromedio: t.costoPromedio }; continue; }
     t = consolidarCompra(t, q, px);
   }
   return t;

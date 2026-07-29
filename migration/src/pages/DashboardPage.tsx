@@ -6,9 +6,11 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
 import { useFlujo } from '../hooks/useFlujo';
+import { useCobros } from '../hooks/useCobros';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, GRUPOS, resumenMacro, distanciaMaximo, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
+import { resumenCobros } from '../engine/cobros';
 import { redondearPct } from '../engine/rebalance';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
@@ -37,6 +39,8 @@ export function DashboardPage() {
   const qAportes = useAportes(active?.id);
   const aportes = qAportes.data ?? [];
   const { data: flujo = [] } = useFlujo();
+  const { data: cobros = [] } = useCobros(active?.id);
+  const resumenCobrado = useMemo(() => resumenCobros(cobros), [cobros]);
 
   const { patrimonio, costo, pnl, alloc, sinPrecio } = useMemo(() => {
     let patrimonio = 0, costo = 0;
@@ -209,6 +213,8 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} />
 
+      {cobros.length > 0 && <CobrosResumen resumen={resumenCobrado} />}
+
       {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
 
       <MacroContext readings={semaforos} resumen={resumen} />
@@ -258,6 +264,35 @@ function Distribucion({ alloc, total }: { alloc: { ticker: string; mkt: number; 
               </div>
             );
           })}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Cobros reales (dividendos + intereses + amortizaciones) — cuánto entró y cuánto está sin
+// reinvertir todavía. La amortización se ve reflejada en "Cobrado total" (es plata real) pero no en
+// "Renta" (es devolución de capital, no ganancia).
+function CobrosResumen({ resumen }: { resumen: ReturnType<typeof resumenCobros> }) {
+  return (
+    <Card>
+      <CardHeader title="Cobros" sub="Dividendos, intereses y amortizaciones efectivamente cobrados."
+        right={<Link to="/cupones" className="text-[11px] text-celeste-600 hover:underline">Ver detalle →</Link>} />
+      <div className="grid grid-cols-3 gap-2 p-3">
+        <div className="rounded-2xl border border-line bg-surface shadow-soft px-3 py-3 min-w-0">
+          <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold truncate">Cobrado total</p>
+          <p className="text-lg font-bold font-display tnum mt-1 truncate text-ink-900">{fmtUsdCompact(resumen.total)}</p>
+          <p className="text-[10px] text-ink-500 mt-0.5 truncate">dividendos + intereses + amort.</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface shadow-soft px-3 py-3 min-w-0">
+          <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold truncate">Disponible</p>
+          <p className={`text-lg font-bold font-display tnum mt-1 truncate ${resumen.disponible > 0 ? 'text-warn' : 'text-ink-900'}`}>{fmtUsdCompact(resumen.disponible)}</p>
+          <p className="text-[10px] text-ink-500 mt-0.5 truncate">listo para reinvertir</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface shadow-soft px-3 py-3 min-w-0">
+          <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold truncate">Renta pura</p>
+          <p className="text-lg font-bold font-display tnum mt-1 truncate text-ink-900">{fmtUsdCompact(resumen.porTipo.dividendo + resumen.porTipo.interes)}</p>
+          <p className="text-[10px] text-ink-500 mt-0.5 truncate">sin contar amortización</p>
         </div>
       </div>
     </Card>

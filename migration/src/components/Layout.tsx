@@ -21,7 +21,7 @@ const NAV_MAIN: NavItem[] = [
   { to: '/finanzas', label: 'Finanzas', icon: PiggyBank },
   { to: '/radar', label: 'Radar', icon: Radar },
   { to: '/bonos', label: 'Renta fija', mobileLabel: 'Bonos', icon: Landmark },
-  { to: '/cupones', label: 'Cupones', icon: CalendarClock },
+  { to: '/cupones', label: 'Cobros', icon: CalendarClock },
 ];
 
 const NAV_MORE: NavItem[] = [
