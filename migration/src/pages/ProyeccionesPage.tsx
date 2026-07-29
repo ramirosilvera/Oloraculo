@@ -1,15 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes } from '../hooks/usePosiciones';
 import { useChartTheme } from '../hooks/usePrefs';
+import { useProyeccionInputs, type ProyeccionInputs } from '../hooks/useProyeccionInputs';
 import { project } from '../engine/projection';
 import { marketValueUSD, costUSD } from '../lib/valuation';
-import { Card, CardHeader, Stat, fmtUsd, fmtUsdCompact } from '../components/ui';
+import { Card, CardHeader, Button, Stat, fmtUsd, fmtUsdCompact } from '../components/ui';
 
 // Año en curso real: si se hardcodea, a partir del año siguiente el eje temporal y las edades
 // quedan desfasados del calendario.
 const anioActual = new Date().getFullYear();
+
+const DEFAULTS: ProyeccionInputs = { aporteAnual: 3000, tasaAnual: 0.08, anios: 40, edadInicial: 35 };
 
 export function ProyeccionesPage() {
   const { active } = usePortfolios();
@@ -24,10 +27,23 @@ export function ProyeccionesPage() {
     () => posiciones.reduce((s, p) => s + (marketValueUSD(p, quotes[p.ticker] ?? null) ?? costUSD(p)), 0),
     [posiciones, quotes]);
 
-  const [aporteAnual, setAporteAnual] = useState(3000);
-  const [tasaAnual, setTasaAnual] = useState(0.08);
-  const [anios, setAnios] = useState(40);
-  const [edadInicial, setEdadInicial] = useState(35);
+  const { data: saved, isLoading: savedLoading, save: saveInputs, remove: removeInputs } = useProyeccionInputs(active?.id);
+  const [aporteAnual, setAporteAnual] = useState(DEFAULTS.aporteAnual);
+  const [tasaAnual, setTasaAnual] = useState(DEFAULTS.tasaAnual);
+  const [anios, setAnios] = useState(DEFAULTS.anios);
+  const [edadInicial, setEdadInicial] = useState(DEFAULTS.edadInicial);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  // Al entrar (o cambiar de portfolio): si hay supuestos guardados para ESTE portfolio, usarlos;
+  // si no, los defaults. Solo una vez por portfolio (no pisar lo que el usuario está tipeando).
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (savedLoading || !active || seededFor.current === active.id) return;
+    seededFor.current = active.id;
+    setSaveMsg(null);
+    const i = saved ?? DEFAULTS;
+    setAporteAnual(i.aporteAnual); setTasaAnual(i.tasaAnual); setAnios(i.anios); setEdadInicial(i.edadInicial);
+  }, [saved, savedLoading, active]);
 
   const rows = useMemo(() => project({
     valorInicial: Math.round(valorActual), aporteAnual, tasaAnual, anios, anioBase: anioActual, edadInicial,
@@ -35,6 +51,15 @@ export function ProyeccionesPage() {
 
   const fin = rows[rows.length - 1];
   const chartData = rows.map(r => ({ anio: r.anio, Patrimonio: Math.round(r.valor), Aportado: Math.round(r.aportadoTotal) }));
+
+  const guardar = async () => {
+    try { await saveInputs({ aporteAnual, tasaAnual, anios, edadInicial }); setSaveMsg('Guardado ✓'); }
+    catch (e) { setSaveMsg(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`); }
+  };
+  const restablecer = async () => {
+    setAporteAnual(DEFAULTS.aporteAnual); setTasaAnual(DEFAULTS.tasaAnual); setAnios(DEFAULTS.anios); setEdadInicial(DEFAULTS.edadInicial);
+    try { await removeInputs(); setSaveMsg('Restablecido a los valores por defecto.'); } catch { /* */ }
+  };
 
   if (!active) return null;
 
@@ -50,13 +75,18 @@ export function ProyeccionesPage() {
       </div>
 
       <Card>
-        <CardHeader title="Supuestos" sub="Interés compuesto + aportes anuales. Editá y se recalcula." />
+        <CardHeader title="Supuestos" sub="Interés compuesto + aportes anuales. Editá y se recalcula."
+          right={<div className="flex items-center gap-1.5">
+            <Button variant="ghost" onClick={restablecer}>Restablecer</Button>
+            <Button onClick={guardar}>Guardar</Button>
+          </div>} />
         <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <Num l="Aporte anual (USD)" v={aporteAnual} step={500} onChange={setAporteAnual} />
           <Num l="Retorno anual (%)" v={+(tasaAnual * 100).toFixed(1)} step={0.5} onChange={v => setTasaAnual(v / 100)} />
           <Num l="Años" v={anios} step={5} onChange={setAnios} />
           <Num l="Edad hoy" v={edadInicial} step={1} onChange={setEdadInicial} />
         </div>
+        {saveMsg && <p className="px-4 pb-3 text-[11px] text-ink-600">{saveMsg}</p>}
       </Card>
 
       <Card>
