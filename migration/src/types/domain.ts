@@ -62,10 +62,12 @@ export interface Movimiento {
 // Cobro de dividendo/interés/amortización de una posición. 'amortizacion' es devolución de capital
 // (reduce el nominal vía un movimiento 'ajuste'), no renta — ver 0011_cobros.sql.
 // estado='pendiente': lo generó el cron (dividendo/cupón proyectado que llegó a su fecha) y TODAVÍA
-// no es plata confirmada por el usuario — engine/cobros.ts lo excluye a propósito de los totales.
-// Nunca tratar 'pendiente' como sinónimo de 'disponible': ver 0012_cobros_pendientes.sql.
+// no es plata confirmada por el usuario. estado='descartado': el usuario lo rechazó — la fila se
+// conserva (no se borra) para que el cron no lo vuelva a sugerir (índice cobros_cron_dedupe).
+// engine/cobros.ts usa ALLOWLIST (solo disponible/reinvertido suman) — nunca tratar ningún otro
+// estado como sinónimo de "plata confirmada". Ver 0012/0015_cobros_pendientes*.sql.
 export type CobroTipo = 'dividendo' | 'interes' | 'amortizacion';
-export type CobroEstado = 'disponible' | 'reinvertido' | 'pendiente';
+export type CobroEstado = 'disponible' | 'reinvertido' | 'pendiente' | 'descartado';
 export type CobroOrigen = 'manual' | 'cron';
 
 export interface Cobro {

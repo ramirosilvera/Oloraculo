@@ -36,12 +36,14 @@ export function CuponesPage() {
 // ── Cobrado: registro REAL de dividendos/intereses/amortizaciones ────────────────────────────
 function CobradoTab({ portfolioId }: { portfolioId: string }) {
   const { data: posiciones = [] } = usePosiciones(portfolioId);
-  const { data: cobros, isLoading, registrar, registrarAmortizacion, marcarEstado, confirmarPendiente, remove } = useCobros(portfolioId);
+  const { data: cobros, isLoading, registrar, registrarAmortizacion, marcarEstado, confirmarPendiente, descartarPendiente, remove } = useCobros(portfolioId);
   const resumen = useMemo(() => resumenCobros(cobros), [cobros]);
   // Los 'pendiente' (sugeridos por el cron) van en su propia bandeja, nunca en el historial normal
-  // — ahí el toggle Disponible/Reinvertido no aplicaría y se prestaría a confusión.
+  // — ahí el toggle Disponible/Reinvertido no aplicaría y se prestaría a confusión. 'descartado'
+  // no se muestra en ningún lado (quedó resuelto), pero la fila sigue en la base para que el cron
+  // no vuelva a sugerir lo mismo.
   const pendientes = useMemo(() => cobros.filter(c => c.estado === 'pendiente'), [cobros]);
-  const confirmados = useMemo(() => cobros.filter(c => c.estado !== 'pendiente'), [cobros]);
+  const confirmados = useMemo(() => cobros.filter(c => c.estado === 'disponible' || c.estado === 'reinvertido'), [cobros]);
 
   const [modo, setModo] = useState<'existente' | 'otro'>(posiciones.length > 0 ? 'existente' : 'otro');
   const [posId, setPosId] = useState(posiciones[0]?.id ?? '');
@@ -98,7 +100,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
       </div>
 
       {pendientes.length > 0 && (
-        <PendientesCard pendientes={pendientes} onConfirmar={confirmarPendiente} onDescartar={remove} />
+        <PendientesCard pendientes={pendientes} onConfirmar={confirmarPendiente} onDescartar={descartarPendiente} />
       )}
 
       <Card>
@@ -225,15 +227,22 @@ function PendienteRow({ p, onConfirmar, onDescartar }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // `finally` siempre libera `busy`, tanto si sale bien (la fila desaparece al refetch de todos
+  // modos) como si falla (sin esto, un error dejaba el botón trabado en "confirmando…" para siempre).
   const confirmar = async () => {
     const m = Number(monto) || 0;
     if (!(m > 0)) { setErr('Monto inválido.'); return; }
     setBusy(true); setErr(null);
-    try { await onConfirmar(p.id, m); } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo confirmar'); setBusy(false); }
+    try { await onConfirmar(p.id, m); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo confirmar'); }
+    finally { setBusy(false); }
   };
   const descartar = async () => {
-    setBusy(true);
-    try { await onDescartar(p.id); } catch { setBusy(false); }
+    if (!window.confirm(`¿Descartar la sugerencia de ${p.ticker}? El cron no la va a volver a sugerir.`)) return;
+    setBusy(true); setErr(null);
+    try { await onDescartar(p.id); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo descartar'); }
+    finally { setBusy(false); }
   };
 
   return (

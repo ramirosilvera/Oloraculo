@@ -33,7 +33,12 @@ export interface CobroPendienteSugerido {
 // de conversión (ej. 20:1) — es el error más grande posible acá (un orden de magnitud), mucho mayor
 // que la retención de impuestos, que queda a criterio del usuario al confirmar.
 export function sugerirDividendoPendiente(pos: PosicionParaCobro, div: DividendoInfo | null, hoy: string): CobroPendienteSugerido | null {
-  if (pos.tipo === 'bono' || pos.tipo === 'cash' || !(pos.cantidad > 0)) return null;
+  // accion_ar (BYMA, ej. GGAL local) es un instrumento DISTINTO del ADR/CEDEAR que pueda tener el
+  // mismo ticker en otro portfolio — sin relación de conversión conocida ni fuente de datos para
+  // acciones locales. Si no se excluye acá, un ticker compartido (ej. GGAL como 'accion' en un
+  // portfolio y como 'accion_ar' en otro) hace que la acción local reciba el dividendo del ADR en
+  // USD sin ningún ratio, un error de un orden de magnitud y en la moneda equivocada.
+  if (pos.tipo === 'bono' || pos.tipo === 'cash' || pos.tipo === 'accion_ar' || !(pos.cantidad > 0)) return null;
   if (!div || div.estado === 'sin-dato' || div.proximaFecha == null || div.montoPorAccion == null) return null;
   if (div.proximaFecha > hoy) return null; // todavía no llegó
 
@@ -43,14 +48,19 @@ export function sugerirDividendoPendiente(pos: PosicionParaCobro, div: Dividendo
     if (!(pos.ratio_cedear! > 0)) return null;
     divisor = pos.ratio_cedear!;
   }
-  const monto = (div.montoPorAccion * pos.cantidad) / divisor;
+  // El chequeo `> 0` se hace DESPUÉS de redondear a centavos: un monto sub-centavo (posición muy
+  // chica) pasa el `>0` en crudo pero redondea a 0.00, y la tabla lo rechaza (`monto > 0` en la
+  // constraint) — sin este orden, la RPC fallaba en silencio (atrapado por el catch del cron) por
+  // una sugerencia que de entrada no valía la pena insertar.
+  const montoBruto = (div.montoPorAccion * pos.cantidad) / divisor;
+  const monto = +montoBruto.toFixed(2);
   if (!(monto > 0)) return null;
 
   const fuente = div.estado === 'declarado' ? 'declarado por el proveedor' : 'estimado por cadencia histórica (sin fecha confirmada por el proveedor)';
   const calculo = `US$${div.montoPorAccion} por acción del subyacente × ${pos.cantidad}` + (pos.tipo === 'cedear' ? ` ÷ ratio ${pos.ratio_cedear}` : '');
   return {
     portfolio_id: pos.portfolio_id, posicion_id: pos.id, ticker: pos.ticker, tipo: 'dividendo',
-    fecha: div.proximaFecha, monto: +monto.toFixed(2),
+    fecha: div.proximaFecha, monto,
     nota: `Sugerido por el cron — ${fuente}. ${calculo}. Bruto: revisá retención de impuestos y tipo de cambio antes de confirmar.`,
   };
 }
@@ -79,12 +89,12 @@ export function sugerirCuponPendiente(pos: PosicionParaCobro, hoy: string): Cobr
   const mesHoy = Number(mesStr);
   if (!esMesDePago(mesHoy, cupon_mes, cupon_frecuencia)) return null;
 
-  const monto = (cupon_tasa / cupon_frecuencia) * pos.cantidad;
+  const monto = +((cupon_tasa / cupon_frecuencia) * pos.cantidad).toFixed(2);
   if (!(monto > 0)) return null;
 
   return {
     portfolio_id: pos.portfolio_id, posicion_id: pos.id, ticker: pos.ticker, tipo: 'interes',
-    fecha: `${anioStr}-${mesStr}-01`, monto: +monto.toFixed(2),
+    fecha: `${anioStr}-${mesStr}-01`, monto,
     nota: `Sugerido por el cron — cupón proyectado (tasa ${(cupon_tasa * 100).toFixed(2)}% anual ÷ ${cupon_frecuencia} pagos/año × ${pos.cantidad} nominales). Calendario sintético desde los datos cargados a mano, NO verificado contra la emisión real.`,
   };
 }

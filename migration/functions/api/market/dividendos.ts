@@ -3,7 +3,7 @@ import { fetchDividendos, proyectarDividendo, type DividendEvent, type Dividendo
 
 const TTL = 24 * 60 * 60 * 1000; // 24h — calendario de dividendos no cambia minuto a minuto
 
-interface CacheRow { historical: DividendEvent[] }
+interface CacheRow { data_json: { historical: DividendEvent[] } }
 
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
@@ -22,7 +22,7 @@ export const onRequestGet = guardAuth(async ({ request, env }) => {
 
   await Promise.all(tickers.map(async (t) => {
     const cached = await cacheFresh<CacheRow>(env, 'dividendos_cache', 'ticker', t, TTL);
-    if (cached?.historical) { out[t] = proyectarDividendo(cached.historical, hoy); return; }
+    if (cached?.data_json?.historical) { out[t] = proyectarDividendo(cached.data_json.historical, hoy); return; }
 
     const historical = await fetchDividendos(env, t);
     if (historical) {
@@ -33,7 +33,7 @@ export const onRequestGet = guardAuth(async ({ request, env }) => {
     // Proveedor caído o sin key configurada: último historial conocido (aunque vencido) antes que
     // devolver "sin dato" — mismo criterio que quotes.ts/fundamentals.ts.
     const last = await cacheLast<CacheRow>(env, 'dividendos_cache', 'ticker', t);
-    out[t] = last?.historical ? proyectarDividendo(last.historical, hoy) : null;
+    out[t] = last?.data_json?.historical ? proyectarDividendo(last.data_json.historical, hoy) : null;
   }));
 
   if (rows.length) await sbUpsert(env, 'dividendos_cache', rows, 'ticker');

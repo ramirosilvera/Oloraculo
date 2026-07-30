@@ -41,6 +41,11 @@ describe('sugerirDividendoPendiente', () => {
     expect(sugerirDividendoPendiente(pos({ tipo: 'cash' }), div(), '2026-06-01')).toBeNull();
   });
 
+  it('accion_ar NUNCA sugiere (el ticker puede compartirse con un ADR/CEDEAR de otro portfolio, y ' +
+     'no hay ratio conocido entre el ADR en USD y la acción local — mezclarlos infla el monto un orden de magnitud)', () => {
+    expect(sugerirDividendoPendiente(pos({ tipo: 'accion_ar', ticker: 'GGAL', cantidad: 500 }), div({ montoPorAccion: 5 }), '2026-06-01')).toBeNull();
+  });
+
   it('posición cerrada (cantidad 0) → no sugiere', () => {
     expect(sugerirDividendoPendiente(pos({ cantidad: 0 }), div(), '2026-06-01')).toBeNull();
   });

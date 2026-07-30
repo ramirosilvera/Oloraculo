@@ -69,26 +69,31 @@ export const onRequestGet = guard(async ({ request, env }) => {
   // 0012_cobros_pendientes.sql y engine/cobros.ts). Falla aislada: si esto se cae, no afecta ok/total.
   let pendientes = 0;
   const hoy = new Date().toISOString().slice(0, 10);
+  // Los dividendos de equities dependen de un proveedor externo; los cupones de bonos son 100%
+  // sintéticos (datos ya cargados a mano) y NO deberían dejar de sugerirse solo porque el fetch de
+  // dividendos falló — antes un try/catch envolvía las DOS cosas y una caída del proveedor externo
+  // se llevaba puestos también los cupones de bonos, que no tienen nada que ver.
+  let divPorTicker: Record<string, DividendoInfo | null> = {};
   try {
-    let divPorTicker: Record<string, DividendoInfo | null> = {};
     if (equity.length) {
       const r = await fetch(`${origin}/api/market/dividendos?tickers=${equity.join(',')}`, { headers });
       if (r.ok) divPorTicker = await r.json();
     }
-    for (const p of pos) {
-      const sug = p.tipo === 'bono'
-        ? sugerirCuponPendiente(p, hoy)
-        : sugerirDividendoPendiente(p, divPorTicker[p.ticker.toUpperCase()] ?? null, hoy);
-      if (!sug) continue;
-      try {
-        await sbRpc(env, 'insertar_cobro_pendiente_cron', {
-          p_portfolio_id: sug.portfolio_id, p_posicion_id: sug.posicion_id, p_ticker: sug.ticker,
-          p_tipo: sug.tipo, p_fecha: sug.fecha, p_monto: sug.monto, p_nota: sug.nota,
-        });
-        pendientes++;
-      } catch { /* una sugerencia fallida no frena las demás */ }
-    }
-  } catch { /* sin dividendos disponibles (sin key, proveedor caído): no rompe el resto del cron */ }
+  } catch { /* sin dividendos disponibles (sin key, proveedor caído): los cupones de bonos siguen */ }
+
+  for (const p of pos) {
+    const sug = p.tipo === 'bono'
+      ? sugerirCuponPendiente(p, hoy)
+      : sugerirDividendoPendiente(p, divPorTicker[p.ticker.toUpperCase()] ?? null, hoy);
+    if (!sug) continue;
+    try {
+      await sbRpc(env, 'insertar_cobro_pendiente_cron', {
+        p_portfolio_id: sug.portfolio_id, p_posicion_id: sug.posicion_id, p_ticker: sug.ticker,
+        p_tipo: sug.tipo, p_fecha: sug.fecha, p_monto: sug.monto, p_nota: sug.nota,
+      });
+      pendientes++;
+    } catch { /* una sugerencia fallida no frena las demás */ }
+  }
 
   // Solo conteos agregados — sin tickers ni montos (no filtrar composición del portfolio).
   return json({ ok, total: paths.length, pendientes });

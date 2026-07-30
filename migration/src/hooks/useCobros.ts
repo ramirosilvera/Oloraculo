@@ -78,10 +78,20 @@ export function useCobros(portfolioId: string | null | undefined) {
       if (error) throw error; invalidate();
     },
 
+    // Descartar un PENDIENTE (sugerido por el cron): NO se borra la fila, se marca 'descartado' —
+    // si se borrara, el índice de deduplicación (cobros_cron_dedupe) quedaría libre y el cron
+    // volvería a sugerir EXACTAMENTE lo mismo en la próxima corrida (cada 30 min, o el mes/ventana
+    // completa para cupones de bono). engine/cobros.ts excluye 'descartado' de todos los totales.
+    descartarPendiente: async (id: string) => {
+      const { error } = await supabase.from('cobros').update({ estado: 'descartado' }).eq('id', id);
+      if (error) throw error; invalidate();
+    },
+
     // Borra SOLO el registro de cobro (la plata que se anotó como cobrada). Si era una
     // amortización, el nominal reducido NO se revierte acá a propósito: eso realmente pasó. Para
     // deshacer el efecto en la posición hay que borrar el movimiento 'ajuste' desde su historial
     // en Posiciones (el link movimiento_id de este cobro queda en null solo, por la FK).
+    // Para un PENDIENTE usar descartarPendiente, no esto (ver comentario arriba).
     remove: async (id: string) => {
       const { error } = await supabase.from('cobros').delete().eq('id', id);
       if (error) throw error; invalidate();

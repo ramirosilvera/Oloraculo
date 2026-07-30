@@ -45,4 +45,20 @@ describe('resumenCobros', () => {
     const r = resumenCobros([c({ monto: 500, estado: 'pendiente', origen: 'cron' })]);
     expect(r).toEqual({ total: 0, disponible: 0, reinvertido: 0, porTipo: { dividendo: 0, interes: 0, amortizacion: 0 } });
   });
+
+  it('un cobro "descartado" tampoco suma a ningún total (allowlist, no un continue puntual por estado)', () => {
+    const r = resumenCobros([
+      c({ monto: 100, estado: 'disponible' }),
+      c({ monto: 999, estado: 'descartado', origen: 'cron' }),
+    ]);
+    expect(r.total).toBe(100);
+    expect(r.disponible).toBe(100);
+  });
+
+  it('un estado desconocido/futuro (no disponible/reinvertido) queda afuera por default', () => {
+    // @ts-expect-error — a propósito: probar la robustez ante un estado que TypeScript no conoce
+    // pero que igual podría llegar en runtime (dato viejo, columna nueva sin migrar el cliente, etc.)
+    const r = resumenCobros([c({ monto: 100, estado: 'disponible' }), c({ monto: 50, estado: 'algo_nuevo' })]);
+    expect(r.total).toBe(100);
+  });
 });
