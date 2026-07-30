@@ -67,6 +67,40 @@ interface FmpDividendRow { date?: string; adjDividend?: number; dividend?: numbe
 interface FinnhubDividendRow { date?: string; amount?: number; adjustedAmount?: number; payDate?: string; recordDate?: string; declarationDate?: string }
 interface TwelveDataDividendRow { ex_date?: string; amount?: number; payment_date?: string; record_date?: string; declaration_date?: string }
 interface TwelveDataDividendsResponse { dividends?: TwelveDataDividendRow[]; status?: string }
+interface EodhdDividendRow { date?: string; value?: number; unadjustedValue?: number; paymentDate?: string; recordDate?: string; declarationDate?: string }
+interface AlphaVantageDividendRow { ex_dividend_date?: string; amount?: string; declaration_date?: string; record_date?: string; payment_date?: string }
+interface AlphaVantageDividendsResponse { data?: AlphaVantageDividendRow[] }
+
+// Puro (sin fetch), verificado contra la respuesta real de EODHD (probada en vivo con la key demo
+// pública, jul-2026): un array directo, sin envoltorio. `value` es el monto AJUSTADO por splits,
+// `unadjustedValue` el monto real que se declaró en su momento — mismo criterio adjDividend/dividend
+// que FMP (preferir el ajustado, caer al real si falta).
+export function parseEodhd(data: unknown): DividendEvent[] | null {
+  if (!Array.isArray(data) || !data.length) return null;
+  const eventos = (data as EodhdDividendRow[])
+    .filter(d => d.date && (d.value != null || d.unadjustedValue != null))
+    .map(d => ({
+      date: d.date!, adjDividend: d.value ?? d.unadjustedValue ?? null, dividend: d.unadjustedValue ?? d.value ?? null,
+      paymentDate: d.paymentDate ?? null, recordDate: d.recordDate ?? null, declarationDate: d.declarationDate ?? null,
+    }));
+  return eventos.length ? eventos : null;
+}
+
+// Puro (sin fetch), verificado contra la respuesta real de Alpha Vantage (key demo, jul-2026).
+// `amount` viene como STRING ("1.69"), no número — hay que parsearlo y descartar valores no
+// numéricos (ej. "None", que Alpha Vantage devuelve para algunos eventos sin monto confirmado).
+export function parseAlphaVantage(data: AlphaVantageDividendsResponse): DividendEvent[] | null {
+  if (!Array.isArray(data.data) || !data.data.length) return null;
+  const eventos = data.data
+    .filter(d => d.ex_dividend_date && d.amount != null)
+    .map(d => ({ ...d, monto: Number(d.amount) }))
+    .filter(d => Number.isFinite(d.monto))
+    .map(d => ({
+      date: d.ex_dividend_date!, adjDividend: d.monto, dividend: d.monto,
+      paymentDate: d.payment_date ?? null, recordDate: d.record_date ?? null, declarationDate: d.declaration_date ?? null,
+    }));
+  return eventos.length ? eventos : null;
+}
 
 // Puro (sin fetch) a propósito, para poder testear el parseo sin mockear la red. Twelve Data
 // devuelve HTTP 200 con `status: "error"` para errores (key inválida, símbolo no encontrado, rate
@@ -83,11 +117,27 @@ export function parseTwelveData(data: TwelveDataDividendsResponse): DividendEven
   return eventos.length ? eventos : null;
 }
 
-// Twelve Data PRIMERO: verificado en vivo (jul-2026) que trae dividendos en su plan gratuito — a
-// diferencia de FMP y Finnhub, cuyos endpoints de dividendos exigen plan PAGO en esta cuenta (FMP:
-// confirmado que requiere plan Starter o superior; Finnhub: mismo problema, ya documentado antes).
-// Se dejan como fallback oportunista por si algún día se habilitan, no se sacan.
+// Orden verificado en vivo (jul-2026): EODHD y Alpha Vantage SÍ traen dividendos en su plan
+// gratuito (probado con sus keys demo — HTTP 200 con datos reales). Twelve Data, FMP y Finnhub
+// exigen plan PAGO para este endpoint específico en las cuentas configuradas — se dejan como
+// fallback oportunista por si algún día se habilitan, no se sacan.
 export async function fetchDividendos(env: Env, symbol: string): Promise<DividendEvent[] | null> {
+  if (env.EODHD_API_KEY) {
+    try {
+      const r = await fetchJson<unknown>(
+        `https://eodhd.com/api/div/${symbol}.US?api_token=${env.EODHD_API_KEY}&fmt=json`);
+      const eventos = parseEodhd(r);
+      if (eventos) return eventos;
+    } catch { /* fallthrough a Alpha Vantage */ }
+  }
+  if (env.ALPHA_VANTAGE_API_KEY) {
+    try {
+      const r = await fetchJson<AlphaVantageDividendsResponse>(
+        `https://www.alphavantage.co/query?function=DIVIDENDS&symbol=${symbol}&apikey=${env.ALPHA_VANTAGE_API_KEY}`);
+      const eventos = parseAlphaVantage(r);
+      if (eventos) return eventos;
+    } catch { /* fallthrough a Twelve Data */ }
+  }
   if (env.TWELVE_DATA_API_KEY) {
     try {
       const r = await fetchJson<TwelveDataDividendsResponse>(

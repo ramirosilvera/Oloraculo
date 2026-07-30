@@ -55,6 +55,8 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          EODHD_API_KEY: ${{ secrets.EODHD_API_KEY }}
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           put() { [ -n "$2" ] && printf '%s' "$2" | npx wrangler@3 pages secret put "$1" --project-name=portfolio-inversiones || true; }
@@ -66,6 +68,8 @@ jobs:
           put FINNHUB_API_KEY "$FINNHUB_API_KEY"
           put FMP_API_KEY "$FMP_API_KEY"
           put TWELVE_DATA_API_KEY "$TWELVE_DATA_API_KEY"
+          put EODHD_API_KEY "$EODHD_API_KEY"
+          put ALPHA_VANTAGE_API_KEY "$ALPHA_VANTAGE_API_KEY"
           put CRON_SECRET "$CRON_SECRET"
 
       - name: Deploy a Cloudflare Pages

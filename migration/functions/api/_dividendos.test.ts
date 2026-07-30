@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { proyectarDividendo, parseTwelveData, type DividendEvent } from './_dividendos';
+import { proyectarDividendo, parseTwelveData, parseEodhd, parseAlphaVantage, type DividendEvent } from './_dividendos';
 
 const ev = (date: string, over: Partial<DividendEvent> = {}): DividendEvent =>
   ({ date, adjDividend: 1, dividend: 1, paymentDate: null, recordDate: null, declarationDate: null, ...over });
@@ -88,5 +88,75 @@ describe('parseTwelveData', () => {
   it('amount 0 es un valor válido, no se descarta como "sin dato" (usa != null, no truthy)', () => {
     const r = parseTwelveData({ dividends: [{ ex_date: '2026-02-19', amount: 0 }] });
     expect(r).toEqual([{ date: '2026-02-19', adjDividend: 0, dividend: 0, paymentDate: null, recordDate: null, declarationDate: null }]);
+  });
+});
+
+describe('parseEodhd (fixture: respuesta real de eodhd.com/api/div/AAPL.US, jul-2026)', () => {
+  const real = [
+    { date: '2025-02-10', declarationDate: '2025-01-30', recordDate: '2025-02-10', paymentDate: '2025-02-13', period: 'Quarterly', value: 0.25, unadjustedValue: 0.25, currency: 'USD' },
+    { date: '2025-05-12', declarationDate: '2025-05-01', recordDate: '2025-05-12', paymentDate: '2025-05-15', period: 'Quarterly', value: 0.26, unadjustedValue: 0.26, currency: 'USD' },
+  ];
+
+  it('mapea el fixture real (array directo, sin envoltorio) al shape DividendEvent', () => {
+    const r = parseEodhd(real);
+    expect(r).toEqual([
+      { date: '2025-02-10', adjDividend: 0.25, dividend: 0.25, paymentDate: '2025-02-13', recordDate: '2025-02-10', declarationDate: '2025-01-30' },
+      { date: '2025-05-12', adjDividend: 0.26, dividend: 0.26, paymentDate: '2025-05-15', recordDate: '2025-05-12', declarationDate: '2025-05-01' },
+    ]);
+  });
+
+  it('no es array (error/objeto inesperado) → null', () => {
+    expect(parseEodhd({ message: 'error' })).toBeNull();
+    expect(parseEodhd(null)).toBeNull();
+  });
+
+  it('array vacío → null', () => {
+    expect(parseEodhd([])).toBeNull();
+  });
+
+  it('sin value pero con unadjustedValue → usa el unadjustedValue como ambos campos', () => {
+    const r = parseEodhd([{ date: '2025-02-10', unadjustedValue: 0.25 }]);
+    expect(r).toEqual([{ date: '2025-02-10', adjDividend: 0.25, dividend: 0.25, paymentDate: null, recordDate: null, declarationDate: null }]);
+  });
+
+  it('fila sin date o sin ningún monto se descarta', () => {
+    const r = parseEodhd([{ date: '2025-02-10', value: 0.25 }, { value: 0.5 }, { date: '2025-05-12' }]);
+    expect(r).toHaveLength(1);
+  });
+});
+
+describe('parseAlphaVantage (fixture: respuesta real de alphavantage.co DIVIDENDS, IBM, jul-2026)', () => {
+  const real = {
+    symbol: 'IBM',
+    data: [
+      { ex_dividend_date: '2026-08-10', declaration_date: '2026-07-22', record_date: '2026-08-10', payment_date: '2026-09-10', amount: '1.69' },
+      { ex_dividend_date: '2026-05-08', declaration_date: '2026-04-22', record_date: '2026-05-08', payment_date: '2026-06-10', amount: '1.69' },
+    ],
+  };
+
+  it('mapea el fixture real al shape DividendEvent — amount viene como STRING, hay que parsearlo', () => {
+    const r = parseAlphaVantage(real);
+    expect(r).toEqual([
+      { date: '2026-08-10', adjDividend: 1.69, dividend: 1.69, paymentDate: '2026-09-10', recordDate: '2026-08-10', declarationDate: '2026-07-22' },
+      { date: '2026-05-08', adjDividend: 1.69, dividend: 1.69, paymentDate: '2026-06-10', recordDate: '2026-05-08', declarationDate: '2026-04-22' },
+    ]);
+  });
+
+  it('sin campo "data" (ej. respuesta de error tipo {"Note": "..."} por rate limit) → null', () => {
+    expect(parseAlphaVantage({})).toBeNull();
+  });
+
+  it('data vacío → null', () => {
+    expect(parseAlphaVantage({ data: [] })).toBeNull();
+  });
+
+  it('amount "None" (evento sin monto confirmado) se descarta, no rompe ni da NaN', () => {
+    const r = parseAlphaVantage({ data: [{ ex_dividend_date: '2026-08-10', amount: 'None' }] });
+    expect(r).toBeNull();
+  });
+
+  it('fila sin ex_dividend_date se descarta', () => {
+    const r = parseAlphaVantage({ data: [{ amount: '1.69' }, { ex_dividend_date: '2026-08-10', amount: '1.69' }] });
+    expect(r).toHaveLength(1);
   });
 });
