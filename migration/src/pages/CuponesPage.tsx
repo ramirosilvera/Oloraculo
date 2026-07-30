@@ -264,15 +264,15 @@ function PendienteRow({ p, onConfirmar, onDescartar }: {
         {p.nota && <p className="text-[11px] text-ink-500 leading-relaxed">{p.nota}</p>}
         {err && <p className="text-[11px] text-warn mt-1">{err}</p>}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="relative">
+      <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="relative flex-1 sm:flex-none min-w-0">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500 text-xs">US$</span>
           <input type="number" value={monto} onChange={e => setMonto(e.target.value)} disabled={busy}
-            className={`${inputCls} w-28 pl-8`} />
+            className={`${inputCls} w-full sm:w-28 pl-8`} />
         </div>
-        <Button onClick={confirmar} disabled={busy}><Check className="w-4 h-4" /> Confirmar</Button>
+        <Button onClick={confirmar} disabled={busy} className="shrink-0"><Check className="w-4 h-4" /> Confirmar</Button>
         <button onClick={descartar} disabled={busy} title="Descartar" aria-label="Descartar"
-          className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50">
+          className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0 disabled:opacity-50">
           <X className="w-4 h-4" />
         </button>
       </div>
