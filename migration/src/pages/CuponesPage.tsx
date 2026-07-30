@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { CalendarClock, Wallet, Trash2, Plus, Sparkles, Check, X } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones } from '../hooks/usePosiciones';
+import { usePosiciones, useDividendosProyectados } from '../hooks/usePosiciones';
 import { useCobros, COBRO_TIPO_LABEL } from '../hooks/useCobros';
 import { useCobrosInversiones } from '../hooks/useCobrosInversiones';
 import { useChartTheme } from '../hooks/usePrefs';
 import { couponCalendar, cuponAnualTotal, type CouponBond } from '../engine/coupons';
+import { dividendCalendar, dividendoAnualEstimado, type DividendPosicion } from '../engine/dividendProjection';
 import { resumenCobros, saldoInvertible } from '../engine/cobros';
 import { Card, CardHeader, Button, Badge, Field, Stat, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
 import type { Cobro, CobroInversion, CobroTipo, Posicion } from '../types/domain';
@@ -357,7 +358,10 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
   );
 }
 
-// ── Proyectado: calendario a futuro derivado de la tasa de cupón guardada en cada bono ───────
+// ── Proyectado: calendario a futuro — cupones de bonos (sintético, de tasa/frecuencia cargadas a
+// mano) + dividendos de CEDEARs/acciones/ETFs (a partir del proveedor: declarado o estimado por
+// cadencia histórica si no hay fecha confirmada — SIEMPRE a confirmar contra el cobro real,
+// nunca se auto-registra: ver PendientesCard más arriba, que es donde eso se confirma de verdad).
 function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
   const { data: posiciones = [] } = usePosiciones(portfolioId);
   const chart = useChartTheme();
@@ -374,39 +378,67 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         vencimiento: p.vencimiento,
       })), [posiciones]);
 
+  const equities = useMemo(() => posiciones.filter(p =>
+    (p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf') && p.cantidad > 0), [posiciones]);
+  const equityTickers = useMemo(() => [...new Set(equities.map(p => p.ticker))], [equities]);
+  const { data: divInfo = {} } = useDividendosProyectados(equityTickers);
+  const divPosiciones = useMemo<DividendPosicion[]>(() =>
+    equities.map(p => ({ ticker: p.ticker, tipo: p.tipo, cantidad: p.cantidad, ratioCedear: p.ratio_cedear })),
+    [equities]);
+
   const now = new Date();
   const cal = useMemo(() => couponCalendar(bonds, now.getFullYear(), now.getMonth() + 1, 12),
     [bonds, now.getFullYear(), now.getMonth()]);
+  const divCal = useMemo(() => dividendCalendar(divPosiciones, divInfo, now.getFullYear(), now.getMonth() + 1, 12),
+    [divPosiciones, divInfo, now.getFullYear(), now.getMonth()]);
 
   const anual = cuponAnualTotal(bonds);
+  const divAnual = useMemo(() => dividendoAnualEstimado(divPosiciones, divInfo, now.getFullYear(), now.getMonth() + 1),
+    [divPosiciones, divInfo, now.getFullYear(), now.getMonth()]);
   const capitalBonos = useMemo(() =>
     posiciones.filter(p => p.tipo === 'bono').reduce((s, p) => s + p.precio_compra * p.cantidad, 0),
     [posiciones]);
   const proximo = cal.find(m => m.total > 0);
-  const chartData = cal.map(m => ({ mes: `${MESES[m.month - 1]}`, USD: m.total }));
+  const proximoDiv = divCal.find(m => m.total > 0);
+
+  // Mismo eje de meses para las dos series (ambos calendarios arrancan en el mismo fromYear/fromMonth
+  // con 12 meses) — se combinan índice a índice para el chart apilado y la tabla de detalle.
+  const chartData = cal.map((m, i) => ({ mes: MESES[m.month - 1], Cupones: m.total, Dividendos: divCal[i]?.total ?? 0 }));
 
   const totalBonos = posiciones.filter(p => p.tipo === 'bono').length;
   const conCupon = bonds.length;
+  const conDividendo = equities.filter(p => {
+    const info = divInfo[p.ticker.toUpperCase()];
+    return info && info.estado !== 'sin-dato';
+  }).length;
+
+  const sinDatos = conCupon === 0 && conDividendo === 0 && equities.length === 0 && totalBonos === 0;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Cupón anual" value={fmtUsd(anual, 0)} hint="suma de cupones de 12 meses (proyectado)" />
         <Stat label="Yield s/ costo" value={capitalBonos > 0 ? fmtPct(anual / capitalBonos, 1) : '—'} hint="cupón anual / capital invertido en bonos" />
-        <Stat label="Próximo cobro" value={proximo ? `${MESES[proximo.month - 1]} ${proximo.year}` : '—'} hint={proximo ? fmtUsd(proximo.total, 0) : undefined} />
-        <Stat label="Cargados" value={`${conCupon}/${totalBonos}`} hint="bonos con datos de cupón / total de bonos" />
+        <Stat label="Próximo cupón" value={proximo ? `${MESES[proximo.month - 1]} ${proximo.year}` : '—'} hint={proximo ? fmtUsd(proximo.total, 0) : undefined} />
+        <Stat label="Cargados (bonos)" value={`${conCupon}/${totalBonos}`} hint="bonos con datos de cupón / total de bonos" />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <Stat label="Dividendos anual (estimado)" value={fmtUsd(divAnual, 0)} hint="CEDEARs/acciones — a confirmar contra el cobro real" />
+        <Stat label="Próximo dividendo" value={proximoDiv ? `${MESES[proximoDiv.month - 1]} ${proximoDiv.year}` : '—'} hint={proximoDiv ? fmtUsd(proximoDiv.total, 0) : undefined} />
+        <Stat label="Cargados (dividendos)" value={`${conDividendo}/${equities.length}`} hint="con dato del proveedor / total de CEDEARs-acciones" />
+        <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones + dividendos, ambos estimados" />
       </div>
 
-      {conCupon === 0 ? (
+      {sinDatos ? (
         <Card>
-          <Empty icon={CalendarClock} title="Sin datos de cupón">
-            En Posiciones, editá un bono y completá tasa de cupón, frecuencia y mes de pago para ver el calendario.
+          <Empty icon={CalendarClock} title="Sin datos para proyectar">
+            En Posiciones, cargá tasa/frecuencia/mes de cupón en tus bonos, o esperá a que el proveedor tenga calendario de dividendos para tus CEDEARs/acciones.
           </Empty>
         </Card>
       ) : (
         <>
           <Card>
-            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar de cupones cada mes (USD), no lo ya cobrado." />
+            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD), no lo ya cobrado. Dividendos: siempre a confirmar contra el pago real." />
             <div className="p-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
@@ -415,33 +447,42 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
                   <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
                   <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                     formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
-                  <Bar dataKey="USD" fill="#4F97D4" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Cupones" stackId="p" fill="#4F97D4" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Dividendos" stackId="p" fill="#E3B341" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Detalle por mes" />
+            <CardHeader title="Detalle por mes" sub="🔵 cupón de bono · 🟡 dividendo (declarado o estimado, a confirmar)" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[420px]">
                 <thead className="text-[11px] text-ink-600 border-b border-line">
                   <tr>
                     <th className="text-left px-4 py-2">Mes</th>
-                    <th className="text-left px-3">Bonos que pagan</th>
+                    <th className="text-left px-3">Activos que pagan</th>
                     <th className="text-right px-4">Total USD</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {cal.filter(m => m.total > 0).map(m => (
-                    <tr key={m.ym} className="hover:bg-canvas">
-                      <td className="px-4 py-2 text-ink-800">{MESES[m.month - 1]} {m.year}</td>
-                      <td className="px-3 text-ink-600 text-[12px]">
-                        {m.detalle.map(d => `${d.ticker} (${fmtUsd(d.monto, 0)})`).join(' · ')}
-                      </td>
-                      <td className="text-right px-4 tnum font-semibold text-accent">{fmtUsd(m.total, 0)}</td>
-                    </tr>
-                  ))}
+                  {cal.map((m, i) => {
+                    const dm = divCal[i];
+                    const total = m.total + (dm?.total ?? 0);
+                    if (total <= 0) return null;
+                    return (
+                      <tr key={m.ym} className="hover:bg-canvas">
+                        <td className="px-4 py-2 text-ink-800">{MESES[m.month - 1]} {m.year}</td>
+                        <td className="px-3 text-ink-600 text-[12px]">
+                          {[
+                            ...m.detalle.map(d => `🔵 ${d.ticker} (${fmtUsd(d.monto, 0)})`),
+                            ...(dm?.detalle.map(d => `🟡 ${d.ticker} (${fmtUsd(d.monto, 0)})${d.estado === 'estimado' ? ' est.' : ''}`) ?? []),
+                          ].join(' · ')}
+                        </td>
+                        <td className="text-right px-4 tnum font-semibold text-accent">{fmtUsd(total, 0)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -1,5 +1,6 @@
 // Typed fetchers for the Pages Functions (all external data goes through them).
 import type { Fundamentals } from '../types/domain';
+import type { DividendoInfo } from '../engine/dividendProjection';
 import { supabase } from './supabase';
 
 // Las Functions exigen sesión (si no, cualquiera podría llamarlas y quemar cuota paga de
@@ -32,6 +33,8 @@ export const api = {
   drawdowns: () => get<Record<string, { actual: number; max: number; dd: number } | null>>('/api/market/drawdowns'),
   status: () => get<{ precios: string | null; macro: string | null; fundamentals: string | null; last: string | null }>('/api/market/status'),
   bonos: () => get<Record<string, number>>('/api/market/bonos'),
+  dividendos: (tickers: string[]) =>
+    get<Record<string, DividendoInfo | null>>(`/api/market/dividendos?tickers=${tickers.map(encodeURIComponent).join(',')}`),
   accionesAr: (tickers: string[]) =>
     get<{ mep: number | null; precios: Record<string, number | null> }>(
       `/api/market/acciones-ar?tickers=${tickers.map(encodeURIComponent).join(',')}`),

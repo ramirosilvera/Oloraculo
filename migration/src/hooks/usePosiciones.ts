@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
 import { useAuth } from './useAuth';
 import { consolidarCompra, reconstruirTenencia } from '../engine/tenencia';
+import type { DividendoInfo } from '../engine/dividendProjection';
 import type { Posicion, Movimiento } from '../types/domain';
 
 // Historial de movimientos de un portfolio (opcionalmente filtrado por ticker).
@@ -215,6 +216,20 @@ export function useQuotes(tickers: string[], bondTickers: string[] = [], arTicke
       if (ar.status === 'fulfilled') for (const t of arTicks) out[t] = (ar.value as { precios: Record<string, number | null> }).precios?.[t] ?? null;
       return out;
     },
+  });
+}
+
+// Calendario de dividendos (declarado o estimado por cadencia histórica) por ticker — insumo de
+// engine/dividendProjection.ts para proyectar los cobros futuros de CEDEARs/acciones/ETFs, igual
+// que useQuotes alimenta las cotizaciones. TTL largo (24h, igual que el cache del server): un
+// calendario de dividendos no cambia minuto a minuto.
+export function useDividendosProyectados(tickers: string[]) {
+  const eqTickers = [...new Set(tickers.map(t => t.toUpperCase()))];
+  return useQuery({
+    queryKey: ['dividendos-proyectados', [...eqTickers].sort().join(',')],
+    enabled: eqTickers.length > 0,
+    staleTime: 60 * 60_000,
+    queryFn: (): Promise<Record<string, DividendoInfo | null>> => api.dividendos(eqTickers),
   });
 }
 
