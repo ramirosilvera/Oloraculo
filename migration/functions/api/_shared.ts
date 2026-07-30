@@ -12,6 +12,7 @@ export interface Env {
   GEMINI_MODEL?: string;
   FMP_API_KEY?: string;     // fundamentals fallback / prices
   FINNHUB_API_KEY?: string; // prices
+  TWELVE_DATA_API_KEY?: string; // dividendos (FMP/Finnhub los exigen en plan pago en esta cuenta)
   CRON_SECRET?: string;     // opcional: protege /api/cron/* (header X-Cron-Secret)
 }
 

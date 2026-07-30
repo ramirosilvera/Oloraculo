@@ -65,12 +65,37 @@ export function proyectarDividendo(historical: DividendEvent[], hoy: string): Di
 
 interface FmpDividendRow { date?: string; adjDividend?: number; dividend?: number; paymentDate?: string; recordDate?: string; declarationDate?: string }
 interface FinnhubDividendRow { date?: string; amount?: number; adjustedAmount?: number; payDate?: string; recordDate?: string; declarationDate?: string }
+interface TwelveDataDividendRow { ex_date?: string; amount?: number; payment_date?: string; record_date?: string; declaration_date?: string }
+interface TwelveDataDividendsResponse { dividends?: TwelveDataDividendRow[]; status?: string }
 
-// FMP primero (el endpoint de dividendos suele estar en su plan gratuito); Finnhub como fallback
-// oportunista (ese endpoint de Finnhub suele requerir plan pago — si no está habilitado, 403 y
-// seguimos sin romper nada). Orden INVERSO al de quotes.ts a propósito: ahí Finnhub es gratis y
-// generoso, acá no.
+// Puro (sin fetch) a propósito, para poder testear el parseo sin mockear la red. Twelve Data
+// devuelve HTTP 200 con `status: "error"` para errores (key inválida, símbolo no encontrado, rate
+// limit) en vez de un status code — hay que chequearlo explícitamente, un `r.dividends?.length`
+// solo no alcanza para distinguir "sin dividendos" de "la llamada falló".
+export function parseTwelveData(data: TwelveDataDividendsResponse): DividendEvent[] | null {
+  if (data.status === 'error' || !data.dividends?.length) return null;
+  const eventos = data.dividends
+    .filter(d => d.ex_date && d.amount != null)
+    .map(d => ({
+      date: d.ex_date!, adjDividend: d.amount!, dividend: d.amount!,
+      paymentDate: d.payment_date ?? null, recordDate: d.record_date ?? null, declarationDate: d.declaration_date ?? null,
+    }));
+  return eventos.length ? eventos : null;
+}
+
+// Twelve Data PRIMERO: verificado en vivo (jul-2026) que trae dividendos en su plan gratuito — a
+// diferencia de FMP y Finnhub, cuyos endpoints de dividendos exigen plan PAGO en esta cuenta (FMP:
+// confirmado que requiere plan Starter o superior; Finnhub: mismo problema, ya documentado antes).
+// Se dejan como fallback oportunista por si algún día se habilitan, no se sacan.
 export async function fetchDividendos(env: Env, symbol: string): Promise<DividendEvent[] | null> {
+  if (env.TWELVE_DATA_API_KEY) {
+    try {
+      const r = await fetchJson<TwelveDataDividendsResponse>(
+        `https://api.twelvedata.com/dividends?symbol=${symbol}&apikey=${env.TWELVE_DATA_API_KEY}&range=5Y`);
+      const eventos = parseTwelveData(r);
+      if (eventos) return eventos;
+    } catch { /* fallthrough a FMP */ }
+  }
   if (env.FMP_API_KEY) {
     try {
       const r = await fetchJson<{ historical?: FmpDividendRow[] }>(
