@@ -28,7 +28,9 @@ export default {
         },
         sol: { DEFAULT: '#F4C752', soft: '#FBE8BE', deep: '#DDA92E' },
         accent: { DEFAULT: '#4F97D4', dim: '#2C6699' },
-        pos: '#15A34A', neg: '#E14B4B', warn: '#E0952B',
+        // pos/neg/warn: por CSS var (ver src/index.css) — más oscuros en claro que en oscuro
+        // para mantener ~4.5:1 de contraste contra blanco (WCAG AA), como ya hacían canvas/ink.
+        pos: withVar('--pos'), neg: withVar('--neg'), warn: withVar('--warn'),
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
