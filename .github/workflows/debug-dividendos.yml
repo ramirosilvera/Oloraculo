@@ -1,0 +1,23 @@
+name: Debug dividendos (diagnóstico Twelve Data)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: 'Ticker a probar (default MSFT)'
+        required: false
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de diagnóstico
+        env:
+          APP: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TICKER: ${{ inputs.ticker }}
+        run: |
+          [ -z "$APP" ] && { echo "::error::APP_URL no configurada"; exit 1; }
+          T="${TICKER:-MSFT}"
+          RESP=$(curl -sS --max-time 60 -H "X-Cron-Secret: $CRON_SECRET" "$APP/api/cron/debug-dividendos?ticker=$T")
+          echo "Respuesta: $RESP"
