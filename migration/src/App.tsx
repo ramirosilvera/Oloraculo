@@ -16,6 +16,7 @@ import { CuponesPage } from './pages/CuponesPage';
 import { RadarPage } from './pages/RadarPage';
 import { AnalisisHomePage } from './pages/AnalisisHomePage';
 import { FinanzasPage } from './pages/FinanzasPage';
+import { BrokersPage } from './pages/BrokersPage';
 
 export function App() {
   const { session, loading } = useAuth();
@@ -40,6 +41,7 @@ export function App() {
           <Route path="finanzas" element={<FinanzasPage />} />
           <Route path="aportes" element={<AportesPage />} />
           <Route path="proyeccion" element={<ProyeccionesPage />} />
+          <Route path="brokers" element={<BrokersPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="consolidado" element={<ConsolidadoPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

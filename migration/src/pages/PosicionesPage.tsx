@@ -4,6 +4,7 @@ import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff,
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
+import { useBrokers } from '../hooks/useBrokers';
 import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
@@ -341,10 +342,12 @@ const MESES_E = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 
 // Edición/corrección directa de una posición (cantidad, costo promedio, objetivo, sector, ratio,
 // cupón). Es una corrección manual: no genera movimientos (no es una compra/venta real).
 function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
+  const { data: brokers } = useBrokers();
   const [cantidad, setCantidad] = useState(String(pos.cantidad));
   const [precio, setPrecio] = useState(String(pos.precio_compra));
   const [sector, setSector] = useState(pos.sector ?? '');
   const [ratio, setRatio] = useState(pos.ratio_cedear != null ? String(pos.ratio_cedear) : '');
+  const [brokerId, setBrokerId] = useState(pos.broker_id ?? '');
   const [cTasa, setCTasa] = useState(pos.cupon_tasa != null ? String(pos.cupon_tasa * 100) : '');
   const [cFreq, setCFreq] = useState(pos.cupon_frecuencia != null ? String(pos.cupon_frecuencia) : '');
   const [cMes, setCMes] = useState(pos.cupon_mes != null ? String(pos.cupon_mes) : '');
@@ -359,6 +362,7 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
       precio_compra: Number(precio) || 0,
       sector: sector || null,
       ratio_cedear: ratio ? Number(ratio) : null,
+      broker_id: brokerId || null,
     };
     if (pos.tipo === 'bono') {
       patch.cupon_tasa = cTasa ? Number(cTasa) / 100 : null;
@@ -381,6 +385,12 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
             <Field label="Costo promedio (USD)"><input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} /></Field>
             <Field label="Sector"><input value={sector} onChange={e => setSector(e.target.value)} className={inputCls} /></Field>
             {pos.tipo === 'cedear' && <Field label="Ratio CEDEAR"><input type="number" value={ratio} onChange={e => setRatio(e.target.value)} className={inputCls} /></Field>}
+            <Field label="Broker">
+              <select value={brokerId} onChange={e => setBrokerId(e.target.value)} className={`${inputCls} appearance-none`}>
+                <option value="">Sin asignar</option>
+                {brokers.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              </select>
+            </Field>
             {pos.tipo === 'bono' && <>
               <Field label="Tasa cupón (% anual)"><input type="number" step="0.1" value={cTasa} onChange={e => setCTasa(e.target.value)} className={inputCls} /></Field>
               <Field label="Frecuencia">

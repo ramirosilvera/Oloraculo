@@ -153,7 +153,7 @@ function BackupSection() {
       <div className="p-4 space-y-3">
         <div className="flex items-start gap-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 text-[11px] text-ink-600">
           <ShieldCheck className="w-4 h-4 shrink-0 text-pos mt-0.5" />
-          <p>Incluye portfolios, posiciones, movimientos, aportes, cobros (dividendos/intereses/amortizaciones), flujo de caja, supuestos de DCF y de Proyección, watchlist, mapa de CIK y análisis de IA. Se genera en tu navegador (no se sube a ningún lado). El proyecto está en el plan gratuito de Supabase, que NO incluye backups automáticos — este archivo es la única copia de tus datos fuera de la base. Guardalo en tu Drive u otro lugar seguro cada tanto.</p>
+          <p>Incluye portfolios, brokers, posiciones, movimientos, aportes, cobros (dividendos/intereses/amortizaciones), flujo de caja, supuestos de DCF y de Proyección, watchlist, mapa de CIK y análisis de IA. Se genera en tu navegador (no se sube a ningún lado). El proyecto está en el plan gratuito de Supabase, que NO incluye backups automáticos — este archivo es la única copia de tus datos fuera de la base. Guardalo en tu Drive u otro lugar seguro cada tanto.</p>
         </div>
         {haceFalta && (
           <p className="flex items-center gap-1.5 text-[11px] text-warn">
@@ -174,6 +174,7 @@ const TABLA_LABEL: Record<string, string> = {
   portfolios: 'portfolios', posiciones: 'posiciones', movimientos: 'movimientos', aportes: 'aportes',
   portfolio_snapshots: 'histórico', flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist',
   analisis_ia: 'análisis IA', profiles: 'perfil', cobros: 'cobros', proyeccion_inputs: 'supuestos proyección',
+  brokers: 'brokers',
 };
 
 function RestoreSection() {

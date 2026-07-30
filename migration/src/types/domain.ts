@@ -43,6 +43,16 @@ export interface Posicion {
   cupon_mes: number | null;          // mes (1-12) de un pago de referencia
   vencimiento: string | null;        // ISO date
   notas: string | null;
+  broker_id: string | null;          // dónde está físicamente esta posición (IOL, Santander, ...)
+  created_at: string;
+}
+
+// Broker: dónde está físicamente cada posición — GLOBAL por usuario (no por portfolio), el mismo
+// broker puede tener posiciones en varios portfolios. Ver 0016_brokers.sql.
+export interface Broker {
+  id: string;
+  user_id: string;
+  nombre: string;
   created_at: string;
 }
 
