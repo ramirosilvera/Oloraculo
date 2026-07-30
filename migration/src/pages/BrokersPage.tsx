@@ -83,10 +83,10 @@ export function BrokersPage() {
       <Card>
         <CardHeader title="Agregar broker" sub="Ej. Invertir Online, Santander. Después asigná cada posición más abajo." />
         <div className="p-4 flex flex-wrap items-end gap-2">
-          <div className="flex-1 min-w-[160px]">
-            <label className="block text-[11px] text-ink-600 mb-1">Nombre</label>
+          <label className="flex-1 min-w-[160px] block">
+            <span className="block text-[11px] text-ink-600 mb-1">Nombre</span>
             <input value={nombre} onChange={e => setNombre(e.target.value)} className={inputCls} placeholder="ej. Invertir Online" />
-          </div>
+          </label>
           <Button onClick={agregar} disabled={busy}><Plus className="w-4 h-4" /> Agregar</Button>
         </div>
         {err && <p className="px-4 pb-3 text-xs text-warn">{err}</p>}

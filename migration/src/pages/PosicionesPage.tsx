@@ -4,6 +4,7 @@ import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff,
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
+import { useEscapeClose } from '../hooks/useEscapeClose';
 import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
@@ -352,6 +353,7 @@ const MESES_E = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 
 // Edición/corrección directa de una posición (cantidad, costo promedio, objetivo, sector, ratio,
 // cupón). Es una corrección manual: no genera movimientos (no es una compra/venta real).
 function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
+  useEscapeClose(onClose);
   const [cantidad, setCantidad] = useState(String(pos.cantidad));
   const [precio, setPrecio] = useState(String(pos.precio_compra));
   const [sector, setSector] = useState(pos.sector ?? '');
@@ -383,7 +385,7 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-lg" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Editar ${pos.ticker}`}>
         <Card className="animate-rise">
           <CardHeader title={`Editar · ${pos.ticker}`} sub="Corrección directa de los datos (no registra compra/venta)."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
@@ -422,6 +424,7 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
   pos: Posicion; sugerido: number | null; onClose: () => void;
   onSell: (qty: number, precio: number, fecha: string) => Promise<void>;
 }) {
+  useEscapeClose(onClose);
   const [qty, setQty] = useState<string>(String(pos.cantidad));
   const [precio, setPrecio] = useState<string>(sugerido != null ? String(+sugerido.toFixed(2)) : '');
   const [fecha, setFecha] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -444,7 +447,7 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-md" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Vender ${pos.ticker}`}>
         <Card className="animate-rise">
           <CardHeader title={`Vender · ${pos.ticker}`} sub={`Tenés ${fmtNum(pos.cantidad, 0)} un. · costo prom. ${fmtUsd(pos.precio_compra)}`}
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
@@ -519,6 +522,7 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
   openRows: Row[]; totalMkt: number; cedearRatios: Record<string, number>;
   initial?: Posicion; onClose: () => void; onEjecutar: (payload: Partial<Posicion>) => Promise<void>;
 }) {
+  useEscapeClose(onClose);
   const comprables = openRows.filter(r => r.p.tipo !== 'cash');
   const [sims, setSims] = useState<SimDraft[]>(() => {
     if (!initial) return [nuevaSim(new Set(), comprables)];
@@ -658,7 +662,7 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-lg" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Simular compra">
         <Card className="animate-rise max-h-[90vh] overflow-y-auto">
           <CardHeader title="Simular compra" sub="Agregá una o varias en simultáneo — el peso resultante de cada una se ajusta con todas."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
@@ -787,6 +791,7 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
 }
 
 function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: string; ticker: string; onClose: () => void }) {
+  useEscapeClose(onClose);
   const { data: movs = [], isLoading } = useMovimientos(portfolioId, ticker);
   const { removeMovimiento } = usePosicionMutations(portfolioId);
   const [errMov, setErrMov] = useState<string | null>(null);
@@ -795,7 +800,7 @@ function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: strin
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-md" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Movimientos ${ticker}`}>
         <Card className="animate-rise">
           <CardHeader title={`Movimientos · ${ticker}`} sub="Registro de cada compra que consolidó esta posición."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />

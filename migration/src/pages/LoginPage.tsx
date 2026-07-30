@@ -85,10 +85,10 @@ export function LoginPage() {
           </div>
 
           <div className="space-y-3">
-            <input type="email" placeholder="tu@email.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"
+            <input type="email" placeholder="tu@email.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" aria-label="Email"
               className="w-full bg-surface border border-line rounded-xl px-4 py-2.5 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
             <input type="password" placeholder="contraseña" value={password} onChange={e => setPassword(e.target.value)} required
-              autoComplete={modo === 'ingresar' ? 'current-password' : 'new-password'}
+              autoComplete={modo === 'ingresar' ? 'current-password' : 'new-password'} aria-label="Contraseña"
               className="w-full bg-surface border border-line rounded-xl px-4 py-2.5 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
           </div>
 

@@ -3,6 +3,7 @@ import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
 import { Card, CardHeader, Button, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
+import { useEscapeClose } from '../hooks/useEscapeClose';
 import { ytm } from '../engine/coupons';
 import type { Posicion } from '../types/domain';
 
@@ -105,6 +106,7 @@ export function BonosPage() {
 
 // Editar/cargar los datos de cupón de un bono existente (tasa, frecuencia, mes de referencia, venc).
 function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
+  useEscapeClose(onClose);
   const [tasa, setTasa] = useState(bono.cupon_tasa != null ? String(+(bono.cupon_tasa * 100).toFixed(4)) : '');
   const [freq, setFreq] = useState(bono.cupon_frecuencia != null ? String(bono.cupon_frecuencia) : '');
   const [mes, setMes] = useState(bono.cupon_mes != null ? String(bono.cupon_mes) : '');
@@ -126,7 +128,7 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-md" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Cupón ${bono.ticker}`}>
         <Card className="animate-rise">
           <CardHeader title={`Cupón · ${bono.ticker}`} sub="Con estos datos el bono aparece en el calendario de Cupones."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />

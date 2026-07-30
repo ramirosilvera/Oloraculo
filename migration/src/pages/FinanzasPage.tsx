@@ -193,11 +193,11 @@ function Row({ it }: { it: FlujoItem }) {
         placeholder="Concepto (ej. Sueldo)" className={`${inputCls} flex-1 min-w-[8rem]`} />
       <input type="number" inputMode="decimal" value={monto} onChange={e => setMonto(e.target.value)} onBlur={commitMonto}
         placeholder="0" className={`${inputCls} w-28 sm:w-32 text-right tnum`} />
-      <select value={it.moneda} onChange={e => save({ moneda: e.target.value as 'ARS' | 'USD' })} className={`${inputCls} w-20`}>
+      <select value={it.moneda} onChange={e => save({ moneda: e.target.value as 'ARS' | 'USD' })} aria-label="Moneda" className={`${inputCls} w-20`}>
         <option value="ARS">ARS</option><option value="USD">USD</option>
       </select>
       {it.categoria === 'inversion' && (
-        <select value={it.destino ?? 'otro'} onChange={e => save({ destino: e.target.value as FlujoDestino })} className={`${inputCls} w-32`}>
+        <select value={it.destino ?? 'otro'} onChange={e => save({ destino: e.target.value as FlujoDestino })} aria-label="Destino" className={`${inputCls} w-32`}>
           {DESTINOS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
         </select>
       )}

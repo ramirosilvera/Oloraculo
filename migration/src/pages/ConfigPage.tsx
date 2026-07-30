@@ -232,7 +232,7 @@ function RestoreSection() {
           <p><b>Agrega y sobrescribe</b> con los datos del backup (no borra lo que no esté en él). Ideal para una cuenta <b>vacía</b> o recuperación. Si ya tenés portfolios, podrían quedar duplicados.</p>
         </div>
 
-        <input type="file" accept="application/json,.json" onChange={onFile}
+        <input type="file" accept="application/json,.json" onChange={onFile} aria-label="Archivo de backup a restaurar"
           className="block w-full text-sm text-ink-700 file:mr-3 file:rounded-full file:border-0 file:bg-celeste-500 file:text-white file:px-4 file:py-2 file:text-sm file:font-semibold hover:file:bg-celeste-600 file:cursor-pointer" />
 
         {preview && !preview.ok && <p className="text-xs text-warn">{preview.error}</p>}

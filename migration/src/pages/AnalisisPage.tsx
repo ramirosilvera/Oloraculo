@@ -195,7 +195,8 @@ export function AnalisisPage() {
           <NumIn l="Años N" v={inp.N} step={1} onChange={N => setInp({ ...inp, N })} />
           <NumIn l="MoS exigido" v={inp.mosRequired} step={0.05} onChange={mosRequired => setInp({ ...inp, mosRequired })} pct />
           <div className="col-span-2 sm:col-span-3">
-            <label className="text-[10px] uppercase text-ink-600">Base de owner earnings (normalización)</label>
+            <label className="block">
+            <span className="text-[10px] uppercase text-ink-600">Base de owner earnings (normalización)</span>
             <select value={inp.oeMethod ?? OE_METHOD_DEFAULT} onChange={e => setInp({ ...inp, oeMethod: e.target.value as OeMethod })}
               className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
               <option value="ultimo">Último año — escala real de hoy (por defecto)</option>
@@ -205,6 +206,7 @@ export function AnalisisPage() {
               <option value="mediana5">Mediana 5 años — hubo un año atípico</option>
               <option value="margen">Margen mediano × ventas de hoy — creció Y es cíclica</option>
             </select>
+            </label>
             <p className="text-[10px] text-ink-600 mt-1 tnum">
               {oeVentana.length === 0 ? 'Sin años disponibles.'
                 : oeVentana.length === 1
@@ -226,11 +228,13 @@ export function AnalisisPage() {
             </p>
           </div>
           <div>
-            <label className="text-[10px] uppercase text-ink-600">Capex mant.</label>
+            <label className="block">
+            <span className="text-[10px] uppercase text-ink-600">Capex mant.</span>
             <select value={inp.capexMethod} onChange={e => setInp({ ...inp, capexMethod: e.target.value as CapexMethod })}
               className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
               <option value="dna">= D&A</option><option value="capex">= Capex total</option><option value="avg">promedio</option>
             </select>
+            </label>
           </div>
           <NumIn l="Beta" v={beta} step={0.1} onChange={setBeta} />
         </div>
@@ -356,11 +360,11 @@ function Metric({ l, v, tone }: { l: string; v: string; tone?: 'pos' | 'neg' | '
 }
 function NumIn({ l, v, step, onChange, pct }: { l: string; v: number; step: number; onChange: (n: number) => void; pct?: boolean }) {
   return (
-    <div>
-      <label className="text-[10px] uppercase text-ink-600">{l}{pct ? ' (%)' : ''}</label>
+    <label className="block">
+      <span className="text-[10px] uppercase text-ink-600">{l}{pct ? ' (%)' : ''}</span>
       <input type="number" step={pct ? step * 100 : step} value={pct ? +(v * 100).toFixed(2) : v}
         onChange={e => onChange(pct ? Number(e.target.value) / 100 : Number(e.target.value))}
         className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 tnum text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
-    </div>
+    </label>
   );
 }

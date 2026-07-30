@@ -134,10 +134,10 @@ export function ProyeccionesPage() {
 
 function Num({ l, v, step, onChange }: { l: string; v: number; step: number; onChange: (n: number) => void }) {
   return (
-    <div>
-      <label className="text-[10px] uppercase text-ink-600">{l}</label>
+    <label className="block">
+      <span className="text-[10px] uppercase text-ink-600">{l}</span>
       <input type="number" step={step} value={v} onChange={e => onChange(Number(e.target.value))}
         className="w-full bg-surface border border-line rounded-xl text-ink-900 px-2 py-1.5 mt-1 tnum focus:outline-none focus:ring-2 focus:ring-celeste-300" />
-    </div>
+    </label>
   );
 }
