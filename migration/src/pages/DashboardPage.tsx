@@ -215,7 +215,7 @@ export function DashboardPage() {
       )}
 
       {/* Distribución: donut + actual vs objetivo. */}
-      <Distribucion alloc={alloc} total={patrimonio} />
+      <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
 
       {cobros.length > 0 && <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} />}
 
@@ -226,8 +226,11 @@ export function DashboardPage() {
   );
 }
 
-function Distribucion({ alloc, total }: { alloc: { ticker: string; mkt: number; target: number | null }[]; total: number }) {
+function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mkt: number; target: number | null }[]; total: number; isLoading: boolean }) {
   const chart = useChartTheme();
+  if (isLoading) {
+    return <Card><CardHeader title="Distribución" /><p className="p-4 text-sm text-ink-600">Cargando…</p></Card>;
+  }
   if (alloc.length === 0) {
     return <Card><CardHeader title="Distribución" /><p className="p-4 text-sm text-ink-600">Sin posiciones. Cargalas en Posiciones.</p></Card>;
   }

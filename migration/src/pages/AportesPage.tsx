@@ -3,16 +3,18 @@ import { Plus, Trash2, Wallet } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAportes, useAporteMutations } from '../hooks/useAportes';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd } from '../components/ui';
-import type { AporteTipo } from '../types/domain';
+import type { Aporte, AporteTipo } from '../types/domain';
 
 const TIPO_TONE: Record<AporteTipo, 'accent' | 'gray' | 'warn' | 'neg'> = { inicial: 'accent', recurrente: 'gray', adelanto: 'warn', retiro: 'neg' };
 
 export function AportesPage() {
   const { active } = usePortfolios();
-  const { data: aportes = [] } = useAportes(active?.id);
+  const { data: aportes = [], isLoading } = useAportes(active?.id);
   const { add, remove } = useAporteMutations(active?.id);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [f, setF] = useState<{ monto: string; fecha: string; tipo: AporteTipo; descripcion: string }>({
     monto: '', fecha: new Date().toISOString().slice(0, 10), tipo: 'recurrente', descripcion: '',
   });
@@ -20,6 +22,15 @@ export function AportesPage() {
   const aportado = aportes.filter(a => a.tipo !== 'retiro').reduce((s, a) => s + a.monto, 0);
   const retirado = aportes.filter(a => a.tipo === 'retiro').reduce((s, a) => s + a.monto, 0);
   const neto = aportado - retirado;
+
+  const borrar = async (a: Aporte) => {
+    if (!window.confirm(`¿Borrar el aporte de ${fmtUsd(a.monto)} del ${a.fecha}?`)) return;
+    setDeletingId(a.id); setDeleteErr(null);
+    try { await remove(a.id); }
+    catch (e) { setDeleteErr(e instanceof Error ? e.message : 'No se pudo borrar'); }
+    finally { setDeletingId(null); }
+  };
+
   if (!active) return null;
 
   return (
@@ -67,17 +78,21 @@ export function AportesPage() {
       <Card>
         <CardHeader title="Historial de movimientos"
           right={<span className="text-xs text-ink-600 tnum" title={`Aportado ${fmtUsd(aportado, 0)} · Retirado ${fmtUsd(retirado, 0)}`}>Neto {fmtUsd(neto, 0)}</span>} />
+        {deleteErr && <p className="px-4 pt-2 text-xs text-warn">{deleteErr}</p>}
         <div className="divide-y divide-line">
-          {aportes.map(a => (
+          {isLoading ? (
+            <p className="p-4 text-sm text-ink-600">Cargando…</p>
+          ) : aportes.length === 0 ? (
+            <Empty icon={Wallet} title="Sin aportes">Registrá el primer aporte arriba.</Empty>
+          ) : aportes.map(a => (
             <div key={a.id} className="px-4 py-2.5 flex items-center gap-3 text-sm">
               <span className="text-ink-600 tnum w-24">{a.fecha}</span>
               <Badge tone={TIPO_TONE[a.tipo]}>{a.tipo}</Badge>
               <span className="flex-1 text-ink-600 truncate">{a.descripcion || '—'}</span>
               <span className={`font-semibold tnum ${a.tipo === 'retiro' ? 'text-neg' : 'text-ink-900'}`}>{a.tipo === 'retiro' ? '−' : ''}{fmtUsd(a.monto, 0)}</span>
-              <button onClick={() => { if (window.confirm('¿Borrar este aporte?')) remove(a.id); }} aria-label="Borrar aporte" title="Borrar aporte" className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => borrar(a)} disabled={deletingId === a.id} aria-label="Borrar aporte" title="Borrar aporte" className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
-          {aportes.length === 0 && <Empty icon={Wallet} title="Sin aportes">Registrá el primer aporte arriba.</Empty>}
         </div>
       </Card>
     </div>

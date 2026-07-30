@@ -55,6 +55,8 @@ export function BrokersPage() {
   const [nombre, setNombre] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const agregar = async () => {
     if (!nombre.trim()) { setErr('Ingresá un nombre.'); return; }
@@ -62,6 +64,14 @@ export function BrokersPage() {
     try { await add(nombre); setNombre(''); }
     catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo agregar'); }
     finally { setBusy(false); }
+  };
+
+  const borrarBroker = async (id: string, nombreBroker: string) => {
+    if (!window.confirm(`¿Borrar "${nombreBroker}"? Sus posiciones asignadas quedan sin asignar.`)) return;
+    setDeletingId(id); setDeleteErr(null);
+    try { await remove(id); }
+    catch (e) { setDeleteErr(e instanceof Error ? e.message : 'No se pudo borrar'); }
+    finally { setDeletingId(null); }
   };
 
   if (!active) return null;
@@ -84,7 +94,9 @@ export function BrokersPage() {
 
       <Card>
         <CardHeader title="Patrimonio por broker" sub={`Portfolio activo: ${active.nombre} · valuado igual que Posiciones.`} />
-        {resumen.length === 0 ? (
+        {asigLoading || brokersLoading ? (
+          <p className="p-4 text-sm text-ink-600">Cargando…</p>
+        ) : resumen.length === 0 ? (
           <Empty icon={Landmark} title="Sin posiciones abiertas">Cuando tengas posiciones abiertas, van a aparecer acá agrupadas por broker.</Empty>
         ) : (
           <div className="overflow-x-auto">
@@ -135,6 +147,7 @@ export function BrokersPage() {
 
       <Card>
         <CardHeader title="Tus brokers" />
+        {deleteErr && <p className="px-4 pt-2 text-xs text-warn">{deleteErr}</p>}
         {brokersLoading ? (
           <p className="p-4 text-sm text-ink-600">Cargando…</p>
         ) : brokers.length === 0 ? (
@@ -144,8 +157,8 @@ export function BrokersPage() {
             {brokers.map(b => (
               <div key={b.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
                 <span className="text-ink-800">{b.nombre}</span>
-                <button onClick={() => { if (window.confirm(`¿Borrar "${b.nombre}"? Sus posiciones asignadas quedan sin asignar.`)) remove(b.id); }}
-                  className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-8 h-8" title="Borrar" aria-label="Borrar">
+                <button onClick={() => borrarBroker(b.id, b.nombre)} disabled={deletingId === b.id}
+                  className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-8 h-8 disabled:opacity-50" title="Borrar" aria-label="Borrar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

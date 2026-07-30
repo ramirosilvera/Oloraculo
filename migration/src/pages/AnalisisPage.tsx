@@ -326,19 +326,20 @@ function GeminiAnalysis({ ticker, portfolioId, context }: { ticker: string; port
   const setUltimo = useSetUltimoAnalisis();
   const [txt, setTxt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const mostrado = txt ?? guardado;
   const run = async () => {
-    setBusy(true);
+    setBusy(true); setErr(null);
     const r = await api.analisisEmpresa({ ticker, portfolio_id: portfolioId, context });
-    const res = r.analisis ?? r.error ?? 'Sin respuesta';
-    setTxt(res);
-    if (r.analisis) setUltimo(ticker, 'empresa', r.analisis);
+    if (r.error) setErr(r.error);
+    else { setTxt(r.analisis ?? ''); if (r.analisis) setUltimo(ticker, 'empresa', r.analisis); }
     setBusy(false);
   };
   return (
     <Card>
       <CardHeader title="Análisis cualitativo (IA)" sub="Gemini interpreta los números calculados por el código. No es recomendación de inversión."
         right={<Button variant="ghost" onClick={run} disabled={busy}><Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : mostrado ? 'Regenerar' : 'Analizar'}</Button>} />
+      {err && <p className="px-4 pt-1 text-xs text-neg">No se pudo generar: {err}</p>}
       {mostrado && (
         <div className="px-4 py-3">
           <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{mostrado}</p>

@@ -14,6 +14,8 @@ export function ConfigPage() {
   const [nuevo, setNuevo] = useState({ nombre: '', descripcion: '', capital_objetivo: '', moneda_ref: 'USD' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
+  const [archivandoId, setArchivandoId] = useState<string | null>(null);
+  const [archiveErr, setArchiveErr] = useState<string | null>(null);
 
   const crear = async () => {
     if (!nuevo.nombre.trim()) { setMsg({ text: 'Ingresá un nombre.' }); return; }
@@ -33,6 +35,14 @@ export function ConfigPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const archivar = async (p: { id: string; nombre: string }) => {
+    if (!window.confirm(`¿Archivar "${p.nombre}"? Deja de aparecer, pero no se borra.`)) return;
+    setArchivandoId(p.id); setArchiveErr(null);
+    try { await archivePortfolio(p.id); }
+    catch (e) { setArchiveErr(e instanceof Error ? e.message : 'No se pudo archivar'); }
+    finally { setArchivandoId(null); }
   };
 
   return (
@@ -83,6 +93,7 @@ export function ConfigPage() {
 
       <Card>
         <CardHeader title="Mis portfolios" />
+        {archiveErr && <p className="px-4 pt-2 text-xs text-warn">{archiveErr}</p>}
         <div className="divide-y divide-line">
           {portfolios.map(p => (
             <div key={p.id} className="px-4 py-3 flex items-center gap-3">
@@ -93,8 +104,8 @@ export function ConfigPage() {
                 <p className="text-[11px] text-ink-600 truncate">{p.descripcion || '—'}</p>
               </div>
               <span className="text-xs text-ink-600 tnum">obj: {fmtUsd(p.capital_objetivo, 0)}</span>
-              <button onClick={() => { if (window.confirm(`¿Archivar "${p.nombre}"? Deja de aparecer, pero no se borra.`)) archivePortfolio(p.id); }} title="Archivar"
-                className="text-ink-600 hover:text-warn inline-flex items-center justify-center w-9 h-9"><Archive className="w-4 h-4" /></button>
+              <button onClick={() => archivar(p)} disabled={archivandoId === p.id} title="Archivar"
+                className="text-ink-600 hover:text-warn inline-flex items-center justify-center w-9 h-9 disabled:opacity-50"><Archive className="w-4 h-4" /></button>
             </div>
           ))}
           {portfolios.length === 0 && <Empty icon={Layers} title="Sin portfolios">Creá el primero arriba.</Empty>}
@@ -257,12 +268,22 @@ function CikMapSection() {
   const [ticker, setTicker] = useState('');
   const [cik, setCik] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const guardar = async () => {
     if (!ticker.trim() || !cik.trim()) { setErr('Completá ticker y CIK.'); return; }
     setErr(null);
     try { await add(ticker.trim(), cik.trim().padStart(10, '0')); setTicker(''); setCik(''); }
     catch (e) { setErr(e instanceof Error ? e.message : 'error'); }
+  };
+
+  const borrar = async (e: { ticker: string }) => {
+    if (!window.confirm(`¿Borrar el CIK guardado para ${e.ticker}?`)) return;
+    setDeletingTicker(e.ticker); setDeleteErr(null);
+    try { await remove(e.ticker); }
+    catch (err) { setDeleteErr(err instanceof Error ? err.message : 'No se pudo borrar'); }
+    finally { setDeletingTicker(null); }
   };
 
   return (
@@ -280,13 +301,14 @@ function CikMapSection() {
         </div>
       </div>
       {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
+      {deleteErr && <p className="px-4 pb-2 text-xs text-warn">{deleteErr}</p>}
       {entries.length > 0 && (
         <div className="divide-y divide-line">
           {entries.map(e => (
             <div key={e.ticker} className="px-4 py-2 flex items-center gap-3 text-sm">
               <span className="font-semibold text-ink-900 w-20">{e.ticker}</span>
               <span className="text-ink-600 tnum flex-1">CIK {e.cik}</span>
-              <button onClick={() => remove(e.ticker)} aria-label="Borrar par ticker/CIK" title="Borrar" className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => borrar(e)} disabled={deletingTicker === e.ticker} aria-label="Borrar par ticker/CIK" title="Borrar" className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
         </div>

@@ -17,7 +17,7 @@ type Row = { p: Posicion; live: number | null; unit: number | null; mkt: number 
 export function PosicionesPage() {
   const { active } = usePortfolios();
   const { ratios: cedearRatios, saveRatio } = useCedearRatios();
-  const { data: posiciones = [] } = usePosiciones(active?.id);
+  const { data: posiciones = [], isLoading: posLoading } = usePosiciones(active?.id);
   const { add, sell, update, remove, setObjetivos } = usePosicionMutations(active?.id);
 
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
@@ -51,6 +51,7 @@ export function PosicionesPage() {
   const [editPos, setEditPos] = useState<Posicion | null>(null);
   const [showClosed, setShowClosed] = useState(false);
   const [simular, setSimular] = useState<{ pos?: Posicion } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const cerradas = rows.filter(r => r.p.cantidad <= 0).length;
   const visibleRows = showClosed ? rows : rows.filter(r => r.p.cantidad > 0);
@@ -97,6 +98,14 @@ export function PosicionesPage() {
     } catch (e) {
       setFormErr(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`);
     } finally { setSaving(false); }
+  };
+
+  const borrar = async (p: Posicion) => {
+    if (!window.confirm(`¿Borrar ${p.ticker}? Se elimina la posición y su historial. No se puede deshacer.`)) return;
+    setDeletingId(p.id);
+    try { await remove(p.id); }
+    catch (e) { window.alert(`No se pudo borrar: ${e instanceof Error ? e.message : 'error'}`); }
+    finally { setDeletingId(null); }
   };
 
   if (!active) return null;
@@ -267,13 +276,15 @@ export function PosicionesPage() {
                         {p.tipo !== 'bono' && p.tipo !== 'cash' && (
                           <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
                         )}
-                        <button onClick={() => { if (window.confirm(`¿Borrar ${p.ticker}? Se elimina la posición y su historial. No se puede deshacer.`)) remove(p.id); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Eliminar" aria-label="Eliminar posición"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => borrar(p)} disabled={deletingId === p.id} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Eliminar" aria-label="Eliminar posición"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              {visibleRows.length === 0 && <tr><td colSpan={8}><Empty icon={Table2} title="Sin posiciones todavía">Agregá tu primera posición con el botón "Agregar".</Empty></td></tr>}
+              {posLoading
+                ? <tr><td colSpan={8}><p className="p-4 text-sm text-ink-600">Cargando…</p></td></tr>
+                : visibleRows.length === 0 && <tr><td colSpan={8}><Empty icon={Table2} title="Sin posiciones todavía">Agregá tu primera posición con el botón "Agregar".</Empty></td></tr>}
             </tbody>
           </table>
         </div>

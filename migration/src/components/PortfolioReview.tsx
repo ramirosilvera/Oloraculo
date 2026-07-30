@@ -13,9 +13,10 @@ export function PortfolioReview({ posiciones, pfName, pesos }: {
 }) {
   const [txt, setTxt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const run = async () => {
-    setBusy(true);
+    setBusy(true); setErr(null);
     const resumen = posiciones.map(p => ({
       portfolio: pfName.get(p.portfolio_id) ?? '', ticker: p.ticker, tipo: p.tipo,
       sector: p.sector, rol: p.rol, peso_objetivo: p.peso_objetivo,
@@ -23,7 +24,8 @@ export function PortfolioReview({ posiciones, pfName, pesos }: {
       peso_actual: pesos?.get(p.ticker) != null ? +(pesos.get(p.ticker)! * 100).toFixed(1) + '%' : null,
     }));
     const r = await api.analisisPortfolio({ posiciones: resumen });
-    setTxt(r.analisis ?? r.error ?? 'Sin respuesta');
+    if (r.error) setErr(r.error);
+    else setTxt(r.analisis ?? '');
     setBusy(false);
   };
 
@@ -31,6 +33,7 @@ export function PortfolioReview({ posiciones, pfName, pesos }: {
     <Card>
       <CardHeader title="Revisión de cartera (IA)" sub="Concentración, correlación entre posiciones, diversificación sectorial y coherencia con la estrategia. No es recomendación de inversión."
         right={<Button variant="ghost" onClick={run} disabled={busy}><Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : txt ? 'Regenerar' : 'Analizar cartera'}</Button>} />
+      {err && <p className="px-4 pt-1 text-xs text-neg">No se pudo generar: {err}</p>}
       {txt && (
         <div className="px-4 py-3">
           <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{txt}</p>

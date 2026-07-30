@@ -162,11 +162,20 @@ function ThSort({ label, sortKey, sort, onClick, align = 'right' }: {
 }
 
 function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
-  item: WatchItem; riskFree: number; saved?: StoredDcf; onRemove: () => void; onComputed: (ticker: string, d: RowSortData) => void;
+  item: WatchItem; riskFree: number; saved?: StoredDcf; onRemove: () => Promise<void>; onComputed: (ticker: string, d: RowSortData) => void;
 }) {
   const T = item.ticker.toUpperCase();
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
   const cik = item.cik || cikMap.get(T)?.cik;
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const borrar = async () => {
+    if (!window.confirm(`¿Sacar ${T} del radar?`)) return;
+    setBusy(true); setErr(null);
+    try { await onRemove(); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo quitar'); setBusy(false); }
+  };
 
   const { data: fund, isFetching } = useQuery({
     queryKey: ['fundamentals', T, cik ?? ''],
@@ -227,8 +236,9 @@ function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
       <td className="px-2 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1">
           <Link to={`/analisis/${T}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
-          <button onClick={() => { if (window.confirm(`¿Sacar ${T} del radar?`)) onRemove(); }} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Quitar" aria-label="Quitar del radar"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={borrar} disabled={busy} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Quitar" aria-label="Quitar del radar"><Trash2 className="w-4 h-4" /></button>
         </div>
+        {err && <p className="text-[10px] text-warn mt-0.5">{err}</p>}
       </td>
     </tr>
   );

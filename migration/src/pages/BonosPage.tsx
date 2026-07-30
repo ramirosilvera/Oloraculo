@@ -11,7 +11,7 @@ const FREC: Record<number, string> = { 1: 'Anual', 2: 'Semestral', 4: 'Trimestra
 
 export function BonosPage() {
   const { active } = usePortfolios();
-  const { data: posiciones = [] } = usePosiciones(active?.id);
+  const { data: posiciones = [], isLoading: posLoading } = usePosiciones(active?.id);
   const { update } = usePosicionMutations(active?.id);
   const bonos = posiciones.filter(p => p.tipo === 'bono');
   const { data: quotes = {} } = useQuotes([], bonos.map(b => b.ticker));
@@ -89,7 +89,9 @@ export function BonosPage() {
                   </tr>
                 );
               })}
-              {bonos.length === 0 && <tr><td colSpan={10}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
+              {posLoading
+                ? <tr><td colSpan={10}><p className="p-4 text-sm text-ink-600">Cargando…</p></td></tr>
+                : bonos.length === 0 && <tr><td colSpan={10}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
             </tbody>
           </table>
         </div>

@@ -59,6 +59,8 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
   const [nota, setNota] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   // Amortización: solo puede ser una posición EXISTENTE de tipo bono (reduce su nominal real).
   const opcionesPosicion = tipo === 'amortizacion' ? posiciones.filter(p => p.tipo === 'bono') : posiciones;
@@ -92,6 +94,14 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
       setMonto(''); setNominales(''); setNota('');
     } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo registrar'); }
     finally { setBusy(false); }
+  };
+
+  const borrarCobro = async (c: Cobro) => {
+    if (!window.confirm(`¿Borrar el registro de cobro de ${c.ticker}?`)) return;
+    setDeletingId(c.id); setDeleteErr(null);
+    try { await remove(c.id); }
+    catch (e) { setDeleteErr(e instanceof Error ? e.message : 'No se pudo borrar'); }
+    finally { setDeletingId(null); }
   };
 
   return (
@@ -160,6 +170,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
 
       <Card>
         <CardHeader title="Historial" sub="Marcá un cobro puntual como Reinvertido solo si sabés en qué activo lo pusiste — reduce el saldo de 'Saldo disponible para invertir' de arriba. Para invertir un monto general sin atarlo a un cobro puntual, usá esa tarjeta en vez de esto (no marques las dos cosas para la misma plata)." />
+        {deleteErr && <p className="px-4 pt-2 text-xs text-warn">{deleteErr}</p>}
         {isLoading ? (
           <p className="p-4 text-sm text-ink-600">Cargando…</p>
         ) : confirmados.length === 0 ? (
@@ -191,8 +202,8 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
                       </button>
                     </td>
                     <td className="px-2 text-right">
-                      <button onClick={() => { if (window.confirm(`¿Borrar el registro de cobro de ${c.ticker}?`)) remove(c.id); }}
-                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-8 h-8" title="Borrar" aria-label="Borrar">
+                      <button onClick={() => borrarCobro(c)} disabled={deletingId === c.id}
+                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-8 h-8 disabled:opacity-50" title="Borrar" aria-label="Borrar">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </td>
@@ -296,6 +307,8 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [verHistorial, setVerHistorial] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const marcar = async () => {
     setErr(null);
@@ -306,6 +319,14 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
     try { await onMarcar({ monto: m, fecha, nota: nota || null }); setMonto(''); setNota(''); }
     catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo registrar'); }
     finally { setBusy(false); }
+  };
+
+  const borrarInversion = async (i: CobroInversion) => {
+    if (!window.confirm('¿Deshacer esta inversión? El monto vuelve al saldo disponible.')) return;
+    setDeletingId(i.id); setDeleteErr(null);
+    try { await onBorrar(i.id); }
+    catch (e) { setDeleteErr(e instanceof Error ? e.message : 'No se pudo deshacer'); }
+    finally { setDeletingId(null); }
   };
 
   return (
@@ -326,6 +347,7 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
           <Button onClick={marcar} disabled={busy}><Plus className="w-4 h-4" /> {busy ? 'Guardando…' : 'Marcar inversión'}</Button>
         </div>
         {err && <p className="text-xs text-warn">{err}</p>}
+        {deleteErr && <p className="text-xs text-warn">{deleteErr}</p>}
 
         {inversiones.length > 0 && (
           <div className="pt-1">
@@ -342,8 +364,8 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="tnum font-semibold text-ink-900">{fmtUsd(i.monto, 0)}</span>
-                      <button onClick={() => { if (window.confirm('¿Deshacer esta inversión? El monto vuelve al saldo disponible.')) onBorrar(i.id); }}
-                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7" title="Deshacer" aria-label="Deshacer">
+                      <button onClick={() => borrarInversion(i)} disabled={deletingId === i.id}
+                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7 disabled:opacity-50" title="Deshacer" aria-label="Deshacer">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -363,7 +385,7 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
 // cadencia histórica si no hay fecha confirmada — SIEMPRE a confirmar contra el cobro real,
 // nunca se auto-registra: ver PendientesCard más arriba, que es donde eso se confirma de verdad).
 function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
-  const { data: posiciones = [] } = usePosiciones(portfolioId);
+  const { data: posiciones = [], isLoading: posLoading } = usePosiciones(portfolioId);
   const chart = useChartTheme();
 
   const bonds = useMemo<CouponBond[]>(() =>
@@ -381,7 +403,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
   const equities = useMemo(() => posiciones.filter(p =>
     (p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf') && p.cantidad > 0), [posiciones]);
   const equityTickers = useMemo(() => [...new Set(equities.map(p => p.ticker))], [equities]);
-  const { data: divInfo = {} } = useDividendosProyectados(equityTickers);
+  const { data: divInfo = {}, isLoading: divLoading } = useDividendosProyectados(equityTickers);
   const divPosiciones = useMemo<DividendPosicion[]>(() =>
     equities.map(p => ({ ticker: p.ticker, tipo: p.tipo, cantidad: p.cantidad, ratioCedear: p.ratio_cedear })),
     [equities]);
@@ -432,7 +454,9 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones (confiables) + dividendos (mezcla declarado/estimado) — ver detalle por mes" />
       </div>
 
-      {sinDatos ? (
+      {posLoading || divLoading ? (
+        <Card><p className="p-4 text-sm text-ink-600">Cargando…</p></Card>
+      ) : sinDatos ? (
         <Card>
           <Empty icon={CalendarClock} title="Sin datos para proyectar">
             En Posiciones, cargá tasa/frecuencia/mes de cupón en tus bonos, o esperá a que el proveedor tenga calendario de dividendos para tus CEDEARs/acciones.

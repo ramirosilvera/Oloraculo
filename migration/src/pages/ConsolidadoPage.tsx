@@ -9,7 +9,7 @@ import type { Posicion } from '../types/domain';
 
 export function ConsolidadoPage() {
   const { portfolios } = usePortfolios();
-  const { data: allPosiciones = [] } = useAllPosiciones(true);
+  const { data: allPosiciones = [], isLoading } = useAllPosiciones(true);
   // Solo posiciones de portfolios ACTIVOS (RLS aísla por usuario, no por estado) — si no,
   // el total y los % incluirían portfolios archivados que no aparecen en la lista.
   const activeIds = useMemo(() => new Set(portfolios.map(p => p.id)), [portfolios]);
@@ -96,7 +96,9 @@ export function ConsolidadoPage() {
                   <td className="px-4 text-[11px] text-ink-600">{[...info.portfolios].map(id => pfName.get(id)).join(', ')}</td>
                 </tr>
               ))}
-              {tickersOrdenados.length === 0 && <tr><td colSpan={4}><Empty icon={Layers} title="Nada para consolidar">Cargá posiciones en algún portfolio para ver la exposición combinada.</Empty></td></tr>}
+              {isLoading
+                ? <tr><td colSpan={4}><p className="p-4 text-sm text-ink-600">Cargando…</p></td></tr>
+                : tickersOrdenados.length === 0 && <tr><td colSpan={4}><Empty icon={Layers} title="Nada para consolidar">Cargá posiciones en algún portfolio para ver la exposición combinada.</Empty></td></tr>}
             </tbody>
           </table>
         </div>
