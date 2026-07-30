@@ -64,9 +64,12 @@ describe('parseTwelveData', () => {
     expect(parseTwelveData({ status: 'error', dividends: [{ ex_date: '2026-02-19', amount: 0.91 }] })).toBeNull();
   });
 
-  it('sin dividends o lista vacía → null', () => {
+  it('sin campo dividends (respuesta inesperada) → null (no se pudo responder)', () => {
     expect(parseTwelveData({})).toBeNull();
-    expect(parseTwelveData({ dividends: [] })).toBeNull();
+  });
+
+  it('dividends: [] → [] (SÍ respondió, confirmado sin dividendos — hay que cachearlo así, no reintentar)', () => {
+    expect(parseTwelveData({ dividends: [] })).toEqual([]);
   });
 
   it('campos opcionales ausentes (record_date/declaration_date/payment_date) → null en vez de romper', () => {
@@ -110,8 +113,8 @@ describe('parseEodhd (fixture: respuesta real de eodhd.com/api/div/AAPL.US, jul-
     expect(parseEodhd(null)).toBeNull();
   });
 
-  it('array vacío → null', () => {
-    expect(parseEodhd([])).toBeNull();
+  it('array vacío → [] (SÍ respondió, confirmado sin dividendos — ej. LAC, que nunca pagó nada)', () => {
+    expect(parseEodhd([])).toEqual([]);
   });
 
   it('sin value pero con unadjustedValue → usa el unadjustedValue como ambos campos', () => {
@@ -146,13 +149,13 @@ describe('parseAlphaVantage (fixture: respuesta real de alphavantage.co DIVIDEND
     expect(parseAlphaVantage({})).toBeNull();
   });
 
-  it('data vacío → null', () => {
-    expect(parseAlphaVantage({ data: [] })).toBeNull();
+  it('data: [] → [] (SÍ respondió, confirmado sin dividendos)', () => {
+    expect(parseAlphaVantage({ data: [] })).toEqual([]);
   });
 
-  it('amount "None" (evento sin monto confirmado) se descarta, no rompe ni da NaN', () => {
+  it('amount "None" (evento sin monto confirmado) se descarta → [] (no NaN, no null: la llamada sí respondió)', () => {
     const r = parseAlphaVantage({ data: [{ ex_dividend_date: '2026-08-10', amount: 'None' }] });
-    expect(r).toBeNull();
+    expect(r).toEqual([]);
   });
 
   it('fila sin ex_dividend_date se descarta', () => {

@@ -71,26 +71,35 @@ interface EodhdDividendRow { date?: string; value?: number; unadjustedValue?: nu
 interface AlphaVantageDividendRow { ex_dividend_date?: string; amount?: string; declaration_date?: string; record_date?: string; payment_date?: string }
 interface AlphaVantageDividendsResponse { data?: AlphaVantageDividendRow[] }
 
-// Puro (sin fetch), verificado contra la respuesta real de EODHD (probada en vivo con la key demo
-// pública, jul-2026): un array directo, sin envoltorio. `value` es el monto AJUSTADO por splits,
-// `unadjustedValue` el monto real que se declaró en su momento — mismo criterio adjDividend/dividend
-// que FMP (preferir el ajustado, caer al real si falta).
+// Puro (sin fetch), verificado contra la respuesta real de EODHD (probada en vivo, jul-2026): un
+// array directo, sin envoltorio. `value` es el monto AJUSTADO por splits, `unadjustedValue` el
+// monto real que se declaró en su momento — mismo criterio adjDividend/dividend que FMP (preferir
+// el ajustado, caer al real si falta).
+//
+// null vs [] es DELIBERADO, no un detalle de implementación: null = "no se pudo responder" (probá
+// el siguiente proveedor); [] = "SÍ respondió, no tiene dividendos" (es una respuesta válida que
+// hay que cachear como tal). Antes ambos casos devolvían null por igual — un ticker que
+// confirmadamente no paga dividendo (ej. LAC) nunca lograba escribir su cache, así que quedaba
+// SIEMPRE vencido y el cron lo reintentaba en TODAS las corridas (cada 30 min = 48/día), agotando
+// solo con ese ticker casi todo el cupo diario de EODHD (20 req/día) antes de llegar a los tickers
+// que sí tienen datos.
 export function parseEodhd(data: unknown): DividendEvent[] | null {
-  if (!Array.isArray(data) || !data.length) return null;
+  if (!Array.isArray(data)) return null; // no vino un array → error/respuesta inesperada
   const eventos = (data as EodhdDividendRow[])
     .filter(d => d.date && (d.value != null || d.unadjustedValue != null))
     .map(d => ({
       date: d.date!, adjDividend: d.value ?? d.unadjustedValue ?? null, dividend: d.unadjustedValue ?? d.value ?? null,
       paymentDate: d.paymentDate ?? null, recordDate: d.recordDate ?? null, declarationDate: d.declarationDate ?? null,
     }));
-  return eventos.length ? eventos : null;
+  return eventos;
 }
 
-// Puro (sin fetch), verificado contra la respuesta real de Alpha Vantage (key demo, jul-2026).
-// `amount` viene como STRING ("1.69"), no número — hay que parsearlo y descartar valores no
-// numéricos (ej. "None", que Alpha Vantage devuelve para algunos eventos sin monto confirmado).
+// Puro (sin fetch), verificado contra la respuesta real de Alpha Vantage (jul-2026). `amount`
+// viene como STRING ("1.69"), no número — hay que parsearlo y descartar valores no numéricos (ej.
+// "None", que Alpha Vantage devuelve para algunos eventos sin monto confirmado). Mismo criterio
+// null vs [] que parseEodhd (ver comentario ahí).
 export function parseAlphaVantage(data: AlphaVantageDividendsResponse): DividendEvent[] | null {
-  if (!Array.isArray(data.data) || !data.data.length) return null;
+  if (!Array.isArray(data.data)) return null;
   const eventos = data.data
     .filter(d => d.ex_dividend_date && d.amount != null)
     .map(d => ({ ...d, monto: Number(d.amount) }))
@@ -99,22 +108,23 @@ export function parseAlphaVantage(data: AlphaVantageDividendsResponse): Dividend
       date: d.ex_dividend_date!, adjDividend: d.monto, dividend: d.monto,
       paymentDate: d.payment_date ?? null, recordDate: d.record_date ?? null, declarationDate: d.declaration_date ?? null,
     }));
-  return eventos.length ? eventos : null;
+  return eventos;
 }
 
 // Puro (sin fetch) a propósito, para poder testear el parseo sin mockear la red. Twelve Data
 // devuelve HTTP 200 con `status: "error"` para errores (key inválida, símbolo no encontrado, rate
-// limit) en vez de un status code — hay que chequearlo explícitamente, un `r.dividends?.length`
-// solo no alcanza para distinguir "sin dividendos" de "la llamada falló".
+// limit) en vez de un status code — hay que chequearlo explícitamente. Mismo criterio null vs []
+// que parseEodhd (ver comentario ahí): `status:'error'` o sin campo `dividends` → null (no
+// respondió); `dividends: []` → [] (respondió, confirmado sin dividendos).
 export function parseTwelveData(data: TwelveDataDividendsResponse): DividendEvent[] | null {
-  if (data.status === 'error' || !data.dividends?.length) return null;
+  if (data.status === 'error' || !Array.isArray(data.dividends)) return null;
   const eventos = data.dividends
     .filter(d => d.ex_date && d.amount != null)
     .map(d => ({
       date: d.ex_date!, adjDividend: d.amount!, dividend: d.amount!,
       paymentDate: d.payment_date ?? null, recordDate: d.record_date ?? null, declarationDate: d.declaration_date ?? null,
     }));
-  return eventos.length ? eventos : null;
+  return eventos;
 }
 
 // Orden verificado en vivo (jul-2026): EODHD y Alpha Vantage SÍ traen dividendos en su plan
