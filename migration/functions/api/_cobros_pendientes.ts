@@ -3,7 +3,7 @@
 // NUNCA decide "confirmar": esto solo arma la SUGERENCIA que después entra a `cobros` en estado
 // 'pendiente' — el usuario la revisa y confirma a mano (ver 0012_cobros_pendientes.sql).
 
-import type { DividendoInfo } from './_dividendos';
+import type { DividendoInfo, DividendEvent } from './_dividendos';
 
 export interface PosicionParaCobro {
   id: string;
@@ -97,4 +97,79 @@ export function sugerirCuponPendiente(pos: PosicionParaCobro, hoy: string): Cobr
     fecha: `${anioStr}-${mesStr}-01`, monto,
     nota: `Sugerido por el cron — cupón proyectado (tasa ${(cupon_tasa * 100).toFixed(2)}% anual ÷ ${cupon_frecuencia} pagos/año × ${pos.cantidad} nominales). Calendario sintético desde los datos cargados a mano, NO verificado contra la emisión real.`,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Carga histórica (primera carga / reconciliación): a diferencia de sugerirDividendoPendiente y
+// sugerirCuponPendiente (que solo miran si el PRÓXIMO evento ya llegó a "hoy"), esto recorre un
+// RANGO de fechas completo y devuelve UNA sugerencia por cada pago que cayó dentro — pensado para
+// posiciones que ya existían antes de que este mecanismo empezara a correr, donde varios pagos
+// reales quedaron sin sugerir porque el cron nunca los vio "llegar" (solo mira el día de hoy en
+// cada corrida). Van al mismo lugar que las del cron ('pendiente', origen 'cron') y respetan el
+// mismo índice de dedupe — correrlo dos veces sobre el mismo rango no duplica nada.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+// Dividendos reales de CEDEAR/acción/ETF dentro de [desde,hasta] — a diferencia de la sugerencia
+// del cron (que puede ser una fecha ESTIMADA por cadencia si el proveedor no tiene el próximo pago
+// declarado), acá cada evento es un pago DECLARADO real del historial del proveedor: no hay
+// estimación posible para una fecha que ya pasó.
+export function sugerirDividendosHistoricos(
+  pos: PosicionParaCobro, historical: DividendEvent[] | null, desde: string, hasta: string,
+): CobroPendienteSugerido[] {
+  if (pos.tipo === 'bono' || pos.tipo === 'cash' || pos.tipo === 'accion_ar' || !(pos.cantidad > 0)) return [];
+  if (!historical?.length) return [];
+  let divisor = 1;
+  if (pos.tipo === 'cedear') {
+    if (!(pos.ratio_cedear! > 0)) return [];
+    divisor = pos.ratio_cedear!;
+  }
+  const out: CobroPendienteSugerido[] = [];
+  for (const ev of historical) {
+    const fecha = ev.paymentDate || ev.date;
+    if (!fecha || fecha < desde || fecha > hasta) continue;
+    const montoPorAccion = ev.adjDividend ?? ev.dividend ?? null;
+    if (montoPorAccion == null) continue;
+    const monto = +((montoPorAccion * pos.cantidad) / divisor).toFixed(2);
+    if (!(monto > 0)) continue;
+    const calculo = `US$${montoPorAccion} por acción del subyacente × ${pos.cantidad}` + (pos.tipo === 'cedear' ? ` ÷ ratio ${pos.ratio_cedear}` : '');
+    out.push({
+      portfolio_id: pos.portfolio_id, posicion_id: pos.id, ticker: pos.ticker, tipo: 'dividendo',
+      fecha, monto,
+      nota: `Carga histórica — pago real declarado por el proveedor. ${calculo}. Bruto: revisá retención de impuestos y tipo de cambio antes de confirmar.`,
+    });
+  }
+  return out;
+}
+
+// Cupones de bono ya pagados dentro de [desde,hasta] (sintéticos, mismo criterio de "mes de pago"
+// que sugerirCuponPendiente, pero recorriendo mes a mes en vez de solo "hoy").
+export function sugerirCuponesHistoricos(pos: PosicionParaCobro, desde: string, hasta: string): CobroPendienteSugerido[] {
+  if (pos.tipo !== 'bono' || !(pos.cantidad > 0)) return [];
+  const { cupon_tasa, cupon_frecuencia, cupon_mes, vencimiento } = pos;
+  if (!cupon_tasa || !cupon_frecuencia || !cupon_mes) return [];
+
+  const out: CobroPendienteSugerido[] = [];
+  const [anioDesde, mesDesde] = desde.split('-').map(Number);
+  const [anioHasta, mesHasta] = hasta.split('-').map(Number);
+  let anio = anioDesde, mes = mesDesde;
+  // Tope defensivo (600 iteraciones = 50 años): un rango invalido (desde > hasta, o al revés) no
+  // debe colgar el loop en vez de simplemente no devolver nada.
+  for (let i = 0; i < 600 && (anio < anioHasta || (anio === anioHasta && mes <= mesHasta)); i++) {
+    const fecha = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    // fecha siempre cae en el día 1: si `desde` es un día intermedio del mes de arranque (ej.
+    // "2026-03-15"), el mes de `desde` ya matcheado por año/mes NO debe colarse con fecha 03-01,
+    // que es anterior al `desde` pedido.
+    if (fecha >= desde && !(vencimiento && fecha > vencimiento) && esMesDePago(mes, cupon_mes, cupon_frecuencia)) {
+      const monto = +((cupon_tasa / cupon_frecuencia) * pos.cantidad).toFixed(2);
+      if (monto > 0) {
+        out.push({
+          portfolio_id: pos.portfolio_id, posicion_id: pos.id, ticker: pos.ticker, tipo: 'interes',
+          fecha, monto,
+          nota: `Carga histórica — cupón proyectado (tasa ${(cupon_tasa * 100).toFixed(2)}% anual ÷ ${cupon_frecuencia} pagos/año × ${pos.cantidad} nominales). Calendario sintético desde los datos cargados a mano, NO verificado contra la emisión real.`,
+        });
+      }
+    }
+    mes++; if (mes > 12) { mes = 1; anio++; }
+  }
+  return out;
 }

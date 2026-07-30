@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { sugerirDividendoPendiente, sugerirCuponPendiente, type PosicionParaCobro } from './_cobros_pendientes';
-import type { DividendoInfo } from './_dividendos';
+import {
+  sugerirDividendoPendiente, sugerirCuponPendiente,
+  sugerirDividendosHistoricos, sugerirCuponesHistoricos,
+  type PosicionParaCobro,
+} from './_cobros_pendientes';
+import type { DividendoInfo, DividendEvent } from './_dividendos';
 
 const pos = (over: Partial<PosicionParaCobro> = {}): PosicionParaCobro => ({
   id: 'p1', portfolio_id: 'pf1', ticker: 'AAPL', tipo: 'accion', cantidad: 10, ratio_cedear: null,
@@ -95,5 +99,111 @@ describe('sugerirCuponPendiente', () => {
     const a = sugerirCuponPendiente(bono(), '2026-06-05');
     const b = sugerirCuponPendiente(bono(), '2026-06-28');
     expect(a?.fecha).toBe(b?.fecha);
+  });
+});
+
+describe('sugerirDividendosHistoricos (primera carga: recorre TODO el historial, no solo "hoy")', () => {
+  const ev = (over: Partial<DividendEvent> = {}): DividendEvent =>
+    ({ date: '2026-03-15', adjDividend: 1, dividend: 1, paymentDate: '2026-03-20', recordDate: null, declarationDate: null, ...over });
+
+  it('acción directa: un evento dentro del rango → una sugerencia, sin dividir por nada', () => {
+    const r = sugerirDividendosHistoricos(pos({ tipo: 'accion', cantidad: 10 }), [ev({ adjDividend: 2 })], '2026-01-01', '2026-07-30');
+    expect(r).toHaveLength(1);
+    expect(r[0].monto).toBe(20);
+    expect(r[0].fecha).toBe('2026-03-20'); // usa paymentDate si está
+  });
+
+  it('varios pagos reales dentro del año → una sugerencia por cada uno', () => {
+    const historical = [
+      ev({ date: '2026-01-10', paymentDate: '2026-01-15', adjDividend: 1 }),
+      ev({ date: '2026-04-10', paymentDate: '2026-04-15', adjDividend: 1 }),
+      ev({ date: '2026-07-10', paymentDate: '2026-07-15', adjDividend: 1 }),
+    ];
+    const r = sugerirDividendosHistoricos(pos({ tipo: 'accion', cantidad: 5 }), historical, '2026-01-01', '2026-07-30');
+    expect(r).toHaveLength(3);
+    expect(r.map(x => x.fecha)).toEqual(['2026-01-15', '2026-04-15', '2026-07-15']);
+  });
+
+  it('CEDEAR: divide por el ratio igual que la sugerencia del cron', () => {
+    const r = sugerirDividendosHistoricos(pos({ tipo: 'cedear', cantidad: 100, ratio_cedear: 20 }), [ev({ adjDividend: 1 })], '2026-01-01', '2026-07-30');
+    expect(r[0].monto).toBe(5); // 1 * 100 / 20
+  });
+
+  it('CEDEAR sin ratio → no sugiere nada (mismo criterio que el cron)', () => {
+    expect(sugerirDividendosHistoricos(pos({ tipo: 'cedear', cantidad: 100, ratio_cedear: null }), [ev()], '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('eventos fuera del rango [desde,hasta] quedan afuera', () => {
+    const historical = [ev({ date: '2025-12-01', paymentDate: '2025-12-05' }), ev({ date: '2026-08-01', paymentDate: '2026-08-05' })];
+    expect(sugerirDividendosHistoricos(pos(), historical, '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('bono, cash y accion_ar nunca generan dividendo histórico', () => {
+    expect(sugerirDividendosHistoricos(pos({ tipo: 'bono' }), [ev()], '2026-01-01', '2026-07-30')).toEqual([]);
+    expect(sugerirDividendosHistoricos(pos({ tipo: 'cash' }), [ev()], '2026-01-01', '2026-07-30')).toEqual([]);
+    expect(sugerirDividendosHistoricos(pos({ tipo: 'accion_ar' }), [ev()], '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('sin historial (null o vacío) → lista vacía, no rompe', () => {
+    expect(sugerirDividendosHistoricos(pos(), null, '2026-01-01', '2026-07-30')).toEqual([]);
+    expect(sugerirDividendosHistoricos(pos(), [], '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('posición cerrada (cantidad 0) → no sugiere', () => {
+    expect(sugerirDividendosHistoricos(pos({ cantidad: 0 }), [ev()], '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('monto que redondea a 0 (posición muy chica) → se descarta', () => {
+    const r = sugerirDividendosHistoricos(pos({ tipo: 'cedear', cantidad: 1, ratio_cedear: 1000 }), [ev({ adjDividend: 0.001 })], '2026-01-01', '2026-07-30');
+    expect(r).toEqual([]);
+  });
+
+  it('sin paymentDate usa la ex-date como fecha del evento', () => {
+    const r = sugerirDividendosHistoricos(pos(), [ev({ paymentDate: null, date: '2026-05-01' })], '2026-01-01', '2026-07-30');
+    expect(r[0].fecha).toBe('2026-05-01');
+  });
+});
+
+describe('sugerirCuponesHistoricos (primera carga: recorre mes a mes en el rango, no solo "hoy")', () => {
+  const bono = (over: Partial<PosicionParaCobro> = {}): PosicionParaCobro =>
+    pos({ tipo: 'bono', cantidad: 1000, cupon_tasa: 0.08, cupon_frecuencia: 4, cupon_mes: 1, ...over }); // trimestral: ene/abr/jul/oct
+
+  it('trimestral desde enero, rango ene-jul → 3 cupones (ene, abr, jul)', () => {
+    const r = sugerirCuponesHistoricos(bono(), '2026-01-01', '2026-07-30');
+    expect(r.map(x => x.fecha)).toEqual(['2026-01-01', '2026-04-01', '2026-07-01']);
+    expect(r[0].monto).toBe(20); // 0.08/4 * 1000
+    expect(r.every(x => x.tipo === 'interes')).toBe(true);
+  });
+
+  it('rango de un solo mes que SÍ es de pago → un cupón', () => {
+    const r = sugerirCuponesHistoricos(bono(), '2026-04-01', '2026-04-30');
+    expect(r).toHaveLength(1);
+    expect(r[0].fecha).toBe('2026-04-01');
+  });
+
+  it('rango que no incluye ningún mes de pago → vacío', () => {
+    expect(sugerirCuponesHistoricos(bono(), '2026-02-01', '2026-03-31')).toEqual([]);
+  });
+
+  it('vencimiento a mitad de rango → no genera cupones después de vencer', () => {
+    const r = sugerirCuponesHistoricos(bono({ vencimiento: '2026-05-01' }), '2026-01-01', '2026-07-30');
+    expect(r.map(x => x.fecha)).toEqual(['2026-01-01', '2026-04-01']); // julio ya venció
+  });
+
+  it('sin los 4 campos de cupón cargados → vacío', () => {
+    expect(sugerirCuponesHistoricos(bono({ cupon_tasa: null }), '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('no es bono → vacío', () => {
+    expect(sugerirCuponesHistoricos(pos({ tipo: 'accion', cupon_tasa: 0.08, cupon_frecuencia: 4, cupon_mes: 1 }), '2026-01-01', '2026-07-30')).toEqual([]);
+  });
+
+  it('rango que cruza fin de año → sigue contando meses bien', () => {
+    const r = sugerirCuponesHistoricos(bono({ cupon_mes: 12, cupon_frecuencia: 2 }), '2025-11-01', '2026-01-31'); // semestral: jun/dic
+    expect(r.map(x => x.fecha)).toEqual(['2025-12-01']);
+  });
+
+  it('posición cerrada (cantidad 0) → vacío', () => {
+    expect(sugerirCuponesHistoricos(bono({ cantidad: 0 }), '2026-01-01', '2026-07-30')).toEqual([]);
   });
 });

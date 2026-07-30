@@ -1,0 +1,43 @@
+name: Carga histórica de cobros (backfill)
+
+# Dispara /api/cron/backfill-cobros a demanda (NO en un schedule — a diferencia de
+# refresh-market.yml, esto es para la primera carga de una posición existente o una
+# reconciliación puntual, no algo que tenga sentido correr cada 30 min).
+# Requiere los mismos secrets que refresh-market.yml (APP_URL, CRON_SECRET).
+
+on:
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Fecha desde (YYYY-MM-DD). Vacío = 1 de enero del año actual.'
+        required: false
+      hasta:
+        description: 'Fecha hasta (YYYY-MM-DD). Vacío = hoy.'
+        required: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cargar cobros históricos
+        env:
+          APP: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DESDE: ${{ inputs.desde }}
+          HASTA: ${{ inputs.hasta }}
+        run: |
+          [ -z "$APP" ] && { echo "::error::APP_URL no configurada — agregá el secret APP_URL en GitHub"; exit 1; }
+          URL="$APP/api/cron/backfill-cobros?"
+          [ -n "$DESDE" ] && URL="${URL}desde=$DESDE&"
+          [ -n "$HASTA" ] && URL="${URL}hasta=$HASTA&"
+          echo "→ $URL"
+          RESP=$(curl -sS --max-time 120 -H "X-Cron-Secret: $CRON_SECRET" "$URL")
+          echo "Respuesta: $RESP"
+          case "$RESP" in
+            '{'*'"ok"'*)
+              echo "✓ backfill-cobros OK" ;;
+            *'<!DOCTYPE'* | *'<html'*)
+              echo "::error::APP_URL apunta a un deploy sin la Function (devolvió el HTML de la app)."; exit 1 ;;
+            *)
+              echo "::error::backfill-cobros no devolvió el JSON esperado."; exit 1 ;;
+          esac
