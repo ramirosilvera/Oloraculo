@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { CalendarClock, Wallet, Trash2, Plus } from 'lucide-react';
+import { CalendarClock, Wallet, Trash2, Plus, Sparkles, Check, X } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones } from '../hooks/usePosiciones';
 import { useCobros, COBRO_TIPO_LABEL } from '../hooks/useCobros';
@@ -8,7 +8,7 @@ import { useChartTheme } from '../hooks/usePrefs';
 import { couponCalendar, cuponAnualTotal, type CouponBond } from '../engine/coupons';
 import { resumenCobros } from '../engine/cobros';
 import { Card, CardHeader, Button, Badge, Field, Stat, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
-import type { CobroTipo, Posicion } from '../types/domain';
+import type { Cobro, CobroTipo, Posicion } from '../types/domain';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -36,8 +36,12 @@ export function CuponesPage() {
 // ── Cobrado: registro REAL de dividendos/intereses/amortizaciones ────────────────────────────
 function CobradoTab({ portfolioId }: { portfolioId: string }) {
   const { data: posiciones = [] } = usePosiciones(portfolioId);
-  const { data: cobros, isLoading, registrar, registrarAmortizacion, marcarEstado, remove } = useCobros(portfolioId);
+  const { data: cobros, isLoading, registrar, registrarAmortizacion, marcarEstado, confirmarPendiente, remove } = useCobros(portfolioId);
   const resumen = useMemo(() => resumenCobros(cobros), [cobros]);
+  // Los 'pendiente' (sugeridos por el cron) van en su propia bandeja, nunca en el historial normal
+  // — ahí el toggle Disponible/Reinvertido no aplicaría y se prestaría a confusión.
+  const pendientes = useMemo(() => cobros.filter(c => c.estado === 'pendiente'), [cobros]);
+  const confirmados = useMemo(() => cobros.filter(c => c.estado !== 'pendiente'), [cobros]);
 
   const [modo, setModo] = useState<'existente' | 'otro'>(posiciones.length > 0 ? 'existente' : 'otro');
   const [posId, setPosId] = useState(posiciones[0]?.id ?? '');
@@ -93,6 +97,10 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
         <Stat label="Renta (div. + int.)" value={fmtUsd(resumen.porTipo.dividendo + resumen.porTipo.interes, 0)} hint="sin contar amortización (es capital, no renta)" />
       </div>
 
+      {pendientes.length > 0 && (
+        <PendientesCard pendientes={pendientes} onConfirmar={confirmarPendiente} onDescartar={remove} />
+      )}
+
       <Card>
         <CardHeader title="Registrar un cobro" sub="Dividendo/interés no tocan la posición. Amortización reduce el nominal del bono (movimiento 'ajuste')." />
         <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -146,7 +154,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
         <CardHeader title="Historial" sub="Marcá cada cobro como disponible o reinvertido para saber cuánto tenés listo para poner a trabajar." />
         {isLoading ? (
           <p className="p-4 text-sm text-ink-600">Cargando…</p>
-        ) : cobros.length === 0 ? (
+        ) : confirmados.length === 0 ? (
           <Empty icon={Wallet} title="Sin cobros registrados">Registrá el primero arriba cuando cobres un dividendo, interés o amortización.</Empty>
         ) : (
           <div className="overflow-x-auto">
@@ -162,7 +170,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {cobros.map(c => (
+                {confirmados.map(c => (
                   <tr key={c.id} className="hover:bg-canvas">
                     <td className="px-4 py-2 text-ink-700">{c.fecha}</td>
                     <td className="px-3 font-semibold text-ink-900">{c.ticker}</td>
@@ -187,6 +195,73 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ── Por confirmar: sugerencias del cron (dividendos declarados/estimados, cupones sintéticos que
+// llegaron a su fecha). NUNCA se auto-confirman — el usuario revisa el monto (editable, porque el
+// dato es bruto y puede diferir del real por retención, dividendo especial, etc.) y confirma UNO
+// POR UNO. A propósito no hay "confirmar todos": eso es exactamente lo que se quiere evitar —
+// que se acepten en lote sin mirar.
+function PendientesCard({ pendientes, onConfirmar, onDescartar }: {
+  pendientes: Cobro[]; onConfirmar: (id: string, monto: number) => Promise<void>; onDescartar: (id: string) => Promise<void>;
+}) {
+  return (
+    <Card className="ring-1 ring-inset ring-warn/30">
+      <CardHeader title="Por confirmar" sub="Sugeridos automáticamente — revisá el monto (es bruto, sin retención) y confirmá uno por uno."
+        right={<Badge tone="warn">{pendientes.length}</Badge>} />
+      <div className="divide-y divide-line">
+        {pendientes.map(p => <PendienteRow key={p.id} p={p} onConfirmar={onConfirmar} onDescartar={onDescartar} />)}
+      </div>
+    </Card>
+  );
+}
+
+function PendienteRow({ p, onConfirmar, onDescartar }: {
+  p: Cobro; onConfirmar: (id: string, monto: number) => Promise<void>; onDescartar: (id: string) => Promise<void>;
+}) {
+  const [monto, setMonto] = useState(String(p.monto));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const confirmar = async () => {
+    const m = Number(monto) || 0;
+    if (!(m > 0)) { setErr('Monto inválido.'); return; }
+    setBusy(true); setErr(null);
+    try { await onConfirmar(p.id, m); } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo confirmar'); setBusy(false); }
+  };
+  const descartar = async () => {
+    setBusy(true);
+    try { await onDescartar(p.id); } catch { setBusy(false); }
+  };
+
+  return (
+    <div className="p-4 flex flex-wrap items-start gap-3 text-sm">
+      <div className="min-w-[140px]">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-warn shrink-0" />
+          <span className="font-semibold text-ink-900">{p.ticker}</span>
+          <Badge tone={p.tipo === 'amortizacion' ? 'warn' : 'accent'}>{COBRO_TIPO_LABEL[p.tipo]}</Badge>
+        </div>
+        <p className="text-[11px] text-ink-600 mt-0.5">{p.fecha}</p>
+      </div>
+      <div className="flex-1 min-w-[220px]">
+        {p.nota && <p className="text-[11px] text-ink-500 leading-relaxed">{p.nota}</p>}
+        {err && <p className="text-[11px] text-warn mt-1">{err}</p>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="relative">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500 text-xs">US$</span>
+          <input type="number" value={monto} onChange={e => setMonto(e.target.value)} disabled={busy}
+            className={`${inputCls} w-28 pl-8`} />
+        </div>
+        <Button onClick={confirmar} disabled={busy}><Check className="w-4 h-4" /> Confirmar</Button>
+        <button onClick={descartar} disabled={busy} title="Descartar" aria-label="Descartar"
+          className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }

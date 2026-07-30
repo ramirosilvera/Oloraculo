@@ -59,10 +59,14 @@ export interface Movimiento {
   created_at: string;
 }
 
-// Cobro REAL (no proyectado) de dividendo/interés/amortización de una posición. 'amortizacion' es
-// devolución de capital (reduce el nominal vía un movimiento 'ajuste'), no renta — ver 0011_cobros.sql.
+// Cobro de dividendo/interés/amortización de una posición. 'amortizacion' es devolución de capital
+// (reduce el nominal vía un movimiento 'ajuste'), no renta — ver 0011_cobros.sql.
+// estado='pendiente': lo generó el cron (dividendo/cupón proyectado que llegó a su fecha) y TODAVÍA
+// no es plata confirmada por el usuario — engine/cobros.ts lo excluye a propósito de los totales.
+// Nunca tratar 'pendiente' como sinónimo de 'disponible': ver 0012_cobros_pendientes.sql.
 export type CobroTipo = 'dividendo' | 'interes' | 'amortizacion';
-export type CobroEstado = 'disponible' | 'reinvertido';
+export type CobroEstado = 'disponible' | 'reinvertido' | 'pendiente';
+export type CobroOrigen = 'manual' | 'cron';
 
 export interface Cobro {
   id: string;
@@ -73,6 +77,7 @@ export interface Cobro {
   fecha: string;
   monto: number;
   estado: CobroEstado;
+  origen: CobroOrigen;
   movimiento_id: string | null;
   nota: string | null;
   created_at: string;

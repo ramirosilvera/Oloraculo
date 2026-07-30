@@ -31,7 +31,7 @@ export function useCobros(portfolioId: string | null | undefined) {
       if (!(input.monto > 0)) throw new Error('El monto debe ser mayor a 0.');
       const { error } = await supabase.from('cobros').insert({
         portfolio_id: portfolioId, posicion_id: input.posicionId, ticker: input.ticker.toUpperCase().trim(),
-        tipo: input.tipo, fecha: input.fecha, monto: input.monto, nota: input.nota || null,
+        tipo: input.tipo, fecha: input.fecha, monto: input.monto, nota: input.nota || null, origen: 'manual',
       });
       if (error) throw error; invalidate();
     },
@@ -58,7 +58,7 @@ export function useCobros(portfolioId: string | null | undefined) {
       if (updErr) throw new Error(`Se registró el movimiento pero no se pudo actualizar el nominal: ${updErr.message}`);
       const { error: cobroErr } = await supabase.from('cobros').insert({
         portfolio_id: portfolioId, posicion_id: input.posicionId, ticker,
-        tipo: 'amortizacion', fecha: input.fecha, monto: input.monto, movimiento_id: mov.id, nota: input.nota || null,
+        tipo: 'amortizacion', fecha: input.fecha, monto: input.monto, movimiento_id: mov.id, nota: input.nota || null, origen: 'manual',
       });
       if (cobroErr) throw new Error(`El nominal se ajustó pero no se pudo registrar el cobro: ${cobroErr.message}`);
       invalidate();
@@ -66,6 +66,15 @@ export function useCobros(portfolioId: string | null | undefined) {
 
     marcarEstado: async (id: string, estado: 'disponible' | 'reinvertido') => {
       const { error } = await supabase.from('cobros').update({ estado }).eq('id', id);
+      if (error) throw error; invalidate();
+    },
+
+    // Confirmar un PENDIENTE (generado por el cron): pasa a 'disponible' y el usuario puede haber
+    // corregido el monto antes de confirmar (dividendo real ≠ estimado por retención/redondeo/
+    // dividendo especial). Nunca en lote — uno a la vez, a propósito, para que se revise cada uno.
+    confirmarPendiente: async (id: string, montoFinal: number) => {
+      if (!(montoFinal > 0)) throw new Error('El monto debe ser mayor a 0.');
+      const { error } = await supabase.from('cobros').update({ estado: 'disponible', monto: montoFinal }).eq('id', id);
       if (error) throw error; invalidate();
     },
 

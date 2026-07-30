@@ -1,5 +1,7 @@
-import { type Env, json, preflight, guard, sbSelect, tokenInterno } from '../_shared';
+import { type Env, json, preflight, guard, sbSelect, sbRpc, tokenInterno } from '../_shared';
 import { DEFAULT_CIK } from '../_edgar';
+import { sugerirDividendoPendiente, sugerirCuponPendiente, type PosicionParaCobro } from '../_cobros_pendientes';
+import type { DividendoInfo } from '../_dividendos';
 
 // GET /api/cron/refresh-all
 // Calienta TODAS las caches de mercado en una sola pasada server-side, para que la data se
@@ -33,8 +35,11 @@ export const onRequestGet = guard(async ({ request, env }) => {
   // 1) Macro + renta fija (no dependen de posiciones)
   const base = ['/api/market/fx', '/api/market/bonos', '/api/market/riesgo-pais', '/api/market/fred', '/api/market/indicadores'];
 
-  // 2) Tickers realmente tenidos, agrupados por tipo (service-role → ve todos los portfolios)
-  const pos = await sbSelect<{ ticker: string; tipo: string }>(env, 'posiciones', 'select=ticker,tipo');
+  // 2) Posiciones reales (service-role → ve todos los portfolios). Selección amplia: además de
+  // refrescar cotizaciones, estos mismos campos alimentan la sugerencia de cobros pendientes
+  // (paso 4) — una sola consulta para ambos usos.
+  const pos = await sbSelect<PosicionParaCobro>(env, 'posiciones',
+    'select=id,portfolio_id,ticker,tipo,cantidad,ratio_cedear,cupon_tasa,cupon_frecuencia,cupon_mes,vencimiento');
   const uniq = (a: string[]) => [...new Set(a.map(s => s.toUpperCase()).filter(Boolean))];
   const equity = uniq(pos.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker));
   const ar = uniq(pos.filter(p => p.tipo === 'accion_ar').map(p => p.ticker));
@@ -58,6 +63,33 @@ export const onRequestGet = guard(async ({ request, env }) => {
   const paths = [...base, ...dyn];
   for (const p of paths) if (await hit(p)) ok++;
 
-  // Solo conteos agregados de endpoints — sin cantidades de posiciones (no filtrar composición).
-  return json({ ok, total: paths.length });
+  // 4) Cobros pendientes: dividendos reales (equities, vía FMP/Finnhub) + cupones sintéticos
+  // (bonos, desde los 4 campos manuales) que ya llegaron a su fecha proyectada. SIEMPRE quedan en
+  // estado 'pendiente' — el cron NUNCA los confirma solo; eso lo decide el usuario a mano (ver
+  // 0012_cobros_pendientes.sql y engine/cobros.ts). Falla aislada: si esto se cae, no afecta ok/total.
+  let pendientes = 0;
+  const hoy = new Date().toISOString().slice(0, 10);
+  try {
+    let divPorTicker: Record<string, DividendoInfo | null> = {};
+    if (equity.length) {
+      const r = await fetch(`${origin}/api/market/dividendos?tickers=${equity.join(',')}`, { headers });
+      if (r.ok) divPorTicker = await r.json();
+    }
+    for (const p of pos) {
+      const sug = p.tipo === 'bono'
+        ? sugerirCuponPendiente(p, hoy)
+        : sugerirDividendoPendiente(p, divPorTicker[p.ticker.toUpperCase()] ?? null, hoy);
+      if (!sug) continue;
+      try {
+        await sbRpc(env, 'insertar_cobro_pendiente_cron', {
+          p_portfolio_id: sug.portfolio_id, p_posicion_id: sug.posicion_id, p_ticker: sug.ticker,
+          p_tipo: sug.tipo, p_fecha: sug.fecha, p_monto: sug.monto, p_nota: sug.nota,
+        });
+        pendientes++;
+      } catch { /* una sugerencia fallida no frena las demás */ }
+    }
+  } catch { /* sin dividendos disponibles (sin key, proveedor caído): no rompe el resto del cron */ }
+
+  // Solo conteos agregados — sin tickers ni montos (no filtrar composición del portfolio).
+  return json({ ok, total: paths.length, pendientes });
 });

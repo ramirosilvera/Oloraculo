@@ -148,6 +148,18 @@ export async function sbUpsert(env: Env, table: string, rows: unknown[], onConfl
   if (!res.ok) throw new Error(`sbUpsert ${table} → HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
+// Llama una función Postgres (RPC) con la service-role key. Se usa cuando el upsert genérico de
+// PostgREST no alcanza — ej. un ON CONFLICT contra un ÍNDICE PARCIAL (como cobros_cron_dedupe):
+// PostgREST arma `on_conflict=col1,col2` sin poder repetir el WHERE del índice, y Postgres rechaza
+// esa forma ("no unique or exclusion constraint matching"). La función del lado de la DB sí puede
+// escribir el ON CONFLICT completo (ver 0012_cobros_pendientes.sql / insertar_cobro_pendiente_cron).
+export async function sbRpc(env: Env, fn: string, args: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST', headers: sbHeaders(env), body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`sbRpc ${fn} → HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
 // Generic cache: read one row; return it only if fresher than ttlMs.
 export async function cacheFresh<T = { updated_at: string }>(
   env: Env, table: string, keyCol: string, keyVal: string, ttlMs: number,
