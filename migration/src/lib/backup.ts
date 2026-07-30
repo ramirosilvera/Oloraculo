@@ -5,10 +5,12 @@ import { supabase } from './supabase';
 // (precios/fundamentos/macro) porque son datos compartidos y re-descargables, no personales.
 // v3: agrega brokers (tabla nueva — sin esto, restaurar en una cuenta nueva perdía la lista de
 // brokers y las posiciones volvían a quedar todas "Sin asignar").
-export const BACKUP_VERSION = 3;
+// v4: posiciones vuelve a ser 1 fila por ticker; el reparto entre brokers pasa a posicion_brokers
+// (reemplaza posiciones.broker_id, que ya no existe). Ver 0018_posicion_brokers.sql.
+export const BACKUP_VERSION = 4;
 
 const TABLAS = [
-  'portfolios', 'brokers', 'posiciones', 'movimientos', 'aportes', 'portfolio_snapshots',
+  'portfolios', 'brokers', 'posiciones', 'posicion_brokers', 'movimientos', 'aportes', 'portfolio_snapshots',
   'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros',
   'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;

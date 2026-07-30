@@ -43,7 +43,6 @@ export interface Posicion {
   cupon_mes: number | null;          // mes (1-12) de un pago de referencia
   vencimiento: string | null;        // ISO date
   notas: string | null;
-  broker_id: string | null;          // dónde está físicamente esta posición (IOL, Santander, ...)
   created_at: string;
 }
 
@@ -53,6 +52,17 @@ export interface Broker {
   id: string;
   user_id: string;
   nombre: string;
+  created_at: string;
+}
+
+// Reparto de una posición entre brokers — reemplaza posiciones.broker_id (0016/0017): una posición
+// es 1 fila en `posiciones` (ticker unificado), pero puede tener 0, 1 o varias filas acá si está
+// repartida entre brokers (ej. mitad en IOL, mitad en Santander). Ver 0018_posicion_brokers.sql.
+export interface PosicionBroker {
+  id: string;
+  posicion_id: string;
+  broker_id: string;
+  cantidad: number;
   created_at: string;
 }
 

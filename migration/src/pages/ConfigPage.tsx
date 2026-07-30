@@ -174,7 +174,7 @@ const TABLA_LABEL: Record<string, string> = {
   portfolios: 'portfolios', posiciones: 'posiciones', movimientos: 'movimientos', aportes: 'aportes',
   portfolio_snapshots: 'histórico', flujo_items: 'flujo', dcf_inputs: 'DCF', cik_map: 'CIK', watchlist: 'watchlist',
   analisis_ia: 'análisis IA', profiles: 'perfil', cobros: 'cobros', proyeccion_inputs: 'supuestos proyección',
-  brokers: 'brokers',
+  brokers: 'brokers', posicion_brokers: 'asignación de brokers',
 };
 
 function RestoreSection() {

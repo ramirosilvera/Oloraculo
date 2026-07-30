@@ -20,10 +20,10 @@ export interface BackupFile {
 const RESTORE_ORDER: { table: string; onConflict: string; userScoped: boolean }[] = [
   { table: 'profiles',    onConflict: 'user_id',      userScoped: true },
   { table: 'portfolios',  onConflict: 'id',           userScoped: true },
-  // Antes que posiciones: posiciones.broker_id la referencia (FK) — si se restaurara después, el
-  // insert de una posición con broker_id asignado fallaría por violar la FK.
   { table: 'brokers',     onConflict: 'id',           userScoped: true },
   { table: 'posiciones',  onConflict: 'id',           userScoped: false },
+  // Después de brokers Y posiciones: posicion_brokers referencia (FK) a ambas.
+  { table: 'posicion_brokers', onConflict: 'posicion_id,broker_id', userScoped: false },
   { table: 'movimientos', onConflict: 'id',           userScoped: false },
   // Depende de posiciones Y movimientos (movimiento_id del ajuste de una amortización): tiene
   // que restaurarse después de ambas o la FK rechaza el insert.
@@ -57,11 +57,13 @@ export function parseBackup(text: string): Preview {
     return { ok: false, error: 'El archivo no tiene la estructura de un backup (falta "tables").', counts: {}, total: 0, avisos };
   }
   if (data.app && data.app !== 'portfolio-inversiones') avisos.push(`El backup dice ser de otra app ("${data.app}").`);
-  // v1/v2 igual se pueden restaurar (solo les faltan tablas que no existían todavía) — el aviso es
-  // solo para versiones FUTURAS que este código todavía no sepa interpretar.
-  if (data.backup_version && data.backup_version > 3) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v3).`);
+  // v1/v2/v3 igual se pueden restaurar (solo les faltan tablas que no existían todavía, o traen
+  // posiciones.broker_id que ya no se usa) — el aviso es solo para versiones FUTURAS que este
+  // código todavía no sepa interpretar.
+  if (data.backup_version && data.backup_version > 4) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v4).`);
   if (data.backup_version === 1) avisos.push('Backup v1 (anterior a Cobros y Proyección): no va a traer el historial de dividendos/intereses/amortizaciones ni los supuestos de Proyección guardados, porque todavía no existían.');
   if (data.backup_version === 1 || data.backup_version === 2) avisos.push('Backup anterior a Brokers: las posiciones van a quedar "Sin asignar" (no había ningún broker cargado todavía).');
+  if (data.backup_version != null && data.backup_version <= 3) avisos.push('Backup anterior al reparto por broker (posicion_brokers): la asignación de brokers no se va a poder restaurar (la versión vieja guardaba un solo broker por posición, en un campo que ya no existe) — reasignalos desde la sección Brokers después de restaurar.');
   // El propio backup avisa si se generó incompleto (ver backup.ts): lo mostramos antes de restaurar.
   if (data.partial) avisos.push(`El backup se generó INCOMPLETO${data.errores?.length ? ` (falló: ${data.errores.join('; ')})` : ''}: puede faltar información.`);
   const counts: Record<string, number> = {};

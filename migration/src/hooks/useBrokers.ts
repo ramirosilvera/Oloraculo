@@ -19,7 +19,7 @@ export function useBrokers() {
   });
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['brokers'] });
-    qc.invalidateQueries({ queryKey: ['posiciones'] });
+    qc.invalidateQueries({ queryKey: ['posicion_brokers'] });
   };
   return {
     data: q.data ?? [],
@@ -32,8 +32,8 @@ export function useBrokers() {
       if (error) throw new Error(error.code === '23505' ? `Ya tenés un broker llamado "${n}".` : error.message);
       invalidate();
     },
-    // Al borrar un broker, sus posiciones quedan "Sin asignar" (broker_id → null por la FK
-    // on delete set null) — no se borran posiciones, solo se pierde la etiqueta.
+    // Al borrar un broker se borran (cascade) sus filas en posicion_brokers — la posición en sí NO
+    // se toca, solo pierde esa asignación y su cantidad vuelve a contar como "Sin asignar".
     remove: async (id: string) => {
       const { error } = await supabase.from('brokers').delete().eq('id', id);
       if (error) throw error; invalidate();
