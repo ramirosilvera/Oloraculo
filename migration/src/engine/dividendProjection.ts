@@ -70,9 +70,12 @@ export function dividendEvents(
 
     const pasoDias = info.frecuenciaAnual && info.frecuenciaAnual > 0 ? Math.round(365 / info.frecuenciaAnual) : null;
     let fecha = new Date(info.proximaFecha + 'T00:00:00Z');
-    // Tope defensivo: sin esto, una frecuenciaAnual corrupta (ej. de un historial con datos
-    // sucios) podría hacer un loop larguísimo en vez de simplemente cortar la proyección.
-    for (let i = 0; i < 40; i++) {
+    // Tope defensivo alto A PROPÓSITO: 400 iteraciones cubre incluso un pagador DIARIO por más de
+    // un año — un tope bajo (ej. 40) corta en silencio a un pagador semanal (frecuenciaAnual=52,
+    // paso=7 días) antes de completar la ventana de 12 meses, subestimando el total proyectado sin
+    // ningún aviso. El `abs >= endAbs` de abajo ya corta por FECHA en el caso normal; esto solo
+    // protege contra una frecuenciaAnual corrupta que igual generaría pasoDias > 0.
+    for (let i = 0; i < 400; i++) {
       const abs = fecha.getUTCFullYear() * 12 + fecha.getUTCMonth();
       if (abs >= endAbs) break;
       if (abs >= startAbs) {
@@ -83,7 +86,12 @@ export function dividendEvents(
           estado: i === 0 && info.estado === 'declarado' ? 'declarado' : 'estimado',
         });
       }
-      if (!pasoDias) break; // sin cadencia conocida: un solo evento, no se repite
+      // `pasoDias == null || <= 0`, explícito: pasoDias podría ser 0 (frecuenciaAnual > 730, un
+      // dato corrupto) — un `if (!pasoDias) break` también lo atraparía hoy porque 0 es falsy,
+      // pero deja la protección atada a esa coincidencia. Un refactor futuro que cambiara la
+      // condición de "sin cadencia" a `pasoDias === null` reintroduciría en silencio un loop de
+      // 400 eventos en la MISMA fecha (total 400x inflado). Explícito acá para que no dependa de eso.
+      if (pasoDias == null || pasoDias <= 0) break; // sin cadencia conocida: un solo evento, no se repite
       fecha = new Date(fecha.getTime() + pasoDias * 86400000);
     }
   }

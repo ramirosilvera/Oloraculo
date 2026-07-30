@@ -40,6 +40,14 @@ describe('dividendEvents', () => {
     expect(ev).toHaveLength(1);
   });
 
+  it('un pagador SEMANAL cubre los 12 meses completos, no se corta a mitad de camino por el tope de iteraciones', () => {
+    const ev = dividendEvents([pos()], { MSFT: info({ proximaFecha: '2026-01-02', frecuenciaAnual: 52 }) }, 2026, 1, 12);
+    // ~52 semanas en 12 meses — el último evento tiene que caer en el último mes de la ventana (dic),
+    // no cortarse antes por un tope de iteraciones demasiado bajo.
+    expect(ev.length).toBeGreaterThan(48);
+    expect(ev[ev.length - 1].ym).toBe('2026-12');
+  });
+
   it('CEDEAR sin ratio → no proyecta (mismo criterio que el cron: mejor nada que un monto 30x mal)', () => {
     const ev = dividendEvents([pos({ ratioCedear: null })], { MSFT: info() }, 2026, 1, 12);
     expect(ev).toEqual([]);

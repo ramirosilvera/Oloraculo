@@ -412,7 +412,10 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
     return info && info.estado !== 'sin-dato';
   }).length;
 
-  const sinDatos = conCupon === 0 && conDividendo === 0 && equities.length === 0 && totalBonos === 0;
+  // Sin NADA que proyectar — no "sin bonos/equities cargados": una cartera con solo tickers que
+  // confirmadamente no pagan (ej. MELI/LAC) tiene equities.length > 0 pero igual no hay nada que
+  // mostrar, y antes eso pasaba de largo el Empty state y renderizaba un chart/tabla en cero.
+  const sinDatos = conCupon === 0 && conDividendo === 0;
 
   return (
     <div className="space-y-4">
@@ -426,7 +429,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         <Stat label="Dividendos anual (estimado)" value={fmtUsd(divAnual, 0)} hint="CEDEARs/acciones — a confirmar contra el cobro real" />
         <Stat label="Próximo dividendo" value={proximoDiv ? `${MESES[proximoDiv.month - 1]} ${proximoDiv.year}` : '—'} hint={proximoDiv ? fmtUsd(proximoDiv.total, 0) : undefined} />
         <Stat label="Cargados (dividendos)" value={`${conDividendo}/${equities.length}`} hint="con dato del proveedor / total de CEDEARs-acciones" />
-        <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones + dividendos, ambos estimados" />
+        <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones (confiables) + dividendos (mezcla declarado/estimado) — ver detalle por mes" />
       </div>
 
       {sinDatos ? (
@@ -438,7 +441,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
       ) : (
         <>
           <Card>
-            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD), no lo ya cobrado. Dividendos: siempre a confirmar contra el pago real." />
+            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD), no lo ya cobrado. El total combina cupones (confiables si el bono no entra en default) con dividendos (mezcla de pagos declarados por el proveedor y estimaciones nuestras por cadencia) — el detalle de abajo distingue cada uno." />
             <div className="p-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
