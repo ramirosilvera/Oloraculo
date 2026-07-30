@@ -156,10 +156,20 @@ function Seccion({ def, items, mep, onAdd }: {
 // Fila editable estilo planilla: los campos de texto/número se guardan al salir (onBlur); el
 // checkbox y los selects se guardan al instante. Mantiene un borrador local para no escribir en la
 // base con cada tecla. Si un guardado falla, se avisa y NO se pierde lo tipeado (para reintentar).
+// Solo dígitos y un único punto decimal — así un pegado con separador de miles (o cualquier otra
+// basura) nunca deja el borrador en un estado que Number() no pueda parsear bien.
+const sanitizeMontoInput = (s: string): string => {
+  const cleaned = s.replace(/[^\d.]/g, '');
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot === -1) return cleaned;
+  return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+};
+
 function Row({ it }: { it: FlujoItem }) {
   const { update, remove } = useFlujoMutations();
   const [concepto, setConcepto] = useState(it.concepto);
   const [monto, setMonto] = useState(it.monto ? String(it.monto) : '');
+  const [montoFocused, setMontoFocused] = useState(false);
   const [err, setErr] = useState(false);
 
   // Si el ítem cambia desde afuera (refetch), sincronizamos el borrador — salvo que haya un guardado
@@ -170,6 +180,9 @@ function Row({ it }: { it: FlujoItem }) {
   const save = (patch: Partial<FlujoItem>) => { setErr(false); update(it.id, patch).catch(() => setErr(true)); };
   const commitConcepto = () => { if (concepto !== it.concepto) save({ concepto }); };
   const commitMonto = () => { const n = Number(monto) || 0; if (n !== it.monto) save({ monto: n }); };
+  // Con foco: el número crudo, fácil de tipear sin que el cursor pelee con separadores. Sin foco:
+  // con separador de miles (es-AR) — un sueldo de 7 cifras se lee de un vistazo, no se cuentan ceros.
+  const montoDisplay = montoFocused || !monto ? monto : Number(monto).toLocaleString('es-AR', { maximumFractionDigits: 2 });
 
   return (
     <div className={`flex flex-wrap sm:flex-nowrap items-center gap-2 px-4 py-2 ${it.activo ? '' : 'opacity-45'} ${err ? 'ring-1 ring-inset ring-neg/40 rounded-lg' : ''}`}>
@@ -178,8 +191,11 @@ function Row({ it }: { it: FlujoItem }) {
         aria-label="Contar en los totales" className="w-4 h-4 shrink-0 accent-celeste-500 cursor-pointer" />
       <input value={concepto} onChange={e => setConcepto(e.target.value)} onBlur={commitConcepto}
         placeholder="Concepto (ej. Sueldo)" className={`${inputCls} flex-1 min-w-[8rem]`} />
-      <input type="number" inputMode="decimal" value={monto} onChange={e => setMonto(e.target.value)} onBlur={commitMonto}
-        placeholder="0" className={`${inputCls} w-28 sm:w-32 text-right tnum`} />
+      <input type="text" inputMode="decimal" value={montoDisplay}
+        onFocus={() => setMontoFocused(true)}
+        onChange={e => setMonto(sanitizeMontoInput(e.target.value))}
+        onBlur={() => { setMontoFocused(false); commitMonto(); }}
+        placeholder="0" aria-label="Monto" className={`${inputCls} w-28 sm:w-32 text-right tnum`} />
       <select value={it.moneda} onChange={e => save({ moneda: e.target.value as 'ARS' | 'USD' })} aria-label="Moneda" className={`${inputCls} w-20`}>
         <option value="ARS">ARS</option><option value="USD">USD</option>
       </select>
