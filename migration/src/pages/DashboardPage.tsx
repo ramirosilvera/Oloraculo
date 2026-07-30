@@ -41,6 +41,10 @@ export function DashboardPage() {
   const { data: flujo = [] } = useFlujo();
   const { data: cobros = [] } = useCobros(active?.id);
   const resumenCobrado = useMemo(() => resumenCobros(cobros), [cobros]);
+  // Sugeridos por el cron, sin confirmar todavía — resumenCobros los excluye a propósito de los
+  // totales (no son plata confirmada), así que se cuentan aparte solo para avisar que hay algo
+  // esperando revisión en /cupones.
+  const pendientesCount = useMemo(() => cobros.filter(c => c.estado === 'pendiente').length, [cobros]);
 
   const { patrimonio, costo, pnl, alloc, sinPrecio } = useMemo(() => {
     let patrimonio = 0, costo = 0;
@@ -213,7 +217,7 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} />
 
-      {cobros.length > 0 && <CobrosResumen resumen={resumenCobrado} />}
+      {cobros.length > 0 && <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} />}
 
       {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
 
@@ -273,11 +277,13 @@ function Distribucion({ alloc, total }: { alloc: { ticker: string; mkt: number; 
 // Cobros reales (dividendos + intereses + amortizaciones) — cuánto entró y cuánto está sin
 // reinvertir todavía. La amortización se ve reflejada en "Cobrado total" (es plata real) pero no en
 // "Renta" (es devolución de capital, no ganancia).
-function CobrosResumen({ resumen }: { resumen: ReturnType<typeof resumenCobros> }) {
+function CobrosResumen({ resumen, pendientesCount }: { resumen: ReturnType<typeof resumenCobros>; pendientesCount: number }) {
   return (
     <Card>
       <CardHeader title="Cobros" sub="Dividendos, intereses y amortizaciones efectivamente cobrados."
-        right={<Link to="/cupones" className="text-[11px] text-celeste-600 hover:underline">Ver detalle →</Link>} />
+        right={pendientesCount > 0
+          ? <Link to="/cupones" className="inline-flex items-center gap-1.5"><Badge tone="warn">{pendientesCount} por confirmar</Badge></Link>
+          : <Link to="/cupones" className="text-[11px] text-celeste-600 hover:underline">Ver detalle →</Link>} />
       <div className="grid grid-cols-3 gap-2 p-3">
         <div className="rounded-2xl border border-line bg-surface shadow-soft px-3 py-3 min-w-0">
           <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold truncate">Cobrado total</p>
