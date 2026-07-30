@@ -141,3 +141,16 @@ export const fmtNum = (n: number | null | undefined, dp = 2): string =>
   n == null || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 export const fmtPct = (n: number | null | undefined, dp = 1): string =>
   n == null || !Number.isFinite(n) ? '—' : `${(n * 100).toFixed(dp)}%`;
+
+// Pesos argentinos → prefijo "$" (sin decimales, miles con punto es-AR).
+export const fmtArs = (n: number | null | undefined): string =>
+  n == null || !Number.isFinite(n) ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`;
+
+// Compacto para montos grandes (millones/miles) — evita que desborden cajas angostas.
+export const fmtArsCompact = (n: number | null | undefined): string => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return `$${(n / 1e6).toLocaleString('es-AR', { maximumFractionDigits: abs >= 1e7 ? 1 : 2 })} M`;
+  if (abs >= 1e4) return `$${(n / 1e3).toLocaleString('es-AR', { maximumFractionDigits: 0 })} k`;
+  return `$${Math.round(n).toLocaleString('es-AR')}`;
+};

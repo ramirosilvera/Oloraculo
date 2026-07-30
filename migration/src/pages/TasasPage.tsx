@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useMacro } from '../hooks/usePosiciones';
 import { LADDER, readCurve, nivelTasaLarga, impactoPorTasa, type Luz } from '../engine/rates';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtPct } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtNum, fmtPct } from '../components/ui';
 
 const LUZ_BG: Record<Luz, string> = { verde: 'bg-pos/15 text-pos', amarillo: 'bg-warn/15 text-warn', rojo: 'bg-neg/15 text-neg' };
 const LUZ_TONE: Record<Luz, 'pos' | 'warn' | 'neg'> = { verde: 'pos', amarillo: 'warn', rojo: 'neg' };
@@ -36,7 +36,7 @@ export function TasasPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="T-Bills 3M" value={dgs3mo != null ? fmtPct(dgs3mo / 100, 2) : '—'} hint="DGS3MO (FRED)" />
         <Stat label="Treasury 10A" value={dgs10 != null ? fmtPct(dgs10 / 100, 2) : '—'} hint="DGS10 (FRED)" />
-        <Stat label="Spread 10a−3m" value={curva.spread != null ? `${curva.spread > 0 ? '+' : ''}${curva.spread.toFixed(2)} pp` : '—'} hint="forma de la curva" />
+        <Stat label="Spread 10a−3m" value={curva.spread != null ? `${curva.spread > 0 ? '+' : ''}${fmtNum(curva.spread, 2)} pp` : '—'} hint="forma de la curva" />
         <Stat label="HY spread" value={hy != null ? fmtPct(hy / 100, 2) : '—'} hint="riesgo de crédito corporativo" />
       </div>
 
@@ -78,7 +78,7 @@ export function TasasPage() {
                     </td>
                     <td className="px-3 font-semibold text-accent">{r.etf}</td>
                     <td className="text-right px-3 tnum">{fmtUsd(px)}</td>
-                    <td className="text-right px-3 tnum text-ink-600">{r.durYears.toFixed(1)}a</td>
+                    <td className="text-right px-3 tnum text-ink-600">{fmtNum(r.durYears, 1)}a</td>
                     <td className="text-right px-3 tnum text-neg">{fmtPct(up, 1)}</td>
                     <td className="text-right px-4 tnum text-pos">+{fmtPct(down, 1).replace('-', '')}</td>
                   </tr>

@@ -203,7 +203,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
                     </td>
                     <td className="px-2 text-right">
                       <button onClick={() => borrarCobro(c)} disabled={deletingId === c.id}
-                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-8 h-8 disabled:opacity-50" title="Borrar" aria-label="Borrar">
+                        className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Borrar" aria-label="Borrar">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </td>
@@ -365,7 +365,7 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="tnum font-semibold text-ink-900">{fmtUsd(i.monto, 0)}</span>
                       <button onClick={() => borrarInversion(i)} disabled={deletingId === i.id}
-                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7 disabled:opacity-50" title="Deshacer" aria-label="Deshacer">
+                        className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Deshacer" aria-label="Deshacer">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>

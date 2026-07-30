@@ -221,7 +221,9 @@ function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
       </td>
       <td className="text-right px-3 tnum">{fmtUsd(price)}</td>
       <td className="text-right px-3 tnum">{dcf ? fmtPct(dcf.marginOfSafety) : '—'}</td>
-      <td className={`text-right px-3 tnum ${ratios?.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'text-pos' : ''}`}>{ratios ? fmtPct(ratios.roic) : '—'}</td>
+      <td className={`text-right px-3 tnum ${ratios?.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'text-pos' : ''}`}>
+        {ratios ? fmtPct(ratios.roic) : '—'}{ratios?.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? ' ✓' : ''}
+      </td>
       <td className="text-right px-3 tnum">{ratios ? fmtPct(ratios.eg5y) : '—'}</td>
       <td className="text-right px-3">{dcf ? <Badge tone={verdictTone as 'pos' | 'neg' | 'warn'}>{dcf.verdict}</Badge> : <span className="text-ink-600">—</span>}</td>
       <td className="text-right px-3">
@@ -236,7 +238,7 @@ function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
       <td className="px-2 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1">
           <Link to={`/analisis/${T}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
-          <button onClick={borrar} disabled={busy} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Quitar" aria-label="Quitar del radar"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={borrar} disabled={busy} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Sacar" aria-label="Sacar del radar"><Trash2 className="w-4 h-4" /></button>
         </div>
         {err && <p className="text-[10px] text-warn mt-0.5">{err}</p>}
       </td>

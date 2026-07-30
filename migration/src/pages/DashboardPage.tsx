@@ -17,12 +17,13 @@ import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
 import { api } from '../lib/api';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtPct } from '../components/ui';
-import { fmtArs, fmtArsCompact } from './FinanzasPage';
+import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 
 const LUZ_DOT: Record<Luz, string> = { verde: 'bg-pos', amarillo: 'bg-warn', rojo: 'bg-neg' };
+// Palabra para lectores de pantalla — el semáforo es solo color, esto lo hace accesible sin rediseñarlo.
+const LUZ_LABEL: Record<Luz, string> = { verde: 'benigno', amarillo: 'atención', rojo: 'estrés' };
 // Paleta categórica estable para el donut (funciona en claro y oscuro).
 const PIE = ['#4F97D4', '#F4C752', '#5FB49C', '#B08BD6', '#E08E6D', '#9BCFEF', '#7A8CA5', '#D45F7A', '#63B7C9', '#C7A15A'];
 
@@ -312,7 +313,7 @@ function CobrosResumen({ resumen, pendientesCount }: { resumen: ReturnType<typeo
 // Montos en pesos formateados compactos ($22,9 M) para que no desborden las cajas; el valor exacto
 // queda en el tooltip.
 function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo>; mep: number | null }) {
-  const usd = (ars: number) => (mep ? `≈ US$${Math.round(ars / mep).toLocaleString('en-US')}` : 'liquidez');
+  const usd = (ars: number) => (mep ? `≈ ${fmtUsd(ars / mep, 0)}` : 'liquidez');
   const tiles = [
     { label: 'FCI + billetera', val: resumen.fci, sub: usd(resumen.fci), tone: 'text-ink-900' },
     { label: 'Disponible', val: resumen.disponible, sub: 'ingresos − egresos', tone: resumen.disponible >= 0 ? 'text-pos' : 'text-neg' },
@@ -381,12 +382,13 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
             const pct = d ? distanciaMaximo(d.actual, d.max) : null;
             // Cerca del máximo = caro (warn); caída grande = posible oportunidad (celeste); medio = neutral.
             const cls = pct == null ? 'text-ink-500' : pct > -0.02 ? 'text-warn' : pct < -0.15 ? 'text-celeste-600' : 'text-ink-900';
+            const estado = pct == null ? null : pct > -0.02 ? 'caro' : pct < -0.15 ? 'oportunidad' : null;
             return (
               <div key={key} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 min-w-0"
-                title={d ? `Actual ${Math.round(d.actual).toLocaleString('en-US')} · máx histórico ${Math.round(d.max).toLocaleString('en-US')}` : undefined}>
+                title={d ? `Actual ${fmtNum(d.actual, 0)} · máx histórico ${fmtNum(d.max, 0)}` : undefined}>
                 <p className="text-[10px] uppercase text-ink-600 font-semibold truncate">{label}</p>
                 <p className={`text-lg font-bold tnum mt-0.5 ${cls}`}>{pct == null ? '—' : pct === 0 ? 'en máx.' : fmtPct(pct, 1)}</p>
-                <p className="text-[10px] text-ink-500">vs máx</p>
+                <p className="text-[10px] text-ink-500">vs máx{estado ? ` · ${estado}` : ''}</p>
               </div>
             );
           })}
@@ -438,7 +440,8 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
                   <div className="flex flex-wrap gap-1.5">
                     {items.map(({ def, valor, luz }) => (
                       <span key={def.key} className="inline-flex items-center gap-1.5 rounded-full bg-canvas ring-1 ring-inset ring-line px-2.5 py-1 text-[11px]">
-                        <span className={`w-1.5 h-1.5 rounded-full ${luz ? LUZ_DOT[luz] : 'bg-ink-300'}`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${luz ? LUZ_DOT[luz] : 'bg-ink-300'}`}
+                          title={luz ? LUZ_LABEL[luz] : 'sin dato'} aria-label={luz ? LUZ_LABEL[luz] : 'sin dato'} role="img" />
                         <span className="text-ink-600">{def.label}</span>
                         <span className="tnum font-semibold text-ink-900">{def.fmt ? def.fmt(valor!) : valor}</span>
                       </span>

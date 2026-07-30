@@ -277,7 +277,7 @@ export function PosicionesPage() {
                         {p.tipo !== 'bono' && p.tipo !== 'cash' && (
                           <Link to={`/analisis/${p.ticker}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
                         )}
-                        <button onClick={() => borrar(p)} disabled={deletingId === p.id} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Eliminar" aria-label="Eliminar posición"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => borrar(p)} disabled={deletingId === p.id} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Borrar" aria-label="Borrar posición"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -692,7 +692,7 @@ function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose
                   {sims.length > 1 && (
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-ink-600 uppercase tracking-wide">Simulación {i + 1}</span>
-                      <button onClick={() => quitarSim(s.key)} className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7" title="Quitar esta simulación" aria-label="Quitar esta simulación"><X className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => quitarSim(s.key)} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9" title="Quitar esta simulación" aria-label="Quitar esta simulación"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   )}
 
@@ -819,7 +819,7 @@ function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: strin
                     <button
                       onClick={() => { setErrMov(null); if (window.confirm(`¿Borrar este movimiento (${m.tipo} ${fmtNum(m.cantidad, 0)} × ${fmtUsd(m.precio)})? Se recalculan la cantidad y el costo promedio.`)) removeMovimiento(m).catch(e => setErrMov(e instanceof Error ? e.message : 'No se pudo borrar')); }}
                       title="Borrar movimiento" aria-label="Borrar movimiento"
-                      className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-8 h-8 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                      className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
           </div>

@@ -3,7 +3,7 @@ import { Plus, Trash2, TrendingUp, TrendingDown, PiggyBank, AlertCircle } from '
 import { useFlujo, useFlujoMutations } from '../hooks/useFlujo';
 import { useMacro } from '../hooks/usePosiciones';
 import { resumenFlujo, type FlujoDestino } from '../engine/flujo';
-import { Card, CardHeader, Button, Empty, inputCls, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Empty, inputCls, fmtPct, fmtArs } from '../components/ui';
 import type { FlujoItem, FlujoCategoria } from '../types/domain';
 import type { ResumenFlujo } from '../engine/flujo';
 
@@ -23,19 +23,6 @@ const SECCIONES: { cat: FlujoCategoria; titulo: string; sub: string; icon: typeo
   { cat: 'inversion', titulo: 'Inversiones / asignaciones', sub: 'A dónde va lo que te queda: FCI, Mercado Pago, CEDEARs, bonos.', icon: PiggyBank, nuevo: 'Nueva asignación' },
 ];
 
-// Formato de pesos argentinos (sin decimales).
-export const fmtArs = (n: number | null | undefined): string =>
-  n == null || !Number.isFinite(n) ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`;
-
-// Formato compacto para montos grandes (millones/miles) — evita que desborden cajas angostas.
-export const fmtArsCompact = (n: number | null | undefined): string => {
-  if (n == null || !Number.isFinite(n)) return '—';
-  const abs = Math.abs(n);
-  if (abs >= 1e6) return `$${(n / 1e6).toLocaleString('es-AR', { maximumFractionDigits: abs >= 1e7 ? 1 : 2 })} M`;
-  if (abs >= 1e4) return `$${(n / 1e3).toLocaleString('es-AR', { maximumFractionDigits: 0 })} k`;
-  return `$${Math.round(n).toLocaleString('es-AR')}`;
-};
-
 export function FinanzasPage() {
   const { data: items = [], isLoading } = useFlujo();
   const { add } = useFlujoMutations();
@@ -53,7 +40,7 @@ export function FinanzasPage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold text-ink-900 font-display">Finanzas · flujo de caja</h1>
-        <span className="text-xs text-ink-600">{mep != null ? `MEP $${Math.round(mep).toLocaleString('es-AR')}` : 'MEP no disponible'}</span>
+        <span className="text-xs text-ink-600">{mep != null ? `MEP ${fmtArs(mep)}` : 'MEP no disponible'}</span>
       </div>
 
       <ResumenFlujoCard r={r} />

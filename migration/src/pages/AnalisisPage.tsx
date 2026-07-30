@@ -10,7 +10,7 @@ import { computeRatios } from '../engine/ratios';
 import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, OE_METHOD_DEFAULT, type DcfInputs, type CapexMethod, type OeMethod } from '../engine/dcf';
 import { useDcfInputs } from '../hooks/useDcfInputs';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Button, Badge, Stat, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Stat, inputCls, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import type { Fundamentals } from '../types/domain';
 
 export function AnalisisPage() {
@@ -165,7 +165,7 @@ export function AnalisisPage() {
           <Metric l="P/E" v={fmtNum(ratios.pe, 1)} />
           <Metric l="P/E fwd" v={fmtNum(ratios.peForward, 1)} />
           <Metric l="P/B" v={fmtNum(ratios.pb, 1)} />
-          <Metric l="ROIC" v={fmtPct(ratios.roic)} tone={ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'pos' : 'warn'} />
+          <Metric l="ROIC" v={`${fmtPct(ratios.roic)}${ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? ' ✓' : ''}`} tone={ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'pos' : 'warn'} />
           <Metric l="Ke (CAPM)" v={fmtPct(ratios.costOfEquity)} />
           <Metric l="WACC" v={fmtPct(ratios.wacc)} />
           <Metric l="EG5Y (real)" v={fmtPct(ratios.eg5y)} />
@@ -173,7 +173,7 @@ export function AnalisisPage() {
           <Metric l="Deuda/Eq." v={fmtNum(ratios.debtToEquity, 2)} />
           <Metric l="DeudaNeta/EBITDA" v={fmtNum(ratios.netDebtToEbitda, 2)} />
           <Metric l="Div yield" v={fmtPct(ratios.divYield)} />
-          <Metric l="Payout" v={fmtPct(ratios.payout)} tone={ratios.payout != null && ratios.payout > 0.9 ? 'neg' : undefined} />
+          <Metric l="Payout" v={`${fmtPct(ratios.payout)}${ratios.payout != null && ratios.payout > 0.9 ? ' ⚠' : ''}`} tone={ratios.payout != null && ratios.payout > 0.9 ? 'neg' : undefined} />
           <Metric l="Tasa imp. ef." v={fmtPct(ratios.effectiveTaxRate)} />
         </div>
       </Card>
@@ -198,7 +198,7 @@ export function AnalisisPage() {
             <label className="block">
             <span className="text-[10px] uppercase text-ink-600">Base de owner earnings (normalización)</span>
             <select value={inp.oeMethod ?? OE_METHOD_DEFAULT} onChange={e => setInp({ ...inp, oeMethod: e.target.value as OeMethod })}
-              className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
+              className={`${inputCls} mt-1`}>
               <option value="ultimo">Último año — escala real de hoy (por defecto)</option>
               <option value="ponderado">Ponderado 5 años (recientes pesan más)</option>
               <option value="prom3">Promedio 3 años</option>
@@ -231,7 +231,7 @@ export function AnalisisPage() {
             <label className="block">
             <span className="text-[10px] uppercase text-ink-600">Capex mant.</span>
             <select value={inp.capexMethod} onChange={e => setInp({ ...inp, capexMethod: e.target.value as CapexMethod })}
-              className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300">
+              className={`${inputCls} mt-1`}>
               <option value="dna">= D&A</option><option value="capex">= Capex total</option><option value="avg">promedio</option>
             </select>
             </label>
@@ -289,7 +289,7 @@ export function AnalisisPage() {
                     <td className="px-2 py-1 text-ink-600">{fmtPct(row.g, 0)}</td>
                     {row.cells.map((c, j) => {
                       const good = c != null && price != null && c > price;
-                      return <td key={j} className={`px-2 py-1 text-right ${good ? 'text-pos' : 'text-ink-700'}`}>{fmtUsd(c, 0)}</td>;
+                      return <td key={j} className={`px-2 py-1 text-right ${good ? 'text-pos' : 'text-ink-700'}`}>{fmtUsd(c, 0)}{good ? ' ✓' : ''}</td>;
                     })}
                   </tr>
                 ))}
@@ -364,7 +364,7 @@ function NumIn({ l, v, step, onChange, pct }: { l: string; v: number; step: numb
       <span className="text-[10px] uppercase text-ink-600">{l}{pct ? ' (%)' : ''}</span>
       <input type="number" step={pct ? step * 100 : step} value={pct ? +(v * 100).toFixed(2) : v}
         onChange={e => onChange(pct ? Number(e.target.value) / 100 : Number(e.target.value))}
-        className="w-full bg-surface border border-line rounded-xl px-2 py-1.5 mt-1 tnum text-ink-900 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
+        className={`${inputCls} mt-1 tnum`} />
     </label>
   );
 }

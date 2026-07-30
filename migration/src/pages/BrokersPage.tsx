@@ -158,7 +158,7 @@ export function BrokersPage() {
               <div key={b.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
                 <span className="text-ink-800">{b.nombre}</span>
                 <button onClick={() => borrarBroker(b.id, b.nombre)} disabled={deletingId === b.id}
-                  className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-8 h-8 disabled:opacity-50" title="Borrar" aria-label="Borrar">
+                  className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Borrar" aria-label="Borrar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -245,7 +245,7 @@ function AsignacionRow({ pos, asignaciones, brokers, onSave }: {
           </select>
           <input type="number" value={r.cantidad || ''} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, cantidad: Number(e.target.value) || 0 } : x))}
             className={`${inputCls} w-24`} aria-label={`Cantidad en broker de la fila ${i + 1}`} />
-          <button onClick={() => setRows(rs => rs.filter((_, j) => j !== i))} className="text-ink-500 hover:text-neg w-8 h-8 inline-flex items-center justify-center shrink-0" aria-label="Quitar fila">
+          <button onClick={() => setRows(rs => rs.filter((_, j) => j !== i))} className="text-ink-600 hover:text-neg w-9 h-9 inline-flex items-center justify-center shrink-0" aria-label="Quitar fila">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
