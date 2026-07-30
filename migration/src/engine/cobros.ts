@@ -31,3 +31,23 @@ export function resumenCobros(cobros: Cobro[]): ResumenCobros {
   }
   return { total: +total.toFixed(2), disponible: +disponible.toFixed(2), reinvertido: +reinvertido.toFixed(2), porTipo };
 }
+
+// =============================================================================
+// Saldo invertible: cuánto del "disponible" (ver arriba) todavía NO se marcó como puesto a
+// trabajar. No apunta a filas puntuales de `cobros` — es un ledger aparte (cobros_inversiones):
+// el usuario dice "invertí $X del saldo" sin tener que elegir qué dividendos concretos son esos
+// $X (casi nunca coincide con una fila exacta, porque junta varios cobros chicos).
+// =============================================================================
+
+export interface SaldoInvertible {
+  disponibleBruto: number;
+  invertido: number;
+  neto: number;         // nunca negativo (clamp a 0 para mostrar)
+  sobregirado: boolean;  // invertido > disponibleBruto — señal de inconsistencia, no se oculta
+}
+
+export function saldoInvertible(disponibleBruto: number, inversiones: { monto: number }[]): SaldoInvertible {
+  const invertido = +inversiones.reduce((s, i) => s + (Number(i.monto) || 0), 0).toFixed(2);
+  const netoRaw = +(disponibleBruto - invertido).toFixed(2);
+  return { disponibleBruto, invertido, neto: Math.max(0, netoRaw), sobregirado: netoRaw < -0.005 };
+}

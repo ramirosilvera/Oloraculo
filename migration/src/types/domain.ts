@@ -105,6 +105,17 @@ export interface Cobro {
   created_at: string;
 }
 
+// Una vez que el usuario dice "invertí $X del saldo disponible" — ledger aparte, no apunta a
+// ningún cobro puntual. Ver 0019_cobros_inversiones.sql y engine/cobros.ts (saldoInvertible).
+export interface CobroInversion {
+  id: string;
+  portfolio_id: string;
+  fecha: string;
+  monto: number;
+  nota: string | null;
+  created_at: string;
+}
+
 export interface Aporte {
   id: string;
   portfolio_id: string;

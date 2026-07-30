@@ -7,11 +7,13 @@ import { supabase } from './supabase';
 // brokers y las posiciones volvían a quedar todas "Sin asignar").
 // v4: posiciones vuelve a ser 1 fila por ticker; el reparto entre brokers pasa a posicion_brokers
 // (reemplaza posiciones.broker_id, que ya no existe). Ver 0018_posicion_brokers.sql.
-export const BACKUP_VERSION = 4;
+// v5: agrega cobros_inversiones (ledger de "cuánto del saldo disponible ya se invirtió"). Ver
+// 0019_cobros_inversiones.sql.
+export const BACKUP_VERSION = 5;
 
 const TABLAS = [
   'portfolios', 'brokers', 'posiciones', 'posicion_brokers', 'movimientos', 'aportes', 'portfolio_snapshots',
-  'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros',
+  'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros', 'cobros_inversiones',
   'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;
 

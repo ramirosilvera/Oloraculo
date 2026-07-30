@@ -4,11 +4,12 @@ import { CalendarClock, Wallet, Trash2, Plus, Sparkles, Check, X } from 'lucide-
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones } from '../hooks/usePosiciones';
 import { useCobros, COBRO_TIPO_LABEL } from '../hooks/useCobros';
+import { useCobrosInversiones } from '../hooks/useCobrosInversiones';
 import { useChartTheme } from '../hooks/usePrefs';
 import { couponCalendar, cuponAnualTotal, type CouponBond } from '../engine/coupons';
-import { resumenCobros } from '../engine/cobros';
+import { resumenCobros, saldoInvertible } from '../engine/cobros';
 import { Card, CardHeader, Button, Badge, Field, Stat, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
-import type { Cobro, CobroTipo, Posicion } from '../types/domain';
+import type { Cobro, CobroInversion, CobroTipo, Posicion } from '../types/domain';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -37,7 +38,9 @@ export function CuponesPage() {
 function CobradoTab({ portfolioId }: { portfolioId: string }) {
   const { data: posiciones = [] } = usePosiciones(portfolioId);
   const { data: cobros, isLoading, registrar, registrarAmortizacion, marcarEstado, confirmarPendiente, descartarPendiente, remove } = useCobros(portfolioId);
+  const { data: inversiones, marcarInversion, remove: removeInversion } = useCobrosInversiones(portfolioId);
   const resumen = useMemo(() => resumenCobros(cobros), [cobros]);
+  const saldo = useMemo(() => saldoInvertible(resumen.disponible, inversiones), [resumen.disponible, inversiones]);
   // Los 'pendiente' (sugeridos por el cron) van en su propia bandeja, nunca en el historial normal
   // — ahí el toggle Disponible/Reinvertido no aplicaría y se prestaría a confusión. 'descartado'
   // no se muestra en ningún lado (quedó resuelto), pero la fila sigue en la base para que el cron
@@ -94,7 +97,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="Cobrado total" value={fmtUsd(resumen.total, 0)} hint="dividendos + intereses + amortizaciones" />
-        <Stat label="Disponible p/ invertir" value={fmtUsd(resumen.disponible, 0)} hint="cobrado y sin marcar como reinvertido" />
+        <Stat label="Saldo p/ invertir" value={fmtUsd(saldo.neto, 0)} hint={`de ${fmtUsd(resumen.disponible, 0)} disponible, ya invertiste ${fmtUsd(saldo.invertido, 0)}`} />
         <Stat label="Reinvertido" value={fmtUsd(resumen.reinvertido, 0)} />
         <Stat label="Renta (div. + int.)" value={fmtUsd(resumen.porTipo.dividendo + resumen.porTipo.interes, 0)} hint="sin contar amortización (es capital, no renta)" />
       </div>
@@ -102,6 +105,8 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
       {pendientes.length > 0 && (
         <PendientesCard pendientes={pendientes} onConfirmar={confirmarPendiente} onDescartar={descartarPendiente} />
       )}
+
+      <SaldoInvertibleCard saldo={saldo} inversiones={inversiones} onMarcar={marcarInversion} onBorrar={removeInversion} />
 
       <Card>
         <CardHeader title="Registrar un cobro" sub="Dividendo/interés no tocan la posición. Amortización reduce el nominal del bono (movimiento 'ajuste')." />
@@ -153,7 +158,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
       </Card>
 
       <Card>
-        <CardHeader title="Historial" sub="Marcá cada cobro como disponible o reinvertido para saber cuánto tenés listo para poner a trabajar." />
+        <CardHeader title="Historial" sub="Marcá un cobro puntual como Reinvertido solo si sabés en qué activo lo pusiste — reduce el saldo de 'Saldo disponible para invertir' de arriba. Para invertir un monto general sin atarlo a un cobro puntual, usá esa tarjeta en vez de esto (no marques las dos cosas para la misma plata)." />
         {isLoading ? (
           <p className="p-4 text-sm text-ink-600">Cargando…</p>
         ) : confirmados.length === 0 ? (
@@ -272,6 +277,83 @@ function PendienteRow({ p, onConfirmar, onDescartar }: {
         </button>
       </div>
     </div>
+  );
+}
+
+// ── Saldo p/ invertir: el dinero cobrado se va acumulando solo (dividendos/intereses/amortizaciones
+// confirmados); esto es lo que faltaba — decidir CUÁNTO de ese saldo ya se puso a trabajar, sin
+// tener que elegir a mano cuáles filas puntuales de cobros "son" esa plata (nunca coincide exacto,
+// porque junta varios dividendos chicos). Cada "marcar inversión" resta del saldo bruto.
+function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
+  saldo: ReturnType<typeof saldoInvertible>; inversiones: CobroInversion[];
+  onMarcar: (input: { monto: number; fecha: string; nota?: string | null }) => Promise<void>;
+  onBorrar: (id: string) => Promise<void>;
+}) {
+  const [monto, setMonto] = useState('');
+  const [fecha, setFecha] = useState(hoy());
+  const [nota, setNota] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [verHistorial, setVerHistorial] = useState(false);
+
+  const marcar = async () => {
+    setErr(null);
+    const m = Number(monto) || 0;
+    if (!(m > 0)) { setErr('Ingresá un monto mayor a 0.'); return; }
+    if (m - saldo.neto > 0.005) { setErr(`Ese monto supera el saldo disponible (${fmtUsd(saldo.neto, 0)}).`); return; }
+    setBusy(true);
+    try { await onMarcar({ monto: m, fecha, nota: nota || null }); setMonto(''); setNota(''); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo registrar'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Card className={saldo.sobregirado ? 'ring-1 ring-inset ring-warn/40' : undefined}>
+      <CardHeader title="Saldo disponible para invertir" sub="Los cobros confirmados se acumulan solos; marcá acá cuánto de ese saldo ya pusiste a trabajar (no hace falta también tocar el toggle Reinvertido del Historial para la misma plata)." />
+      <div className="p-4 space-y-3">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <span className="text-2xl font-bold text-ink-900 tnum">{fmtUsd(saldo.neto, 0)}</span>
+          <span className="text-xs text-ink-600">nuevo saldo · de {fmtUsd(saldo.disponibleBruto, 0)} cobrado ya invertiste {fmtUsd(saldo.invertido, 0)}</span>
+        </div>
+        {saldo.sobregirado && (
+          <p className="text-xs text-warn">Marcaste más inversión de la que hay disponible (seguramente porque un cobro se editó o borró después). Revisá el historial de abajo.</p>
+        )}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm items-end">
+          <Field label="Monto a invertir (USD)"><input type="number" value={monto} onChange={e => setMonto(e.target.value)} className={inputCls} placeholder="USD" /></Field>
+          <Field label="Fecha"><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} /></Field>
+          <Field label="Nota (opcional)" className="col-span-2 sm:col-span-1"><input value={nota} onChange={e => setNota(e.target.value)} className={inputCls} placeholder="ej. MSFT +2" /></Field>
+          <Button onClick={marcar} disabled={busy}><Plus className="w-4 h-4" /> {busy ? 'Guardando…' : 'Marcar inversión'}</Button>
+        </div>
+        {err && <p className="text-xs text-warn">{err}</p>}
+
+        {inversiones.length > 0 && (
+          <div className="pt-1">
+            <button onClick={() => setVerHistorial(v => !v)} className="text-xs text-celeste-600 hover:underline">
+              {verHistorial ? 'Ocultar' : 'Ver'} historial ({inversiones.length})
+            </button>
+            {verHistorial && (
+              <div className="mt-2 divide-y divide-line border border-line rounded-xl overflow-hidden">
+                {inversiones.map(i => (
+                  <div key={i.id} className="px-3 py-2 flex items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <span className="text-ink-700">{i.fecha}</span>
+                      {i.nota && <span className="text-ink-500 ml-2 text-xs">{i.nota}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="tnum font-semibold text-ink-900">{fmtUsd(i.monto, 0)}</span>
+                      <button onClick={() => { if (window.confirm('¿Deshacer esta inversión? El monto vuelve al saldo disponible.')) onBorrar(i.id); }}
+                        className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7" title="Deshacer" aria-label="Deshacer">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

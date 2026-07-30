@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resumenCobros } from './cobros';
+import { resumenCobros, saldoInvertible } from './cobros';
 import type { Cobro } from '../types/domain';
 
 const c = (over: Partial<Cobro>): Cobro => ({
@@ -60,5 +60,38 @@ describe('resumenCobros', () => {
     // pero que igual podría llegar en runtime (dato viejo, columna nueva sin migrar el cliente, etc.)
     const r = resumenCobros([c({ monto: 100, estado: 'disponible' }), c({ monto: 50, estado: 'algo_nuevo' })]);
     expect(r.total).toBe(100);
+  });
+});
+
+describe('saldoInvertible', () => {
+  it('sin inversiones registradas → neto = disponible bruto', () => {
+    const r = saldoInvertible(500, []);
+    expect(r).toEqual({ disponibleBruto: 500, invertido: 0, neto: 500, sobregirado: false });
+  });
+
+  it('resta la suma de inversiones del disponible', () => {
+    const r = saldoInvertible(500, [{ monto: 100 }, { monto: 50 }]);
+    expect(r.invertido).toBe(150);
+    expect(r.neto).toBe(350);
+    expect(r.sobregirado).toBe(false);
+  });
+
+  it('invertido == disponible → neto en 0, no negativo', () => {
+    const r = saldoInvertible(200, [{ monto: 200 }]);
+    expect(r.neto).toBe(0);
+    expect(r.sobregirado).toBe(false);
+  });
+
+  it('invertido > disponible (ej. se editó/borró un cobro después) → neto clampeado a 0 pero marca sobregirado', () => {
+    const r = saldoInvertible(100, [{ monto: 150 }]);
+    expect(r.neto).toBe(0);
+    expect(r.invertido).toBe(150);
+    expect(r.sobregirado).toBe(true);
+  });
+
+  it('redondea a centavos, no arrastra error de punto flotante', () => {
+    const r = saldoInvertible(10, [{ monto: 0.1 }, { monto: 0.2 }]);
+    expect(r.invertido).toBe(0.3);
+    expect(r.neto).toBe(9.7);
   });
 });
