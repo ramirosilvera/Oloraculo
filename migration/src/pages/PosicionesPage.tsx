@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff, Pencil, ShoppingCart, Target } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
@@ -51,8 +51,18 @@ export function PosicionesPage() {
   const [sellData, setSellData] = useState<{ pos: Posicion; sugerido: number | null } | null>(null);
   const [editPos, setEditPos] = useState<Posicion | null>(null);
   const [showClosed, setShowClosed] = useState(false);
-  const [simular, setSimular] = useState<{ pos?: Posicion } | null>(null);
+  const [simular, setSimular] = useState<{ pos?: Posicion; ticker?: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Deep-link desde otras páginas (ej. Radar, Cupones): ?simular=1&ticker=XXX abre el modal
+  // pre-cargado. Se limpian los params apenas se consumen para que un refresh no lo reabra solo.
+  useEffect(() => {
+    if (searchParams.get('simular')) {
+      setSimular({ ticker: searchParams.get('ticker') ?? undefined });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const cerradas = rows.filter(r => r.p.cantidad <= 0).length;
   const visibleRows = showClosed ? rows : rows.filter(r => r.p.cantidad > 0);
@@ -309,7 +319,7 @@ export function PosicionesPage() {
       {editPos && <EditModal pos={editPos} onClose={() => setEditPos(null)}
         onSave={async (patch) => { await update(editPos.id, patch); setEditPos(null); }} />}
       {simular && <SimularCompraModal openRows={openRows} totalMkt={totalMkt} cedearRatios={cedearRatios}
-        initial={simular.pos} onClose={() => setSimular(null)}
+        initial={simular.pos} initialTicker={simular.ticker} onClose={() => setSimular(null)}
         onEjecutar={async (payload) => { await add(payload); }} />}
     </div>
   );
@@ -518,13 +528,16 @@ function nuevaSim(usadas: Set<string>, comprables: Row[]): SimDraft {
   };
 }
 
-function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, onClose, onEjecutar }: {
+function SimularCompraModal({ openRows, totalMkt, cedearRatios, initial, initialTicker, onClose, onEjecutar }: {
   openRows: Row[]; totalMkt: number; cedearRatios: Record<string, number>;
-  initial?: Posicion; onClose: () => void; onEjecutar: (payload: Partial<Posicion>) => Promise<void>;
+  initial?: Posicion; initialTicker?: string; onClose: () => void; onEjecutar: (payload: Partial<Posicion>) => Promise<void>;
 }) {
   useEscapeClose(onClose);
   const comprables = openRows.filter(r => r.p.tipo !== 'cash');
   const [sims, setSims] = useState<SimDraft[]>(() => {
+    // Deep-link con ticker (sin posición existente elegida): arranca en modo "nuevo" con ese
+    // ticker precargado — mismo shape que el fallback de nuevaSim() cuando no hay comprables.
+    if (!initial && initialTicker) return [{ ...nuevaSim(new Set(), []), nTicker: initialTicker }];
     if (!initial) return [nuevaSim(new Set(), comprables)];
     const selInicial = comprables.find(r => r.p.id === initial.id);
     return [{
@@ -811,7 +824,7 @@ function MovimientosModal({ portfolioId, ticker, onClose }: { portfolioId: strin
               : movs.length === 0
                 ? <Empty icon={History} title="Sin movimientos">Las compras que hagas quedarán registradas acá.</Empty>
                 : movs.map(m => (
-                  <div key={m.id} className="px-4 py-2.5 flex items-center gap-3 text-sm">
+                  <div key={m.id} className="px-4 py-2.5 flex items-center gap-3 text-sm flex-wrap">
                     <span className="text-ink-600 tnum w-24 shrink-0">{m.fecha}</span>
                     <Badge tone={m.tipo === 'compra' ? 'pos' : m.tipo === 'venta' ? 'neg' : 'gray'}>{m.tipo}</Badge>
                     <span className="flex-1 text-right text-ink-700 tnum">{fmtNum(m.cantidad, 0)} × {fmtUsd(m.precio)}</span>

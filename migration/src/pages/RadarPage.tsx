@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, LineChart, Radar, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, LineChart, Radar, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, ShoppingCart } from 'lucide-react';
 import { api } from '../lib/api';
 import { useMacro, useQuotes } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
@@ -238,6 +238,7 @@ function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
       <td className="px-2 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1">
           <Link to={`/analisis/${T}`} className="text-ink-600 hover:text-accent inline-flex items-center justify-center w-9 h-9" title="Análisis / DCF" aria-label="Análisis DCF"><LineChart className="w-4 h-4" /></Link>
+          <Link to={`/posiciones?simular=1&ticker=${T}`} className="text-ink-600 hover:text-pos inline-flex items-center justify-center w-9 h-9" title="Comprar / simular" aria-label="Comprar / simular"><ShoppingCart className="w-4 h-4" /></Link>
           <button onClick={borrar} disabled={busy} className="text-ink-600 hover:text-neg inline-flex items-center justify-center w-9 h-9 disabled:opacity-50" title="Sacar" aria-label="Sacar del radar"><Trash2 className="w-4 h-4" /></button>
         </div>
         {err && <p className="text-[10px] text-warn mt-0.5">{err}</p>}

@@ -237,17 +237,23 @@ function AsignacionRow({ pos, asignaciones, brokers, onSave }: {
         <button onClick={() => setEditing(false)} aria-label="Cerrar" className="text-ink-500 hover:text-ink-900"><X className="w-4 h-4" /></button>
       </div>
       {rows.map((r, i) => (
-        <div key={i} className="flex items-center gap-2">
+        // El select va en su propia línea a ancho completo: un broker con nombre largo (o esta
+        // fila en un celular angosto) competía por espacio con la cantidad y el botón de borrar,
+        // y con flex-1 se terminaba encogiendo hasta casi 0px — el usuario elegía bien un broker
+        // pero no veía QUÉ había elegido (el select se veía vacío, aunque no lo estuviera).
+        <div key={i} className="space-y-1.5">
           <select value={r.brokerId} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, brokerId: e.target.value } : x))}
-            className={`${inputCls} appearance-none flex-1`}>
+            className={`${inputCls} appearance-none w-full`} aria-label={`Broker de la fila ${i + 1}`}>
             <option value="">Elegí un broker…</option>
             {brokers.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
           </select>
-          <input type="number" value={r.cantidad || ''} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, cantidad: Number(e.target.value) || 0 } : x))}
-            className={`${inputCls} w-24`} aria-label={`Cantidad en broker de la fila ${i + 1}`} />
-          <button onClick={() => setRows(rs => rs.filter((_, j) => j !== i))} className="text-ink-600 hover:text-neg w-9 h-9 inline-flex items-center justify-center shrink-0" aria-label="Quitar fila">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <input type="number" value={r.cantidad || ''} onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, cantidad: Number(e.target.value) || 0 } : x))}
+              className={`${inputCls} w-24 shrink-0`} aria-label={`Cantidad en broker de la fila ${i + 1}`} />
+            <button onClick={() => setRows(rs => rs.filter((_, j) => j !== i))} className="text-ink-600 hover:text-neg w-9 h-9 inline-flex items-center justify-center shrink-0" aria-label="Quitar fila">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       ))}
       <button onClick={() => setRows(rs => [...rs, { brokerId: '', cantidad: 0 }])} className="text-xs text-celeste-600 hover:underline inline-flex items-center gap-1">

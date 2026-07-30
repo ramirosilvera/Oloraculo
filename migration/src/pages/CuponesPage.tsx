@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { CalendarClock, Wallet, Trash2, Plus, Sparkles, Check, X } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
@@ -336,6 +337,11 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
         <div className="flex items-baseline gap-3 flex-wrap">
           <span className="text-2xl font-bold text-ink-900 tnum">{fmtUsd(saldo.neto, 0)}</span>
           <span className="text-xs text-ink-600">nuevo saldo · de {fmtUsd(saldo.disponibleBruto, 0)} cobrado ya invertiste {fmtUsd(saldo.invertido, 0)}</span>
+          {saldo.neto > 0 && (
+            <Link to="/posiciones?simular=1" className="ml-auto shrink-0 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300 transition-all">
+              Invertir este saldo →
+            </Link>
+          )}
         </div>
         {saldo.sobregirado && (
           <p className="text-xs text-warn">Marcaste más inversión de la que hay disponible (seguramente porque un cobro se editó o borró después). Revisá el historial de abajo.</p>

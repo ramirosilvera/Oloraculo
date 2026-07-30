@@ -164,16 +164,22 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Hero: lo esencial, sin repetir. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <Stat label="Patrimonio" value={fmtUsdCompact(patrimonio)} hint={`costo ${fmtUsdCompact(costo)}`} />
-        <Stat label="P&L" value={<span className={pnl >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(pnl)}</span>} delta={costo > 0 ? pnl / costo : undefined} />
-        <Stat label="Rend. total"
-          value={<span className={tir.historica == null ? '' : tir.historica >= 0 ? 'text-pos' : 'text-neg'}>{tir.historica != null ? fmtPct(tir.historica) : '—'}</span>}
-          hint={`rendimiento acumulado desde la creación${tir.aproximada ? ' (aprox., sin aportes cargados)' : ''}`} />
-        <Stat label={`Rend. ${anioActual}`}
-          value={<span className={rendActual == null ? '' : rendActual >= 0 ? 'text-pos' : 'text-neg'}>{rendActual != null ? fmtPct(rendActual) : '—'}</span>}
-          hint={`rendimiento del año en curso${inceptionYear === anioActual ? ' (nació este año)' : ''}`} />
+      {/* Hero: lo esencial, sin repetir. Patrimonio con más peso visual — es el número más
+          decisivo de la página — el resto queda como Stat normal debajo. */}
+      <div className="space-y-2">
+        <div className="rounded-2xl border border-line bg-surface shadow-soft px-5 py-4" title={`costo ${fmtUsdCompact(costo)}`}>
+          <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">Patrimonio</p>
+          <p className="text-3xl font-bold text-ink-900 tnum mt-1 font-display">{fmtUsdCompact(patrimonio)}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Stat label="P&L" value={<span className={pnl >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(pnl)}</span>} delta={costo > 0 ? pnl / costo : undefined} />
+          <Stat label="Rend. total"
+            value={<span className={tir.historica == null ? '' : tir.historica >= 0 ? 'text-pos' : 'text-neg'}>{tir.historica != null ? fmtPct(tir.historica) : '—'}</span>}
+            hint={`rendimiento acumulado desde la creación${tir.aproximada ? ' (aprox., sin aportes cargados)' : ''}`} />
+          <Stat label={`Rend. ${anioActual}`}
+            value={<span className={rendActual == null ? '' : rendActual >= 0 ? 'text-pos' : 'text-neg'}>{rendActual != null ? fmtPct(rendActual) : '—'}</span>}
+            hint={`rendimiento del año en curso${inceptionYear === anioActual ? ' (nació este año)' : ''}`} />
+        </div>
       </div>
 
       {/* Progreso hacia el objetivo de capital. */}
@@ -238,9 +244,17 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
   const data = alloc.map(a => ({ name: a.ticker, value: a.mkt }));
   // % objetivo mostrados como enteros que suman 100 (resto mayor), coherente con Posiciones.
   const objPct = redondearPct(alloc.filter(a => a.target != null).map(a => ({ id: a.ticker, peso: a.target! })));
+  // Mismo umbral que usa cada fila para decidir si mostrar la desviación (más abajo) — resumen
+  // agregado al estilo "Focos de atención" de MacroContext, para que el drift no pase desapercibido.
+  const desviados = alloc.filter(a => {
+    if (a.target == null) return false;
+    const w = total > 0 ? a.mkt / total : 0;
+    return Math.abs(w - a.target) >= 0.005;
+  }).length;
   return (
     <Card>
-      <CardHeader title="Distribución" sub="Peso de cada activo · actual vs objetivo." />
+      <CardHeader title="Distribución" sub="Peso de cada activo · actual vs objetivo."
+        right={desviados > 0 ? <Badge tone="warn">{desviados} fuera del objetivo</Badge> : undefined} />
       <div className="p-4 grid sm:grid-cols-[minmax(0,200px)_1fr] gap-4 items-center">
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -321,7 +335,7 @@ function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo
   ];
   return (
     <Card>
-      <CardHeader title="Liquidez & FCI" sub="Fondos y billetera en pesos, según tu flujo de caja."
+      <CardHeader title="Liquidez & FCI" sub="Fondos y billetera en pesos, según tu flujo de caja · compartido entre todos tus portfolios."
         right={<Link to="/finanzas" className="text-[11px] text-celeste-600 hover:underline">Editar flujo →</Link>} />
       <div className="grid grid-cols-3 gap-2 p-3">
         {tiles.map(t => (
