@@ -193,20 +193,26 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
 
 // Live prices (US equities via Finnhub/FMP, bonds via data912, AR stocks via data912+MEP).
 export function useQuotes(tickers: string[], bondTickers: string[] = [], arTickers: string[] = []) {
+  // Dedupe: una posición partida entre brokers (misma posición, dos filas) repite el ticker acá.
+  // Pedirlo/escribirlo dos veces en el mismo request rompía el batch entero del lado del server
+  // (ver dedupeByConflictKey en functions/api/_shared.ts) — se corrige en las dos puntas.
+  const eqTickers = [...new Set(tickers)];
+  const bondTicks = [...new Set(bondTickers)];
+  const arTicks = [...new Set(arTickers)];
   return useQuery({
-    queryKey: ['quotes', [...tickers].sort().join(','), [...bondTickers].sort().join(','), [...arTickers].sort().join(',')],
-    enabled: tickers.length > 0 || bondTickers.length > 0 || arTickers.length > 0,
+    queryKey: ['quotes', [...eqTickers].sort().join(','), [...bondTicks].sort().join(','), [...arTicks].sort().join(',')],
+    enabled: eqTickers.length > 0 || bondTicks.length > 0 || arTicks.length > 0,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Record<string, number | null>> => {
       const [eq, bo, ar] = await Promise.allSettled([
-        tickers.length ? api.quotes(tickers) : Promise.resolve({}),
-        bondTickers.length ? api.bonos() : Promise.resolve({}),
-        arTickers.length ? api.accionesAr(arTickers) : Promise.resolve({ precios: {} }),
+        eqTickers.length ? api.quotes(eqTickers) : Promise.resolve({}),
+        bondTicks.length ? api.bonos() : Promise.resolve({}),
+        arTicks.length ? api.accionesAr(arTicks) : Promise.resolve({ precios: {} }),
       ]);
       const out: Record<string, number | null> = {};
       if (eq.status === 'fulfilled') Object.assign(out, eq.value);
-      if (bo.status === 'fulfilled') for (const t of bondTickers) out[t] = (bo.value as Record<string, number>)[t] ?? null;
-      if (ar.status === 'fulfilled') for (const t of arTickers) out[t] = (ar.value as { precios: Record<string, number | null> }).precios?.[t] ?? null;
+      if (bo.status === 'fulfilled') for (const t of bondTicks) out[t] = (bo.value as Record<string, number>)[t] ?? null;
+      if (ar.status === 'fulfilled') for (const t of arTicks) out[t] = (ar.value as { precios: Record<string, number | null> }).precios?.[t] ?? null;
       return out;
     },
   });

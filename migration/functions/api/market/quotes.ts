@@ -24,8 +24,12 @@ export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 // GET /api/market/quotes?tickers=MSFT,MA,KO  → { MSFT: 420.1, MA: ..., ... }
 export const onRequestGet = guardAuth(async ({ request, env }) => {
   const url = new URL(request.url);
-  const tickers = (url.searchParams.get('tickers') || url.searchParams.get('ticker') || '')
-    .toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+  // Dedupe: una posición partida entre brokers repite el ticker en la lista del frontend (dos filas,
+  // mismo ticker). Sin esto se pedía/escribía el precio dos veces por nada — y si el batch de
+  // sbUpsert llegaba a tener el mismo ticker repetido, Postgres rechazaba TODO el lote (ver
+  // dedupeByConflictKey en _shared.ts, ya blindado ahí también — esto es la segunda capa).
+  const tickers = [...new Set((url.searchParams.get('tickers') || url.searchParams.get('ticker') || '')
+    .toUpperCase().split(',').map(s => s.trim()).filter(Boolean))];
   if (!tickers.length) return json({ error: 'tickers requerido' }, 400);
 
   const out: Record<string, number | null> = {};
