@@ -21,6 +21,12 @@ export const GRUPOS: { key: Grupo; label: string }[] = [
   { key: 'refugio', label: 'Refugio' },
 ];
 
+// Índices que se muestran en "Distancia al máximo histórico" — mismo trío en el resumen del
+// Dashboard y en la página Macro completa, así que vive acá para que ambos usen la misma lista.
+export const DD_ITEMS: { key: string; label: string }[] = [
+  { key: 'sp500', label: 'S&P 500' }, { key: 'merval', label: 'Merval' }, { key: 'oro', label: 'Oro' },
+];
+
 const pct = (v: number) => `${v.toFixed(1)}%`;
 const usd0 = (v: number) => `US$${Math.round(v).toLocaleString('en-US')}`;  // indicador en dólares
 const ars0 = (v: number) => `$${Math.round(v).toLocaleString('es-AR')}`;    // indicador en pesos (dólar $)

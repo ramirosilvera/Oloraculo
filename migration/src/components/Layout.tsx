@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent,
   CalendarClock, Radar, Sparkles, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal, PiggyBank,
-  Building2,
+  Building2, Globe,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
@@ -32,6 +32,7 @@ const NAV_MORE: NavItem[] = [
   { to: '/proyeccion', label: 'Proyección', icon: TrendingUp },
   { to: '/consolidado', label: 'Consolidado', icon: Layers },
   { to: '/brokers', label: 'Brokers', icon: Building2 },
+  { to: '/macro', label: 'Macro', icon: Globe },
   { to: '/config', label: 'Config', icon: Settings },
 ];
 

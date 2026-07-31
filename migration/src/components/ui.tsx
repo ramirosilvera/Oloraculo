@@ -6,6 +6,13 @@ import type { LucideIcon } from 'lucide-react';
 // colores en el mismo orden, en vez de cada uno definir su propia copia.
 export const PIE_COLORS = ['#4F97D4', '#F4C752', '#5FB49C', '#B08BD6', '#E08E6D', '#9BCFEF', '#7A8CA5', '#D45F7A', '#63B7C9', '#C7A15A'];
 
+// "Sin asignar" (en los donuts de broker) es un recordatorio de pendiente, no un broker real —
+// gris apagado en vez de un tono de PIE_COLORS, para que no compita visualmente con los brokers de
+// verdad. Un solo lugar para que BrokersPage y el resumen del Dashboard usen el mismo criterio.
+const SIN_ASIGNAR_COLOR = '#8B96A5';
+export const colorDeBroker = (i: number, brokerId: string | null): string =>
+  brokerId == null ? SIN_ASIGNAR_COLOR : PIE_COLORS[i % PIE_COLORS.length];
+
 // Clase base para inputs/selects/textarea — usala para que todos los controles se vean igual.
 export const inputCls =
   'w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300';

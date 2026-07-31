@@ -1,29 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
 import { useAportes } from '../hooks/useAportes';
 import { useFlujo } from '../hooks/useFlujo';
 import { useCobros } from '../hooks/useCobros';
+import { useBrokers } from '../hooks/useBrokers';
+import { usePosicionBrokers } from '../hooks/usePosicionBrokers';
 import { useChartTheme } from '../hooks/usePrefs';
-import { SEMAFOROS, GRUPOS, resumenMacro, distanciaMaximo, type Luz, type Lectura, type ResumenMacro } from '../engine/semaforos';
+import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { resumenCobros } from '../engine/cobros';
 import { redondearPct } from '../engine/rebalance';
+import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
-import { api } from '../lib/api';
-import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, PIE_COLORS } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtPct, fmtArs, fmtArsCompact, PIE_COLORS, colorDeBroker } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
+import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
-
-const LUZ_DOT: Record<Luz, string> = { verde: 'bg-pos', amarillo: 'bg-warn', rojo: 'bg-neg' };
-// Palabra para lectores de pantalla — el semáforo es solo color, esto lo hace accesible sin rediseñarlo.
-const LUZ_LABEL: Record<Luz, string> = { verde: 'benigno', amarillo: 'atención', rojo: 'estrés' };
+import type { Posicion } from '../types/domain';
 
 export function DashboardPage() {
   const { active } = usePortfolios();
@@ -222,11 +221,14 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
 
+      {/* Patrimonio por broker: dónde está físicamente cada posición. */}
+      <PatrimonioBrokers posiciones={posiciones} quotes={quotes} isLoading={qPos.isLoading} />
+
       {cobros.length > 0 && <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} />}
 
       {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
 
-      <MacroContext readings={semaforos} resumen={resumen} />
+      <MacroResumen resumen={resumen} />
     </div>
   );
 }
@@ -348,71 +350,87 @@ function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo
   );
 }
 
-const TONE_ALERTA: Record<'amarillo' | 'rojo', 'warn' | 'neg'> = { amarillo: 'warn', rojo: 'neg' };
+// Patrimonio por broker: mismo cálculo y donut que BrokersPage, resumido para el Dashboard.
+function PatrimonioBrokers({ posiciones, quotes, isLoading }: {
+  posiciones: Posicion[]; quotes: Record<string, number | null>; isLoading: boolean;
+}) {
+  const chart = useChartTheme();
+  const { data: brokers = [], isLoading: brokersLoading } = useBrokers();
+  const { data: asignacionesAll = [], isLoading: asigLoading } = usePosicionBrokers();
 
-// Contexto macro: síntesis narrativa (rule-based) + alertas + tablero compacto + lectura de IA.
-const DD_ITEMS: { key: string; label: string }[] = [
-  { key: 'sp500', label: 'S&P 500' }, { key: 'merval', label: 'Merval' }, { key: 'oro', label: 'Oro' },
-];
+  const abiertas = useMemo(() => posiciones.filter(p => p.cantidad > 0), [posiciones]);
+  // Mismo criterio de valuación que Posiciones/Brokers (unitUSD, fallback a costo sin cotización).
+  const posValuadas = useMemo(() => abiertas.map(p => {
+    const unit = unitUSD(p, quotes[p.ticker] ?? null);
+    const valorUsd = unit != null ? unit * p.cantidad : p.precio_compra * p.cantidad;
+    return { id: p.id, cantidad: p.cantidad, valorUsd };
+  }), [abiertas, quotes]);
+  const asignaciones = useMemo(() => {
+    const ids = new Set(abiertas.map(p => p.id));
+    return asignacionesAll.filter(a => ids.has(a.posicion_id))
+      .map(a => ({ posicionId: a.posicion_id, brokerId: a.broker_id, cantidad: a.cantidad }));
+  }, [asignacionesAll, abiertas]);
+  const resumen = useMemo(() => resumenPorBroker(posValuadas, asignaciones, brokers), [posValuadas, asignaciones, brokers]);
 
-function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: ResumenMacro }) {
-  const { texto: guardado, fecha } = useUltimoAnalisis('MACRO', 'macro');
-  const setUltimo = useSetUltimoAnalisis();
-  const { data: dd = {} } = useDrawdowns();
-  const [ia, setIa] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [abierto, setAbierto] = useState(false);
-  const mostrado = ia ?? guardado;
-  const conDatos = readings.filter(r => r.luz);
-
-  async function explicar() {
-    setBusy(true); setErr(null);
-    const r = await api.analisisMacro({
-      indicadores: conDatos.map(r => ({ indicador: r.def.label, grupo: r.def.grupo, valor: r.valor != null && r.def.fmt ? r.def.fmt(r.valor) : r.valor, estado: r.luz })),
-    });
-    if (r.error) setErr(r.error);
-    else { setIa(r.analisis ?? ''); if (r.analisis) setUltimo('MACRO', 'macro', r.analisis); }
-    setBusy(false);
+  const cargando = isLoading || brokersLoading || asigLoading;
+  const right = <Link to="/brokers" className="text-[11px] text-celeste-600 hover:underline">Ver detalle →</Link>;
+  if (cargando) {
+    return <Card><CardHeader title="Patrimonio por broker" right={right} /><p className="p-4 text-sm text-ink-600">Cargando…</p></Card>;
   }
+  if (resumen.length === 0) {
+    return <Card><CardHeader title="Patrimonio por broker" right={right} /><p className="p-4 text-sm text-ink-600">Sin posiciones. Cargalas en Posiciones.</p></Card>;
+  }
+  return (
+    <Card>
+      <CardHeader title="Patrimonio por broker" sub="Dónde está físicamente cada posición." right={right} />
+      <div className="p-4 grid sm:grid-cols-[minmax(0,180px)_1fr] gap-4 items-center">
+        <div className="h-[160px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={resumen} dataKey="valorUsd" nameKey="nombre" cx="50%" cy="50%" innerRadius={42} outerRadius={72} paddingAngle={2} stroke="none">
+                {resumen.map((r, i) => <Cell key={r.brokerId ?? 'sin-asignar'} fill={colorDeBroker(i, r.brokerId)} />)}
+              </Pie>
+              <Tooltip
+                formatter={(v: number) => [fmtUsdCompact(v), 'Patrimonio']}
+                contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, color: chart.tooltipText, fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="space-y-1">
+          {resumen.map((r, i) => (
+            <div key={r.brokerId ?? 'sin-asignar'} className="flex items-center gap-2 text-sm">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorDeBroker(i, r.brokerId) }} />
+              <span className={`font-semibold flex-1 min-w-0 truncate ${r.brokerId == null ? 'text-ink-500' : 'text-ink-800'}`}>{r.nombre}</span>
+              <span className="tnum text-ink-600 w-16 text-right">{fmtPct(r.pct, 0)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
+// Contexto macro resumido: título + distancia a máximos + barra de salud. El detalle completo
+// (focos de atención, indicadores agrupados, lectura ejecutiva por IA) vive en /macro — acá solo
+// el vistazo rápido, con un link al detalle.
+function MacroResumen({ resumen }: { resumen: ResumenMacro }) {
+  const { data: dd = {} } = useDrawdowns();
   const tone = resumen.luz === 'rojo' ? 'neg' : resumen.luz === 'amarillo' ? 'warn' : 'pos';
   const { verdes, amarillos, rojos, total } = resumen.conteo;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
 
   return (
     <Card>
-      <CardHeader title="Contexto macro" sub="Semáforos + lectura ejecutiva."
+      <CardHeader title="Contexto macro" sub="Semáforos de mercado, de un vistazo."
         right={<Badge tone={tone}>{resumen.titulo}</Badge>} />
 
-      {/* Indicadores clave: distancia al máximo histórico (S&P 500, Merval, Oro). */}
-      <div className="px-4 pt-3.5">
-        <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Distancia al máximo histórico</p>
-        <div className="grid grid-cols-3 gap-2">
-          {DD_ITEMS.map(({ key, label }) => {
-            const d = dd[key];
-            const pct = d ? distanciaMaximo(d.actual, d.max) : null;
-            // Cerca del máximo = caro (warn); caída grande = posible oportunidad (celeste); medio = neutral.
-            const cls = pct == null ? 'text-ink-500' : pct > -0.02 ? 'text-warn' : pct < -0.15 ? 'text-celeste-600' : 'text-ink-900';
-            const estado = pct == null ? null : pct > -0.02 ? 'caro' : pct < -0.15 ? 'oportunidad' : null;
-            return (
-              <div key={key} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 min-w-0"
-                title={d ? `Actual ${fmtNum(d.actual, 0)} · máx histórico ${fmtNum(d.max, 0)}` : undefined}>
-                <p className="text-[10px] uppercase text-ink-600 font-semibold truncate">{label}</p>
-                <p className={`text-lg font-bold tnum mt-0.5 ${cls}`}>{pct == null ? '—' : pct === 0 ? 'en máx.' : fmtPct(pct, 1)}</p>
-                <p className="text-[10px] text-ink-500">vs máx{estado ? ` · ${estado}` : ''}</p>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-[10px] text-ink-500 mt-1.5">Todo en USD, vs máximo histórico · Merval = ^MERV ÷ CCL (histórico desde ~2011).</p>
-      </div>
+      <DistanciaMaximo dd={dd} />
 
       {/* Salud del tablero: barra verde/amarillo/rojo + leyenda (visual, de un vistazo). */}
       {total === 0 ? (
-        <div className="px-4 pt-3.5"><p className="text-sm text-ink-600">Todavía no hay datos de mercado; se completan con el próximo refresco.</p></div>
+        <div className="px-4 pt-3.5 pb-4"><p className="text-sm text-ink-600">Todavía no hay datos de mercado; se completan con el próximo refresco.</p></div>
       ) : (
-        <div className="px-4 pt-3.5">
+        <div className="px-4 pt-3.5 pb-4">
           <div className="h-2.5 rounded-full bg-canvas overflow-hidden flex">
             {verdes > 0 && <div className="bg-pos" style={{ width: `${pct(verdes)}%` }} />}
             {amarillos > 0 && <div className="bg-warn" style={{ width: `${pct(amarillos)}%` }} />}
@@ -426,60 +444,8 @@ function MacroContext({ readings, resumen }: { readings: Lectura[]; resumen: Res
         </div>
       )}
 
-      {/* Focos de atención: solo las señales que no están en verde (lo accionable). */}
-      {resumen.alertas.length > 0 && (
-        <div className="px-4 pt-3">
-          <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Focos de atención</p>
-          <div className="flex flex-wrap gap-1.5">
-            {resumen.alertas.map(a => <Badge key={a.key} tone={TONE_ALERTA[a.luz]}>{a.label}: {a.msg}</Badge>)}
-          </div>
-        </div>
-      )}
-
-      {/* Indicadores agrupados por área (colapsable, para no saturar). */}
-      <div className="px-4 pt-3">
-        <button onClick={() => setAbierto(v => !v)} className="text-[11px] font-semibold text-celeste-600 hover:underline">
-          {abierto ? 'Ocultar indicadores' : `Ver los ${conDatos.length} indicadores`}
-        </button>
-        {abierto && (
-          <div className="mt-2 space-y-2">
-            {GRUPOS.map(g => {
-              const items = readings.filter(r => r.def.grupo === g.key && r.valor != null);
-              if (!items.length) return null;
-              return (
-                <div key={g.key}>
-                  <p className="text-[9px] uppercase tracking-wide text-ink-500 mb-1">{g.label}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {items.map(({ def, valor, luz }) => (
-                      <span key={def.key} className="inline-flex items-center gap-1.5 rounded-full bg-canvas ring-1 ring-inset ring-line px-2.5 py-1 text-[11px]">
-                        <span className={`w-1.5 h-1.5 rounded-full ${luz ? LUZ_DOT[luz] : 'bg-ink-300'}`}
-                          title={luz ? LUZ_LABEL[luz] : 'sin dato'} aria-label={luz ? LUZ_LABEL[luz] : 'sin dato'} role="img" />
-                        <span className="text-ink-600">{def.label}</span>
-                        <span className="tnum font-semibold text-ink-900">{def.fmt ? def.fmt(valor!) : valor}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Lectura ejecutiva por IA: un solo párrafo. */}
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" onClick={explicar} disabled={busy || conDatos.length === 0}>
-            <Sparkles className="w-4 h-4" /> {busy ? 'Analizando…' : mostrado ? 'Volver a analizar' : 'Lectura ejecutiva (IA)'}
-          </Button>
-          {err && <span className="text-[11px] text-neg">No se pudo generar: {err}</span>}
-        </div>
-        {mostrado && (
-          <div className="mt-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5">
-            <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{mostrado}</p>
-            <p className="text-[10px] text-ink-600 mt-1.5">Lectura por IA · los valores los calcula el código.{!ia && fecha && ` · ${new Date(fecha).toLocaleDateString('es-AR')}`}</p>
-          </div>
-        )}
+      <div className="px-4 pb-3.5 pt-1 border-t border-line">
+        <Link to="/macro" className="text-[11px] text-celeste-600 hover:underline">Ver contexto macro completo →</Link>
       </div>
     </Card>
   );

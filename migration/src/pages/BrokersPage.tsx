@@ -8,13 +8,8 @@ import { usePosicionBrokers } from '../hooks/usePosicionBrokers';
 import { useChartTheme } from '../hooks/usePrefs';
 import { resumenPorBroker } from '../engine/brokers';
 import { unitValueUSD } from '../lib/valuation';
-import { Card, CardHeader, Button, Badge, inputCls, Empty, fmtUsdCompact, fmtPct, PIE_COLORS } from '../components/ui';
+import { Card, CardHeader, Button, Badge, inputCls, Empty, fmtUsdCompact, fmtPct, colorDeBroker } from '../components/ui';
 import type { Posicion } from '../types/domain';
-
-// "Sin asignar" es un recordatorio de pendiente, no un broker real — color gris apagado (no un
-// tono de la paleta categórica) para que no compita visualmente con los brokers de verdad.
-const SIN_ASIGNAR_COLOR = '#8B96A5';
-const colorDe = (i: number, brokerId: string | null) => brokerId == null ? SIN_ASIGNAR_COLOR : PIE_COLORS[i % PIE_COLORS.length];
 
 // Brokers: dónde está físicamente cada posición. "Patrimonio por broker" es información MÍNIMA a
 // propósito — nombre, USD, % y cantidad de posiciones. La asignación en sí (qué posición está en
@@ -113,7 +108,7 @@ export function BrokersPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={resumen} dataKey="valorUsd" nameKey="nombre" cx="50%" cy="50%" innerRadius={42} outerRadius={72} paddingAngle={2} stroke="none">
-                      {resumen.map((r, i) => <Cell key={r.brokerId ?? 'sin-asignar'} fill={colorDe(i, r.brokerId)} />)}
+                      {resumen.map((r, i) => <Cell key={r.brokerId ?? 'sin-asignar'} fill={colorDeBroker(i, r.brokerId)} />)}
                     </Pie>
                     <Tooltip
                       formatter={(v: number) => [fmtUsdCompact(v), 'Patrimonio']}
@@ -124,7 +119,7 @@ export function BrokersPage() {
               <div className="space-y-1">
                 {resumen.map((r, i) => (
                   <div key={r.brokerId ?? 'sin-asignar'} className="flex items-center gap-2 text-sm">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorDe(i, r.brokerId) }} />
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorDeBroker(i, r.brokerId) }} />
                     <span className={`font-semibold flex-1 min-w-0 truncate ${r.brokerId == null ? 'text-ink-500' : 'text-ink-800'}`}>{r.nombre}</span>
                     <span className="tnum text-ink-600 w-16 text-right">{fmtPct(r.pct, 0)}</span>
                   </div>
