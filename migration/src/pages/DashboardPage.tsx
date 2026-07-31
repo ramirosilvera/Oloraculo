@@ -17,15 +17,13 @@ import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
 import { api } from '../lib/api';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact } from '../components/ui';
+import { Card, CardHeader, Stat, Button, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, PIE_COLORS } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 
 const LUZ_DOT: Record<Luz, string> = { verde: 'bg-pos', amarillo: 'bg-warn', rojo: 'bg-neg' };
 // Palabra para lectores de pantalla — el semáforo es solo color, esto lo hace accesible sin rediseñarlo.
 const LUZ_LABEL: Record<Luz, string> = { verde: 'benigno', amarillo: 'atención', rojo: 'estrés' };
-// Paleta categórica estable para el donut (funciona en claro y oscuro).
-const PIE = ['#4F97D4', '#F4C752', '#5FB49C', '#B08BD6', '#E08E6D', '#9BCFEF', '#7A8CA5', '#D45F7A', '#63B7C9', '#C7A15A'];
 
 export function DashboardPage() {
   const { active } = usePortfolios();
@@ -260,7 +258,7 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={2} stroke="none">
-                {data.map((_, i) => <Cell key={i} fill={PIE[i % PIE.length]} />)}
+                {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie>
               <Tooltip
                 formatter={(v: number) => [fmtUsd(v, 0), 'Valor']}
@@ -274,7 +272,7 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
             const off = a.target != null ? w - a.target : null;
             return (
               <div key={a.ticker} className="flex items-center gap-2 text-sm">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE[i % PIE.length] }} />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                 <span className="font-semibold text-ink-800 w-14 truncate">{a.ticker}</span>
                 <span className="tnum text-ink-700 w-12 text-right">{fmtPct(w, 0)}</span>
                 {a.target != null

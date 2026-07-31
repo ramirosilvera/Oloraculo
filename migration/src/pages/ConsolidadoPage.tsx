@@ -1,13 +1,16 @@
 import { useMemo } from 'react';
 import { Layers, Info } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAllPosiciones, useQuotes } from '../hooks/usePosiciones';
+import { useChartTheme } from '../hooks/usePrefs';
 import { PortfolioReview } from '../components/PortfolioReview';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtPct, Empty } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtPct, Empty, PIE_COLORS } from '../components/ui';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
 
 export function ConsolidadoPage() {
+  const chart = useChartTheme();
   const { portfolios } = usePortfolios();
   const { data: allPosiciones = [], isLoading } = useAllPosiciones(true);
   // Solo posiciones de portfolios ACTIVOS (RLS aísla por usuario, no por estado) — si no,
@@ -62,6 +65,35 @@ export function ConsolidadoPage() {
 
       <Card>
         <CardHeader title="Peso por portfolio" />
+        {portfolios.length > 0 && (
+          <div className="p-4 grid sm:grid-cols-[minmax(0,180px)_1fr] gap-4 items-center border-b border-line">
+            <div className="h-[160px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={portfolios} dataKey={p => porPortfolio.get(p.id) ?? 0} nameKey="nombre" cx="50%" cy="50%" innerRadius={42} outerRadius={72} paddingAngle={2} stroke="none">
+                    {portfolios.map((p, i) => <Cell key={p.id} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number) => [fmtUsdCompact(v), 'Patrimonio']}
+                    contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, color: chart.tooltipText, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-1">
+              {portfolios.map((p, i) => {
+                const v = porPortfolio.get(p.id) ?? 0;
+                const w = total > 0 ? v / total : 0;
+                return (
+                  <div key={p.id} className="flex items-center gap-2 text-sm">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    <span className="font-semibold flex-1 min-w-0 truncate text-ink-800">{p.nombre}</span>
+                    <span className="tnum text-ink-600 w-16 text-right">{fmtPct(w, 0)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="p-4 space-y-2">
           {portfolios.map(p => {
             const v = porPortfolio.get(p.id) ?? 0;

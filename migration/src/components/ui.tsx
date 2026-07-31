@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
+// Paleta categórica para gráficos de torta/donut — estable, funciona en claro y oscuro. Un solo
+// lugar para que Dashboard/Brokers/Consolidado (o cualquier otro donut futuro) usen los mismos
+// colores en el mismo orden, en vez de cada uno definir su propia copia.
+export const PIE_COLORS = ['#4F97D4', '#F4C752', '#5FB49C', '#B08BD6', '#E08E6D', '#9BCFEF', '#7A8CA5', '#D45F7A', '#63B7C9', '#C7A15A'];
+
 // Clase base para inputs/selects/textarea — usala para que todos los controles se vean igual.
 export const inputCls =
   'w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300';

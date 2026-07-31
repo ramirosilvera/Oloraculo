@@ -1,19 +1,27 @@
 import { useMemo, useState } from 'react';
 import { Landmark, Plus, Trash2, X } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes } from '../hooks/usePosiciones';
 import { useBrokers } from '../hooks/useBrokers';
 import { usePosicionBrokers } from '../hooks/usePosicionBrokers';
+import { useChartTheme } from '../hooks/usePrefs';
 import { resumenPorBroker } from '../engine/brokers';
 import { unitValueUSD } from '../lib/valuation';
-import { Card, CardHeader, Button, Badge, inputCls, Empty, fmtUsdCompact, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, inputCls, Empty, fmtUsdCompact, fmtPct, PIE_COLORS } from '../components/ui';
 import type { Posicion } from '../types/domain';
+
+// "Sin asignar" es un recordatorio de pendiente, no un broker real — color gris apagado (no un
+// tono de la paleta categórica) para que no compita visualmente con los brokers de verdad.
+const SIN_ASIGNAR_COLOR = '#8B96A5';
+const colorDe = (i: number, brokerId: string | null) => brokerId == null ? SIN_ASIGNAR_COLOR : PIE_COLORS[i % PIE_COLORS.length];
 
 // Brokers: dónde está físicamente cada posición. "Patrimonio por broker" es información MÍNIMA a
 // propósito — nombre, USD, % y cantidad de posiciones. La asignación en sí (qué posición está en
 // qué broker, y en qué cantidad si está repartida) vive acá, no en Posiciones — que vuelve a ser
 // 1 fila por ticker. Ver 0018_posicion_brokers.sql.
 export function BrokersPage() {
+  const chart = useChartTheme();
   const { active } = usePortfolios();
   const { data: posiciones = [] } = usePosiciones(active?.id);
   const { data: brokers, isLoading: brokersLoading, add, remove } = useBrokers();
@@ -99,7 +107,31 @@ export function BrokersPage() {
         ) : resumen.length === 0 ? (
           <Empty icon={Landmark} title="Sin posiciones abiertas">Cuando tengas posiciones abiertas, van a aparecer acá agrupadas por broker.</Empty>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="p-4 grid sm:grid-cols-[minmax(0,180px)_1fr] gap-4 items-center border-b border-line">
+              <div className="h-[160px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={resumen} dataKey="valorUsd" nameKey="nombre" cx="50%" cy="50%" innerRadius={42} outerRadius={72} paddingAngle={2} stroke="none">
+                      {resumen.map((r, i) => <Cell key={r.brokerId ?? 'sin-asignar'} fill={colorDe(i, r.brokerId)} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v: number) => [fmtUsdCompact(v), 'Patrimonio']}
+                      contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, color: chart.tooltipText, fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-1">
+                {resumen.map((r, i) => (
+                  <div key={r.brokerId ?? 'sin-asignar'} className="flex items-center gap-2 text-sm">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorDe(i, r.brokerId) }} />
+                    <span className={`font-semibold flex-1 min-w-0 truncate ${r.brokerId == null ? 'text-ink-500' : 'text-ink-800'}`}>{r.nombre}</span>
+                    <span className="tnum text-ink-600 w-16 text-right">{fmtPct(r.pct, 0)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[420px]">
               <thead className="text-[11px] text-ink-600 border-b border-line">
                 <tr>
@@ -125,7 +157,8 @@ export function BrokersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </Card>
 
