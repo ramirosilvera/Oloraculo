@@ -2,11 +2,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './useAuth';
 import { api, type AdminAccion } from '../lib/api';
 
-// ¿El usuario logueado es admin? Se resuelve server-side (Function + admin_users, sin RLS para el
-// cliente — ver 0020_admin_users.sql) — nunca un chequeo puramente local/spoofable. Solo gatea la
-// UI (mostrar u ocultar el nav); la seguridad real está en que cada endpoint /api/admin/* vuelve a
-// verificar por su cuenta.
-export function useIsAdmin(): { isAdmin: boolean; isLoading: boolean } {
+// ¿El usuario logueado es admin? ¿está aprobado para operar en la app? Se resuelve server-side
+// (Function + admin_users/usuarios_aprobados, sin RLS para el cliente — ver 0020/0021) — nunca un
+// chequeo puramente local/spoofable. isAdmin solo gatea la UI (mostrar u ocultar el nav de Admin);
+// isApproved gatea la app entera en App.tsx (con "cuenta pendiente" si no). La seguridad real está
+// en que cada endpoint /api/admin/* re-verifica admin por su cuenta, y en que la policy
+// portfolios_insert exige is_approved() en la base — esto nunca es la única barrera.
+export function useEstadoCuenta(): { isAdmin: boolean; isApproved: boolean; isLoading: boolean } {
   const { session } = useAuth();
   const q = useQuery({
     queryKey: ['admin-whoami', session?.user.id ?? 'anon'],
@@ -14,7 +16,7 @@ export function useIsAdmin(): { isAdmin: boolean; isLoading: boolean } {
     staleTime: 5 * 60_000,
     queryFn: () => api.adminWhoAmI(),
   });
-  return { isAdmin: q.data?.isAdmin ?? false, isLoading: q.isLoading };
+  return { isAdmin: q.data?.isAdmin ?? false, isApproved: q.data?.isApproved ?? false, isLoading: q.isLoading };
 }
 
 export function useAdminUsers() {

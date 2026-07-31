@@ -13,9 +13,10 @@ export const onRequestGet = guard(async ({ request, env }) => {
   const admin = await requireAdmin(env, request);
   if (!admin) return json({ error: 'no-autorizado', detail: 'Necesitás ser administrador.' }, 403);
 
-  const [gotrueRes, adminRows, profileRows, portfolioRows] = await Promise.all([
+  const [gotrueRes, adminRows, aprobadoRows, profileRows, portfolioRows] = await Promise.all([
     fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=200`, { headers: sbHeaders(env) }),
     sbSelect<{ user_id: string }>(env, 'admin_users', 'select=user_id'),
+    sbSelect<{ user_id: string }>(env, 'usuarios_aprobados', 'select=user_id'),
     sbSelect<{ user_id: string; display_name: string | null }>(env, 'profiles', 'select=user_id,display_name'),
     sbSelect<{ user_id: string }>(env, 'portfolios', 'select=user_id'),
   ]);
@@ -27,8 +28,9 @@ export const onRequestGet = guard(async ({ request, env }) => {
   for (const p of portfolioRows) portfolioCounts.set(p.user_id, (portfolioCounts.get(p.user_id) ?? 0) + 1);
   const displayNames = new Map(profileRows.map(p => [p.user_id, p.display_name]));
   const adminIds = new Set(adminRows.map(r => r.user_id));
+  const approvedIds = new Set(aprobadoRows.map(r => r.user_id));
 
-  const users = armarUsuarios(gotrueUsers, adminIds, displayNames, portfolioCounts, new Date().toISOString());
+  const users = armarUsuarios(gotrueUsers, adminIds, approvedIds, displayNames, portfolioCounts, new Date().toISOString());
   return json({ users, total: users.length });
 });
 
@@ -59,6 +61,9 @@ export const onRequestPost = guard(async ({ request, env }) => {
   }
 
   if (displayName) await sbUpsert(env, 'profiles', [{ user_id: created.id, display_name: displayName }], 'user_id');
+  // El admin la crea a mano ⇒ queda aprobada de entrada, sin pasar por la bandeja de pendientes
+  // (esa es para las que se auto-registran desde el login).
+  await sbUpsert(env, 'usuarios_aprobados', [{ user_id: created.id, aprobado_por: admin.userId }], 'user_id');
   await logAudit(env, { actorId: admin.userId, actorEmail: admin.email, action: 'crear_usuario', targetId: created.id, targetEmail: email });
 
   return json({ user: { id: created.id, email: created.email ?? email, displayName } }, 201);

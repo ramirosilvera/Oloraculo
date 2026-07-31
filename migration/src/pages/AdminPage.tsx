@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from 'react';
-import { ShieldCheck, UserPlus, Trash2, Ban, RotateCcw, Crown } from 'lucide-react';
+import { ShieldCheck, UserPlus, Trash2, Ban, RotateCcw, Crown, UserCheck, UserX } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { useIsAdmin, useAdminUsers, useAdminAuditoria } from '../hooks/useAdmin';
+import { useEstadoCuenta, useAdminUsers, useAdminAuditoria } from '../hooks/useAdmin';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls } from '../components/ui';
 import type { AdminUsuario, AdminAccion, AdminAuditEntry } from '../lib/api';
 
 const ACCION_LABEL: Record<string, string> = {
   crear_usuario: 'creó a', banear: 'baneó a', reactivar: 'reactivó a',
   eliminar: 'eliminó a', otorgar_admin: 'le dio admin a', revocar_admin: 'le sacó admin a',
+  aprobar: 'aprobó a', revocar_aprobacion: 'le revocó la aprobación a',
 };
 
 // Contraseña inicial sugerida: al azar, con crypto (no Math.random) — el admin la puede editar o
@@ -21,11 +22,12 @@ function generarPassword(): string {
 // Todo pasa por /api/admin/* con el service-role del lado del servidor — este componente solo
 // muestra y dispara acciones, nunca decide privilegios por su cuenta (ver useAdmin.ts).
 export function AdminPage() {
-  const { isAdmin, isLoading: chequeandoAdmin } = useIsAdmin();
+  const { isAdmin, isLoading: chequeandoAdmin } = useEstadoCuenta();
   const { session } = useAuth();
   const misId = session?.user.id;
   const { users, isLoading, isError, crear, accion, eliminar } = useAdminUsers();
   const { entries, isLoading: auditLoading } = useAdminAuditoria();
+  const pendientes = users.filter(u => !u.isApproved).length;
 
   if (chequeandoAdmin) return <p className="p-4 text-sm text-ink-600">Verificando…</p>;
   if (!isAdmin) {
@@ -43,7 +45,8 @@ export function AdminPage() {
       <CrearUsuario onCrear={crear} />
 
       <Card>
-        <CardHeader title="Usuarios" sub={`${users.length} en total.`} />
+        <CardHeader title="Usuarios" sub={`${users.length} en total.`}
+          right={pendientes > 0 ? <Badge tone="warn">{pendientes} pendiente{pendientes > 1 ? 's' : ''} de aprobación</Badge> : undefined} />
         {isLoading ? (
           <p className="p-4 text-sm text-ink-600">Cargando…</p>
         ) : isError ? (
@@ -163,6 +166,10 @@ function FilaUsuario({ u, esYo, onAccion, onEliminar }: {
   const revocarAdmin = () => {
     if (window.confirm(`¿Quitarle permisos de administrador a ${u.email}?`)) void ejecutar(() => onAccion(u.id, 'revoke_admin'));
   };
+  const aprobar = () => void ejecutar(() => onAccion(u.id, 'approve'));
+  const revocarAprobacion = () => {
+    if (window.confirm(`¿Quitarle la aprobación a ${u.email}? No va a poder crear portfolios hasta que lo apruebes de nuevo.`)) void ejecutar(() => onAccion(u.id, 'revoke_approval'));
+  };
   const eliminar = () => {
     if (window.confirm(`¿Eliminar DEFINITIVAMENTE a ${u.email}? Se borran todos sus portfolios, posiciones y aportes. No se puede deshacer.`)) void ejecutar(() => onEliminar(u.id));
   };
@@ -174,6 +181,7 @@ function FilaUsuario({ u, esYo, onAccion, onEliminar }: {
           <span className="font-semibold text-ink-900">{u.email}</span>
           {esYo && <Badge tone="gray">vos</Badge>}
           {u.isAdmin && <Badge tone="celeste">admin</Badge>}
+          {!u.isApproved && <Badge tone="warn">pendiente</Badge>}
           {!u.emailConfirmed && <Badge tone="warn">sin confirmar</Badge>}
         </div>
         {u.displayName && <p className="text-[11px] text-ink-500 mt-0.5">{u.displayName}</p>}
@@ -185,6 +193,9 @@ function FilaUsuario({ u, esYo, onAccion, onEliminar }: {
       <td className="px-3 py-2.5 text-[11px] text-ink-600 whitespace-nowrap">{u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleDateString('es-AR') : '—'}</td>
       <td className="px-4 py-2.5">
         <div className="flex items-center justify-end gap-1 flex-wrap">
+          {u.isApproved
+            ? <IconAction title="Quitar aprobación" onClick={revocarAprobacion} disabled={busy || esYo || u.isAdmin}><UserX className="w-3.5 h-3.5" /></IconAction>
+            : <IconAction title="Aprobar" onClick={aprobar} disabled={busy}><UserCheck className="w-3.5 h-3.5" /></IconAction>}
           {u.banned
             ? <IconAction title="Reactivar" onClick={reactivar} disabled={busy}><RotateCcw className="w-3.5 h-3.5" /></IconAction>
             : <IconAction title="Banear" onClick={banear} disabled={busy || esYo}><Ban className="w-3.5 h-3.5" /></IconAction>}

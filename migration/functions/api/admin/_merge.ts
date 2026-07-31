@@ -22,6 +22,7 @@ export interface AdminUsuario {
   bannedUntil: string | null;
   emailConfirmed: boolean;
   isAdmin: boolean;
+  isApproved: boolean;
   displayName: string | null;
   portfolioCount: number;
 }
@@ -29,6 +30,7 @@ export interface AdminUsuario {
 export function armarUsuarios(
   gotrueUsers: GoTrueAdminUser[],
   adminIds: Set<string>,
+  approvedIds: Set<string>,
   displayNames: Map<string, string | null>,
   portfolioCounts: Map<string, number>,
   ahoraIso: string,
@@ -46,6 +48,8 @@ export function armarUsuarios(
       bannedUntil: u.banned_until ?? null,
       emailConfirmed: !!(u.email_confirmed_at || u.confirmed_at),
       isAdmin: adminIds.has(u.id),
+      // Admin ⇒ aprobado siempre, igual que is_approved() en la DB (0021_aprobacion_cuentas.sql).
+      isApproved: adminIds.has(u.id) || approvedIds.has(u.id),
       displayName: displayNames.get(u.id) ?? null,
       portfolioCount: portfolioCounts.get(u.id) ?? 0,
     }))

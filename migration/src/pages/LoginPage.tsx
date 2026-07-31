@@ -3,11 +3,14 @@ import { TrendingUp, ShieldCheck, LineChart, Sparkles } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Button, Logo } from '../components/ui';
 
-// Sin auto-registro: las cuentas las crea un administrador desde /admin (ver AdminPage.tsx). Antes
-// esta pantalla tenía un toggle "Registrarme" que llamaba a supabase.auth.signUp() directo, sin
-// ningún control de quién podía crear una cuenta.
+type Modo = 'ingresar' | 'registrar';
+
+// El auto-registro sigue abierto (cualquiera puede crear una cuenta), pero no alcanza para operar
+// en la app: hasta que un admin la apruebe desde /admin, no puede crear ningún portfolio — la
+// pantalla de "cuenta pendiente" (ver App.tsx) se lo explica después de loguearse.
 export function LoginPage() {
-  const { signInPassword } = useAuth();
+  const { signInPassword, signUp } = useAuth();
+  const [modo, setModo] = useState<Modo>('ingresar');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null);
@@ -15,9 +18,21 @@ export function LoginPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (modo === 'registrar' && password.length < 6) { setMsg({ text: 'La contraseña debe tener al menos 6 caracteres.' }); return; }
     setBusy(true); setMsg(null);
-    const { error } = await signInPassword(email, password);
-    if (error) setMsg({ text: error });
+    if (modo === 'ingresar') {
+      const { error } = await signInPassword(email, password);
+      if (error) setMsg({ text: error });
+    } else {
+      const { error, needsConfirm } = await signUp(email, password);
+      if (error) setMsg({ text: error });
+      else setMsg({
+        text: needsConfirm
+          ? 'Cuenta creada. Revisá tu email para confirmarla — después, un administrador tiene que aprobar el acceso antes de que puedas usar la app.'
+          : 'Cuenta creada. Un administrador tiene que aprobar el acceso antes de que puedas usar la app.',
+        ok: true,
+      });
+    }
     setBusy(false);
   };
 
@@ -59,24 +74,37 @@ export function LoginPage() {
           </div>
 
           <div className="text-center">
-            <h2 className="font-display font-bold text-2xl text-ink-900">Bienvenido de nuevo</h2>
-            <p className="text-sm text-ink-600 mt-1">Ingresá para ver tu portfolio</p>
+            <h2 className="font-display font-bold text-2xl text-ink-900">
+              {modo === 'ingresar' ? 'Bienvenido de nuevo' : 'Creá tu cuenta'}
+            </h2>
+            <p className="text-sm text-ink-600 mt-1">
+              {modo === 'ingresar' ? 'Ingresá para ver tu portfolio' : 'Un admin tiene que aprobar el acceso antes de poder usarla'}
+            </p>
+          </div>
+
+          {/* Toggle */}
+          <div className="grid grid-cols-2 gap-1 rounded-full bg-canvas border border-line p-1">
+            {(['ingresar', 'registrar'] as Modo[]).map(m => (
+              <button key={m} type="button" onClick={() => { setModo(m); setMsg(null); }}
+                className={`py-2 rounded-full text-xs font-semibold transition-all ${modo === m ? 'bg-celeste-500 text-white shadow-glow' : 'text-ink-600 hover:text-ink-800'}`}>
+                {m === 'ingresar' ? 'Ingresar' : 'Registrarme'}
+              </button>
+            ))}
           </div>
 
           <div className="space-y-3">
             <input type="email" placeholder="tu@email.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" aria-label="Email"
               className="w-full bg-surface border border-line rounded-xl px-4 py-2.5 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
             <input type="password" placeholder="contraseña" value={password} onChange={e => setPassword(e.target.value)} required
-              autoComplete="current-password" aria-label="Contraseña"
+              autoComplete={modo === 'ingresar' ? 'current-password' : 'new-password'} aria-label="Contraseña"
               className="w-full bg-surface border border-line rounded-xl px-4 py-2.5 text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-celeste-300 focus:border-celeste-300" />
           </div>
 
           <Button type="submit" disabled={busy} className="w-full py-2.5">
-            {busy ? 'Ingresando…' : 'Ingresar'}
+            {busy ? (modo === 'ingresar' ? 'Ingresando…' : 'Creando cuenta…') : (modo === 'ingresar' ? 'Ingresar' : 'Crear cuenta')}
           </Button>
 
           {msg && <p className={`text-xs text-center ${msg.ok ? 'text-pos' : 'text-warn'}`}>{msg.text}</p>}
-          <p className="text-xs text-center text-ink-500">¿Necesitás una cuenta? Pedile a un administrador que te la cree.</p>
         </form>
       </div>
     </div>

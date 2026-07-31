@@ -30,13 +30,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export interface AdminUsuario {
   id: string; email: string; createdAt: string; lastSignInAt: string | null;
   banned: boolean; bannedUntil: string | null; emailConfirmed: boolean;
-  isAdmin: boolean; displayName: string | null; portfolioCount: number;
+  isAdmin: boolean; isApproved: boolean; displayName: string | null; portfolioCount: number;
 }
 export interface AdminAuditEntry {
   id: string; action: string; actor_email: string | null; target_email: string | null;
   detalle: unknown; created_at: string;
 }
-export type AdminAccion = 'ban' | 'unban' | 'grant_admin' | 'revoke_admin';
+export type AdminAccion = 'ban' | 'unban' | 'grant_admin' | 'revoke_admin' | 'approve' | 'revoke_approval';
 
 export const api = {
   fundamentals: (ticker: string, cik?: string, fresh?: boolean) =>
@@ -65,7 +65,7 @@ export const api = {
   analisisMacro: (body: unknown) => postAnalisis('/api/analysis/macro', body),
 
   // ── Admin (requiere ser admin — la Function re-verifica siempre, esto no es la seguridad real) ──
-  adminWhoAmI: () => get<{ isAdmin: boolean }>('/api/admin/whoami'),
+  adminWhoAmI: () => get<{ isAdmin: boolean; isApproved: boolean }>('/api/admin/whoami'),
   adminUsers: () => get<{ users: AdminUsuario[]; total: number }>('/api/admin/users'),
   adminCrearUsuario: (body: { email: string; password: string; displayName?: string }) =>
     req<{ user: { id: string; email: string; displayName: string | null } }>('/api/admin/users', { method: 'POST', body: JSON.stringify(body) }),

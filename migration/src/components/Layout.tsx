@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePrefs } from '../hooks/usePrefs';
-import { useIsAdmin } from '../hooks/useAdmin';
+import { useEstadoCuenta } from '../hooks/useAdmin';
 import { Wordmark } from './ui';
 import { UpdatedAt } from './UpdatedAt';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -39,7 +39,7 @@ const NAV_MORE: NavItem[] = [
 
 const MOBILE_TABS = NAV_MAIN.slice(0, 5);
 // "Admin" no vive en NAV_MORE (constante estática): se agrega condicionalmente en el render según
-// useIsAdmin(), así el link solo aparece para quien realmente tiene permiso.
+// useEstadoCuenta(), así el link solo aparece para quien realmente tiene permiso.
 const ADMIN_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCheck };
 
 const pill = (isActive: boolean) =>
@@ -57,7 +57,7 @@ export function Layout() {
     ? [...portfolios].sort((a, b) => (a.id === defaultId ? -1 : b.id === defaultId ? 1 : 0))
     : portfolios;
   const { theme, density, toggleTheme, toggleDensity } = usePrefs();
-  const { isAdmin } = useIsAdmin();
+  const { isAdmin } = useEstadoCuenta();
   const navigate = useNavigate();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);

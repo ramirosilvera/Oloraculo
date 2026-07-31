@@ -1,7 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { useEstadoCuenta } from './hooks/useAdmin';
 import { PortfoliosProvider } from './hooks/usePortfolios';
 import { LoginPage } from './pages/LoginPage';
+import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { Layout } from './components/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { PosicionesPage } from './pages/PosicionesPage';
@@ -22,11 +24,19 @@ import { AdminPage } from './pages/AdminPage';
 
 export function App() {
   const { session, loading } = useAuth();
+  // Se resuelve server-side (whoami) y es la fuente de la verdad SOLO para decidir qué pantalla
+  // mostrar acá — no reemplaza el chequeo real (policy portfolios_insert exige is_approved() en
+  // la base), así que aunque este gate se saltee de algún modo, no se puede crear un portfolio.
+  const { isAdmin, isApproved, isLoading: chequeandoCuenta } = useEstadoCuenta();
 
   if (loading) {
     return <div className="h-full grid place-items-center text-ink-600">Cargando…</div>;
   }
   if (!session) return <LoginPage />;
+  if (chequeandoCuenta) {
+    return <div className="h-full grid place-items-center text-ink-600">Cargando…</div>;
+  }
+  if (!isAdmin && !isApproved) return <PendingApprovalPage />;
 
   return (
     <PortfoliosProvider>
