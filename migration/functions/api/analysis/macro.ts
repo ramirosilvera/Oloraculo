@@ -1,4 +1,4 @@
-import { type Env, json, preflight, safe, usuarioAutenticado, sbSelect, sbUpsert } from '../_shared';
+import { type Env, json, preflight, safe, usuarioAutenticado, usuarioAprobado, sbSelect, sbUpsert } from '../_shared';
 
 const SYSTEM = `Sos un economista jefe (perfil macro) escribiendo el brief ejecutivo diario para un
 inversor argentino de largo plazo que NO tiene tiempo de leer un informe largo. Te paso el estado de
@@ -24,8 +24,10 @@ function hash(s: string): string {
 export const onRequestOptions: PagesFunction<Env> = async () => preflight();
 
 export const onRequestPost = safe(async ({ request, env }) => {
-  // Gemini es cuota PAGA: sin sesión, cualquiera podría dispararlo desde afuera.
+  // Gemini es cuota PAGA: sin sesión, cualquiera podría dispararlo desde afuera. Y sin aprobar,
+  // una cuenta recién auto-registrada tampoco puede operar la app (aunque tenga sesión válida).
   if (!(await usuarioAutenticado(env, request))) return json({ error: 'no-autorizado' }, 401);
+  if (!(await usuarioAprobado(env, request))) return json({ error: 'cuenta-pendiente', detail: 'Tu cuenta todavía no fue aprobada por un administrador.' }, 403);
   if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY no configurada' }, 503);
   const body = await request.json().catch(() => ({})) as { indicadores?: unknown };
   if (!body.indicadores) return json({ error: 'indicadores requeridos' }, 400);

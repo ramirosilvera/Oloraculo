@@ -52,6 +52,30 @@ export async function usuarioAutenticado(env: Env, request: Request): Promise<bo
   } catch { return false; }
 }
 
+// ¿La cuenta que llama está aprobada para operar (admin o en usuarios_aprobados)? admin_users y
+// usuarios_aprobados no tienen políticas RLS para el cliente (0020/0021_*.sql) — este chequeo con
+// el service-role es la única fuente de verdad, igual que usuarioAutenticado() lo es para "¿hay
+// sesión?". Un usuario recién auto-registrado tiene sesión válida pero NO está aprobado: sin este
+// chequeo podía seguir usando IA/cotizaciones (cuota paga) aunque no pueda crear un portfolio.
+export async function usuarioAprobado(env: Env, request: Request): Promise<boolean> {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!token || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: env.SUPABASE_SERVICE_ROLE_KEY },
+    });
+    if (!res.ok) return false;
+    const user = await res.json() as { id?: string };
+    if (!user?.id) return false;
+    const [adminRows, aprobadoRows] = await Promise.all([
+      sbSelect<{ user_id: string }>(env, 'admin_users', `user_id=eq.${user.id}&select=user_id`),
+      sbSelect<{ user_id: string }>(env, 'usuarios_aprobados', `user_id=eq.${user.id}&select=user_id`),
+    ]);
+    return adminRows.length > 0 || aprobadoRows.length > 0;
+  } catch { return false; }
+}
+
 // Envuelve un handler exigiendo sesión válida. Devuelve 401 si no la hay.
 export function authed(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<Env> {
   return async (ctx) => {
@@ -101,12 +125,19 @@ export function guardAuth(handler: (ctx: Ctx) => Promise<Response>): PagesFuncti
   return async (ctx) => {
     // El cron (refresh-all) llama estos mismos endpoints server-side para calentar las caches sin
     // que la app esté abierta: no tiene JWT de usuario, así que se aceptan sus credenciales propias.
+    // Esa vía queda fuera del chequeo de aprobación (es del sistema, no de un usuario puntual).
     const cronOk = !!ctx.env.CRON_SECRET && ctx.request.headers.get('X-Cron-Secret') === ctx.env.CRON_SECRET;
     const enviado = ctx.request.headers.get('X-Internal-Refresh') || '';
     const esperado = enviado ? await tokenInterno(ctx.env) : '';
     const internoOk = !!esperado && enviado === esperado;
-    if (!cronOk && !internoOk && !(await usuarioAutenticado(ctx.env, ctx.request))) {
+    if (cronOk || internoOk) return inner(ctx);
+    if (!(await usuarioAutenticado(ctx.env, ctx.request))) {
       return json({ error: 'no-autorizado', detail: 'Necesitás iniciar sesión.' }, 401);
+    }
+    // Cuenta recién auto-registrada, todavía sin aprobar: consulta cotizaciones/fundamentals de
+    // pago igual que un usuario aprobado si solo se chequeara la sesión — bloquear acá.
+    if (!(await usuarioAprobado(ctx.env, ctx.request))) {
+      return json({ error: 'cuenta-pendiente', detail: 'Tu cuenta todavía no fue aprobada por un administrador.' }, 403);
     }
     return inner(ctx);
   };
