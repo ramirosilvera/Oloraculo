@@ -125,7 +125,10 @@ export function safe(handler: (ctx: Ctx) => Promise<Response>): PagesFunction<En
 }
 
 // ── Supabase REST (service-role — bypasses RLS; server only) ─────────────────
-function sbHeaders(env: Env, extra: Record<string, string> = {}) {
+// Exportado (no solo de uso interno acá): admin/_guard.ts y admin/users.ts lo reusan para llamar
+// a la Admin Auth API de GoTrue (/auth/v1/admin/*), que se autentica igual que PostgREST — mismo
+// service-role key como bearer token.
+export function sbHeaders(env: Env, extra: Record<string, string> = {}) {
   return {
     apikey: env.SUPABASE_SERVICE_ROLE_KEY,
     Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,

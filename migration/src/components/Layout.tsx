@@ -4,11 +4,12 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, Table2, Landmark, Wallet, Settings, Layers, TrendingUp, Percent,
   CalendarClock, Radar, Sparkles, LogOut, ChevronDown, Sun, Moon, Rows3, MoreHorizontal, PiggyBank,
-  Building2, Globe,
+  Building2, Globe, ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePrefs } from '../hooks/usePrefs';
+import { useIsAdmin } from '../hooks/useAdmin';
 import { Wordmark } from './ui';
 import { UpdatedAt } from './UpdatedAt';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -37,7 +38,9 @@ const NAV_MORE: NavItem[] = [
 ];
 
 const MOBILE_TABS = NAV_MAIN.slice(0, 5);
-const MOBILE_SHEET: NavItem[] = [NAV_MAIN[5], ...NAV_MORE];
+// "Admin" no vive en NAV_MORE (constante estática): se agrega condicionalmente en el render según
+// useIsAdmin(), así el link solo aparece para quien realmente tiene permiso.
+const ADMIN_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCheck };
 
 const pill = (isActive: boolean) =>
   `flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
@@ -54,9 +57,13 @@ export function Layout() {
     ? [...portfolios].sort((a, b) => (a.id === defaultId ? -1 : b.id === defaultId ? 1 : 0))
     : portfolios;
   const { theme, density, toggleTheme, toggleDensity } = usePrefs();
+  const { isAdmin } = useIsAdmin();
   const navigate = useNavigate();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const navMore = isAdmin ? [...NAV_MORE, ADMIN_ITEM] : NAV_MORE;
+  const mobileSheet = isAdmin ? [NAV_MAIN[5], ...NAV_MORE, ADMIN_ITEM] : [NAV_MAIN[5], ...NAV_MORE];
 
   useEffect(() => { setMoreOpen(false); }, [location.pathname]);
   useEffect(() => {
@@ -106,14 +113,14 @@ export function Layout() {
           ))}
           <div className="relative shrink-0 ml-auto">
             <button onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen}
-              className={pill(isMoreRoute(location.pathname, NAV_MORE))}>
+              className={pill(isMoreRoute(location.pathname, navMore))}>
               <MoreHorizontal className="w-3.5 h-3.5" /> Más
             </button>
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
                 <div className="absolute right-0 mt-1.5 z-50 w-48 rounded-2xl border border-line bg-surface shadow-card p-1.5 animate-fade-in">
-                  {NAV_MORE.map(({ to, label, icon: Icon }) => (
+                  {navMore.map(({ to, label, icon: Icon }) => (
                     <NavLink key={to} to={to}
                       className={({ isActive }) => `flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
                         isActive ? 'bg-celeste-100 text-celeste-700 dark:bg-celeste-500/20 dark:text-celeste-300' : 'text-ink-700 hover:bg-canvas'}`}>
@@ -156,7 +163,7 @@ export function Layout() {
           ))}
           <button onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen} aria-label="Más opciones"
             className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
-              moreOpen || isMoreRoute(location.pathname, MOBILE_SHEET) ? 'text-celeste-500' : 'text-ink-500 active:text-ink-700'}`}>
+              moreOpen || isMoreRoute(location.pathname, mobileSheet) ? 'text-celeste-500' : 'text-ink-500 active:text-ink-700'}`}>
             <MoreHorizontal className="w-5 h-5" />
             <span className="text-[10px] font-semibold leading-none">Más</span>
           </button>
@@ -172,7 +179,7 @@ export function Layout() {
             className="fixed bottom-0 inset-x-0 z-50 rounded-t-3xl bg-surface border-t border-line shadow-card animate-slide-up pb-safe">
             <div className="w-10 h-1 rounded-full bg-ink-400 mx-auto mt-3 mb-4" />
             <div className="grid grid-cols-3 gap-1 px-4 pb-6 max-h-[70vh] overflow-y-auto">
-              {MOBILE_SHEET.map(({ to, label, icon: Icon }) => (
+              {mobileSheet.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} onClick={() => setMoreOpen(false)}
                   className={({ isActive }) => `flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-colors ${
                     isActive ? 'bg-celeste-100 text-celeste-700 dark:bg-celeste-500/20 dark:text-celeste-300'
