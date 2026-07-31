@@ -13,6 +13,9 @@ export interface SemaforoDef {
   grupo: Grupo;
   fmt?: (v: number) => string;
   evalua: (v: number) => Luz;
+  // Qué mide y por qué importa — texto fijo interpretativo, no un dato. Se muestra en /macro para
+  // que la sección tenga un desarrollo real (en el Dashboard solo se ve el semáforo resumido).
+  desc: string;
 }
 
 export const GRUPOS: { key: Grupo; label: string }[] = [
@@ -32,20 +35,32 @@ const usd0 = (v: number) => `US$${Math.round(v).toLocaleString('en-US')}`;  // i
 const ars0 = (v: number) => `$${Math.round(v).toLocaleString('es-AR')}`;    // indicador en pesos (dólar $)
 
 export const SEMAFOROS: SemaforoDef[] = [
-  { key: 'dolar_oficial', label: 'Dólar oficial', grupo: 'arg', fmt: ars0, evalua: v => v < 1200 ? 'rojo' : v < 1600 ? 'verde' : 'amarillo' },
-  { key: 'dolar_mep',     label: 'Dólar MEP',     grupo: 'arg', fmt: ars0, evalua: v => v < 1400 ? 'rojo' : v < 1750 ? 'verde' : 'amarillo' },
-  { key: 'riesgo_pais',   label: 'Riesgo país',   grupo: 'arg', fmt: v => `${Math.round(v)}`, evalua: v => v < 400 ? 'verde' : v < 800 ? 'amarillo' : 'rojo' },
-  { key: 'merval_usd',    label: 'Merval USD',    grupo: 'arg', fmt: usd0, evalua: v => v > 2050 ? 'rojo' : v > 1500 ? 'amarillo' : 'verde' },
-  { key: 'adr_ypf',       label: 'ADR YPF',       grupo: 'arg', fmt: usd0, evalua: v => v > 40 ? 'verde' : v > 25 ? 'amarillo' : 'rojo' },
+  { key: 'dolar_oficial', label: 'Dólar oficial', grupo: 'arg', fmt: ars0, evalua: v => v < 1200 ? 'rojo' : v < 1600 ? 'verde' : 'amarillo',
+    desc: 'Tipo de cambio mayorista regulado por el BCRA. Referencia de comercio exterior y ancla de expectativas — muy atrasado (apreciado) anticipa devaluación; muy depreciado erosiona el poder de compra en pesos.' },
+  { key: 'dolar_mep',     label: 'Dólar MEP',     grupo: 'arg', fmt: ars0, evalua: v => v < 1400 ? 'rojo' : v < 1750 ? 'verde' : 'amarillo',
+    desc: 'Dólar bursátil (vía bonos), el que efectivamente convierte pesos a dólares sin cepo. Termómetro de la brecha cambiaria real, más fiable que el oficial cuando hay controles.' },
+  { key: 'riesgo_pais',   label: 'Riesgo país',   grupo: 'arg', fmt: v => `${Math.round(v)}`, evalua: v => v < 400 ? 'verde' : v < 800 ? 'amarillo' : 'rojo',
+    desc: 'Sobretasa (EMBI+) que exige el mercado para prestarle a Argentina en vez de al Tesoro de EE.UU. Define el costo — y la posibilidad real — de financiarse en dólares.' },
+  { key: 'merval_usd',    label: 'Merval USD',    grupo: 'arg', fmt: usd0, evalua: v => v > 2050 ? 'rojo' : v > 1500 ? 'amarillo' : 'verde',
+    desc: 'Índice líder de acciones argentinas medido en dólares (vía CCL). Mide si las empresas locales cotizan caras o baratas en términos duros, sin el ruido de la inflación en pesos.' },
+  { key: 'adr_ypf',       label: 'ADR YPF',       grupo: 'arg', fmt: usd0, evalua: v => v > 40 ? 'verde' : v > 25 ? 'amarillo' : 'rojo',
+    desc: 'Certificado de YPF que cotiza en la bolsa de Nueva York. Proxy del sector energético argentino y del apetito internacional por activos locales.' },
   // Índice dólar amplio (FRED, base 2006=100, ~120). Dólar fuerte = viento en contra para emergentes.
-  { key: 'dollar_index',  label: 'Dólar (amplio)', grupo: 'global', fmt: v => v.toFixed(1), evalua: v => v > 126 ? 'rojo' : v > 118 ? 'amarillo' : 'verde' },
+  { key: 'dollar_index',  label: 'Dólar (amplio)', grupo: 'global', fmt: v => v.toFixed(1), evalua: v => v > 126 ? 'rojo' : v > 118 ? 'amarillo' : 'verde',
+    desc: 'Índice DXY: fortaleza del dólar contra una canasta de monedas desarrolladas. Un dólar global fuerte encarece el financiamiento y le saca flujo a los emergentes (Argentina incluida).' },
   // Recalibrado 2026 (S&P ~7400): el umbral original (rojo >7000) quedó estructuralmente en rojo.
-  { key: 'sp500',         label: 'S&P 500',       grupo: 'global', fmt: usd0, evalua: v => v > 8600 ? 'rojo' : v > 7800 ? 'amarillo' : 'verde' },
-  { key: 'vix',           label: 'VIX',           grupo: 'global', fmt: v => v.toFixed(1), evalua: v => v < 20 ? 'verde' : v < 30 ? 'amarillo' : 'rojo' },
-  { key: 'hy_spread',     label: 'HY spread',     grupo: 'global', fmt: pct, evalua: v => v < 4 ? 'verde' : v < 6 ? 'amarillo' : 'rojo' },
-  { key: 'dgs3mo',        label: 'T-Bills 3M',    grupo: 'global', fmt: pct, evalua: v => v > 5 ? 'rojo' : v > 2 ? 'verde' : 'amarillo' },
-  { key: 'oro',           label: 'Oro',           grupo: 'refugio', fmt: usd0, evalua: v => v > 4000 ? 'rojo' : v > 3000 ? 'amarillo' : 'verde' },
-  { key: 'bitcoin',       label: 'Bitcoin',       grupo: 'refugio', fmt: usd0, evalua: v => v > 100000 ? 'rojo' : v > 50000 ? 'amarillo' : 'verde' },
+  { key: 'sp500',         label: 'S&P 500',       grupo: 'global', fmt: usd0, evalua: v => v > 8600 ? 'rojo' : v > 7800 ? 'amarillo' : 'verde',
+    desc: 'Índice de las 500 mayores empresas de EE.UU. Barómetro del apetito global por riesgo; en máximos sostenidos deja poco margen de suba adicional.' },
+  { key: 'vix',           label: 'VIX',           grupo: 'global', fmt: v => v.toFixed(1), evalua: v => v < 20 ? 'verde' : v < 30 ? 'amarillo' : 'rojo',
+    desc: '"Índice del miedo": volatilidad implícita esperada del S&P 500 a 30 días. Sube cuando el mercado empieza a temer un shock, antes de que el precio lo refleje del todo.' },
+  { key: 'hy_spread',     label: 'HY spread',     grupo: 'global', fmt: pct, evalua: v => v < 4 ? 'verde' : v < 6 ? 'amarillo' : 'rojo',
+    desc: 'Diferencial de tasa que exigen los bonos corporativos de alto rendimiento (high yield) sobre el Tesoro de EE.UU. Mide el apetito real por riesgo crediticio, no solo por acciones.' },
+  { key: 'dgs3mo',        label: 'T-Bills 3M',    grupo: 'global', fmt: pct, evalua: v => v > 5 ? 'rojo' : v > 2 ? 'verde' : 'amarillo',
+    desc: 'Tasa de las letras del Tesoro de EE.UU. a 3 meses. Referencia de la política monetaria de la Fed y del costo del dinero "libre de riesgo" para todo el resto de los activos.' },
+  { key: 'oro',           label: 'Oro',           grupo: 'refugio', fmt: usd0, evalua: v => v > 4000 ? 'rojo' : v > 3000 ? 'amarillo' : 'verde',
+    desc: 'Precio del oro en USD por onza. Activo refugio clásico: sube cuando crece la aversión al riesgo o la desconfianza en las monedas fiat.' },
+  { key: 'bitcoin',       label: 'Bitcoin',       grupo: 'refugio', fmt: usd0, evalua: v => v > 100000 ? 'rojo' : v > 50000 ? 'amarillo' : 'verde',
+    desc: 'Precio de BTC en USD. Refugio no soberano de alta volatilidad; funciona más como proxy del apetito por riesgo especulativo que como cobertura estable.' },
 ];
 
 // Qué significa cada señal cuando está en amarillo/rojo (para el resumen narrativo). Es texto

@@ -24,7 +24,6 @@ export function MacroPage() {
   const [ia, setIa] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [abierto, setAbierto] = useState(false);
   const mostrado = ia ?? guardado;
 
   const semaforos: Lectura[] = SEMAFOROS.map(s => {
@@ -56,7 +55,7 @@ export function MacroPage() {
       </div>
 
       <Card>
-        <CardHeader title="Panorama" sub="Semáforos + lectura ejecutiva."
+        <CardHeader title="Panorama" sub="Semáforos, síntesis y lectura ejecutiva."
           right={<Badge tone={tone}>{resumen.titulo}</Badge>} />
 
         <DistanciaMaximo dd={dd} />
@@ -79,7 +78,17 @@ export function MacroPage() {
           </div>
         )}
 
-        {/* Focos de atención: solo las señales que no están en verde (lo accionable). */}
+        {/* Síntesis: párrafo narrativo generado por reglas (no IA) a partir de los semáforos —
+            conteo, estado general y foco por área. Complementa la barra de salud con contexto en
+            prosa, sin depender de la lectura ejecutiva (que sí llama a un modelo). */}
+        {resumen.parrafo && (
+          <div className="px-4 pt-3">
+            <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Síntesis</p>
+            <p className="text-sm text-ink-800 leading-relaxed">{resumen.parrafo}</p>
+          </div>
+        )}
+
+        {/* Focos de atención: solo las señales que no están en verde (lo accionable, de un vistazo). */}
         {resumen.alertas.length > 0 && (
           <div className="px-4 pt-3">
             <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1.5">Focos de atención</p>
@@ -89,34 +98,36 @@ export function MacroPage() {
           </div>
         )}
 
-        {/* Indicadores agrupados por área (colapsable, para no saturar). */}
-        <div className="px-4 pt-3">
-          <button onClick={() => setAbierto(v => !v)} className="text-[11px] font-semibold text-celeste-600 hover:underline">
-            {abierto ? 'Ocultar indicadores' : `Ver los ${conDatos.length} indicadores`}
-          </button>
-          {abierto && (
-            <div className="mt-2 space-y-2">
-              {GRUPOS.map(g => {
-                const items = semaforos.filter(r => r.def.grupo === g.key && r.valor != null);
-                if (!items.length) return null;
-                return (
-                  <div key={g.key}>
-                    <p className="text-[9px] uppercase tracking-wide text-ink-500 mb-1">{g.label}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {items.map(({ def, valor, luz }) => (
-                        <span key={def.key} className="inline-flex items-center gap-1.5 rounded-full bg-canvas ring-1 ring-inset ring-line px-2.5 py-1 text-[11px]">
+        {/* Los 12 indicadores completos, agrupados por área, siempre visibles (esta página existe
+            para desarrollar el detalle que el resumen del Dashboard no muestra) — valor, semáforo
+            y qué mide/por qué importa cada uno. */}
+        <div className="px-4 pt-3 pb-1 space-y-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-ink-500">Los {SEMAFOROS.length} indicadores</p>
+          {GRUPOS.map(g => {
+            const items = semaforos.filter(r => r.def.grupo === g.key);
+            if (!items.length) return null;
+            return (
+              <div key={g.key}>
+                <p className="text-[9px] uppercase tracking-wide text-ink-500 mb-1.5">{g.label}</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {items.map(({ def, valor, luz }) => (
+                    <div key={def.key} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-ink-900">{def.label}</span>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-600 shrink-0">
                           <span className={`w-1.5 h-1.5 rounded-full ${luz ? LUZ_DOT[luz] : 'bg-ink-300'}`}
                             title={luz ? LUZ_LABEL[luz] : 'sin dato'} aria-label={luz ? LUZ_LABEL[luz] : 'sin dato'} role="img" />
-                          <span className="text-ink-600">{def.label}</span>
-                          <span className="tnum font-semibold text-ink-900">{def.fmt ? def.fmt(valor!) : valor}</span>
+                          {luz ? LUZ_LABEL[luz] : 'sin dato'}
                         </span>
-                      ))}
+                      </div>
+                      <p className="text-lg font-bold tnum text-ink-900 mt-0.5">{valor != null && def.fmt ? def.fmt(valor) : valor ?? '—'}</p>
+                      <p className="text-[11px] text-ink-600 mt-1 leading-snug">{def.desc}</p>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Lectura ejecutiva por IA: un solo párrafo. */}
