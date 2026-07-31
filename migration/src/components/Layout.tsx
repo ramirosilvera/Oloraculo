@@ -136,13 +136,19 @@ export function Layout() {
 
       {/* ── Main ──────────────────────────────────────────────── */}
       <main className="mx-auto max-w-6xl w-full px-4 py-6 flex-1 animate-fade-in">
-        {loading
-          ? <div className="text-center py-20 text-ink-600">Cargando…</div>
-          : portfolios.length === 0
-            ? <EmptyState />
-            : activeId === '__all__' && location.pathname !== '/consolidado'
-              ? <ConsolidadoHint />
-              : <ErrorBoundary key={location.pathname}><Outlet /></ErrorBoundary>}
+        {loading ? (
+          <div className="text-center py-20 text-ink-600">Cargando…</div>
+        ) : portfolios.length === 0 ? (
+          // Sin portfolios, el "bienvenida + crear" solo va en el home (/) — en cualquier otra
+          // ruta (ej. /config, a donde lleva el botón de EmptyState) hay que dejar pasar el Outlet
+          // real, si no "Crear mi primer portfolio" cambiaba la URL pero la pantalla nunca se
+          // movía de EmptyState (cada página ya maneja sin active portfolio: null o campos ?.).
+          location.pathname === '/' ? <EmptyState /> : <ErrorBoundary key={location.pathname}><Outlet /></ErrorBoundary>
+        ) : activeId === '__all__' && location.pathname !== '/consolidado' ? (
+          <ConsolidadoHint />
+        ) : (
+          <ErrorBoundary key={location.pathname}><Outlet /></ErrorBoundary>
+        )}
       </main>
 
       <footer className="mx-auto max-w-6xl w-full px-4 pt-6 pb-24 md:pb-6 text-center text-[11px] text-ink-500 space-y-1">
