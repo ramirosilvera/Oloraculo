@@ -19,9 +19,13 @@ export function useEstadoCuenta(): { isAdmin: boolean; isApproved: boolean; isLo
   return { isAdmin: q.data?.isAdmin ?? false, isApproved: q.data?.isApproved ?? false, isLoading: q.isLoading };
 }
 
-export function useAdminUsers() {
+// enabled=false evita pedir /api/admin/users desde lugares que solo quieren mostrar el resumen si
+// isAdmin ya dio true (ej. la tarjeta del Dashboard) — sin esto, cualquier usuario logueado
+// dispararía el fetch en cada carga del Dashboard y recibiría un 403 de más (la Function igual lo
+// re-verifica y lo rechaza; esto es solo para no hacer el pedido de arranque).
+export function useAdminUsers(enabled = true) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['admin-users'], queryFn: () => api.adminUsers() });
+  const q = useQuery({ queryKey: ['admin-users'], queryFn: () => api.adminUsers(), enabled });
   const invalidate = () => qc.invalidateQueries({ queryKey: ['admin-users'] });
   return {
     users: q.data?.users ?? [],

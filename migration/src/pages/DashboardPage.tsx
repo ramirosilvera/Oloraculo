@@ -9,6 +9,7 @@ import { useFlujo } from '../hooks/useFlujo';
 import { useCobros } from '../hooks/useCobros';
 import { useBrokers } from '../hooks/useBrokers';
 import { usePosicionBrokers } from '../hooks/usePosicionBrokers';
+import { useEstadoCuenta, useAdminUsers } from '../hooks/useAdmin';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -229,7 +230,32 @@ export function DashboardPage() {
       {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
 
       <MacroResumen resumen={resumen} />
+
+      <AdminResumen />
     </div>
+  );
+}
+
+// Resumen mínimo de administración, solo para admins (no dispara el fetch de /api/admin/users
+// hasta confirmar isAdmin — ver useAdminUsers). La gestión completa vive en /admin; acá es solo
+// un vistazo rápido de cuántos usuarios hay y cuántos esperan aprobación.
+function AdminResumen() {
+  const { isAdmin, isLoading: chequeandoAdmin } = useEstadoCuenta();
+  const { users, isLoading } = useAdminUsers(isAdmin);
+  if (chequeandoAdmin || !isAdmin) return null;
+  const pendientes = users.filter(u => !u.isApproved).length;
+
+  return (
+    <Card>
+      <CardHeader title="Administración" sub="Resumen rápido de usuarios."
+        right={pendientes > 0
+          ? <Link to="/admin" className="inline-flex items-center gap-1.5"><Badge tone="warn">{pendientes} pendiente{pendientes > 1 ? 's' : ''}</Badge></Link>
+          : <Link to="/admin" className="text-[11px] text-celeste-600 hover:underline">Ir a Admin →</Link>} />
+      <div className="grid grid-cols-2 gap-2 p-3">
+        <Stat label="Usuarios" value={isLoading ? '—' : users.length} />
+        <Stat label="Pendientes de aprobación" value={isLoading ? '—' : pendientes} />
+      </div>
+    </Card>
   );
 }
 
