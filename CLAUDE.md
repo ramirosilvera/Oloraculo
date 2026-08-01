@@ -14,8 +14,8 @@ La app vive en `migration/` (React+Vite+Tailwind+react-query). Deploy: Cloudflar
 `wyedmgxngqdgnxmbencl`), Auth + RLS por `auth.uid()`. Rama de desarrollo:
 `claude/github-pages-compatibility-b6bdl6`.
 
-> El historial anterior a este proyecto corresponde a "Oloráculo" (app del Mundial), que
-> fue reemplazada. Queda en el historial de git.
+> El historial anterior a este proyecto corresponde a una app del Mundial que fue reemplazada.
+> Queda en el historial de git.
 
 ## Reglas de oro
 

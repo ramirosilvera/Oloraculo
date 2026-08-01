@@ -6,7 +6,7 @@ fundamentals desde **SEC EDGAR**, contexto macro con semáforos y análisis cual
 **Gemini**. **Multi-portfolio** con aislamiento total por usuario.
 
 > El código de la app vive en [`migration/`](migration/). El historial previo a este
-> proyecto corresponde a "Oloráculo" (app del Mundial), reemplazada.
+> proyecto corresponde a una app del Mundial, reemplazada.
 
 ## Stack
 

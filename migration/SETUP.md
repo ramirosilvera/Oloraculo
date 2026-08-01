@@ -12,8 +12,9 @@ los empuja solo al proyecto de Cloudflare `portfolio-inversiones` y deploya las 
 ## URL definitiva de la app
 
 Usá **`https://portfolio-inversiones.pages.dev`**. Ese proyecto lo crea y configura el workflow
-solo (crea el proyecto, carga los 7 secrets de Functions, deploya). La URL vieja de `oloraculo`
-**no tiene los secrets de Functions**, por eso ahí no se actualiza nada.
+solo (crea el proyecto, carga los 7 secrets de Functions, deploya). Cualquier URL vieja de un
+proyecto de Cloudflare Pages anterior **no tiene los secrets de Functions**, por eso ahí no se
+actualiza nada.
 
 ## Secrets requeridos (GitHub → Actions)
 
