@@ -4,6 +4,7 @@ import { Plus, Trash2, LineChart, Table2, History, X, TrendingDown, Eye, EyeOff,
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
+import { useCikMap } from '../hooks/useCikMap';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
@@ -364,6 +365,8 @@ const MESES_E = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 
 // cupón). Es una corrección manual: no genera movimientos (no es una compra/venta real).
 function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
   useEscapeClose(onClose);
+  const { map: cikMap } = useCikMap();
+  const [ticker, setTicker] = useState(pos.ticker);
   const [cantidad, setCantidad] = useState(String(pos.cantidad));
   const [precio, setPrecio] = useState(String(pos.precio_compra));
   const [sector, setSector] = useState(pos.sector ?? '');
@@ -375,7 +378,17 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Bonos licitados: al cargarlos muchas veces todavía no se sabe el ticker definitivo (se asigna
+  // después de la licitación) — para el resto de los tipos el ticker es estable y renombrarlo no
+  // tiene un caso de uso real, así que se deja bloqueado para no invitar a tocarlo por error.
+  const tickerEditable = pos.tipo === 'bono';
+  const tickerCambiado = tickerEditable && ticker.trim().toUpperCase() !== pos.ticker;
+  // cik_map/watchlist quedan indexados por ticker (string) — si el viejo tenía un override de CIK
+  // cargado, renombrar lo deja huérfano. No bloquea (el caso de uso es real y legítimo), solo avisa.
+  const dejaCikHuerfano = tickerCambiado && cikMap.has(pos.ticker);
+
   const guardar = async () => {
+    if (tickerEditable && !ticker.trim()) { setErr('Ingresá un ticker.'); return; }
     setBusy(true); setErr(null);
     const patch: Partial<Posicion> = {
       cantidad: Number(cantidad) || 0,
@@ -383,6 +396,7 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
       sector: sector || null,
       ratio_cedear: ratio ? Number(ratio) : null,
     };
+    if (tickerEditable) patch.ticker = ticker.trim().toUpperCase();
     if (pos.tipo === 'bono') {
       patch.cupon_tasa = cTasa ? Number(cTasa) / 100 : null;
       patch.cupon_frecuencia = cFreq ? Number(cFreq) : null;
@@ -400,6 +414,11 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
           <CardHeader title={`Editar · ${pos.ticker}`} sub="Corrección directa de los datos (no registra compra/venta)."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
           <div className="p-4 grid grid-cols-2 gap-3 text-sm">
+            {tickerEditable && (
+              <Field label="Ticker" hint="Bono licitado sin ticker asignado todavía: podés corregirlo acá cuando lo tengas.">
+                <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} className={inputCls} />
+              </Field>
+            )}
             <Field label="Cantidad"><input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} className={inputCls} /></Field>
             <Field label="Costo promedio (USD)"><input type="number" value={precio} onChange={e => setPrecio(e.target.value)} className={inputCls} /></Field>
             <Field label="Sector"><input value={sector} onChange={e => setSector(e.target.value)} className={inputCls} /></Field>
@@ -419,6 +438,11 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
               <Field label="Vencimiento"><input type="date" value={vto} onChange={e => setVto(e.target.value)} className={inputCls} /></Field>
             </>}
           </div>
+          {dejaCikHuerfano && (
+            <p className="px-4 pb-2 text-xs text-warn">
+              Tenías un CIK cargado para {pos.ticker} en Configuración — al cambiar el ticker queda sin usar (no se borra, pero ya no aplica a esta posición).
+            </p>
+          )}
           {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
           <div className="px-4 pb-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>Cancelar</Button>

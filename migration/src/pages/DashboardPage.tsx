@@ -319,6 +319,12 @@ function AdminResumen() {
   );
 }
 
+// Tolerancia para marcar un activo "fuera del objetivo": el precio fluctúa todo el tiempo, así que
+// prácticamente nunca va a estar exactamente en el % objetivo — antes eran 0.5 puntos porcentuales
+// (0.005), demasiado ajustado para una fluctuación normal de mercado. 2.5pp deja margen real y
+// solo avisa cuando el desvío importa.
+const TOLERANCIA_OBJETIVO = 0.025;
+
 function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mkt: number; target: number | null }[]; total: number; isLoading: boolean }) {
   const chart = useChartTheme();
   if (isLoading) {
@@ -335,7 +341,7 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
   const desviados = alloc.filter(a => {
     if (a.target == null) return false;
     const w = total > 0 ? a.mkt / total : 0;
-    return Math.abs(w - a.target) >= 0.005;
+    return Math.abs(w - a.target) >= TOLERANCIA_OBJETIVO;
   }).length;
   return (
     <Card>
@@ -366,7 +372,7 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
                 {a.target != null
                   ? <span className="tnum text-[11px] text-ink-500 w-16 text-right">obj {objPct.get(a.ticker) ?? Math.round(a.target * 100)}%</span>
                   : <span className="w-16" />}
-                {off != null && Math.abs(off) >= 0.005
+                {off != null && Math.abs(off) >= TOLERANCIA_OBJETIVO
                   ? <span className={`tnum text-[10px] w-10 text-right ${off > 0 ? 'text-warn' : 'text-celeste-600'}`}>{off > 0 ? '+' : ''}{fmtPct(off, 0)}</span>
                   : <span className="w-10" />}
               </div>
