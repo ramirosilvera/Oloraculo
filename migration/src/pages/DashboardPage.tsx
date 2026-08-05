@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Flame } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
@@ -10,6 +10,10 @@ import { useCobros } from '../hooks/useCobros';
 import { useBrokers } from '../hooks/useBrokers';
 import { usePosicionBrokers } from '../hooks/usePosicionBrokers';
 import { useEstadoCuenta, useAdminUsers } from '../hooks/useAdmin';
+import { useWatchlist } from '../hooks/useWatchlist';
+import { useCikMap } from '../hooks/useCikMap';
+import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
+import { useRadarTicker } from '../hooks/useRadarTicker';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -231,9 +235,65 @@ export function DashboardPage() {
 
       <MacroResumen resumen={resumen} />
 
+      <RadarResumen />
+
       <AdminResumen />
     </div>
   );
+}
+
+// Resumen del Radar: cuántos tickers en seguimiento y cuántos son "compra agresiva" (margen de
+// seguridad amplio, ver engine/dcf.ts). Cada RadarProbe es invisible — solo corre el mismo cálculo
+// que una fila de RadarPage (useRadarTicker, compartido) y reporta el resultado acá arriba, así el
+// criterio nunca se desincroniza entre el Dashboard y /radar.
+function RadarResumen() {
+  const { data: items = [], isLoading } = useWatchlist();
+  const { map: cikMap, isLoading: cikLoading } = useCikMap();
+  const { data: macro = {} } = useMacro();
+  const riskFree = ((macro as Record<string, number | null>).dgs10 ?? 4.3) / 100;
+  const { map: dcfMap } = useDcfInputs();
+  const [agresivos, setAgresivos] = useState<Set<string>>(new Set());
+
+  const onProbe = useCallback((ticker: string, agresiva: boolean) => {
+    setAgresivos(prev => {
+      if (prev.has(ticker) === agresiva) return prev;
+      const next = new Set(prev);
+      if (agresiva) next.add(ticker); else next.delete(ticker);
+      return next;
+    });
+  }, []);
+
+  if (isLoading || items.length === 0) return null;
+
+  return (
+    <Card>
+      {items.map(it => {
+        const T = it.ticker.toUpperCase();
+        return <RadarProbe key={it.id} ticker={T} cik={it.cik || cikMap.get(T)?.cik} cikLoading={cikLoading}
+          riskFree={riskFree} saved={dcfMap.get(T)} onResult={onProbe} />;
+      })}
+      <CardHeader title="Radar" sub={`${items.length} ticker${items.length > 1 ? 's' : ''} en seguimiento.`}
+        right={agresivos.size > 0
+          ? <Link to="/radar" className="inline-flex items-center gap-1.5">
+              <Badge tone="pos"><Flame className="w-3 h-3" /><span className="ml-1">{agresivos.size} compra agresiva{agresivos.size > 1 ? 's' : ''}</span></Badge>
+            </Link>
+          : <Link to="/radar" className="text-[11px] text-celeste-600 hover:underline">Ver radar →</Link>} />
+      <div className="grid grid-cols-2 gap-2 p-3">
+        <Stat label="En seguimiento" value={items.length} />
+        <Stat label="Compra agresiva" value={agresivos.size} />
+      </div>
+    </Card>
+  );
+}
+
+function RadarProbe({ ticker, cik, cikLoading, riskFree, saved, onResult }: {
+  ticker: string; cik: string | undefined; cikLoading: boolean; riskFree: number;
+  saved: StoredDcf | undefined;
+  onResult: (ticker: string, agresiva: boolean) => void;
+}) {
+  const { agresiva } = useRadarTicker(ticker, cik, cikLoading, riskFree, saved);
+  useEffect(() => { onResult(ticker, agresiva); }, [ticker, agresiva, onResult]);
+  return null;
 }
 
 // Resumen mínimo de administración, solo para admins (no dispara el fetch de /api/admin/users

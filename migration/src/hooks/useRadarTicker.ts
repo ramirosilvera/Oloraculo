@@ -1,0 +1,58 @@
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/api';
+import { useQuotes } from './usePosiciones';
+import { computeRatios } from '../engine/ratios';
+import { computeDcf, dcfDefaultsFor, esCompraAgresiva, type DcfResult } from '../engine/dcf';
+import { computeScore, type ScoreResult } from '../engine/score';
+import type { StoredDcf } from './useDcfInputs';
+import type { Fundamentals, Ratios } from '../types/domain';
+
+export interface RadarTickerData {
+  price: number | null;
+  ratios: Ratios | null;
+  dcf: DcfResult | null;
+  score: ScoreResult | null;
+  agresiva: boolean;
+  isFetching: boolean;  // fundamentals en vuelo
+  isError: boolean;     // fundamentals falló y ya se agotaron los reintentos
+}
+
+// Cálculo por ticker compartido entre RadarPage (una fila por ticker) y el resumen del Dashboard —
+// un solo lugar para que el criterio de "compra agresiva" y el fetch de fundamentals/cotización no
+// se desincronicen entre las dos pantallas.
+export function useRadarTicker(
+  ticker: string, cik: string | undefined, cikLoading: boolean, riskFree: number, saved?: StoredDcf,
+): RadarTickerData {
+  const T = ticker.toUpperCase();
+  const { data: fund, isFetching, isError } = useQuery({
+    queryKey: ['fundamentals', T, cik ?? ''],
+    enabled: !cikLoading && !!cik,   // sin CIK no hay fundamentals que pedir
+    queryFn: () => api.fundamentals(T, cik),
+    staleTime: 12 * 60 * 60_000,
+    // Un 502/503 transitorio del proxy de EDGAR (o de Finnhub/FMP) no debe quedar "atascado" hasta
+    // que el usuario recargue la página a mano — antes era retry:false, así que UN solo fallo de
+    // red podía tardar horas en autocorregirse (caso real: NVDA). Reintenta con backoff acá mismo.
+    retry: 2,
+  });
+  const { data: quotes = {} } = useQuotes([T]);
+  const price = quotes[T] ?? null;
+
+  const { ratios, dcf, score } = useMemo(() => {
+    if (!fund || (fund as { error?: string }).error) return { ratios: null, dcf: null, score: null };
+    const f = fund as Fundamentals;
+    // Si el usuario guardó supuestos para este ticker (en Análisis), los usamos — así el score
+    // refleja SU valuación. Si no, defaults calculados por empresa (g=EG5Y−1pto, d=WACC…).
+    const beta = saved?.beta ?? 1.0;
+    const r = computeRatios(f, price, beta, riskFree);
+    const inputs = saved ?? dcfDefaultsFor(r);
+    const d = computeDcf(f, price, r.wacc, inputs, r.roic);
+    const s = computeScore({
+      marginOfSafety: d.marginOfSafety, roic: r.roic, wacc: r.wacc,
+      operatingMargin: r.operatingMargin, debtToEquity: r.debtToEquity, eg5y: r.eg5y,
+    });
+    return { ratios: r, dcf: d, score: s };
+  }, [fund, price, riskFree, saved]);
+
+  return { price, ratios, dcf, score, agresiva: dcf ? esCompraAgresiva(dcf) : false, isFetching, isError };
+}

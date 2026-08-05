@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, LineChart, Radar, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, ShoppingCart } from 'lucide-react';
-import { api } from '../lib/api';
-import { useMacro, useQuotes } from '../hooks/usePosiciones';
+import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, LineChart, Radar, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, ShoppingCart, Flame } from 'lucide-react';
+import { useMacro } from '../hooks/usePosiciones';
 import { useCikMap } from '../hooks/useCikMap';
 import { useWatchlist, type WatchItem } from '../hooks/useWatchlist';
-import { computeRatios } from '../engine/ratios';
-import { computeDcf, dcfDefaultsFor } from '../engine/dcf';
-import { computeScore, type Rating } from '../engine/score';
+import { useRadarTicker } from '../hooks/useRadarTicker';
+import { MARGEN_COMPRA_AGRESIVA } from '../engine/dcf';
+import type { Rating } from '../engine/score';
 import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
-import type { Fundamentals } from '../types/domain';
 
 const RATING_TONE: Record<Rating, 'pos' | 'accent' | 'warn' | 'neg'> = { A: 'pos', B: 'accent', C: 'warn', D: 'neg' };
 
@@ -20,7 +18,7 @@ const RATING_TONE: Record<Rating, 'pos' | 'accent' | 'warn' | 'neg'> = { A: 'pos
 // ticker), así que esos valores se reportan al padre (onComputed) para poder ordenar sin
 // duplicar el fetch ni levantar el cálculo entero acá arriba.
 type SortKey = 'ticker' | 'price' | 'mos' | 'roic' | 'eg5y' | 'score';
-interface RowSortData { price: number | null; mos: number | null; roic: number | null; eg5y: number | null; score: number | null }
+interface RowSortData { price: number | null; mos: number | null; roic: number | null; eg5y: number | null; score: number | null; agresiva: boolean }
 const DEFAULT_DIR: Record<SortKey, 'asc' | 'desc'> = { ticker: 'asc', price: 'desc', mos: 'desc', roic: 'desc', eg5y: 'desc', score: 'desc' };
 
 export function RadarPage() {
@@ -37,10 +35,11 @@ export function RadarPage() {
   const onRowComputed = useCallback((t: string, d: RowSortData) => {
     setRowData(prev => {
       const cur = prev[t];
-      if (cur && cur.price === d.price && cur.mos === d.mos && cur.roic === d.roic && cur.eg5y === d.eg5y && cur.score === d.score) return prev;
+      if (cur && cur.price === d.price && cur.mos === d.mos && cur.roic === d.roic && cur.eg5y === d.eg5y && cur.score === d.score && cur.agresiva === d.agresiva) return prev;
       return { ...prev, [t]: d };
     });
   }, []);
+  const compraAgresivaCount = useMemo(() => Object.values(rowData).filter(d => d.agresiva).length, [rowData]);
 
   const handleSort = (key: SortKey) => setSort(prev => prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: DEFAULT_DIR[key] });
 
@@ -112,9 +111,13 @@ export function RadarPage() {
       <Card>
         <CardHeader title="Tickers en seguimiento"
           sub="Score = valuación (MoS) + calidad (ROIC−Ke, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código."
-          right={<Button variant="ghost" onClick={refrescar} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Actualizando…' : 'Refrescar'}
-          </Button>} />
+          right={<div className="flex items-center gap-2">
+            {compraAgresivaCount > 0 &&
+              <Badge tone="pos"><Flame className="w-3 h-3" /><span className="ml-1">{compraAgresivaCount} compra agresiva{compraAgresivaCount > 1 ? 's' : ''}</span></Badge>}
+            <Button variant="ghost" onClick={refrescar} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> {refreshing ? 'Actualizando…' : 'Refrescar'}
+            </Button>
+          </div>} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="text-[11px] text-ink-600 border-b border-line">
@@ -177,44 +180,23 @@ function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
     catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo quitar'); setBusy(false); }
   };
 
-  const { data: fund, isFetching } = useQuery({
-    queryKey: ['fundamentals', T, cik ?? ''],
-    enabled: !cikLoading && !!cik,   // sin CIK no hay fundamentals que pedir
-    queryFn: () => api.fundamentals(T, cik),
-    staleTime: 12 * 60 * 60_000,
-    retry: false,
-  });
-  const { data: quotes = {} } = useQuotes([T]);
-  const price = quotes[T] ?? null;
-
-  const { ratios, dcf, score } = useMemo(() => {
-    if (!fund || (fund as { error?: string }).error) return { ratios: null, dcf: null, score: null };
-    const f = fund as Fundamentals;
-    // Si el usuario guardó supuestos para este ticker (en Análisis), los usamos — así el score
-    // refleja SU valuación. Si no, defaults calculados por empresa (g=EG5Y−1pto, d=WACC…).
-    const beta = saved?.beta ?? 1.0;
-    const r = computeRatios(f, price, beta, riskFree);
-    // `saved` completo (no campo por campo): reconstruirlo a mano perdía oeMethod, así que el Radar
-    // puntuaba con OTRA base que la de Análisis, en silencio. El `beta` extra es inofensivo.
-    const inputs = saved ?? dcfDefaultsFor(r);
-    const d = computeDcf(f, price, r.wacc, inputs, r.roic);
-    const s = computeScore({
-      marginOfSafety: d.marginOfSafety, roic: r.roic, wacc: r.wacc,
-      operatingMargin: r.operatingMargin, debtToEquity: r.debtToEquity, eg5y: r.eg5y,
-    });
-    return { ratios: r, dcf: d, score: s };
-  }, [fund, price, riskFree, saved]);
+  const { price, ratios, dcf, score, agresiva, isFetching, isError } = useRadarTicker(T, cik, cikLoading, riskFree, saved);
 
   useEffect(() => {
-    onComputed(T, { price, mos: dcf?.marginOfSafety ?? null, roic: ratios?.roic ?? null, eg5y: ratios?.eg5y ?? null, score: score?.score ?? null });
-  }, [T, price, dcf, ratios, score, onComputed]);
+    onComputed(T, { price, mos: dcf?.marginOfSafety ?? null, roic: ratios?.roic ?? null, eg5y: ratios?.eg5y ?? null, score: score?.score ?? null, agresiva });
+  }, [T, price, dcf, ratios, score, agresiva, onComputed]);
 
   const verdictTone = dcf?.verdict === 'COMPRAR' ? 'pos' : dcf?.verdict === 'CARO' ? 'neg' : 'warn';
 
   return (
-    <tr className="hover:bg-canvas">
+    <tr className={`hover:bg-canvas ${agresiva ? 'bg-pos/5' : ''}`}>
       <td className="px-4 py-2">
         <div className="flex items-center gap-2">
+          {agresiva && (
+            <span title={`Compra agresiva — margen de seguridad ≥${Math.round(MARGEN_COMPRA_AGRESIVA * 100)}%, estándar Buffett de oportunidad amplia`}>
+              <Flame className="w-3.5 h-3.5 text-pos shrink-0" aria-label="Compra agresiva" />
+            </span>
+          )}
           <span className="font-semibold text-ink-900">{T}</span>
           {item.nota && <span className="text-[10px] text-ink-600 truncate max-w-[160px]">{item.nota}</span>}
         </div>
@@ -232,8 +214,10 @@ function RadarRow({ item, riskFree, saved, onRemove, onComputed }: {
           : !cik
             ? <Link to="/config" className="text-[10px] text-warn hover:underline" title="Cargá el CIK en Configuración">sin CIK</Link>
             : isFetching
-              ? <span className="text-ink-500 text-xs">…</span>
-              : <span className="text-ink-600">—</span>}
+              ? <span className="text-ink-500 text-xs" title="Cargando fundamentals de EDGAR…">…</span>
+              : isError
+                ? <span className="text-neg text-[10px]" title="No se pudo cargar (ya reintentó solo) — probá 'Refrescar' arriba">falló</span>
+                : <span className="text-ink-600">—</span>}
       </td>
       <td className="px-2 text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-1">

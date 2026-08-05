@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Fundamentals, AnnualPoint } from '../types/domain';
 import { computeRatios, eg5y } from './ratios';
-import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, normalizarOwnerEarnings, DEFAULT_DCF_INPUTS, OE_METHOD_DEFAULT, G_MAX } from './dcf';
+import { computeDcf, ownerEarningsByYear, sensitivityTable, dcfDefaultsFor, normalizarOwnerEarnings, DEFAULT_DCF_INPUTS, OE_METHOD_DEFAULT, G_MAX, esCompraAgresiva, MARGEN_COMPRA_AGRESIVA } from './dcf';
 
 const P = (vals: [number, number][]): AnnualPoint[] =>
   vals.map(([fy, val]) => ({ fy, end: `${fy}-06-30`, val }));
@@ -334,5 +334,34 @@ describe("método 'margen': normaliza rentabilidad sin perder escala", () => {
     const r = computeDcf(sinVentas, 420, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'margen' });
     const pond = computeDcf(sinVentas, 420, 0.09, { ...DEFAULT_DCF_INPUTS, oeMethod: 'ponderado' });
     expect(r.ownerEarningsNorm).toBeCloseTo(pond.ownerEarningsNorm, 9);
+  });
+});
+
+describe('esCompraAgresiva — estándar Buffett de margen de seguridad amplio', () => {
+  it('COMPRAR con margen ≥50% (default) → true', () => {
+    expect(esCompraAgresiva({ verdict: 'COMPRAR', marginOfSafety: 0.5 })).toBe(true);
+    expect(esCompraAgresiva({ verdict: 'COMPRAR', marginOfSafety: 0.62 })).toBe(true);
+  });
+
+  it('COMPRAR pero margen por debajo del umbral → false (barato no alcanza, tiene que ser AMPLIO)', () => {
+    expect(esCompraAgresiva({ verdict: 'COMPRAR', marginOfSafety: 0.21 })).toBe(false);
+  });
+
+  it('margen amplio pero verdict no es COMPRAR (ej. base inestable) → false', () => {
+    expect(esCompraAgresiva({ verdict: 'ESPERAR', marginOfSafety: 0.6 })).toBe(false);
+    expect(esCompraAgresiva({ verdict: 'CARO', marginOfSafety: 0.6 })).toBe(false);
+  });
+
+  it('sin dato de margen → false, nunca true por defecto', () => {
+    expect(esCompraAgresiva({ verdict: 'SIN_DATOS', marginOfSafety: null })).toBe(false);
+  });
+
+  it('umbral personalizado', () => {
+    expect(esCompraAgresiva({ verdict: 'COMPRAR', marginOfSafety: 0.35 }, 0.3)).toBe(true);
+    expect(esCompraAgresiva({ verdict: 'COMPRAR', marginOfSafety: 0.25 }, 0.3)).toBe(false);
+  });
+
+  it('MARGEN_COMPRA_AGRESIVA es 50%', () => {
+    expect(MARGEN_COMPRA_AGRESIVA).toBe(0.5);
   });
 });

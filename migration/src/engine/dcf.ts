@@ -299,6 +299,18 @@ export function computeDcf(f: Fundamentals, price: number | null, wacc: number |
   };
 }
 
+// "Compra agresiva" (estándar Buffett): no alcanza con estar barato — el margen de seguridad tiene
+// que ser AMPLIO, un colchón grande para el error de estimación. Exige verdict COMPRAR (que ya
+// descarta bases inestables vía motivoInestable) además del margen — así una empresa barata pero
+// con datos ruidosos nunca se marca como oportunidad agresiva.
+export const MARGEN_COMPRA_AGRESIVA = 0.5;
+export function esCompraAgresiva(
+  dcf: Pick<DcfResult, 'verdict' | 'marginOfSafety'>,
+  umbral = MARGEN_COMPRA_AGRESIVA,
+): boolean {
+  return dcf.verdict === 'COMPRAR' && dcf.marginOfSafety != null && dcf.marginOfSafety >= umbral;
+}
+
 // Tabla de sensibilidad: valor intrínseco por acción variando g (filas) contra d (columnas).
 export function sensitivityTable(
   f: Fundamentals, wacc: number | null, base: DcfInputs,
