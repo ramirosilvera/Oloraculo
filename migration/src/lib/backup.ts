@@ -9,11 +9,17 @@ import { supabase } from './supabase';
 // (reemplaza posiciones.broker_id, que ya no existe). Ver 0018_posicion_brokers.sql.
 // v5: agrega cobros_inversiones (ledger de "cuánto del saldo disponible ya se invirtió"). Ver
 // 0019_cobros_inversiones.sql.
-export const BACKUP_VERSION = 5;
+// v6: agrega transferencias (historial de reasignaciones entre portfolios propios). Es SOLO
+// exportable, no restaurable: la tabla no tiene política de insert para el cliente a propósito
+// (solo se escribe vía transferir_posicion(), atómica — ver 0024_transferencias.sql) — restaurar
+// filas sueltas ahí, sin la posición exacta que originaron, podría dejar el historial inconsistente.
+// El estado de las posiciones en sí (cantidades post-transferencia) sí se restaura normal, vía la
+// tabla posiciones.
+export const BACKUP_VERSION = 6;
 
 const TABLAS = [
   'portfolios', 'brokers', 'posiciones', 'posicion_brokers', 'movimientos', 'aportes', 'portfolio_snapshots',
-  'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros', 'cobros_inversiones',
+  'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros', 'cobros_inversiones', 'transferencias',
   'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;
 

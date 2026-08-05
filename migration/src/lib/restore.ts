@@ -63,13 +63,18 @@ export function parseBackup(text: string): Preview {
   // v1/v2/v3 igual se pueden restaurar (solo les faltan tablas que no existían todavía, o traen
   // posiciones.broker_id que ya no se usa) — el aviso es solo para versiones FUTURAS que este
   // código todavía no sepa interpretar.
-  if (data.backup_version && data.backup_version > 5) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v5).`);
+  if (data.backup_version && data.backup_version > 6) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v6).`);
   if (data.backup_version === 1) avisos.push('Backup v1 (anterior a Cobros y Proyección): no va a traer el historial de dividendos/intereses/amortizaciones ni los supuestos de Proyección guardados, porque todavía no existían.');
   if (data.backup_version === 1 || data.backup_version === 2) avisos.push('Backup anterior a Brokers: las posiciones van a quedar "Sin asignar" (no había ningún broker cargado todavía).');
   if (data.backup_version != null && data.backup_version <= 3) avisos.push('Backup anterior al reparto por broker (posicion_brokers): la asignación de brokers no se va a poder restaurar (la versión vieja guardaba un solo broker por posición, en un campo que ya no existe) — reasignalos desde la sección Brokers después de restaurar.');
   if (data.backup_version != null && data.backup_version <= 4) avisos.push('Backup anterior al saldo invertible (cobros_inversiones): no va a traer el historial de "cuánto del saldo disponible ya invertiste" — el saldo mostrado después de restaurar va a ser el bruto completo hasta que lo vuelvas a marcar.');
   // El propio backup avisa si se generó incompleto (ver backup.ts): lo mostramos antes de restaurar.
   if (data.partial) avisos.push(`El backup se generó INCOMPLETO${data.errores?.length ? ` (falló: ${data.errores.join('; ')})` : ''}: puede faltar información.`);
+  // transferencias es de solo lectura para el cliente (ver 0024_transferencias.sql) — se exporta
+  // pero nunca se restaura; el estado de las posiciones en sí sí vuelve, vía la tabla posiciones.
+  if (Array.isArray(data.tables.transferencias) && data.tables.transferencias.length > 0) {
+    avisos.push('El historial de Transferencias no se restaura (solo se exporta) — las posiciones en sí vuelven con normalidad.');
+  }
   const counts: Record<string, number> = {};
   let total = 0;
   for (const { table } of RESTORE_ORDER) {

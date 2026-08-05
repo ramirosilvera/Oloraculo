@@ -21,6 +21,7 @@ import { FinanzasPage } from './pages/FinanzasPage';
 import { BrokersPage } from './pages/BrokersPage';
 import { MacroPage } from './pages/MacroPage';
 import { AdminPage } from './pages/AdminPage';
+import { TransferenciasPage } from './pages/TransferenciasPage';
 
 export function App() {
   const { session, loading } = useAuth();
@@ -54,6 +55,7 @@ export function App() {
           <Route path="aportes" element={<AportesPage />} />
           <Route path="proyeccion" element={<ProyeccionesPage />} />
           <Route path="brokers" element={<BrokersPage />} />
+          <Route path="transferencias" element={<TransferenciasPage />} />
           <Route path="macro" element={<MacroPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="config" element={<ConfigPage />} />
