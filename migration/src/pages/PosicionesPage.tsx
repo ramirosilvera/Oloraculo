@@ -5,6 +5,7 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, usePosicionMutations, useQuotes, useMovimientos } from '../hooks/usePosiciones';
 import { useCedearRatios } from '../hooks/useCedearRatios';
 import { useCikMap } from '../hooks/useCikMap';
+import { useAporteMutations } from '../hooks/useAportes';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
@@ -21,6 +22,7 @@ export function PosicionesPage() {
   const { ratios: cedearRatios, saveRatio } = useCedearRatios();
   const { data: posiciones = [], isLoading: posLoading } = usePosiciones(active?.id);
   const { add, sell, update, remove, setObjetivos } = usePosicionMutations(active?.id);
+  const { add: addAporte } = useAporteMutations(active?.id);
 
   const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
   const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
@@ -48,6 +50,10 @@ export function PosicionesPage() {
   const [showForm, setShowForm] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Sin tildar por default: crear un aporte automático cuando en realidad se compró con plata que
+  // ya estaba en el portfolio duplicaría capital en la TIR (ver portfolioTir en engine/irr.ts) —
+  // más vale que el usuario lo tilde a propósito que asumirlo mal.
+  const [capitalNuevo, setCapitalNuevo] = useState(false);
   const [histTicker, setHistTicker] = useState<string | null>(null);
   const [sellData, setSellData] = useState<{ pos: Posicion; sugerido: number | null } | null>(null);
   const [editPos, setEditPos] = useState<Posicion | null>(null);
@@ -105,8 +111,23 @@ export function PosicionesPage() {
       if (form.tipo === 'cedear' && form.ticker && form.ratio_cedear && !cedearRatios[form.ticker]) {
         void saveRatio(form.ticker, form.ratio_cedear);
       }
+      // Aporte automático SOLO si el usuario tildó "es capital nuevo" — evita la carga duplicada
+      // (posición + aporte a mano) sin arriesgar duplicar capital en la TIR cuando en realidad se
+      // compró con plata que ya estaba en el portfolio (ver nota en el estado de capitalNuevo).
+      if (capitalNuevo) {
+        const monto = (Number(form.cantidad) || 0) * (Number(form.precio_compra) || 0);
+        if (monto > 0) {
+          try {
+            await addAporte({
+              monto, fecha: form.fecha_compra || new Date().toISOString().slice(0, 10),
+              tipo: 'recurrente', descripcion: `Compra ${form.ticker}`,
+            });
+          } catch { /* la posición ya se guardó — un aporte fallido no debe parecer que todo falló */ }
+        }
+      }
       setShowForm(false);
       setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 });
+      setCapitalNuevo(false);
     } catch (e) {
       setFormErr(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`);
     } finally { setSaving(false); }
@@ -134,7 +155,7 @@ export function PosicionesPage() {
           <Button onClick={() => {
             // Al abrir, arrancar limpio: sin esto, campos de una carga anterior (incluido cupón)
             // reaparecían y podían mezclarse con el alta siguiente.
-            setShowForm(v => { if (!v) { setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 }); setFormErr(null); } return !v; });
+            setShowForm(v => { if (!v) { setForm({ tipo: 'cedear', cantidad: 0, precio_compra: 0 }); setFormErr(null); setCapitalNuevo(false); } return !v; });
           }}><Plus className="w-4 h-4" /> Agregar</Button>
         </div>
       </div>
@@ -218,6 +239,16 @@ export function PosicionesPage() {
               </Field>
             </div>
           )}
+          <div className="px-4 pb-3">
+            <label className="flex items-start gap-2 text-xs text-ink-700 cursor-pointer">
+              <input type="checkbox" checked={capitalNuevo} onChange={e => setCapitalNuevo(e.target.checked)} className="mt-0.5" />
+              <span>
+                ¿Es capital nuevo (recién ingresado, no plata que ya estaba en el portfolio)? Si tildás esto se registra
+                un aporte de {fmtUsd((Number(form.cantidad) || 0) * (Number(form.precio_compra) || 0), 0)} automáticamente,
+                para no tener que cargarlo dos veces en Aportes.
+              </span>
+            </label>
+          </div>
           {formErr && <p className="px-4 pb-3 text-xs text-warn">{formErr}</p>}
         </Card>
       )}
@@ -316,7 +347,20 @@ export function PosicionesPage() {
       {histTicker && <MovimientosModal portfolioId={active.id} ticker={histTicker} onClose={() => setHistTicker(null)} />}
       {sellData && <SellModal pos={sellData.pos} sugerido={sellData.sugerido}
         onClose={() => setSellData(null)}
-        onSell={async (qty, precio, fecha) => { await sell(sellData.pos, qty, precio, fecha); setSellData(null); }} />}
+        onSell={async (qty, precio, fecha, retiro) => {
+          await sell(sellData.pos, qty, precio, fecha);
+          // Retiro SOLO si el usuario tildó "sacás esta plata del portfolio" — vender y dejar el
+          // efectivo adentro para la próxima compra no es un movimiento externo, no toca aportes
+          // (mismo criterio que el toggle de "capital nuevo" al comprar, ver más arriba).
+          if (retiro) {
+            const monto = qty * precio;
+            if (monto > 0) {
+              try { await addAporte({ monto, fecha, tipo: 'retiro', descripcion: `Venta ${sellData.pos.ticker}` }); }
+              catch { /* la venta ya se registró — un aporte fallido no debe parecer que todo falló */ }
+            }
+          }
+          setSellData(null);
+        }} />}
       {editPos && <EditModal pos={editPos} onClose={() => setEditPos(null)}
         onSave={async (patch) => { await update(editPos.id, patch); setEditPos(null); }} />}
       {simular && <SimularCompraModal openRows={openRows} totalMkt={totalMkt} cedearRatios={cedearRatios}
@@ -456,12 +500,13 @@ function EditModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () => voi
 
 function SellModal({ pos, sugerido, onClose, onSell }: {
   pos: Posicion; sugerido: number | null; onClose: () => void;
-  onSell: (qty: number, precio: number, fecha: string) => Promise<void>;
+  onSell: (qty: number, precio: number, fecha: string, retiro: boolean) => Promise<void>;
 }) {
   useEscapeClose(onClose);
   const [qty, setQty] = useState<string>(String(pos.cantidad));
   const [precio, setPrecio] = useState<string>(sugerido != null ? String(+sugerido.toFixed(2)) : '');
   const [fecha, setFecha] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [retiro, setRetiro] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -475,7 +520,7 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
     if (!(p > 0)) { setErr('Ingresá el precio de venta (no puede ser 0).'); return; }
     if (n > pos.cantidad) { setErr(`No podés vender más de ${fmtNum(pos.cantidad, 0)} que tenés.`); return; }
     setBusy(true); setErr(null);
-    try { await onSell(n, p, fecha); }
+    try { await onSell(n, p, fecha, retiro); }
     catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo vender'); setBusy(false); }
   };
 
@@ -500,6 +545,15 @@ function SellModal({ pos, sugerido, onClose, onSell }: {
           <div className="px-4 pb-2 flex items-center justify-between text-sm">
             <span className="text-ink-600">Resultado estimado (vs costo prom.)</span>
             <span className={`tnum font-semibold ${resultado >= 0 ? 'text-pos' : 'text-neg'}`}>{resultado >= 0 ? '+' : ''}{fmtUsd(resultado, 0)}</span>
+          </div>
+          <div className="px-4 pb-2">
+            <label className="flex items-start gap-2 text-xs text-ink-700 cursor-pointer">
+              <input type="checkbox" checked={retiro} onChange={e => setRetiro(e.target.checked)} className="mt-0.5" />
+              <span>
+                ¿Sacás esta plata del portfolio? Si tildás esto se registra un retiro de {fmtUsd(n * p, 0)} en Aportes
+                automáticamente. Dejalo destildado si el efectivo se queda adentro para la próxima compra.
+              </span>
+            </label>
           </div>
           {err && <p className="px-4 pb-2 text-xs text-warn">{err}</p>}
           <div className="px-4 pb-4 flex justify-end gap-2">
