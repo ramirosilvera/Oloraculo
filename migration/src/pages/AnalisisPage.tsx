@@ -45,6 +45,15 @@ export function AnalisisPage() {
   const price = quotes[T] ?? null;
   const riskFree = (macro.dgs10 ?? 4.3) / 100;
 
+  // Beta real de mercado (Finnhub/FMP, cacheado) — el default cuando no hay un override guardado.
+  // Antes acá se sembraba siempre 1.0 fijo, sin decir nada de la volatilidad real de la empresa.
+  const { data: betaFetched, isLoading: betaLoading } = useQuery({
+    queryKey: ['beta', T],
+    queryFn: () => api.beta(T),
+    staleTime: 24 * 60 * 60_000,
+  });
+  const betaDefault = betaFetched?.beta ?? 1.0;
+
   const seededFor = useRef<string | null>(null);
   useEffect(() => { seededFor.current = null; setSaveMsg(null); }, [T]);
 
@@ -63,19 +72,22 @@ export function AnalisisPage() {
   // supuestos para ese ticker, los usamos; si no, calculamos los defaults por empresa
   // (g = EG5Y−1pto acotado, d = Ke, gt 3%, N 20, MoS 20%, base = último año).
   useEffect(() => {
-    if (!ratios || dcfLoading || seededFor.current === T) return;
+    // Espera a que también resuelva la consulta de beta — si no, con un saved.beta ausente se
+    // podía sembrar 1.0 y quedarse así aunque el beta real llegara un instante después (el guard de
+    // abajo solo siembra una vez por ticker, no se re-corre cuando cambia betaFetched).
+    if (!ratios || dcfLoading || betaLoading || seededFor.current === T) return;
     seededFor.current = T;
     const saved = dcfMap.get(T);
     if (saved) { const { beta: b, ...rest } = saved; setInp(rest); setBeta(b); }
-    else { setInp(dcfDefaultsFor(ratios)); setBeta(1.0); }
-  }, [ratios, dcfLoading, T, dcfMap]);
+    else { setInp(dcfDefaultsFor(ratios)); setBeta(betaDefault); }
+  }, [ratios, dcfLoading, betaLoading, betaDefault, T, dcfMap]);
 
   const guardarSupuestos = async () => {
     try { await saveDcf(T, { ...inp, beta }); setSaveMsg('Guardado ✓ — el Radar usará estos supuestos.'); }
     catch (e) { setSaveMsg(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`); }
   };
   const restablecer = async () => {
-    if (ratios) { setInp(dcfDefaultsFor(ratios)); setBeta(1.0); }
+    if (ratios) { setInp(dcfDefaultsFor(ratios)); setBeta(betaDefault); }
     try { await removeDcf(T); setSaveMsg('Restablecido a los valores por defecto.'); } catch { /* */ }
   };
 
@@ -166,8 +178,10 @@ export function AnalisisPage() {
           <Metric l="P/E fwd" v={fmtNum(ratios.peForward, 1)} />
           <Metric l="P/B" v={fmtNum(ratios.pb, 1)} />
           <Metric l="ROIC" v={`${fmtPct(ratios.roic)}${ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? ' ✓' : ''}`} tone={ratios.roic != null && ratios.wacc != null && ratios.roic > ratios.wacc ? 'pos' : 'warn'} />
-          <Metric l="Ke (CAPM)" v={fmtPct(ratios.costOfEquity)} />
-          <Metric l="WACC" v={fmtPct(ratios.wacc)} />
+          <Metric l="Ke (CAPM)" v={fmtPct(ratios.costOfEquity)}
+            hint="Ke = tasa libre de riesgo (FRED, real) + beta × 5% (prima de riesgo de mercado, supuesto fijo). El beta es de mercado (Finnhub/FMP) salvo que lo edites vos abajo — EDGAR no tiene beta ni prima de riesgo, son datos de mercado, no contables." />
+          <Metric l="WACC" v={fmtPct(ratios.wacc)}
+            hint="Mezcla Ke (de arriba) con el costo de deuda después de impuestos — ese sí sale de EDGAR (intereses/deuda/impuestos reales del balance). No es un número inventado, pero tampoco 'exacto': la parte de mercado (beta, prima de riesgo) es siempre un supuesto, EDGAR no la tiene." />
           <Metric l="EG5Y (real)" v={fmtPct(ratios.eg5y)} />
           <Metric l="Margen op." v={fmtPct(ratios.operatingMargin)} />
           <Metric l="Deuda/Eq." v={fmtNum(ratios.debtToEquity, 2)} />
@@ -236,7 +250,14 @@ export function AnalisisPage() {
             </select>
             </label>
           </div>
-          <NumIn l="Beta" v={beta} step={0.1} onChange={setBeta} />
+          <div>
+            <NumIn l="Beta" v={beta} step={0.1} onChange={setBeta} />
+            <p className="text-[9px] text-ink-500 mt-0.5">
+              {betaFetched?.beta != null
+                ? `Default de mercado (${betaFetched.fuente}): ${fmtNum(betaFetched.beta, 2)} — editable`
+                : 'Sin beta de mercado para este ticker — default 1.0, editable'}
+            </p>
+          </div>
         </div>
         {/* Nota metodológica dividendo ↔ tasa */}
         <div className="mx-4 mb-4 rounded-xl bg-celeste-500/10 border border-celeste-500/25 px-3 py-2 text-[11px] text-ink-600 flex gap-2">
@@ -354,9 +375,9 @@ function GeminiAnalysis({ ticker, portfolioId, context }: { ticker: string; port
   );
 }
 
-function Metric({ l, v, tone }: { l: string; v: string; tone?: 'pos' | 'neg' | 'warn' }) {
+function Metric({ l, v, tone, hint }: { l: string; v: string; tone?: 'pos' | 'neg' | 'warn'; hint?: string }) {
   const c = tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : tone === 'warn' ? 'text-warn' : 'text-ink-900';
-  return <div><p className="text-[10px] uppercase text-ink-600">{l}</p><p className={`font-semibold tnum ${c}`}>{v}</p></div>;
+  return <div title={hint}><p className="text-[10px] uppercase text-ink-600">{l}{hint && <span className="text-ink-500"> ⓘ</span>}</p><p className={`font-semibold tnum ${c}`}>{v}</p></div>;
 }
 function NumIn({ l, v, step, onChange, pct }: { l: string; v: number; step: number; onChange: (n: number) => void; pct?: boolean }) {
   return (

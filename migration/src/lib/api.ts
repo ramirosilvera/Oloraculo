@@ -43,6 +43,10 @@ export const api = {
     get<Fundamentals & { warning?: string; cached?: boolean }>(
       `/api/market/fundamentals?ticker=${encodeURIComponent(ticker)}${cik ? `&cik=${cik}` : ''}${fresh ? '&fresh=1' : ''}`),
 
+  // Beta real de mercado (Finnhub/FMP, cacheado) — reemplaza el default fijo de 1.0 en WACC cuando
+  // el usuario no cargó un beta manual en Análisis. beta:null si ningún proveedor lo tiene.
+  beta: (ticker: string) => get<{ beta: number | null; fuente?: string; cached?: boolean }>(`/api/market/beta?ticker=${encodeURIComponent(ticker)}`),
+
   quotes: (tickers: string[]) =>
     get<Record<string, number | null>>(`/api/market/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`),
 

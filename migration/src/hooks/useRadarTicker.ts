@@ -38,12 +38,22 @@ export function useRadarTicker(
   const { data: quotes = {} } = useQuotes([T]);
   const price = quotes[T] ?? null;
 
+  // Beta real de mercado (Finnhub/FMP) si no hay un override manual guardado en Análisis — antes
+  // WACC siempre usaba 1.0 fijo acá, que no dice nada de la volatilidad real de la empresa.
+  const { data: betaFetched } = useQuery({
+    queryKey: ['beta', T],
+    enabled: saved?.beta == null,
+    queryFn: () => api.beta(T),
+    staleTime: 24 * 60 * 60_000,
+  });
+
   const { ratios, dcf, score } = useMemo(() => {
     if (!fund || (fund as { error?: string }).error) return { ratios: null, dcf: null, score: null };
     const f = fund as Fundamentals;
-    // Si el usuario guardó supuestos para este ticker (en Análisis), los usamos — así el score
-    // refleja SU valuación. Si no, defaults calculados por empresa (g=EG5Y−1pto, d=WACC…).
-    const beta = saved?.beta ?? 1.0;
+    // Prioridad: override manual del usuario (Análisis) > beta real de mercado > 1.0 como último
+    // recurso (ticker que ningún proveedor cubre). Si el usuario guardó supuestos completos para
+    // este ticker, se usan íntegros — así el score refleja SU valuación, no otra base en silencio.
+    const beta = saved?.beta ?? betaFetched?.beta ?? 1.0;
     const r = computeRatios(f, price, beta, riskFree);
     const inputs = saved ?? dcfDefaultsFor(r);
     const d = computeDcf(f, price, r.wacc, inputs, r.roic);
@@ -52,7 +62,7 @@ export function useRadarTicker(
       operatingMargin: r.operatingMargin, debtToEquity: r.debtToEquity, eg5y: r.eg5y,
     });
     return { ratios: r, dcf: d, score: s };
-  }, [fund, price, riskFree, saved]);
+  }, [fund, price, riskFree, saved, betaFetched]);
 
   return { price, ratios, dcf, score, agresiva: dcf ? esCompraAgresiva(dcf) : false, isFetching, isError };
 }
