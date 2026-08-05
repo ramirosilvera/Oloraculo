@@ -18,7 +18,7 @@ import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { resumenCobros } from '../engine/cobros';
-import { redondearPct } from '../engine/rebalance';
+import { redondearPct, TOLERANCIA_OBJETIVO } from '../engine/rebalance';
 import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
@@ -293,6 +293,9 @@ function RadarProbe({ ticker, cik, cikLoading, riskFree, saved, onResult }: {
 }) {
   const { agresiva } = useRadarTicker(ticker, cik, cikLoading, riskFree, saved);
   useEffect(() => { onResult(ticker, agresiva); }, [ticker, agresiva, onResult]);
+  // Si el ticker sale del watchlist este probe se desmonta y ya no vuelve a llamar onResult —
+  // sin este cleanup, `agresivos` en el padre lo sigue contando para siempre.
+  useEffect(() => () => onResult(ticker, false), [ticker, onResult]);
   return null;
 }
 
@@ -318,12 +321,6 @@ function AdminResumen() {
     </Card>
   );
 }
-
-// Tolerancia para marcar un activo "fuera del objetivo": el precio fluctúa todo el tiempo, así que
-// prácticamente nunca va a estar exactamente en el % objetivo — antes eran 0.5 puntos porcentuales
-// (0.005), demasiado ajustado para una fluctuación normal de mercado. 2.5pp deja margen real y
-// solo avisa cuando el desvío importa.
-const TOLERANCIA_OBJETIVO = 0.025;
 
 function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mkt: number; target: number | null }[]; total: number; isLoading: boolean }) {
   const chart = useChartTheme();

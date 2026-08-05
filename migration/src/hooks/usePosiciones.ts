@@ -154,6 +154,21 @@ export function usePosicionMutations(portfolioId: string | null | undefined) {
       if (error) throw error; invalidate();
     },
     update: async (id: string, patch: Partial<Posicion>) => {
+      // Solo el ticker puede colisionar con otra fila (cantidad/precio/etc. no tienen ese riesgo).
+      // Sin este chequeo, renombrar un bono licitado al ticker de una posición ya existente del
+      // mismo tipo crea un duplicado silencioso (no hay unique constraint en la tabla) — mismo
+      // criterio que transferir_posicion(): rechazar en vez de mezclar costos en silencio.
+      if (patch.ticker) {
+        const ticker = patch.ticker.toUpperCase().trim();
+        const { data: current, error: curErr } = await supabase.from('posiciones')
+          .select('tipo').eq('id', id).single();
+        if (curErr) throw curErr;
+        const { data: dup, error: dupErr } = await supabase.from('posiciones')
+          .select('id').eq('portfolio_id', portfolioId).eq('ticker', ticker).eq('tipo', current.tipo)
+          .neq('id', id).limit(1).maybeSingle();
+        if (dupErr) throw dupErr;
+        if (dup) throw new Error(`Ya existe una posición de ${ticker} en este portfolio — no se puede renombrar (crearía un duplicado).`);
+      }
       const { error } = await supabase.from('posiciones').update(patch).eq('id', id);
       if (error) throw error; invalidate();
     },

@@ -39,7 +39,12 @@ export function RadarPage() {
       return { ...prev, [t]: d };
     });
   }, []);
-  const compraAgresivaCount = useMemo(() => Object.values(rowData).filter(d => d.agresiva).length, [rowData]);
+  // rowData es acumulativo (onRowComputed nunca borra entradas) — filtrar por los tickers
+  // presentes hoy en items, si no un ticker sacado del radar sigue inflando el conteo.
+  const compraAgresivaCount = useMemo(() => {
+    const presentes = new Set(items.map(it => it.ticker.toUpperCase()));
+    return Object.entries(rowData).filter(([t, d]) => presentes.has(t) && d.agresiva).length;
+  }, [rowData, items]);
 
   const handleSort = (key: SortKey) => setSort(prev => prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: DEFAULT_DIR[key] });
 

@@ -3,6 +3,13 @@
 // (los NÚMEROS los calcula el código). Todo en la misma moneda (USD) que la valuación.
 // =============================================================================
 
+// Tolerancia (fracción, ej. 0.025 = ±2.5pp) por debajo de la cual una posición "fuera del
+// objetivo" no se marca como desviada — evita ruido visual por micro-desvíos que el rebalanceo
+// normal (precios moviéndose día a día) genera todo el tiempo. Un único valor compartido: Dashboard
+// y Posiciones muestran el mismo concepto ("¿esta posición está fuera de su % objetivo?") y no
+// pueden divergir en el umbral.
+export const TOLERANCIA_OBJETIVO = 0.025;
+
 // Monto (USD) a AGREGAR a una posición para que su peso llegue a `objetivo` (0..1), contemplando
 // que comprar también agranda el total: resolvemos (vi + x)/(V + x) = t  →  x = (t·V − vi)/(1 − t).
 // Negativo = la posición ya está por ENCIMA del objetivo (habría que vender ~|x|).

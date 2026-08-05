@@ -10,7 +10,7 @@ import { useEscapeClose } from '../hooks/useEscapeClose';
 import { PortfolioReview } from '../components/PortfolioReview';
 import { Card, CardHeader, Button, Badge, Stat, Field, inputCls, Empty, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { realizedPnl } from '../engine/pnl';
-import { cantidadPorMonto, aplicarObjetivo, redondearPct, resolverObjetivosSimultaneos, pesoResultanteConjunto, type SimTarget } from '../engine/rebalance';
+import { cantidadPorMonto, aplicarObjetivo, redondearPct, resolverObjetivosSimultaneos, pesoResultanteConjunto, TOLERANCIA_OBJETIVO, type SimTarget } from '../engine/rebalance';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { unitValueUSD } from '../lib/valuation';
 import type { Posicion } from '../types/domain';
@@ -394,7 +394,7 @@ function TargetCell({ pos, actual, displayPct, onCommit }: { pos: Posicion; actu
           className="w-9 text-right text-[11px] bg-canvas border border-line rounded px-1 py-0.5 tnum focus:outline-none focus:ring-1 focus:ring-celeste-300" />
         <span className="text-[9px]">%</span>
       </div>
-      {off != null && Math.abs(off) >= 0.005 && (
+      {off != null && Math.abs(off) >= TOLERANCIA_OBJETIVO && (
         <span className={`text-[9px] tnum ${off > 0 ? 'text-warn' : 'text-celeste-600'}`} title={off > 0 ? 'por encima del objetivo' : 'por debajo del objetivo'}>
           {off > 0 ? '+' : ''}{fmtPct(off, 0)}
         </span>

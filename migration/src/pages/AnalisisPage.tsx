@@ -87,6 +87,9 @@ export function AnalisisPage() {
     catch (e) { setSaveMsg(`No se pudo guardar: ${e instanceof Error ? e.message : 'error'}`); }
   };
   const restablecer = async () => {
+    // Si el beta de mercado todavía no resolvió, no pisar el campo con el fallback 1.0 — quedaría
+    // trabado ahí para siempre (seededFor.current ya está seteado, el efecto de siembra no vuelve a correr).
+    if (betaLoading) { setSaveMsg('Esperá a que termine de cargar el beta de mercado…'); return; }
     if (ratios) { setInp(dcfDefaultsFor(ratios)); setBeta(betaDefault); }
     try { await removeDcf(T); setSaveMsg('Restablecido a los valores por defecto.'); } catch { /* */ }
   };
