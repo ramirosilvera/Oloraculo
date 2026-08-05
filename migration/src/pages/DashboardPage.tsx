@@ -226,6 +226,8 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
 
+      <RadarResumen />
+
       {/* Patrimonio por broker: dónde está físicamente cada posición. */}
       <PatrimonioBrokers posiciones={posiciones} quotes={quotes} isLoading={qPos.isLoading} />
 
@@ -234,8 +236,6 @@ export function DashboardPage() {
       {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
 
       <MacroResumen resumen={resumen} />
-
-      <RadarResumen />
 
       <AdminResumen />
     </div>
