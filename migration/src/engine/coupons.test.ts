@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { couponEvents, couponCalendar, cuponAnualTotal, ytm, type CouponBond } from './coupons';
+import { couponEvents, couponCalendar, cuponAnualTotal, ytm, bondDuration, type CouponBond } from './coupons';
 
 const semestral: CouponBond = { ticker: 'GD46', faceValue: 1000, tasaAnual: 0.08, frecuencia: 2, mesRef: 1 };
 // paga en enero y julio; cupón por período = 1000 × 0.08/2 = 40
@@ -73,5 +73,43 @@ describe('ytm — TIR al vencimiento (vs current yield)', () => {
     expect(ytm({ precio: 0, tasaAnual: 0.07, frecuencia: 2, vencimiento: '2030-01-01', hoy: '2026-07-24' })).toBeNull();
     expect(ytm({ precio: 1, tasaAnual: 0.07, frecuencia: 2, vencimiento: '2020-01-01', hoy: '2026-07-24' })).toBeNull();
     expect(ytm({ precio: 1, tasaAnual: 0.07, frecuencia: 2, vencimiento: 'nope', hoy: '2026-07-24' })).toBeNull();
+  });
+});
+
+describe('bondDuration — Macaulay y modificada', () => {
+  it('cupón cero (bullet puro): Macaulay = tiempo exacto al vencimiento', () => {
+    // Sin cupón, el único flujo es el rescate al vencimiento → el "promedio ponderado" es ese único punto.
+    const d = bondDuration({ tasaAnual: 0, frecuencia: 2, vencimiento: '2027-07-24', hoy: '2026-07-24', ytmAnual: 0.10 })!;
+    expect(d.macaulay).toBeCloseTo(1.0, 2);
+    expect(d.modified).toBeCloseTo(1.0 / 1.10, 2);
+  });
+
+  it('con cupón, la duración es MENOR al tiempo al vencimiento (los cupones adelantan flujo)', () => {
+    const d = bondDuration({ tasaAnual: 0.08, frecuencia: 2, vencimiento: '2031-07-24', hoy: '2026-07-24', ytmAnual: 0.08 })!;
+    expect(d.macaulay).toBeGreaterThan(0);
+    expect(d.macaulay).toBeLessThan(5);   // 5 años al vencimiento
+  });
+
+  it('a mayor cupón, menor duración (más peso en flujos tempranos)', () => {
+    const bajo = bondDuration({ tasaAnual: 0.03, frecuencia: 2, vencimiento: '2031-07-24', hoy: '2026-07-24', ytmAnual: 0.08 })!;
+    const alto = bondDuration({ tasaAnual: 0.12, frecuencia: 2, vencimiento: '2031-07-24', hoy: '2026-07-24', ytmAnual: 0.08 })!;
+    expect(alto.macaulay).toBeLessThan(bajo.macaulay);
+  });
+
+  it('a mayor plazo al vencimiento, mayor duración', () => {
+    const corto = bondDuration({ tasaAnual: 0.06, frecuencia: 2, vencimiento: '2028-07-24', hoy: '2026-07-24', ytmAnual: 0.08 })!;
+    const largo = bondDuration({ tasaAnual: 0.06, frecuencia: 2, vencimiento: '2036-07-24', hoy: '2026-07-24', ytmAnual: 0.08 })!;
+    expect(largo.macaulay).toBeGreaterThan(corto.macaulay);
+  });
+
+  it('modificada = macaulay / (1 + YTM)', () => {
+    const d = bondDuration({ tasaAnual: 0.07, frecuencia: 4, vencimiento: '2033-01-15', hoy: '2026-07-24', ytmAnual: 0.095 })!;
+    expect(d.modified).toBeCloseTo(d.macaulay / 1.095, 6);
+  });
+
+  it('datos inválidos o bono vencido → null (no inventa)', () => {
+    expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: '2020-01-01', hoy: '2026-07-24', ytmAnual: 0.08 })).toBeNull();
+    expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: 'nope', hoy: '2026-07-24', ytmAnual: 0.08 })).toBeNull();
+    expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: '2030-01-01', hoy: '2026-07-24', ytmAnual: NaN })).toBeNull();
   });
 });

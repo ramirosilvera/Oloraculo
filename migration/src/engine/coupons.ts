@@ -83,12 +83,35 @@ export function cuponAnualTotal(bonds: CouponBond[]): number {
   return +bonds.reduce((s, b) => s + (b.tasaAnual > 0 && b.faceValue > 0 ? b.faceValue * b.tasaAnual : 0), 0).toFixed(2);
 }
 
+// Fechas de pago (ISO, ascendentes) desde `hoy` hasta el vencimiento, generadas HACIA ATRÁS desde
+// el vencimiento (así el último pago cae justo con el rescate, que es como funcionan estos bonos).
+// Compartida por ytm() y bondDuration() — un solo lugar que decide "cuándo cobra este bono".
+function fechasCupon(vencimiento: string, frecuencia: number, hoy: string): string[] | null {
+  if (Number.isNaN(Date.parse(vencimiento)) || Number.isNaN(Date.parse(hoy))) return null;
+  const vto = new Date(vencimiento + 'T00:00:00Z');
+  const hoyDate = new Date(hoy + 'T00:00:00Z');
+  if (!(vto.getTime() > hoyDate.getTime())) return null;   // ya venció
+
+  const freq = clampFreq(frecuencia);
+  const step = 12 / freq;
+  const dia = vto.getUTCDate();
+  const fechas: string[] = [];
+  let cur = new Date(Date.UTC(vto.getUTCFullYear(), vto.getUTCMonth(), dia));
+  // Cortamos en 600 iteraciones (150 años) por seguridad ante datos corruptos.
+  for (let i = 0; i < 600 && cur.getTime() > hoyDate.getTime(); i++) {
+    fechas.push(cur.toISOString().slice(0, 10));
+    cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() - step, dia));
+  }
+  if (!fechas.length) return null;
+  fechas.reverse();
+  return fechas;
+}
+
 // ── TIR al vencimiento (YTM) ─────────────────────────────────────────────────
 // El "current yield" (cupón/precio) ignora la ganancia de capital hasta el rescate: un bono cupón
 // 7% comprado a 60 de paridad rinde MUCHO más que 11,7%. La YTM descuenta los flujos reales:
 // hoy −precio, cada cupón hasta el vencimiento, y el capital (1 por nominal) al final.
-// Las fechas se generan HACIA ATRÁS desde el vencimiento (así el último cupón cae con el rescate,
-// que es como funcionan estos bonos). Asume bullet: para amortizables sobrestima levemente.
+// Asume bullet: para amortizables sobrestima levemente.
 export function ytm(p: {
   precio: number;        // precio por nominal hoy (0.982 = 98,2% de paridad)
   tasaAnual: number;     // cupón nominal anual (0.06 = 6%)
@@ -97,29 +120,50 @@ export function ytm(p: {
   hoy: string;
 }): number | null {
   if (!(p.precio > 0) || !(p.tasaAnual >= 0)) return null;
-  if (Number.isNaN(Date.parse(p.vencimiento)) || Number.isNaN(Date.parse(p.hoy))) return null;
-  const vto = new Date(p.vencimiento + 'T00:00:00Z');
-  const hoy = new Date(p.hoy + 'T00:00:00Z');
-  if (!(vto.getTime() > hoy.getTime())) return null;   // ya venció → no hay YTM
+  const fechas = fechasCupon(p.vencimiento, p.frecuencia, p.hoy);
+  if (!fechas) return null;
 
-  const freq = clampFreq(p.frecuencia);
-  const step = 12 / freq;
-  const dia = vto.getUTCDate();
-  const fechas: string[] = [];
-  let cur = new Date(Date.UTC(vto.getUTCFullYear(), vto.getUTCMonth(), dia));
-  // Cortamos en 600 iteraciones (150 años) por seguridad ante datos corruptos.
-  for (let i = 0; i < 600 && cur.getTime() > hoy.getTime(); i++) {
-    fechas.push(cur.toISOString().slice(0, 10));
-    cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() - step, dia));
-  }
-  if (!fechas.length) return null;
-  fechas.reverse();
-
-  const cupon = p.tasaAnual / freq;
+  const cupon = p.tasaAnual / clampFreq(p.frecuencia);
   const flows = [
     { date: p.hoy, amount: -p.precio },
     ...fechas.map(f => ({ date: f, amount: cupon })),
     { date: fechas[fechas.length - 1], amount: 1 },   // rescate del capital al vencimiento
   ];
   return xirr(flows);
+}
+
+// ── Duración (Macaulay y modificada) ─────────────────────────────────────────
+// Macaulay: promedio ponderado (por valor presente de cada flujo) del tiempo hasta cobrarlo, en
+// años. Mide cuánto tarda en "repagarse" el bono — cuanto más corto, menos sensible es el precio a
+// cambios de tasa y menos tiempo queda expuesto. Se descuenta a la YTM (ya calculada por ytm() con
+// el precio real de mercado) para que ambas cuentas sean consistentes entre sí — nunca un supuesto
+// nuevo. Modificada = Macaulay / (1+YTM): aproxima directamente %ΔPrecio ante ΔTasa de 1pp.
+export function bondDuration(p: {
+  tasaAnual: number;      // cupón nominal anual (0.06 = 6%)
+  frecuencia: number;     // pagos por año
+  vencimiento: string;    // ISO 'YYYY-MM-DD'
+  hoy: string;
+  ytmAnual: number;       // tasa de descuento — usar la YTM ya calculada con ytm()
+}): { macaulay: number; modified: number } | null {
+  if (!(p.tasaAnual >= 0) || !Number.isFinite(p.ytmAnual) || p.ytmAnual <= -1) return null;
+  const fechas = fechasCupon(p.vencimiento, p.frecuencia, p.hoy);
+  if (!fechas) return null;
+
+  const cupon = p.tasaAnual / clampFreq(p.frecuencia);
+  const hoyMs = new Date(p.hoy + 'T00:00:00Z').getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  let sumPv = 0, sumTPv = 0;
+  fechas.forEach((f, i) => {
+    const amount = cupon + (i === fechas.length - 1 ? 1 : 0);   // el último incluye el rescate
+    if (amount <= 0) return;
+    const t = (Date.parse(f) - hoyMs) / (365 * DAY);
+    if (t <= 0) return;
+    const pv = amount / Math.pow(1 + p.ytmAnual, t);
+    sumPv += pv;
+    sumTPv += t * pv;
+  });
+  if (sumPv <= 0) return null;
+
+  const macaulay = sumTPv / sumPv;
+  return { macaulay, modified: macaulay / (1 + p.ytmAnual) };
 }
