@@ -10,7 +10,7 @@ import { computeRatios } from '../engine/ratios';
 import { computeDcf, sensitivityTable, dcfDefaultsFor, DEFAULT_DCF_INPUTS, OE_METHOD_DEFAULT, type DcfInputs, type CapexMethod, type OeMethod } from '../engine/dcf';
 import { useDcfInputs } from '../hooks/useDcfInputs';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
-import { Card, CardHeader, Button, Badge, Stat, inputCls, fmtUsd, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Stat, inputCls, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, normalizeAiText } from '../components/ui';
 import type { Fundamentals } from '../types/domain';
 
 export function AnalisisPage() {
@@ -328,10 +328,15 @@ export function AnalisisPage() {
         <CardHeader title="Chequeos Munger" />
         <div className="p-4 space-y-2">
           {dcf.mungerChecks.map((c, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              {c.ok ? <CheckCircle2 className="w-4 h-4 text-pos" /> : <AlertTriangle className="w-4 h-4 text-warn" />}
-              <span className="text-ink-700">{c.label}</span>
-              <span className="ml-auto text-[11px] text-ink-600">{c.detail}</span>
+            // flex-col: en mobile, label + detail compitiendo por la misma fila (con ml-auto) se
+            // apretujaban y quedaban centrados verticalmente de forma rara al envolver a 2 líneas
+            // cada uno. Ahora el detail va siempre debajo, indentado bajo el label.
+            <div key={i} className="flex flex-col gap-0.5 text-sm">
+              <div className="flex items-start gap-2">
+                {c.ok ? <CheckCircle2 className="w-4 h-4 text-pos shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 text-warn shrink-0 mt-0.5" />}
+                <span className="text-ink-700">{c.label}</span>
+              </div>
+              <span className="pl-6 text-[11px] text-ink-600">{c.detail}</span>
             </div>
           ))}
         </div>
@@ -370,7 +375,7 @@ function GeminiAnalysis({ ticker, portfolioId, context }: { ticker: string; port
       {err && <p className="px-4 pt-1 text-xs text-neg">No se pudo generar: {err}</p>}
       {mostrado && (
         <div className="px-4 py-3">
-          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{mostrado}</p>
+          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{normalizeAiText(mostrado)}</p>
           {!txt && fecha && <p className="text-[10px] text-ink-500 mt-1.5">Guardado · {new Date(fecha).toLocaleString('es-AR')}</p>}
         </div>
       )}

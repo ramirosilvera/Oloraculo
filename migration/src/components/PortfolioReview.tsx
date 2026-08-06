@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { api } from '../lib/api';
-import { Card, CardHeader, Button } from './ui';
+import { Card, CardHeader, Button, normalizeAiText } from './ui';
 import type { Posicion } from '../types/domain';
 
 // Review cualitativo de la cartera con IA: concentración, correlación entre posiciones
@@ -36,7 +36,7 @@ export function PortfolioReview({ posiciones, pfName, pesos }: {
       {err && <p className="px-4 pt-1 text-xs text-neg">No se pudo generar: {err}</p>}
       {txt && (
         <div className="px-4 py-3">
-          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{txt}</p>
+          <p className="text-sm text-ink-700 whitespace-pre-wrap break-words leading-relaxed">{normalizeAiText(txt)}</p>
         </div>
       )}
     </Card>

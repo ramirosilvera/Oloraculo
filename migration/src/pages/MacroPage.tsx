@@ -4,7 +4,7 @@ import { useMacro, useDrawdowns } from '../hooks/usePosiciones';
 import { useUltimoAnalisis, useSetUltimoAnalisis } from '../hooks/useAnalisisIA';
 import { SEMAFOROS, GRUPOS, resumenMacro, type Luz, type Lectura } from '../engine/semaforos';
 import { api } from '../lib/api';
-import { Card, CardHeader, Button, Badge } from '../components/ui';
+import { Card, CardHeader, Button, Badge, normalizeAiText } from '../components/ui';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 
 const LUZ_DOT: Record<Luz, string> = { verde: 'bg-pos', amarillo: 'bg-warn', rojo: 'bg-neg' };
@@ -140,7 +140,7 @@ export function MacroPage() {
           </div>
           {mostrado && (
             <div className="mt-2 rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2.5">
-              <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{mostrado}</p>
+              <p className="text-sm text-ink-800 leading-relaxed whitespace-pre-wrap break-words">{normalizeAiText(mostrado)}</p>
               <p className="text-[10px] text-ink-600 mt-1.5">Lectura por IA · los valores los calcula el código.{!ia && fecha && ` · ${new Date(fecha).toLocaleDateString('es-AR')}`}</p>
             </div>
           )}

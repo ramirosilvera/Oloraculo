@@ -75,8 +75,11 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 
 export function CardHeader({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-line">
-      <div>
+    // flex-wrap: en mobile, título + right (badge/botón) no siempre entran en una fila — sin esto
+    // se apretujaban entre sí (título partido en 2 líneas angostas, badge rompiendo su propio texto).
+    // Con wrap, right baja a su propia fila si no entra, en vez de comprimirse.
+    <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-line flex-wrap">
+      <div className="min-w-0">
         <h3 className="text-sm font-bold text-ink-900 font-display">{title}</h3>
         {sub && <p className="text-[11px] text-ink-600 mt-0.5 leading-snug">{sub}</p>}
       </div>
@@ -109,7 +112,7 @@ export function Badge({ children, tone = 'gray' }: { children: ReactNode; tone?:
     celeste: 'bg-celeste-100 text-celeste-700 ring-1 ring-celeste-200 dark:bg-celeste-500/20 dark:text-celeste-300 dark:ring-celeste-500/30',
     sol: 'bg-sol-soft text-sol-deep ring-1 ring-sol/30 dark:bg-sol/15 dark:text-sol',
   };
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${m[tone]}`}>{children}</span>;
+  return <span className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold ${m[tone]}`}>{children}</span>;
 }
 
 export function Button({ children, onClick, variant = 'primary', disabled, type = 'button', className = '' }: {
@@ -123,11 +126,15 @@ export function Button({ children, onClick, variant = 'primary', disabled, type 
   };
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:shadow-none active:scale-[0.98] ${v[variant]} ${className}`}>
+      className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 disabled:shadow-none active:scale-[0.98] ${v[variant]} ${className}`}>
       {children}
     </button>
   );
 }
+
+// El texto de la IA a veces trae "\n" literal (2 caracteres: barra + n) en vez de un salto de línea
+// real — sin normalizar, whitespace-pre-wrap no lo interpreta y se ve el "\n" tal cual en pantalla.
+export const normalizeAiText = (s: string): string => s.replace(/\\r\\n|\\n/g, '\n');
 
 // ── formatters ───────────────────────────────────────────────────────────────
 // Dólares → prefijo "US$" (idioma AR: distingue de los pesos "$"). Miles con coma (en-US).

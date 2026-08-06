@@ -116,7 +116,7 @@ export function RadarPage() {
       <Card>
         <CardHeader title="Tickers en seguimiento"
           sub="Score = valuación (MoS) + calidad (ROIC−Ke, margen) + crecimiento (EG5Y) + solidez (deuda). Calculado por el código."
-          right={<div className="flex items-center gap-2">
+          right={<div className="flex items-center gap-2 flex-wrap justify-end">
             {compraAgresivaCount > 0 &&
               <Badge tone="pos"><Flame className="w-3 h-3" /><span className="ml-1">{compraAgresivaCount} compra agresiva{compraAgresivaCount > 1 ? 's' : ''}</span></Badge>}
             <Button variant="ghost" onClick={refrescar} disabled={refreshing}>
