@@ -129,6 +129,15 @@ export function DashboardPage() {
   }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear, aportes]);
   const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
 
+  // ── Indicadores clave (debajo de Distribución): 4 ángulos que el hero de arriba no cubre —
+  // retorno comparable entre portfolios (TIR anualizada), riesgo de concentración (mayor posición),
+  // diversificación (cuántas posiciones distintas) y downside awareness estilo Munger (distancia a
+  // TU propio máximo histórico de patrimonio — no el de un índice, ver DistanciaMaximo para eso).
+  const mayorPosicion = alloc.length > 0 && patrimonio > 0 ? { ticker: alloc[0].ticker, pct: alloc[0].mkt / patrimonio } : null;
+  const posicionesAbiertas = alloc.length;
+  const maxPatrimonioHist = snaps.length > 0 ? Math.max(...snaps.map(s => s.valor), patrimonio) : patrimonio;
+  const distanciaMaximoPropio = maxPatrimonioHist > 0 ? (patrimonio - maxPatrimonioHist) / maxPatrimonioHist : null;
+
   // Registra el snapshot de hoy (idempotente por día). El lock incluye el valor grabado, así que si
   // el patrimonio se corrige (llegan cotizaciones frescas) el snapshot del día se actualiza en vez
   // de quedar clavado en un valor provisorio.
@@ -226,6 +235,11 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
 
+      {posicionesAbiertas > 0 && (
+        <IndicadoresClave tirAnual={tir.anual} horizonteCorto={tir.horizonteCorto} mayorPosicion={mayorPosicion}
+          posicionesAbiertas={posicionesAbiertas} distanciaMaximo={distanciaMaximoPropio} />
+      )}
+
       <RadarResumen />
 
       {/* Patrimonio por broker: dónde está físicamente cada posición. */}
@@ -239,6 +253,44 @@ export function DashboardPage() {
 
       <AdminResumen />
     </div>
+  );
+}
+
+// Umbral de alerta de concentración: ninguna posición sola debería pesar más de esto sobre el
+// patrimonio total — regla clásica de gestión de riesgo (no apostar demasiado a un solo nombre),
+// independiente de si esa posición es "buena": hasta la mejor tesis se puede equivocar.
+const CONCENTRACION_ALERTA = 0.30;
+
+function IndicadoresClave({ tirAnual, horizonteCorto, mayorPosicion, posicionesAbiertas, distanciaMaximo }: {
+  tirAnual: number | null; horizonteCorto: boolean;
+  mayorPosicion: { ticker: string; pct: number } | null;
+  posicionesAbiertas: number; distanciaMaximo: number | null;
+}) {
+  const concentrado = mayorPosicion != null && mayorPosicion.pct >= CONCENTRACION_ALERTA;
+  const enMaximo = distanciaMaximo != null && distanciaMaximo >= -0.001;
+  return (
+    <Card>
+      <CardHeader title="Indicadores clave" sub="Retorno, concentración, diversificación y downside — lo que el resumen de arriba no cubre." />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+        <Stat label="TIR anualizada"
+          value={tirAnual != null
+            ? <span className={tirAnual >= 0 ? 'text-pos' : 'text-neg'}>{fmtPct(tirAnual)}</span>
+            : <span className="text-ink-500">—</span>}
+          hint={horizonteCorto ? 'Necesita al menos ~90 días de historia para anualizar sin distorsionar' : 'XIRR money-weighted, comparable entre portfolios y con otros instrumentos'} />
+        <Stat label="Mayor posición"
+          value={mayorPosicion
+            ? <span className={concentrado ? 'text-warn' : 'text-ink-900'}>{mayorPosicion.ticker} · {fmtPct(mayorPosicion.pct, 0)}</span>
+            : <span className="text-ink-500">—</span>}
+          hint={`% del patrimonio en tu posición más grande — alerta a partir de ${fmtPct(CONCENTRACION_ALERTA, 0)}`} />
+        <Stat label="Posiciones abiertas" value={posicionesAbiertas}
+          hint="Cantidad de activos distintos con saldo abierto en este portfolio" />
+        <Stat label="Vs. tu máximo"
+          value={distanciaMaximo != null
+            ? <span className={enMaximo ? 'text-pos' : 'text-neg'}>{enMaximo ? 'en máx.' : fmtPct(distanciaMaximo, 1)}</span>
+            : <span className="text-ink-500">—</span>}
+          hint="Distancia al máximo histórico de TU patrimonio (no un índice) — cuánto caíste desde tu mejor momento" />
+      </div>
+    </Card>
   );
 }
 
