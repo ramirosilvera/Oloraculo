@@ -1,57 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones, usePosicionMutations, useQuotes } from '../hooks/usePosiciones';
+import { usePosicionMutations } from '../hooks/usePosiciones';
+import { useBonosCalc, useObjetivoDuracion, resumenBonos, DEFAULT_ANIOS_CORTO_PLAZO } from '../hooks/useBonos';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme, useIsDark } from '../hooks/usePrefs';
-import { ytm, bondDuration } from '../engine/coupons';
 import type { Posicion } from '../types/domain';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const FREC: Record<number, string> = { 1: 'Anual', 2: 'Semestral', 4: 'Trimestral', 12: 'Mensual' };
 
-// Objetivo de "corto plazo" (años de duración) y qué % del capital en bonos querés ahí — es una
-// preferencia de visualización personal (no afecta cálculos de otras pantallas), así que se
-// persiste en localStorage por portfolio, igual que el patrón de usePrefs.ts.
-const DEFAULT_ANIOS = 2;
-const DEFAULT_PCT = 60;
-function useObjetivoDuracion(portfolioId: string | undefined) {
-  const key = portfolioId ? `bonos.objetivoDuracion.${portfolioId}` : null;
-  const [anios, setAniosState] = useState(DEFAULT_ANIOS);
-  const [pct, setPctState] = useState(DEFAULT_PCT);
-
-  useEffect(() => {
-    let a = DEFAULT_ANIOS, p = DEFAULT_PCT;
-    try {
-      const raw = key ? localStorage.getItem(key) : null;
-      if (raw) {
-        const o = JSON.parse(raw);
-        if (Number.isFinite(o.anios) && o.anios > 0) a = o.anios;
-        if (Number.isFinite(o.pct) && o.pct >= 0 && o.pct <= 100) p = o.pct;
-      }
-    } catch { /* */ }
-    setAniosState(a); setPctState(p);
-  }, [key]);
-
-  const persist = (a: number, p: number) => {
-    if (!key) return;
-    try { localStorage.setItem(key, JSON.stringify({ anios: a, pct: p })); } catch { /* */ }
-  };
-  return {
-    anios, pct,
-    setAnios: (a: number) => { setAniosState(a); persist(a, pct); },
-    setPct: (p: number) => { setPctState(p); persist(anios, p); },
-  };
-}
-
 export function BonosPage() {
   const { active } = usePortfolios();
-  const { data: posiciones = [], isLoading: posLoading } = usePosiciones(active?.id);
+  const { bonos, bonosCalc, isLoading: posLoading } = useBonosCalc(active?.id);
   const { update } = usePosicionMutations(active?.id);
-  const bonos = posiciones.filter(p => p.tipo === 'bono');
-  const { data: quotes = {} } = useQuotes([], bonos.map(b => b.ticker));
   const [editBono, setEditBono] = useState<Posicion | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
   const { anios: objAnios, pct: objPct, setAnios: setObjAnios, setPct: setObjPct } = useObjetivoDuracion(active?.id);
@@ -60,32 +24,10 @@ export function BonosPage() {
 
   if (!active) return null;
 
-  // Un solo cálculo por bono (capital, mercado, TIR, duración) — la tabla y el gráfico lo comparten,
-  // así no se recalcula la TIR/duración dos veces con el mismo dato.
-  const bonosCalc = bonos.map(b => {
-    const px = quotes[b.ticker] ?? null;               // precio por nominal (data912/100)
-    const paridad = px != null ? px * 100 : null;      // en %
-    const capital = b.precio_compra * b.cantidad;
-    const mkt = px != null ? px * b.cantidad : null;
-    const res = mkt != null ? mkt - capital : null;
-    const cuponOk = b.cupon_tasa != null && b.cupon_frecuencia != null && b.cupon_mes != null;
-    // TIR al vencimiento sobre el precio de MERCADO (si no hay, sobre el costo).
-    const precioNominal = px ?? (b.precio_compra > 0 ? b.precio_compra : null);
-    const tir = precioNominal != null && b.cupon_tasa != null && b.cupon_frecuencia != null && b.vencimiento
-      ? ytm({ precio: precioNominal, tasaAnual: b.cupon_tasa, frecuencia: b.cupon_frecuencia, vencimiento: b.vencimiento, hoy })
-      : null;
-    // Duración: se descuenta a la MISMA TIR de arriba (consistencia, ver engine/coupons.ts).
-    const duracion = tir != null && b.cupon_tasa != null && b.cupon_frecuencia != null && b.vencimiento
-      ? bondDuration({ tasaAnual: b.cupon_tasa, frecuencia: b.cupon_frecuencia, vencimiento: b.vencimiento, hoy, ytmAnual: tir })
-      : null;
-    return { pos: b, px, paridad, capital, mkt, res, cuponOk, tir, duracion, capitalUsado: mkt ?? capital };
-  });
+  const { totalCapital, totalMkt, duracionPromedio, pctCortoPlazo } = resumenBonos(bonosCalc, objAnios);
 
-  const totalCapital = bonosCalc.reduce((s, b) => s + b.capital, 0);
-  const totalMkt = bonosCalc.reduce((s, b) => s + (b.mkt ?? b.capital), 0);
-
-  // Gráfico y objetivo: solo entran los bonos con duración calculable (cupón + vencimiento cargados,
-  // y no vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
+  // Gráfico: solo entran los bonos con duración calculable (cupón + vencimiento cargados, y no
+  // vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
   // del ScatterChart de recharts necesita un `dataKey` que resuelva a un número directamente — con
   // un objeto anidado, el dominio del eje se calcula mal y los puntos no se posicionan.
   const puntos = bonosCalc
@@ -94,12 +36,6 @@ export function BonosPage() {
   const sinDuracion = bonosCalc.filter(b => b.duracion == null);
   const sinDuracionVencidos = sinDuracion.filter(b => b.pos.vencimiento != null && b.pos.vencimiento <= hoy);
   const sinDuracionIncompletos = sinDuracion.filter(b => !(b.pos.vencimiento != null && b.pos.vencimiento <= hoy));
-  const capitalConDuracion = puntos.reduce((s, b) => s + b.capitalUsado, 0);
-  const duracionPromedio = capitalConDuracion > 0
-    ? puntos.reduce((s, b) => s + b.duracion!.macaulay * b.capitalUsado, 0) / capitalConDuracion
-    : null;
-  const capitalCortoPlazo = puntos.filter(b => b.duracion!.macaulay <= objAnios).reduce((s, b) => s + b.capitalUsado, 0);
-  const pctCortoPlazo = capitalConDuracion > 0 ? capitalCortoPlazo / capitalConDuracion : null;
   const cumpleObjetivo = pctCortoPlazo != null && pctCortoPlazo * 100 >= objPct;
 
   const posColor = dark ? '#15A34A' : '#15803D';
@@ -187,7 +123,7 @@ export function BonosPage() {
                 onChange={e => {
                   // `Number(x) || DEFAULT` trataba "0" (mientras se tipea "0.25") como vacío y saltaba
                   // al default — no se podía escribir 0.25/0.5/0.75 a mano. Vacío sí cae al default.
-                  if (e.target.value === '') { setObjAnios(DEFAULT_ANIOS); return; }
+                  if (e.target.value === '') { setObjAnios(DEFAULT_ANIOS_CORTO_PLAZO); return; }
                   const n = Number(e.target.value);
                   if (Number.isFinite(n)) setObjAnios(Math.max(0.25, n));
                 }}

@@ -14,6 +14,7 @@ import { useWatchlist } from '../hooks/useWatchlist';
 import { useCikMap } from '../hooks/useCikMap';
 import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
 import { useRadarTicker } from '../hooks/useRadarTicker';
+import { useBonosCalc, useObjetivoDuracion, resumenBonos } from '../hooks/useBonos';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -23,7 +24,7 @@ import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtPct, fmtArs, fmtArsCompact, PIE_COLORS, colorDeBroker } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, PIE_COLORS, colorDeBroker } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
@@ -129,15 +130,6 @@ export function DashboardPage() {
   }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear, aportes]);
   const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
 
-  // ── Indicadores clave (debajo de Distribución): 4 ángulos que el hero de arriba no cubre —
-  // retorno comparable entre portfolios (TIR anualizada), riesgo de concentración (mayor posición),
-  // diversificación (cuántas posiciones distintas) y downside awareness estilo Munger (distancia a
-  // TU propio máximo histórico de patrimonio — no el de un índice, ver DistanciaMaximo para eso).
-  const mayorPosicion = alloc.length > 0 && patrimonio > 0 ? { ticker: alloc[0].ticker, pct: alloc[0].mkt / patrimonio } : null;
-  const posicionesAbiertas = alloc.length;
-  const maxPatrimonioHist = snaps.length > 0 ? Math.max(...snaps.map(s => s.valor), patrimonio) : patrimonio;
-  const distanciaMaximoPropio = maxPatrimonioHist > 0 ? (patrimonio - maxPatrimonioHist) / maxPatrimonioHist : null;
-
   // Registra el snapshot de hoy (idempotente por día). El lock incluye el valor grabado, así que si
   // el patrimonio se corrige (llegan cotizaciones frescas) el snapshot del día se actualiza en vez
   // de quedar clavado en un valor provisorio.
@@ -235,10 +227,7 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
 
-      {posicionesAbiertas > 0 && (
-        <IndicadoresClave tirAnual={tir.anual} horizonteCorto={tir.horizonteCorto} mayorPosicion={mayorPosicion}
-          posicionesAbiertas={posicionesAbiertas} distanciaMaximo={distanciaMaximoPropio} />
-      )}
+      <BonosResumen />
 
       <RadarResumen />
 
@@ -256,39 +245,35 @@ export function DashboardPage() {
   );
 }
 
-// Umbral de alerta de concentración: ninguna posición sola debería pesar más de esto sobre el
-// patrimonio total — regla clásica de gestión de riesgo (no apostar demasiado a un solo nombre),
-// independiente de si esa posición es "buena": hasta la mejor tesis se puede equivocar.
-const CONCENTRACION_ALERTA = 0.30;
+// Resumen de Bonos: capital, TIR y duración promedio ponderadas, y cuánto del capital está dentro
+// del objetivo de "corto plazo" definido en /bonos. Mismo cálculo que BonosPage (useBonosCalc +
+// resumenBonos compartidos) así los dos lugares nunca muestran números distintos.
+function BonosResumen() {
+  const { active } = usePortfolios();
+  const { bonos, bonosCalc, isLoading } = useBonosCalc(active?.id);
+  const { anios: objAnios, pct: objPct } = useObjetivoDuracion(active?.id);
 
-function IndicadoresClave({ tirAnual, horizonteCorto, mayorPosicion, posicionesAbiertas, distanciaMaximo }: {
-  tirAnual: number | null; horizonteCorto: boolean;
-  mayorPosicion: { ticker: string; pct: number } | null;
-  posicionesAbiertas: number; distanciaMaximo: number | null;
-}) {
-  const concentrado = mayorPosicion != null && mayorPosicion.pct >= CONCENTRACION_ALERTA;
-  const enMaximo = distanciaMaximo != null && distanciaMaximo >= -0.001;
+  if (isLoading || bonos.length === 0) return null;
+
+  const { totalMkt, duracionPromedio, tirPromedio, pctCortoPlazo } = resumenBonos(bonosCalc, objAnios);
+  const cumpleObjetivo = pctCortoPlazo != null && pctCortoPlazo * 100 >= objPct;
+
   return (
     <Card>
-      <CardHeader title="Indicadores clave" sub="Retorno, concentración, diversificación y downside — lo que el resumen de arriba no cubre." />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
-        <Stat label="TIR anualizada"
-          value={tirAnual != null
-            ? <span className={tirAnual >= 0 ? 'text-pos' : 'text-neg'}>{fmtPct(tirAnual)}</span>
-            : <span className="text-ink-500">—</span>}
-          hint={horizonteCorto ? 'Necesita al menos ~90 días de historia para anualizar sin distorsionar' : 'XIRR money-weighted, comparable entre portfolios y con otros instrumentos'} />
-        <Stat label="Mayor posición"
-          value={mayorPosicion
-            ? <span className={concentrado ? 'text-warn' : 'text-ink-900'}>{mayorPosicion.ticker} · {fmtPct(mayorPosicion.pct, 0)}</span>
-            : <span className="text-ink-500">—</span>}
-          hint={`% del patrimonio en tu posición más grande — alerta a partir de ${fmtPct(CONCENTRACION_ALERTA, 0)}`} />
-        <Stat label="Posiciones abiertas" value={posicionesAbiertas}
-          hint="Cantidad de activos distintos con saldo abierto en este portfolio" />
-        <Stat label="Vs. tu máximo"
-          value={distanciaMaximo != null
-            ? <span className={enMaximo ? 'text-pos' : 'text-neg'}>{enMaximo ? 'en máx.' : fmtPct(distanciaMaximo, 1)}</span>
-            : <span className="text-ink-500">—</span>}
-          hint="Distancia al máximo histórico de TU patrimonio (no un índice) — cuánto caíste desde tu mejor momento" />
+      <CardHeader title="Bonos" sub={`${bonos.length} bono${bonos.length > 1 ? 's' : ''} en cartera · precio por nominal (data912)`}
+        right={<Link to="/bonos" className="inline-flex items-center gap-1.5">
+          {pctCortoPlazo != null
+            ? <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>{fmtPct(pctCortoPlazo, 0)} a ≤{objAnios}a (obj. {objPct}%)</Badge>
+            : <span className="text-[11px] text-celeste-600 hover:underline">Ver bonos →</span>}
+        </Link>} />
+      <div className="grid grid-cols-3 gap-2 p-3">
+        <Stat label="Capital" value={fmtUsdCompact(totalMkt)} />
+        <Stat label="TIR promedio" value={tirPromedio != null
+          ? <span className={tirPromedio >= 0 ? 'text-pos' : 'text-neg'}>{fmtPct(tirPromedio)}</span>
+          : <span className="text-ink-500">—</span>}
+          hint="Promedio ponderado por capital de la TIR (YTM) de cada bono" />
+        <Stat label="Duración prom." value={duracionPromedio != null ? `${fmtNum(duracionPromedio, 1)}a` : '—'}
+          hint="Duración de Macaulay promedio ponderada por capital — sensibilidad de la cartera de bonos a la tasa" />
       </div>
     </Card>
   );
