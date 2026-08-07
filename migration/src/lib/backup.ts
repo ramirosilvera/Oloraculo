@@ -22,12 +22,15 @@ import { supabase } from './supabase';
 // `posiciones`, cubiertas por el mismo select('*')/upsert genérico. El registro del EVENTO de
 // amortización (cobro + el ajuste de nominal o de valor_residual que haga, ver useCobros.ts) también
 // viaja solo: son filas normales en `cobros`/`movimientos`, tablas ya incluidas.
-export const BACKUP_VERSION = 6;
+// v7: agrega amortizaciones_programadas (cronograma manual de cuotas FUTURAS, solo para la
+// proyección de Cupones — ver 0028_amortizaciones_programadas.sql). Tabla nueva (no columnas sobre
+// una ya incluida, como los 2 casos de arriba), así que SÍ hace falta sumarla a TABLAS.
+export const BACKUP_VERSION = 7;
 
 const TABLAS = [
   'portfolios', 'brokers', 'posiciones', 'posicion_brokers', 'movimientos', 'aportes', 'portfolio_snapshots',
   'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros', 'cobros_inversiones', 'transferencias',
-  'cik_map', 'watchlist', 'analisis_ia', 'profiles',
+  'amortizaciones_programadas', 'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;
 
 export interface BackupResult {

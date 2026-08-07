@@ -24,6 +24,8 @@ const RESTORE_ORDER: { table: string; onConflict: string; userScoped: boolean }[
   { table: 'posiciones',  onConflict: 'id',           userScoped: false },
   // Después de brokers Y posiciones: posicion_brokers referencia (FK) a ambas.
   { table: 'posicion_brokers', onConflict: 'posicion_id,broker_id', userScoped: false },
+  // Cronograma manual de amortización — depende solo de posiciones (FK posicion_id).
+  { table: 'amortizaciones_programadas', onConflict: 'posicion_id,fecha', userScoped: false },
   { table: 'movimientos', onConflict: 'id',           userScoped: false },
   // Depende de posiciones Y movimientos (movimiento_id del ajuste de una amortización): tiene
   // que restaurarse después de ambas o la FK rechaza el insert.
@@ -63,7 +65,7 @@ export function parseBackup(text: string): Preview {
   // v1/v2/v3 igual se pueden restaurar (solo les faltan tablas que no existían todavía, o traen
   // posiciones.broker_id que ya no se usa) — el aviso es solo para versiones FUTURAS que este
   // código todavía no sepa interpretar.
-  if (data.backup_version && data.backup_version > 6) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v6).`);
+  if (data.backup_version && data.backup_version > 7) avisos.push(`El backup es de una versión más nueva (v${data.backup_version}) que la soportada (v7).`);
   if (data.backup_version === 1) avisos.push('Backup v1 (anterior a Cobros y Proyección): no va a traer el historial de dividendos/intereses/amortizaciones ni los supuestos de Proyección guardados, porque todavía no existían.');
   if (data.backup_version === 1 || data.backup_version === 2) avisos.push('Backup anterior a Brokers: las posiciones van a quedar "Sin asignar" (no había ningún broker cargado todavía).');
   if (data.backup_version != null && data.backup_version <= 3) avisos.push('Backup anterior al reparto por broker (posicion_brokers): la asignación de brokers no se va a poder restaurar (la versión vieja guardaba un solo broker por posición, en un campo que ya no existe) — reasignalos desde la sección Brokers después de restaurar.');

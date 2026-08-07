@@ -6,8 +6,9 @@ import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useDividendosProyectados } from '../hooks/usePosiciones';
 import { useCobros, COBRO_TIPO_LABEL } from '../hooks/useCobros';
 import { useCobrosInversiones } from '../hooks/useCobrosInversiones';
+import { useAmortizaciones } from '../hooks/useAmortizaciones';
 import { useChartTheme } from '../hooks/usePrefs';
-import { couponCalendar, cuponAnualTotal, type CouponBond } from '../engine/coupons';
+import { couponCalendar, capitalCalendar, cuponAnualTotal, type CouponBond, type CapitalBond } from '../engine/coupons';
 import { dividendCalendar, dividendoAnualEstimado, type DividendPosicion } from '../engine/dividendProjection';
 import { resumenCobros, saldoInvertible } from '../engine/cobros';
 import { Card, CardHeader, Button, Badge, Field, Stat, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
@@ -428,7 +429,20 @@ function SaldoInvertibleCard({ saldo, inversiones, onMarcar, onBorrar }: {
 // nunca se auto-registra: ver PendientesCard más arriba, que es donde eso se confirma de verdad).
 function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
   const { data: posiciones = [], isLoading: posLoading } = usePosiciones(portfolioId);
+  const { data: amortizaciones = [] } = useAmortizaciones();
   const chart = useChartTheme();
+
+  // Cronograma por posición — un bono sin cuotas cargadas manda [] (couponEvents/capitalEvents ya
+  // saben tratar eso como bullet sobre el valor_residual de hoy, sin cronograma detallado).
+  const cuotasPorPosicion = useMemo(() => {
+    const m = new Map<string, { fecha: string; porcentaje: number }[]>();
+    for (const a of amortizaciones) {
+      const arr = m.get(a.posicion_id) ?? [];
+      arr.push({ fecha: a.fecha, porcentaje: a.porcentaje });
+      m.set(a.posicion_id, arr);
+    }
+    return m;
+  }, [amortizaciones]);
 
   const bonds = useMemo<CouponBond[]>(() =>
     posiciones
@@ -440,7 +454,20 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         frecuencia: p.cupon_frecuencia!,
         mesRef: p.cupon_mes!,
         vencimiento: p.vencimiento,
-      })), [posiciones]);
+        valorResidual: p.amortizable && p.valor_residual != null ? p.valor_residual : 1,
+        amortizaciones: cuotasPorPosicion.get(p.id) ?? [],
+      })), [posiciones, cuotasPorPosicion]);
+
+  const capitalBonds = useMemo<CapitalBond[]>(() =>
+    posiciones
+      .filter((p: Posicion) => p.tipo === 'bono' && p.vencimiento)
+      .map(p => ({
+        ticker: p.ticker,
+        faceValue: p.cantidad,
+        vencimiento: p.vencimiento,
+        valorResidual: p.amortizable && p.valor_residual != null ? p.valor_residual : 1,
+        amortizaciones: cuotasPorPosicion.get(p.id) ?? [],
+      })), [posiciones, cuotasPorPosicion]);
 
   const equities = useMemo(() => posiciones.filter(p =>
     (p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf') && p.cantidad > 0), [posiciones]);
@@ -455,6 +482,12 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
     [bonds, now.getFullYear(), now.getMonth()]);
   const divCal = useMemo(() => dividendCalendar(divPosiciones, divInfo, now.getFullYear(), now.getMonth() + 1, 12),
     [divPosiciones, divInfo, now.getFullYear(), now.getMonth()]);
+  // Capital (amortización + rescate al vencimiento) — SEPARADO de cupón/dividendo a propósito: es
+  // devolución de capital, no renta (mismo criterio que "Renta (div. + int.)" en CobradoTab, que
+  // tampoco cuenta la amortización). Entra en el chart y el detalle por mes, pero no en "Total
+  // proyectado 12m" ni en el yield — mezclarlo ahí infla el yield con algo que no es rendimiento.
+  const capCal = useMemo(() => capitalCalendar(capitalBonds, now.getFullYear(), now.getMonth() + 1, 12),
+    [capitalBonds, now.getFullYear(), now.getMonth()]);
 
   const anual = cuponAnualTotal(bonds);
   const divAnual = useMemo(() => dividendoAnualEstimado(divPosiciones, divInfo, now.getFullYear(), now.getMonth() + 1),
@@ -462,12 +495,14 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
   const capitalBonos = useMemo(() =>
     posiciones.filter(p => p.tipo === 'bono').reduce((s, p) => s + p.precio_compra * p.cantidad, 0),
     [posiciones]);
+  const capitalAnual = useMemo(() => capCal.reduce((s, m) => s + m.total, 0), [capCal]);
   const proximo = cal.find(m => m.total > 0);
   const proximoDiv = divCal.find(m => m.total > 0);
+  const proximoCapital = capCal.find(m => m.total > 0);
 
-  // Mismo eje de meses para las dos series (ambos calendarios arrancan en el mismo fromYear/fromMonth
+  // Mismo eje de meses para las 3 series (los 3 calendarios arrancan en el mismo fromYear/fromMonth
   // con 12 meses) — se combinan índice a índice para el chart apilado y la tabla de detalle.
-  const chartData = cal.map((m, i) => ({ mes: MESES[m.month - 1], Cupones: m.total, Dividendos: divCal[i]?.total ?? 0 }));
+  const chartData = cal.map((m, i) => ({ mes: MESES[m.month - 1], Cupones: m.total, Dividendos: divCal[i]?.total ?? 0, Capital: capCal[i]?.total ?? 0 }));
 
   const totalBonos = posiciones.filter(p => p.tipo === 'bono').length;
   const conCupon = bonds.length;
@@ -478,8 +513,10 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
 
   // Sin NADA que proyectar — no "sin bonos/equities cargados": una cartera con solo tickers que
   // confirmadamente no pagan (ej. MELI/LAC) tiene equities.length > 0 pero igual no hay nada que
-  // mostrar, y antes eso pasaba de largo el Empty state y renderizaba un chart/tabla en cero.
-  const sinDatos = conCupon === 0 && conDividendo === 0;
+  // mostrar, y antes eso pasaba de largo el Empty state y renderizaba un chart/tabla en cero. Un
+  // bono con vencimiento cargado pero SIN cupón todavía igual tiene algo que proyectar (el rescate
+  // de capital), así que capitalAnual también cuenta acá.
+  const sinDatos = conCupon === 0 && conDividendo === 0 && capitalAnual <= 0;
 
   return (
     <div className="space-y-4">
@@ -493,7 +530,11 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         <Stat label="Dividendos anual (estimado)" value={fmtUsd(divAnual, 0)} hint="CEDEARs/acciones — a confirmar contra el cobro real" />
         <Stat label="Próximo dividendo" value={proximoDiv ? `${MESES[proximoDiv.month - 1]} ${proximoDiv.year}` : '—'} hint={proximoDiv ? fmtUsd(proximoDiv.total, 0) : undefined} />
         <Stat label="Cargados (dividendos)" value={`${conDividendo}/${equities.length}`} hint="con dato del proveedor / total de CEDEARs-acciones" />
-        <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones (confiables) + dividendos (mezcla declarado/estimado) — ver detalle por mes" />
+        <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones (confiables) + dividendos (mezcla declarado/estimado) — sin capital, ver abajo" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Capital a cobrar 12m" value={fmtUsd(capitalAnual, 0)} hint="Devolución de capital (amortización + rescate al vencimiento) — NO es renta, no suma al total de arriba. Bonos amortizables sin cronograma cargado se estiman con su valor residual, todo junto al vencimiento." />
+        <Stat label="Próximo capital" value={proximoCapital ? `${MESES[proximoCapital.month - 1]} ${proximoCapital.year}` : '—'} hint={proximoCapital ? fmtUsd(proximoCapital.total, 0) : undefined} />
       </div>
 
       {posLoading || divLoading ? (
@@ -507,7 +548,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
       ) : (
         <>
           <Card>
-            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD), no lo ya cobrado. El total combina cupones (confiables si el bono no entra en default) con dividendos (mezcla de pagos declarados por el proveedor y estimaciones nuestras por cadencia) — el detalle de abajo distingue cada uno." />
+            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD), no lo ya cobrado. Cupones (confiables si el bono no entra en default) + dividendos (mezcla declarado/estimado) + capital (gris — devolución de capital, no renta: amortización programada o rescate al vencimiento) — el detalle de abajo distingue cada uno." />
             <div className="p-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
@@ -517,14 +558,15 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
                   <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                     formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
                   <Bar dataKey="Cupones" stackId="p" fill="#4F97D4" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Dividendos" stackId="p" fill="#E3B341" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Dividendos" stackId="p" fill="#E3B341" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Capital" stackId="p" fill="#8B96A5" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Detalle por mes" sub="🔵 cupón de bono · 🟡 dividendo (declarado o estimado, a confirmar)" />
+            <CardHeader title="Detalle por mes" sub="🔵 cupón de bono · 🟡 dividendo (declarado o estimado, a confirmar) · ⚪ capital (amortización o rescate — no es renta)" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[420px]">
                 <thead className="text-[11px] text-ink-600 border-b border-line">
@@ -537,7 +579,8 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
                 <tbody className="divide-y divide-line">
                   {cal.map((m, i) => {
                     const dm = divCal[i];
-                    const total = m.total + (dm?.total ?? 0);
+                    const cm = capCal[i];
+                    const total = m.total + (dm?.total ?? 0) + (cm?.total ?? 0);
                     if (total <= 0) return null;
                     return (
                       <tr key={m.ym} className="hover:bg-canvas">
@@ -546,6 +589,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
                           {[
                             ...m.detalle.map(d => `🔵 ${d.ticker} (${fmtUsd(d.monto, 0)})`),
                             ...(dm?.detalle.map(d => `🟡 ${d.ticker} (${fmtUsd(d.monto, 0)})${d.estado === 'estimado' ? ' est.' : ''}`) ?? []),
+                            ...(cm?.detalle.map(d => `⚪ ${d.ticker} (${fmtUsd(d.monto, 0)})${d.tipo === 'rescate' ? ' rescate' : ' cuota'}`) ?? []),
                           ].join(' · ')}
                         </td>
                         <td className="text-right px-4 tnum font-semibold text-accent">{fmtUsd(total, 0)}</td>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { couponEvents, couponCalendar, cuponAnualTotal, ytm, bondDuration, rendimientoCorriente, type CouponBond } from './coupons';
+import { couponEvents, couponCalendar, capitalEvents, capitalCalendar, cuponAnualTotal, ytm, bondDuration, rendimientoCorriente, type CouponBond, type CapitalBond } from './coupons';
 
 const semestral: CouponBond = { ticker: 'GD46', faceValue: 1000, tasaAnual: 0.08, frecuencia: 2, mesRef: 1 };
 // paga en enero y julio; cupón por período = 1000 × 0.08/2 = 40
@@ -30,6 +30,100 @@ describe('couponEvents', () => {
   it('ignora bonos sin tasa o sin nominal', () => {
     expect(couponEvents([{ ...semestral, tasaAnual: 0 }], 2026, 1, 12)).toHaveLength(0);
     expect(couponEvents([{ ...semestral, faceValue: 0 }], 2026, 1, 12)).toHaveLength(0);
+  });
+
+  describe('amortizaciones (cronograma manual)', () => {
+    it('sin amortizaciones/valorResidual: se comporta exactamente igual que antes (retrocompatible)', () => {
+      const ev = couponEvents([semestral], 2026, 1, 12);
+      expect(ev.every(e => e.monto === 40)).toBe(true);
+    });
+
+    it('el cupón baja DESPUÉS de una cuota programada, no en el pago donde cae la cuota', () => {
+      // paga enero y julio; cuota de 25% cargada para marzo 2026 (entre los dos pagos).
+      const bono: CouponBond = { ...semestral, amortizaciones: [{ fecha: '2026-03-15', porcentaje: 0.25 }] };
+      const ev = couponEvents([bono], 2026, 1, 12);
+      const enero = ev.find(e => e.month === 1 && e.year === 2026)!;
+      const julio = ev.find(e => e.month === 7 && e.year === 2026)!;
+      expect(enero.monto).toBe(40);       // sale ANTES de la cuota: sobre el 100% todavía
+      expect(julio.monto).toBeCloseTo(30, 6); // sale DESPUÉS: 1000 × 0.75 × 0.08/2 = 30
+    });
+
+    it('valorResidual inicial más bajo (bono que ya venía amortizado) también baja el cupón desde el principio', () => {
+      const bono: CouponBond = { ...semestral, valorResidual: 0.5 };
+      const ev = couponEvents([bono], 2026, 1, 12);
+      expect(ev.every(e => e.monto === 20)).toBe(true); // 1000 × 0.5 × 0.08/2
+    });
+
+    it('el saldo nunca baja de 0 aunque el cronograma sume más del 100% (el cupón siguiente da 0 y no se lista)', () => {
+      const bono: CouponBond = { ...semestral, amortizaciones: [{ fecha: '2026-02-01', porcentaje: 0.6 }, { fecha: '2026-03-01', porcentaje: 0.6 }] };
+      const ev = couponEvents([bono], 2026, 1, 12);
+      expect(ev.find(e => e.month === 7 && e.year === 2026)).toBeUndefined();
+      expect(ev.every(e => e.monto >= 0)).toBe(true);
+    });
+  });
+});
+
+describe('capitalEvents', () => {
+  const bullet: CapitalBond = { ticker: 'GD46', faceValue: 1000, vencimiento: '2026-09-15' };
+
+  it('bono bullet sin cargar nada: rescate del 100% en el mes de vencimiento', () => {
+    const ev = capitalEvents([bullet], 2026, 1, 12);
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ tipo: 'rescate', monto: 1000, month: 9, year: 2026 });
+  });
+
+  it('amortizable sin cronograma, solo valorResidual: rescate por ESE valor, no el 100%', () => {
+    const ev = capitalEvents([{ ...bullet, valorResidual: 0.6 }], 2026, 1, 12);
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ tipo: 'rescate', monto: 600 });
+  });
+
+  it('con cuotas programadas que NO cubren todo: cada cuota + un rescate final por el resto', () => {
+    const bono: CapitalBond = { ...bullet, amortizaciones: [{ fecha: '2026-03-10', porcentaje: 0.3 }] };
+    const ev = capitalEvents([bono], 2026, 1, 12);
+    expect(ev).toHaveLength(2);
+    const cuota = ev.find(e => e.tipo === 'cuota')!;
+    const rescate = ev.find(e => e.tipo === 'rescate')!;
+    expect(cuota.monto).toBe(300);
+    expect(cuota.month).toBe(3);
+    expect(rescate.monto).toBeCloseTo(700, 6); // 1000 × (1 − 0.3)
+    expect(rescate.month).toBe(9);
+  });
+
+  it('cronograma que cubre el 100%: no hay rescate adicional (el remanente es ~0)', () => {
+    const bono: CapitalBond = { ...bullet, amortizaciones: [{ fecha: '2026-03-10', porcentaje: 0.5 }, { fecha: '2026-06-10', porcentaje: 0.5 }] };
+    const ev = capitalEvents([bono], 2026, 1, 12);
+    expect(ev).toHaveLength(2);
+    expect(ev.every(e => e.tipo === 'cuota')).toBe(true);
+    expect(ev.reduce((s, e) => s + e.monto, 0)).toBe(1000);
+  });
+
+  it('cuota o vencimiento fuera de la ventana de meses: no aparece', () => {
+    const bono: CapitalBond = { ...bullet, vencimiento: '2028-01-15', amortizaciones: [{ fecha: '2027-06-01', porcentaje: 0.2 }] };
+    const ev = capitalEvents([bono], 2026, 1, 12); // ventana: 2026-01 a 2026-12
+    expect(ev).toHaveLength(0);
+  });
+
+  it('faceValue inválido: se ignora, no revienta', () => {
+    expect(capitalEvents([{ ...bullet, faceValue: 0 }], 2026, 1, 12)).toHaveLength(0);
+  });
+});
+
+describe('capitalCalendar', () => {
+  it('agrupa por mes y suma cuota + rescate si coinciden (detalle conserva el tipo de cada uno)', () => {
+    const a: CapitalBond = { ticker: 'A', faceValue: 1000, vencimiento: '2026-05-15' };
+    const b: CapitalBond = { ticker: 'B', faceValue: 500, vencimiento: '2026-05-20' };
+    const cal = capitalCalendar([a, b], 2026, 1, 12);
+    const mayo = cal.find(m => m.month === 5)!;
+    expect(mayo.total).toBe(1500);
+    expect(mayo.detalle).toHaveLength(2);
+    expect(mayo.detalle.every(d => d.tipo === 'rescate')).toBe(true);
+  });
+
+  it('devuelve un bucket por cada uno de los `meses` pedidos, en 0 si no hay nada ese mes', () => {
+    const cal = capitalCalendar([{ ticker: 'A', faceValue: 1000, vencimiento: '2026-05-15' }], 2026, 1, 12);
+    expect(cal).toHaveLength(12);
+    expect(cal.filter(m => m.total > 0)).toHaveLength(1);
   });
 });
 

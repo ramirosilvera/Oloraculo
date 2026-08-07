@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
+import { Landmark, Pencil, X, CalendarClock, Trash2, Plus } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations, useMacro } from '../hooks/usePosiciones';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos, DEFAULT_MIN_GRADO_INVERSION_PCT, DEFAULT_MAX_DURACION_ANIOS } from '../hooks/useBonos';
+import { useAmortizaciones } from '../hooks/useAmortizaciones';
 import { CONCENTRACION_POSICION_ALERTA } from '../engine/bonos';
 import { CALIFICADORAS, CALIFICADORAS_CLASIFICABLES, ETIQUETA_GRADO, ETIQUETA_ESCALA, type GradoCredito, type EscalaRating } from '../engine/rating';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, AlertasBanner } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme, useIsDark } from '../hooks/usePrefs';
-import type { Posicion } from '../types/domain';
+import type { Posicion, AmortizacionProgramada } from '../types/domain';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const FREC: Record<number, string> = { 1: 'Anual', 2: 'Semestral', 4: 'Trimestral', 12: 'Mensual' };
@@ -63,6 +64,7 @@ export function BonosPage() {
   const { active } = usePortfolios();
   const { bonos, bonosCalc, isLoading: posLoading } = useBonosCalc(active?.id);
   const { update } = usePosicionMutations(active?.id);
+  const { data: amortizaciones, agregar: agregarCuota, eliminar: eliminarCuota } = useAmortizaciones();
   const [editBono, setEditBono] = useState<Posicion | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
   const {
@@ -316,14 +318,21 @@ export function BonosPage() {
       )}
 
       {editBono && <CuponModal bono={editBono} onClose={() => setEditBono(null)}
-        onSave={async (patch) => { await update(editBono.id, patch); setEditBono(null); }} />}
+        onSave={async (patch) => { await update(editBono.id, patch); setEditBono(null); }}
+        cuotas={amortizaciones.filter(a => a.posicion_id === editBono.id)}
+        onAgregarCuota={(fecha, porcentaje) => agregarCuota({ posicionId: editBono.id, fecha, porcentaje })}
+        onEliminarCuota={eliminarCuota} />}
     </div>
   );
 }
 
 // Editar/cargar los datos de un bono existente: cupón (tasa, frecuencia, mes de referencia,
-// vencimiento) y calificación crediticia (calificadora + nota).
-function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
+// vencimiento), calificación crediticia (calificadora + nota) y, si es amortizable, el cronograma
+// de cuotas futuras (alimenta la proyección de Cupones — ver engine/coupons.ts capitalEvents).
+function CuponModal({ bono, onClose, onSave, cuotas, onAgregarCuota, onEliminarCuota }: {
+  bono: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void>;
+  cuotas: AmortizacionProgramada[]; onAgregarCuota: (fecha: string, porcentaje: number) => Promise<void>; onEliminarCuota: (id: string) => Promise<void>;
+}) {
   useEscapeClose(onClose);
   const [tasa, setTasa] = useState(bono.cupon_tasa != null ? String(+(bono.cupon_tasa * 100).toFixed(4)) : '');
   const [freq, setFreq] = useState(bono.cupon_frecuencia != null ? String(bono.cupon_frecuencia) : '');
@@ -418,8 +427,9 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
             <CalendarClock className="w-3.5 h-3.5 shrink-0" /> El "mes de un pago" alcanza: los demás se derivan por la frecuencia (ej. semestral desde mayo → may y nov).
           </p>
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
-            El calendario de Cupones (proyección de cobros) siempre asume el nominal completo, amortice o no. Marcar "Amortizable" y cargar el valor residual solo corrige la TIR, la duración y el rendimiento corriente de esta pantalla — no el calendario.
+            Marcar "Amortizable" y cargar el valor residual corrige la TIR, la duración y el rendimiento corriente de esta pantalla. Si además cargás el cronograma de cuotas de abajo, también corrige el calendario de Cupones (proyección) — cupón futuro sobre el saldo remanente, más las cuotas de capital.
           </p>
+          {amortizable && <CronogramaCuotas cuotas={cuotas} onAgregar={onAgregarCuota} onEliminar={onEliminarCuota} />}
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
             FIX SCR y Moody's Local (escala nacional argentina, la que vas a usar casi siempre) clasifican en grado de inversión/especulativo/default automáticamente (badge de color). S&amp;P/Moody's/Fitch (escala global) también, solo para el caso puntual de una ON con rating internacional — no equivale a la escala nacional. "Otra" no se clasifica (notación desconocida).
           </p>
@@ -430,6 +440,72 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// Cronograma de cuotas de amortización futuras — carga manual (no hay ninguna fuente automática,
+// ver 0028_amortizaciones_programadas.sql). Alimenta la proyección de Cupones (couponEvents baja el
+// cupón después de cada cuota, capitalEvents las muestra como flujo de capital) — no toca la TIR ni
+// la valuación de esta página, que siguen usando solo el valor residual de HOY.
+function CronogramaCuotas({ cuotas, onAgregar, onEliminar }: {
+  cuotas: AmortizacionProgramada[]; onAgregar: (fecha: string, porcentaje: number) => Promise<void>; onEliminar: (id: string) => Promise<void>;
+}) {
+  const [fecha, setFecha] = useState('');
+  const [pct, setPct] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
+  const ordenadas = [...cuotas].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const cubierto = ordenadas.reduce((s, c) => s + c.porcentaje, 0);
+
+  const agregar = async () => {
+    setErr(null);
+    if (!fecha) { setErr('Elegí una fecha.'); return; }
+    if (ordenadas.some(c => c.fecha === fecha)) { setErr('Ya hay una cuota cargada para esa fecha — borrala primero si querés corregirla.'); return; }
+    const n = Number(pct);
+    if (!(n > 0 && n <= 100)) { setErr('El % debe ser mayor a 0 y hasta 100.'); return; }
+    setBusy(true);
+    try { await onAgregar(fecha, n / 100); setFecha(''); setPct(''); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo agregar'); }
+    finally { setBusy(false); }
+  };
+  const eliminar = async (id: string) => {
+    setBorrandoId(id);
+    try { await onEliminar(id); } catch { /* la fila sigue en la lista, el usuario puede reintentar */ }
+    finally { setBorrandoId(null); }
+  };
+
+  return (
+    <div className="px-4 pt-2">
+      <p className="text-[11px] font-semibold text-ink-600 mb-1.5">Cronograma de cuotas (opcional)</p>
+      {ordenadas.length > 0 && (
+        <div className="space-y-1 mb-2">
+          {ordenadas.map(c => (
+            <div key={c.id} className="flex items-center gap-2 text-[12px] bg-canvas rounded-lg px-2.5 py-1.5">
+              <span className="text-ink-700 tnum">{c.fecha}</span>
+              <span className="text-ink-800 font-semibold tnum ml-auto">{Math.round(c.porcentaje * 100)}%</span>
+              <button onClick={() => eliminar(c.id)} disabled={borrandoId === c.id}
+                className="text-ink-500 hover:text-neg inline-flex items-center justify-center w-7 h-7 disabled:opacity-50" title="Borrar cuota" aria-label="Borrar cuota">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          <p className="text-[10px] text-ink-500">
+            Cubierto por el cronograma: {Math.round(cubierto * 100)}%{cubierto > 1.0001 ? ' — suma más del 100%, revisá las fechas' : ''}. El resto se proyecta como rescate entero al vencimiento.
+          </p>
+        </div>
+      )}
+      <div className="flex items-end gap-2">
+        <Field label="Fecha" className="flex-1">
+          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label="% del nominal original" className="flex-1">
+          <input type="number" min="1" max="100" step="1" value={pct} onChange={e => setPct(e.target.value)} placeholder="ej. 25" className={inputCls} />
+        </Field>
+        <Button variant="ghost" onClick={agregar} disabled={busy} className="shrink-0"><Plus className="w-4 h-4" /></Button>
+      </div>
+      {err && <p className="text-[11px] text-warn mt-1">{err}</p>}
     </div>
   );
 }

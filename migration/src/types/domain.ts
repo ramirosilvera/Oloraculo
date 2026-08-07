@@ -72,6 +72,18 @@ export interface PosicionBroker {
   created_at: string;
 }
 
+// Cronograma MANUAL de cuotas de amortización futuras de un bono (0028_amortizaciones_programadas.sql)
+// — solo para la proyección de Cupones (engine/coupons.ts: couponEvents/capitalEvents), no para la
+// valuación actual (esa usa posiciones.valor_residual). `porcentaje` es la fracción (0..1] del
+// nominal ORIGINAL que se espera amortizar en esa fecha — un valor por cuota, no un acumulado.
+export interface AmortizacionProgramada {
+  id: string;
+  posicion_id: string;
+  fecha: string;
+  porcentaje: number;
+  created_at: string;
+}
+
 export interface Movimiento {
   id: string;
   portfolio_id: string;

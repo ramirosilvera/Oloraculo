@@ -6,6 +6,14 @@
 
 import { xirr } from './irr';
 
+// Cuota de amortización FUTURA cargada a mano (ver 0028_amortizaciones_programadas.sql) — no un
+// cronograma completo garantizado, solo lo que el usuario fue cargando. `porcentaje` es la fracción
+// (0..1] del nominal ORIGINAL que se espera amortizar en esa fecha (no un acumulado).
+export interface CuotaAmortizacion {
+  fecha: string;         // ISO 'YYYY-MM-DD'
+  porcentaje: number;
+}
+
 export interface CouponBond {
   ticker: string;
   faceValue: number;        // nominal total tenido (cantidad de nominales)
@@ -13,6 +21,8 @@ export interface CouponBond {
   frecuencia: number;       // pagos por año (1/2/4)
   mesRef: number;           // 1-12: mes de un pago de referencia
   vencimiento?: string | null; // ISO date; corta el calendario
+  valorResidual?: number;      // fracción 0..1 del nominal vigente HOY — default 1 (bullet/sin amortizar)
+  amortizaciones?: CuotaAmortizacion[]; // cuotas futuras cargadas — el cupón baja después de cada una
 }
 
 export interface CouponEvent {
@@ -40,6 +50,11 @@ function esMesDePago(mon: number, mesRef: number, frecuencia: number): boolean {
 }
 
 // Genera los eventos de cupón de los próximos `meses` a partir de (fromYear, fromMonth) inclusive.
+// Si el bono trae `amortizaciones`, el cupón de cada mes de pago sale sobre el saldo VIGENTE hasta
+// ese momento (arranca en `valorResidual`, default 1) — cada cuota programada reduce el saldo para
+// los pagos siguientes, nunca para el que está cayendo justo ese mes (cobrás cupón sobre lo que
+// tuviste ADEMÁS de la cuota, no sobre lo que queda después). Sin `amortizaciones`/`valorResidual`
+// se comporta exactamente igual que antes (saldo fijo en 1) — retrocompatible.
 export function couponEvents(
   bonds: CouponBond[], fromYear: number, fromMonth: number, meses = 12,
 ): CouponEvent[] {
@@ -47,15 +62,24 @@ export function couponEvents(
   for (const b of bonds) {
     if (!(b.tasaAnual > 0) || !(b.faceValue > 0) || !b.mesRef) continue;
     const freq = clampFreq(b.frecuencia);
-    const monto = +(b.faceValue * (b.tasaAnual / freq)).toFixed(2);
     const vto = b.vencimiento ? new Date(b.vencimiento + 'T00:00:00Z') : null;
+    const schedule = [...(b.amortizaciones ?? [])].sort((x, y) => x.fecha.localeCompare(y.fecha));
+    let balance = b.valorResidual ?? 1;
+    let schedIdx = 0;
     for (let i = 0; i < meses; i++) {
       const abs = (fromYear * 12 + (fromMonth - 1)) + i;
       const year = Math.floor(abs / 12);
       const month = (abs % 12) + 1;
-      if (!esMesDePago(month, b.mesRef, freq)) continue;
       if (vto && (year > vto.getUTCFullYear() || (year === vto.getUTCFullYear() && month > vto.getUTCMonth() + 1))) continue;
-      events.push({ ym: `${year}-${String(month).padStart(2, '0')}`, year, month, ticker: b.ticker, monto });
+      const ym = `${year}-${String(month).padStart(2, '0')}`;
+      if (esMesDePago(month, b.mesRef, freq) && balance > 0) {
+        const monto = +(b.faceValue * (b.tasaAnual / freq) * balance).toFixed(2);
+        if (monto > 0) events.push({ ym, year, month, ticker: b.ticker, monto });
+      }
+      while (schedIdx < schedule.length && schedule[schedIdx].fecha.slice(0, 7) <= ym) {
+        balance = Math.max(0, balance - schedule[schedIdx].porcentaje);
+        schedIdx++;
+      }
     }
   }
   return events;
@@ -73,6 +97,82 @@ export function couponCalendar(
     const month = (abs % 12) + 1;
     const ym = `${year}-${String(month).padStart(2, '0')}`;
     const detalle = events.filter(e => e.ym === ym).map(e => ({ ticker: e.ticker, monto: e.monto }));
+    buckets.push({ ym, year, month, total: +detalle.reduce((s, d) => s + d.monto, 0).toFixed(2), detalle });
+  }
+  return buckets;
+}
+
+export interface CapitalBond {
+  ticker: string;
+  faceValue: number;             // nominal total tenido (mismo criterio que CouponBond)
+  vencimiento: string | null;
+  valorResidual?: number;        // fracción 0..1 vigente HOY — default 1 (bullet)
+  amortizaciones?: CuotaAmortizacion[]; // cuotas futuras cargadas
+}
+
+export interface CapitalEvent {
+  ym: string; year: number; month: number; ticker: string; monto: number;
+  tipo: 'cuota' | 'rescate';   // 'cuota' = amortización programada; 'rescate' = lo NO cubierto por
+                                // el cronograma, asumido pagado entero al vencimiento
+}
+
+export interface CapitalMonthBucket {
+  ym: string; year: number; month: number; total: number;
+  detalle: { ticker: string; monto: number; tipo: 'cuota' | 'rescate' }[];
+}
+
+// Calendario de CAPITAL (distinto de couponEvents/couponCalendar, que son solo interés): las cuotas
+// de amortización cargadas a mano que caen dentro de la ventana, más un "rescate" en el mes de
+// vencimiento con lo que el cronograma NO cubre. Un bono bullet sin cuotas cargadas (o amortizable
+// sin cronograma, solo con valor_residual) devuelve directamente ese remanente entero al vencimiento
+// — mismo criterio y misma simplificación deliberada que ytm()/bondDuration() (ver su comentario):
+// se asume que lo no programado se repaga TODO junto al final, no es un cronograma garantizado.
+export function capitalEvents(
+  bonds: CapitalBond[], fromYear: number, fromMonth: number, meses = 12,
+): CapitalEvent[] {
+  const events: CapitalEvent[] = [];
+  const inicio = fromYear * 12 + (fromMonth - 1);
+  const fin = inicio + meses - 1;
+  for (const b of bonds) {
+    if (!(b.faceValue > 0)) continue;
+    const schedule = [...(b.amortizaciones ?? [])].sort((x, y) => x.fecha.localeCompare(y.fecha));
+    let cubierto = 0;
+    for (const c of schedule) {
+      const d = new Date(c.fecha + 'T00:00:00Z');
+      if (Number.isNaN(d.getTime()) || !(c.porcentaje > 0)) continue;
+      cubierto += c.porcentaje;
+      const abs = d.getUTCFullYear() * 12 + d.getUTCMonth();
+      if (abs < inicio || abs > fin) continue;
+      const monto = +(b.faceValue * c.porcentaje).toFixed(2);
+      if (monto > 0) events.push({ ym: c.fecha.slice(0, 7), year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, ticker: b.ticker, monto, tipo: 'cuota' });
+    }
+    const restante = (b.valorResidual ?? 1) - cubierto;
+    if (restante > 1e-9 && b.vencimiento) {
+      const vto = new Date(b.vencimiento + 'T00:00:00Z');
+      if (!Number.isNaN(vto.getTime())) {
+        const abs = vto.getUTCFullYear() * 12 + vto.getUTCMonth();
+        if (abs >= inicio && abs <= fin) {
+          const monto = +(b.faceValue * restante).toFixed(2);
+          if (monto > 0) events.push({ ym: b.vencimiento.slice(0, 7), year: vto.getUTCFullYear(), month: vto.getUTCMonth() + 1, ticker: b.ticker, monto, tipo: 'rescate' });
+        }
+      }
+    }
+  }
+  return events;
+}
+
+// Agrupa capitalEvents por mes — mismo criterio que couponCalendar.
+export function capitalCalendar(
+  bonds: CapitalBond[], fromYear: number, fromMonth: number, meses = 12,
+): CapitalMonthBucket[] {
+  const events = capitalEvents(bonds, fromYear, fromMonth, meses);
+  const buckets: CapitalMonthBucket[] = [];
+  for (let i = 0; i < meses; i++) {
+    const abs = (fromYear * 12 + (fromMonth - 1)) + i;
+    const year = Math.floor(abs / 12);
+    const month = (abs % 12) + 1;
+    const ym = `${year}-${String(month).padStart(2, '0')}`;
+    const detalle = events.filter(e => e.ym === ym).map(e => ({ ticker: e.ticker, monto: e.monto, tipo: e.tipo }));
     buckets.push({ ym, year, month, total: +detalle.reduce((s, d) => s + d.monto, 0).toFixed(2), detalle });
   }
   return buckets;
