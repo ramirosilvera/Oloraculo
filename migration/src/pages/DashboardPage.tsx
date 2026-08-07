@@ -26,11 +26,11 @@ import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, PIE_COLORS, colorDeBroker } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
-import type { Posicion } from '../types/domain';
+import type { Posicion, AssetType } from '../types/domain';
 
 export function DashboardPage() {
   const { active } = usePortfolios();
@@ -54,7 +54,7 @@ export function DashboardPage() {
 
   const { patrimonio, costo, pnl, alloc, sinPrecio } = useMemo(() => {
     let patrimonio = 0, costo = 0;
-    const parts: { ticker: string; mkt: number; target: number | null }[] = [];
+    const parts: { ticker: string; mkt: number; target: number | null; tipo: AssetType }[] = [];
     // Posiciones ABIERTAS con ticker cotizable que quedaron sin precio: se valúan a costo, así que
     // el patrimonio no es "de mercado". Hay que decirlo (y no grabar ese valor en el histórico).
     const sinPrecio: string[] = [];
@@ -64,7 +64,7 @@ export function DashboardPage() {
       if (u == null && p.cantidad > 0 && p.tipo !== 'cash') sinPrecio.push(p.ticker);
       patrimonio += mkt;
       costo += p.precio_compra * p.cantidad;
-      if (mkt > 0) parts.push({ ticker: p.ticker, mkt, target: p.peso_objetivo });
+      if (mkt > 0) parts.push({ ticker: p.ticker, mkt, target: p.peso_objetivo, tipo: p.tipo });
     }
     parts.sort((a, b) => b.mkt - a.mkt);
     return { patrimonio, costo, pnl: patrimonio - costo, alloc: parts, sinPrecio };
@@ -402,7 +402,15 @@ function AdminResumen() {
   );
 }
 
-function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mkt: number; target: number | null }[]; total: number; isLoading: boolean }) {
+// Renta fija = bono (coherente con la sección /bonos). Liquidez = cash (no es una posición
+// "variable" en el sentido de riesgo de mercado, se muestra aparte). Todo lo demás (cedear, acción
+// US/AR, ETF) es renta variable.
+type Categoria = 'variable' | 'fija' | 'liquidez';
+const categoriaDe = (tipo: AssetType): Categoria => tipo === 'bono' ? 'fija' : tipo === 'cash' ? 'liquidez' : 'variable';
+const CATEGORIA_LABEL: Record<Categoria, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
+const CATEGORIA_COLOR: Record<Categoria, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
+
+function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mkt: number; target: number | null; tipo: AssetType }[]; total: number; isLoading: boolean }) {
   const chart = useChartTheme();
   if (isLoading) {
     return <Card><CardHeader title="Distribución" /><p className="p-4 text-sm text-ink-600">Cargando…</p></Card>;
@@ -410,8 +418,9 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
   if (alloc.length === 0) {
     return <Card><CardHeader title="Distribución" /><p className="p-4 text-sm text-ink-600">Sin posiciones. Cargalas en Posiciones.</p></Card>;
   }
-  const data = alloc.map(a => ({ name: a.ticker, value: a.mkt }));
-  // % objetivo mostrados como enteros que suman 100 (resto mayor), coherente con Posiciones.
+  // % objetivo mostrados como enteros que suman 100 (resto mayor), coherente con Posiciones. Se
+  // calcula sobre TODO el portfolio (no por sección): peso_objetivo siempre es una fracción del
+  // total, no del subconjunto fija/variable.
   const objPct = redondearPct(alloc.filter(a => a.target != null).map(a => ({ id: a.ticker, peso: a.target! })));
   // Mismo umbral que usa cada fila para decidir si mostrar la desviación (más abajo) — resumen
   // agregado al estilo "Focos de atención" de MacroContext, para que el drift no pase desapercibido.
@@ -420,42 +429,69 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
     const w = total > 0 ? a.mkt / total : 0;
     return Math.abs(w - a.target) >= TOLERANCIA_OBJETIVO;
   }).length;
+
+  const categorias: Categoria[] = ['variable', 'fija', 'liquidez'];
+  const data = categorias
+    .map(cat => ({ cat, value: alloc.filter(a => categoriaDe(a.tipo) === cat).reduce((s, a) => s + a.mkt, 0) }))
+    .filter(c => c.value > 0)
+    .sort((a, b) => b.value - a.value);
+
   return (
     <Card>
-      <CardHeader title="Distribución" sub="Peso de cada activo · actual vs objetivo."
+      <CardHeader title="Distribución" sub="Renta fija vs. variable · objetivo por ticker dentro de cada sección."
         right={desviados > 0 ? <Badge tone="warn">{desviados} fuera del objetivo</Badge> : undefined} />
-      <div className="p-4 grid sm:grid-cols-[minmax(0,200px)_1fr] gap-4 items-center">
-        <div className="h-[180px]">
+      <div className="p-4 grid sm:grid-cols-[minmax(0,180px)_1fr] gap-4 items-center border-b border-line">
+        <div className="h-[160px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={2} stroke="none">
-                {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              <Pie data={data} dataKey="value" nameKey="cat" cx="50%" cy="50%" innerRadius={44} outerRadius={72} paddingAngle={2} stroke="none">
+                {data.map((c, i) => <Cell key={i} fill={CATEGORIA_COLOR[c.cat]} />)}
               </Pie>
               <Tooltip
-                formatter={(v: number) => [fmtUsd(v, 0), 'Valor']}
+                formatter={(v: number, n: string) => [fmtUsd(v, 0), CATEGORIA_LABEL[n as Categoria]]}
                 contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, color: chart.tooltipText, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="space-y-1">
-          {alloc.map((a, i) => {
-            const w = total > 0 ? a.mkt / total : 0;
-            const off = a.target != null ? w - a.target : null;
-            return (
-              <div key={a.ticker} className="flex items-center gap-2 text-sm">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                <span className="font-semibold text-ink-800 w-14 truncate">{a.ticker}</span>
-                <span className="tnum text-ink-700 w-12 text-right">{fmtPct(w, 0)}</span>
-                {a.target != null
-                  ? <span className="tnum text-[11px] text-ink-500 w-16 text-right">obj {objPct.get(a.ticker) ?? Math.round(a.target * 100)}%</span>
-                  : <span className="w-16" />}
-                {off != null && Math.abs(off) >= TOLERANCIA_OBJETIVO
-                  ? <span className={`tnum text-[10px] w-10 text-right ${off > 0 ? 'text-warn' : 'text-celeste-600'}`}>{off > 0 ? '+' : ''}{fmtPct(off, 0)}</span>
-                  : <span className="w-10" />}
-              </div>
-            );
-          })}
+        <div className="space-y-1.5">
+          {data.map(c => (
+            <div key={c.cat} className="flex items-center gap-2 text-sm">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: CATEGORIA_COLOR[c.cat] }} />
+              <span className="font-semibold text-ink-800">{CATEGORIA_LABEL[c.cat]}</span>
+              <span className="tnum text-ink-700 ml-auto">{fmtPct(total > 0 ? c.value / total : 0, 0)}</span>
+              <span className="tnum text-[11px] text-ink-500 w-16 text-right">{fmtUsdCompact(c.value)}</span>
+            </div>
+          ))}
         </div>
+      </div>
+      <div className="p-4 space-y-4">
+        {categorias.map(cat => {
+          const items = alloc.filter(a => categoriaDe(a.tipo) === cat);
+          if (items.length === 0) return null;
+          return (
+            <div key={cat}>
+              <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold mb-1.5">{CATEGORIA_LABEL[cat]}</p>
+              <div className="space-y-1">
+                {items.map(a => {
+                  const w = total > 0 ? a.mkt / total : 0;
+                  const off = a.target != null ? w - a.target : null;
+                  return (
+                    <div key={a.ticker} className="flex items-center gap-2 text-sm">
+                      <span className="font-semibold text-ink-800 w-14 truncate">{a.ticker}</span>
+                      <span className="tnum text-ink-700 w-12 text-right">{fmtPct(w, 0)}</span>
+                      {a.target != null
+                        ? <span className="tnum text-[11px] text-ink-500 w-16 text-right">obj {objPct.get(a.ticker) ?? Math.round(a.target * 100)}%</span>
+                        : <span className="w-16" />}
+                      {off != null && Math.abs(off) >= TOLERANCIA_OBJETIVO
+                        ? <span className={`tnum text-[10px] w-10 text-right ${off > 0 ? 'text-warn' : 'text-celeste-600'}`}>{off > 0 ? '+' : ''}{fmtPct(off, 0)}</span>
+                        : <span className="w-10" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Card>
   );
