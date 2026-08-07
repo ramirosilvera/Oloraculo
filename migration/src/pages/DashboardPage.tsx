@@ -260,12 +260,16 @@ function AlertasResumen() {
   const { cedearsCalc, isLoading: cedearsLoading } = useCedearsCalc(active?.id);
   const { bonosCalc, isLoading: bonosLoading } = useBonosCalc(active?.id);
   const { anios: objAnios, pct: objPct } = useObjetivoDuracion(active?.id);
+  // Mismo risk-free que BonosPage (tasa a 10 años UST) — sin esto, spreadPromedio siempre da null
+  // acá y la alerta de "spread negativo" nunca podría aparecer en el Dashboard aunque sí en /bonos.
+  const { data: macro = {} } = useMacro();
+  const riskFree = (macro as Record<string, number | null>).dgs10 != null ? (macro as Record<string, number | null>).dgs10! / 100 : null;
 
   if (cedearsLoading || bonosLoading) return null;
 
   const alertas = [
     ...alertasCedears(resumenCedears(cedearsCalc)),
-    ...alertasBonos(resumenBonos(bonosCalc, objAnios), objAnios, objPct),
+    ...alertasBonos(resumenBonos(bonosCalc, objAnios, riskFree), objAnios, objPct),
   ];
   if (alertas.length === 0) return null;
 

@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations } from '../hooks/usePosiciones';
 import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
-import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, CONCENTRACION_SECTOR_ALERTA, alertasCedears } from '../engine/cedears';
+import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, alertasCedears } from '../engine/cedears';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, PIE_COLORS, AlertasBanner } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme } from '../hooks/usePrefs';
@@ -40,7 +40,6 @@ export function CedearsPage() {
   const resumen = resumenCedears(cedearsCalc);
   const { totalCapital, totalMkt, mayorPosicion, nSectores, hhiSector, porSector, porRol } = resumen;
   const alertas = alertasCedears(resumen);
-  const mayorSector = porSector.length > 0 ? porSector[0] : null;
 
   const sectorData = porSector.map(s => ({ name: s.sector, value: s.pct }));
   const rolData = porRol.map(r => ({ name: r.rol === 'sin_clasificar' ? 'Sin clasificar' : ROL_LABEL[r.rol].label, key: r.rol, value: r.pct }));
@@ -179,14 +178,9 @@ export function CedearsPage() {
               ) : <p className="text-[11px] text-ink-500">Sin capital valuado todavía.</p>}
             </div>
           </div>
-          <p className="px-4 pb-1.5 text-[10px] text-ink-500">
+          <p className="px-4 pb-4 text-[10px] text-ink-500">
             "Compounder" no es una de las 6 categorías de "One Up on Wall Street" — es un agregado del proyecto para negocios que reinvierten capital a tasas altas de forma sostenida (pasá el mouse sobre cada estilo para ver su descripción).
           </p>
-          {mayorSector && mayorSector.pct >= CONCENTRACION_SECTOR_ALERTA && (
-            <p className="px-4 pb-4 text-[11px] text-warn">
-              {fmtPct(mayorSector.pct, 0)} del capital en CEDEARs está en {mayorSector.sector} — concentración sectorial alta.
-            </p>
-          )}
         </Card>
       )}
 
