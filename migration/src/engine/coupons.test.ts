@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { couponEvents, couponCalendar, capitalEvents, capitalCalendar, cuponAnualTotal, ytm, bondDuration, rendimientoCorriente, type CouponBond, type CapitalBond } from './coupons';
+import { couponEvents, couponCalendar, capitalEvents, capitalCalendar, agruparCuotasPorPosicion, cuponAnualTotal, ytm, bondDuration, rendimientoCorriente, type CouponBond, type CapitalBond } from './coupons';
 
 const semestral: CouponBond = { ticker: 'GD46', faceValue: 1000, tasaAnual: 0.08, frecuencia: 2, mesRef: 1 };
 // paga en enero y julio; cupón por período = 1000 × 0.08/2 = 40
@@ -306,5 +306,26 @@ describe('rendimientoCorriente — current yield', () => {
     it('el cupón se paga sobre el capital remanente: valorResidual 0.5 da la mitad de rendimiento corriente', () => {
       expect(rendimientoCorriente(0.08, 1, 0.5)).toBeCloseTo(0.04, 6);
     });
+  });
+});
+
+describe('agruparCuotasPorPosicion', () => {
+  it('agrupa por posicion_id, conservando fecha y porcentaje de cada cuota', () => {
+    const m = agruparCuotasPorPosicion([
+      { posicion_id: 'a', fecha: '2026-03-01', porcentaje: 0.2 },
+      { posicion_id: 'b', fecha: '2026-04-01', porcentaje: 0.5 },
+      { posicion_id: 'a', fecha: '2026-09-01', porcentaje: 0.3 },
+    ]);
+    expect(m.get('a')).toEqual([{ fecha: '2026-03-01', porcentaje: 0.2 }, { fecha: '2026-09-01', porcentaje: 0.3 }]);
+    expect(m.get('b')).toEqual([{ fecha: '2026-04-01', porcentaje: 0.5 }]);
+  });
+
+  it('sin filas: mapa vacío, no revienta', () => {
+    expect(agruparCuotasPorPosicion([]).size).toBe(0);
+  });
+
+  it('una posición sin cuotas no aparece en el mapa (el caller usa ?? [] para el default)', () => {
+    const m = agruparCuotasPorPosicion([{ posicion_id: 'a', fecha: '2026-03-01', porcentaje: 0.2 }]);
+    expect(m.get('otra-posicion')).toBeUndefined();
   });
 });

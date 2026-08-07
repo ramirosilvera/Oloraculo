@@ -8,7 +8,7 @@ import { useCobros, COBRO_TIPO_LABEL } from '../hooks/useCobros';
 import { useCobrosInversiones } from '../hooks/useCobrosInversiones';
 import { useAmortizaciones } from '../hooks/useAmortizaciones';
 import { useChartTheme } from '../hooks/usePrefs';
-import { couponCalendar, capitalCalendar, cuponAnualTotal, type CouponBond, type CapitalBond } from '../engine/coupons';
+import { couponCalendar, capitalCalendar, agruparCuotasPorPosicion, cuponAnualTotal, type CouponBond, type CapitalBond } from '../engine/coupons';
 import { dividendCalendar, dividendoAnualEstimado, type DividendPosicion } from '../engine/dividendProjection';
 import { resumenCobros, saldoInvertible } from '../engine/cobros';
 import { Card, CardHeader, Button, Badge, Field, Stat, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
@@ -434,15 +434,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
 
   // Cronograma por posición — un bono sin cuotas cargadas manda [] (couponEvents/capitalEvents ya
   // saben tratar eso como bullet sobre el valor_residual de hoy, sin cronograma detallado).
-  const cuotasPorPosicion = useMemo(() => {
-    const m = new Map<string, { fecha: string; porcentaje: number }[]>();
-    for (const a of amortizaciones) {
-      const arr = m.get(a.posicion_id) ?? [];
-      arr.push({ fecha: a.fecha, porcentaje: a.porcentaje });
-      m.set(a.posicion_id, arr);
-    }
-    return m;
-  }, [amortizaciones]);
+  const cuotasPorPosicion = useMemo(() => agruparCuotasPorPosicion(amortizaciones), [amortizaciones]);
 
   // `faceValue: p.cantidad` asume la convención "nominal constante" (valor_residual baja, cantidad
   // no) — si en cambio registraste una amortización con la OTRA convención (registrarAmortizacion,

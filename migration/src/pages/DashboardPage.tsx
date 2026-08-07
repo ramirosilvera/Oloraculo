@@ -7,6 +7,7 @@ import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePo
 import { useAportes } from '../hooks/useAportes';
 import { useFlujo } from '../hooks/useFlujo';
 import { useCobros } from '../hooks/useCobros';
+import { useAmortizaciones } from '../hooks/useAmortizaciones';
 import { useBrokers } from '../hooks/useBrokers';
 import { usePosicionBrokers } from '../hooks/usePosicionBrokers';
 import { useEstadoCuenta, useAdminUsers } from '../hooks/useAdmin';
@@ -22,6 +23,7 @@ import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { resumenCobros } from '../engine/cobros';
+import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond } from '../engine/coupons';
 import { redondearPct, TOLERANCIA_OBJETIVO } from '../engine/rebalance';
 import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
@@ -582,10 +584,29 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
   );
 }
 
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
 // Cobros reales (dividendos + intereses + amortizaciones) — cuánto entró y cuánto está sin
 // reinvertir todavía. La amortización se ve reflejada en "Cobrado total" (es plata real) pero no en
-// "Renta" (es devolución de capital, no ganancia).
+// "Renta" (es devolución de capital, no ganancia). Las 3 tarjetas son SIEMPRE plata ya cobrada — el
+// aviso de "próximo capital" de abajo es lo único proyectado acá, separado a propósito (mismo
+// criterio que "Capital a cobrar 12m" en /cupones: nunca se mezcla lo realizado con lo estimado).
 function CobrosResumen({ resumen, pendientesCount }: { resumen: ReturnType<typeof resumenCobros>; pendientesCount: number }) {
+  const { active } = usePortfolios();
+  const { data: posiciones = [] } = usePosiciones(active?.id);
+  const { data: amortizaciones = [] } = useAmortizaciones();
+  const cuotasPorPosicion = useMemo(() => agruparCuotasPorPosicion(amortizaciones), [amortizaciones]);
+  const proximoCapital = useMemo(() => {
+    const capitalBonds: CapitalBond[] = posiciones.filter(p => p.tipo === 'bono').map(p => ({
+      ticker: p.ticker, faceValue: p.cantidad, vencimiento: p.vencimiento,
+      valorResidual: p.amortizable && p.valor_residual != null ? p.valor_residual : 1,
+      amortizaciones: cuotasPorPosicion.get(p.id) ?? [],
+    }));
+    if (capitalBonds.length === 0) return null;
+    const hoy = new Date();
+    return capitalCalendar(capitalBonds, hoy.getFullYear(), hoy.getMonth() + 1, 12).find(m => m.total > 0) ?? null;
+  }, [posiciones, cuotasPorPosicion]);
+
   return (
     <Card>
       <CardHeader title="Cobros" sub="Dividendos, intereses y amortizaciones efectivamente cobrados."
@@ -609,6 +630,11 @@ function CobrosResumen({ resumen, pendientesCount }: { resumen: ReturnType<typeo
           <p className="text-[10px] text-ink-500 mt-0.5 truncate">sin contar amortización</p>
         </div>
       </div>
+      {proximoCapital && (
+        <p className="px-4 pb-3 text-[11px] text-ink-500 border-t border-line pt-2.5">
+          Próximo capital <span className="italic">proyectado</span> (amortización o rescate al vencimiento, no es renta): <span className="tnum font-semibold text-ink-700">{fmtUsdCompact(proximoCapital.total)}</span> en {MESES_CORTOS[proximoCapital.month - 1]} {proximoCapital.year} — <Link to="/cupones" className="text-celeste-600 hover:underline">detalle en Cupones →</Link>
+        </p>
+      )}
     </Card>
   );
 }

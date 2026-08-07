@@ -14,6 +14,21 @@ export interface CuotaAmortizacion {
   porcentaje: number;
 }
 
+// Agrupa filas de amortizaciones_programadas (tal como vienen de useAmortizaciones — todo el
+// portfolio junto) por posición — un solo lugar para no reimplementar este group-by en cada pantalla
+// que arma un CouponBond[]/CapitalBond[] (CuponesPage, el resumen de Cobros del Dashboard).
+export function agruparCuotasPorPosicion(
+  amortizaciones: { posicion_id: string; fecha: string; porcentaje: number }[],
+): Map<string, CuotaAmortizacion[]> {
+  const m = new Map<string, CuotaAmortizacion[]>();
+  for (const a of amortizaciones) {
+    const arr = m.get(a.posicion_id) ?? [];
+    arr.push({ fecha: a.fecha, porcentaje: a.porcentaje });
+    m.set(a.posicion_id, arr);
+  }
+  return m;
+}
+
 export interface CouponBond {
   ticker: string;
   faceValue: number;        // nominal total tenido (cantidad de nominales)
