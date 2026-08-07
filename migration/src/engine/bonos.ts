@@ -66,7 +66,6 @@ export interface ResumenBonos {
   tirPromedio: number | null;
   rendCorrientePromedio: number | null;
   spreadPromedio: number | null;      // TIR − tasa libre de riesgo, ponderado por capital
-  pctCortoPlazo: number | null;
   // Concentración por POSICIÓN (ticker), no por emisor real: varias series del mismo emisor (ej.
   // AL30/AL35/GD30 son todos deuda soberana argentina) cuentan aparte — no hay un campo de emisor
   // separado del ticker en el schema, así que agrupar de verdad requeriría cargarlo a mano.
@@ -86,7 +85,7 @@ function promedioPonderado(bonos: BonoCalc[], sel: (b: BonoCalc) => number | nul
   return con.reduce((s, b) => s + sel(b)! * b.capitalUsado, 0) / capital;
 }
 
-export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?: number | null): ResumenBonos {
+export function resumenBonos(bonosCalc: BonoCalc[], riskFree?: number | null): ResumenBonos {
   const totalCapital = bonosCalc.reduce((s, b) => s + b.capital, 0);
   const totalMkt = bonosCalc.reduce((s, b) => s + b.capitalUsado, 0);
 
@@ -94,11 +93,6 @@ export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?:
   const tirPromedio = promedioPonderado(bonosCalc, b => b.tir);
   const rendCorrientePromedio = promedioPonderado(bonosCalc, b => b.rendCorriente);
   const spreadPromedio = riskFree != null ? promedioPonderado(bonosCalc, b => b.tir != null ? b.tir - riskFree : null) : null;
-
-  const conDuracion = bonosCalc.filter(b => b.duracion != null && b.capitalUsado > 0);
-  const capitalConDuracion = conDuracion.reduce((s, b) => s + b.capitalUsado, 0);
-  const capitalCortoPlazo = conDuracion.filter(b => b.duracion!.macaulay <= objAnios).reduce((s, b) => s + b.capitalUsado, 0);
-  const pctCortoPlazo = capitalConDuracion > 0 ? capitalCortoPlazo / capitalConDuracion : null;
 
   const mayorPosicion = totalMkt > 0 && bonosCalc.length > 0
     ? bonosCalc.reduce((max, b) => b.capitalUsado > max.capitalUsado ? b : max, bonosCalc[0])
@@ -112,7 +106,7 @@ export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?:
   const bonosSinDatos = bonosCalc.filter(b => !b.cuponOk || !b.pos.vencimiento).length;
 
   return {
-    totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo,
+    totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio,
     mayorPosicion: mayorPosicion && totalMkt > 0 ? { ticker: mayorPosicion.pos.ticker, pct: mayorPosicion.capitalUsado / totalMkt } : null,
     distribucionGrado: totalMkt > 0
       ? { gradoInversion: capGradoInversion / totalMkt, especulativo: capEspeculativo / totalMkt, default: capDefault / totalMkt, sinCalificar: capSinCalificar / totalMkt }
@@ -125,17 +119,13 @@ export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?:
 // los Stats de BonosPage, ahora en un único lugar para que BonosPage y el resumen del Dashboard
 // muestren EXACTAMENTE la misma lista. `minGradoInversionPct` y `maxDuracionAnios` son umbrales
 // PERSONALES del usuario (no una constante fija del motor, a diferencia de los de arriba) — se
-// piden como parámetro obligatorio, igual que `objAnios`/`objPct`, y quien llama los trae de
-// useObjetivoDuracion (localStorage por portfolio).
-export function alertasBonos(r: ResumenBonos, objAnios: number, objPct: number, minGradoInversionPct: number, maxDuracionAnios: number): Alerta[] {
+// piden como parámetro obligatorio, y quien llama los trae de useObjetivoDuracion (localStorage
+// por portfolio).
+export function alertasBonos(r: ResumenBonos, minGradoInversionPct: number, maxDuracionAnios: number): Alerta[] {
   const alertas: Alerta[] = [];
 
   if (r.mayorPosicion && r.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA) {
     alertas.push({ severidad: 'warn', texto: `${r.mayorPosicion.ticker} concentra ${Math.round(r.mayorPosicion.pct * 100)}% del capital en bonos — un solo ticker por encima del ${Math.round(CONCENTRACION_POSICION_ALERTA * 100)}%.` });
-  }
-
-  if (r.pctCortoPlazo != null && r.pctCortoPlazo * 100 < objPct) {
-    alertas.push({ severidad: 'warn', texto: `Solo ${Math.round(r.pctCortoPlazo * 100)}% del capital en bonos está a ≤${objAnios} años de duración (tu objetivo es ${objPct}%).` });
   }
 
   if (r.distribucionGrado.default > 0) {

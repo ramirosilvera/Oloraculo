@@ -57,12 +57,12 @@ describe('resumenBonos — agregados', () => {
   const c = calcularBono({ ...basePos, ticker: 'GNCXO', cantidad: 500, calificadora: null, calificacion: null }, 1.0, HOY);   // capitalUsado 500, sin calificar
 
   it('totalCapital y totalMkt suman todos los bonos', () => {
-    const r = resumenBonos([a, b, c], 2);
+    const r = resumenBonos([a, b, c]);
     expect(r.totalMkt).toBeCloseTo(600 + 1000 + 500, 6);
   });
 
   it('duracionPromedio y tirPromedio son ponderados por capitalUsado (no simples)', () => {
-    const r = resumenBonos([a, b, c], 2);
+    const r = resumenBonos([a, b, c]);
     // ponderado: entre el promedio simple y el valor del bono de mayor peso (b, 1000 de 2100)
     const simple = ((a.tir ?? 0) + (b.tir ?? 0) + (c.tir ?? 0)) / 3;
     expect(r.tirPromedio).not.toBeNull();
@@ -70,13 +70,13 @@ describe('resumenBonos — agregados', () => {
   });
 
   it('mayorPosicion es el de mayor capitalUsado, con su % correcto', () => {
-    const r = resumenBonos([a, b, c], 2);
+    const r = resumenBonos([a, b, c]);
     expect(r.mayorPosicion?.ticker).toBe('AL30');
     expect(r.mayorPosicion?.pct).toBeCloseTo(1000 / 2100, 6);
   });
 
   it('distribucionGrado suma 1 (o 0 si no hay capital) y refleja la clasificación real', () => {
-    const r = resumenBonos([a, b, c], 2);
+    const r = resumenBonos([a, b, c]);
     const suma = r.distribucionGrado.gradoInversion + r.distribucionGrado.especulativo + r.distribucionGrado.default + r.distribucionGrado.sinCalificar;
     expect(suma).toBeCloseTo(1, 6);
     expect(r.distribucionGrado.gradoInversion).toBeCloseTo(1000 / 2100, 6);  // b
@@ -85,15 +85,15 @@ describe('resumenBonos — agregados', () => {
   });
 
   it('spreadPromedio: null si no se pasa risk-free; calculado si se pasa', () => {
-    const sinRf = resumenBonos([a, b, c], 2);
+    const sinRf = resumenBonos([a, b, c]);
     expect(sinRf.spreadPromedio).toBeNull();
-    const conRf = resumenBonos([a, b, c], 2, 0.04);
+    const conRf = resumenBonos([a, b, c], 0.04);
     expect(conRf.spreadPromedio).not.toBeNull();
     expect(conRf.spreadPromedio).toBeCloseTo((sinRf.tirPromedio ?? 0) - 0.04, 4);
   });
 
   it('cartera vacía: no divide por cero, todo en null/0', () => {
-    const r = resumenBonos([], 2);
+    const r = resumenBonos([]);
     expect(r.totalMkt).toBe(0);
     expect(r.tirPromedio).toBeNull();
     expect(r.mayorPosicion).toBeNull();
@@ -103,7 +103,7 @@ describe('resumenBonos — agregados', () => {
   it('bonosSinDatos cuenta los que no tienen cupón o vencimiento completo (no los ya vencidos)', () => {
     const incompleto = calcularBono({ ...basePos, ticker: 'XXX', cupon_tasa: null }, 0.6, HOY);
     const completo = calcularBono({ ...basePos, ticker: 'YYY' }, 0.6, HOY);
-    const r = resumenBonos([incompleto, completo], 2);
+    const r = resumenBonos([incompleto, completo]);
     expect(r.bonosSinDatos).toBe(1);
   });
 });
@@ -113,43 +113,37 @@ describe('alertasBonos', () => {
     calcularBono({ ...basePos, ticker, cantidad, calificadora, calificacion }, 1, HOY); // precio=1 -> capitalUsado = cantidad
   // Umbrales personales por defecto usados en la mayoría de los tests (50% mínimo grado inversión,
   // 100 años máximo de duración = prácticamente deshabilitado) — los tests que apuntan a estas 2
-  // condiciones nuevas pasan umbrales ajustados explícitos.
+  // condiciones pasan umbrales ajustados explícitos.
   const MIN_GRADO = 50, MAX_DURACION = 100;
 
-  it('cartera balanceada, sin bonos especulativos/default, objetivo cumplido: sin alertas', () => {
+  it('cartera balanceada, sin bonos especulativos/default, duración corta: sin alertas', () => {
     // 3 posiciones parejas (~33% c/u) para que ninguna sola pase el umbral de concentración (40%).
     const a = conRating('AL30', 340, 'S&P', 'AAA');
     const b = conRating('GD30', 330, 'S&P', 'AAA');
     const c = conRating('AL35', 330, 'S&P', 'AAA');
-    const r = resumenBonos([a, b, c], 100); // objAnios muy alto -> todo entra en "corto plazo"
-    expect(alertasBonos(r, 100, 50, MIN_GRADO, MAX_DURACION)).toHaveLength(0);
+    const r = resumenBonos([a, b, c]);
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION)).toHaveLength(0);
   });
 
   it('mayor posición ≥40%: alerta warn', () => {
     const dominante = conRating('AL30', 500, 'S&P', 'AAA');
     const resto = conRating('GD30', 500, 'S&P', 'AAA');
-    const r = resumenBonos([dominante, resto], 2);
-    expect(alertasBonos(r, 2, 50, MIN_GRADO, MAX_DURACION).some(a => a.severidad === 'warn' && a.texto.includes('AL30'))).toBe(true);
-  });
-
-  it('% a corto plazo por debajo del objetivo: alerta warn', () => {
-    const b = calcularBono({ ...basePos, ticker: 'LARGO', vencimiento: '2040-07-24' }, 1, HOY); // vence lejos -> duración larga
-    const r = resumenBonos([b], 2); // objetivo de corto plazo: 2 años
-    expect(alertasBonos(r, 2, 80, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('objetivo'))).toBe(true);
+    const r = resumenBonos([dominante, resto]);
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.severidad === 'warn' && a.texto.includes('AL30'))).toBe(true);
   });
 
   it('capital en default: alerta neg (severidad alta)', () => {
     const enDefault = conRating('DEF1', 100, 'S&P', 'D');
-    const r = resumenBonos([enDefault], 2);
-    const alertas = alertasBonos(r, 2, 50, MIN_GRADO, MAX_DURACION);
+    const r = resumenBonos([enDefault]);
+    const alertas = alertasBonos(r, MIN_GRADO, MAX_DURACION);
     expect(alertas.some(a => a.severidad === 'neg' && a.texto.includes('DEFAULT'))).toBe(true);
   });
 
   it('≥40% especulativo: alerta warn', () => {
     const especulativo = conRating('SPEC', 500, 'S&P', 'BB');
     const inversionGrade = conRating('SAFE', 500, 'S&P', 'AAA');
-    const r = resumenBonos([especulativo, inversionGrade], 2);
-    expect(alertasBonos(r, 2, 50, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('especulativo'))).toBe(true);
+    const r = resumenBonos([especulativo, inversionGrade]);
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('especulativo'))).toBe(true);
   });
 
   it('grado de inversión por debajo del mínimo personal: alerta warn', () => {
@@ -157,36 +151,36 @@ describe('alertasBonos', () => {
     // condición nueva: baja gradoInversion sin disparar además la alerta de "especulativo".
     const inversionGrade = conRating('SAFE', 400, 'S&P', 'AAA');
     const sinCalificar = conRating('N1', 600, null, null);
-    const r = resumenBonos([inversionGrade, sinCalificar], 2); // gradoInversion = 40%
-    const alertas = alertasBonos(r, 2, 50, 60, MAX_DURACION); // mínimo personal 60% > 40% real
+    const r = resumenBonos([inversionGrade, sinCalificar]); // gradoInversion = 40%
+    const alertas = alertasBonos(r, 60, MAX_DURACION); // mínimo personal 60% > 40% real
     expect(alertas.some(a => a.severidad === 'warn' && a.texto.includes('grado de inversión') && a.texto.includes('mínimo personal'))).toBe(true);
     // con un mínimo personal más laxo (30%), la misma cartera no alerta por este motivo
-    expect(alertasBonos(r, 2, 50, 30, MAX_DURACION).some(a => a.texto.includes('mínimo personal'))).toBe(false);
+    expect(alertasBonos(r, 30, MAX_DURACION).some(a => a.texto.includes('mínimo personal'))).toBe(false);
   });
 
   it('duración promedio por encima del máximo personal: alerta warn', () => {
     const b = calcularBono({ ...basePos, ticker: 'LARGO', vencimiento: '2040-07-24' }, 1, HOY); // duración larga
-    const r = resumenBonos([b], 100); // objAnios alto para no disparar la alerta de "corto plazo"
+    const r = resumenBonos([b]);
     expect(r.duracionPromedio).not.toBeNull();
-    const alertas = alertasBonos(r, 100, 0, MIN_GRADO, 2); // máximo personal 2 años, muy por debajo de la duración real
+    const alertas = alertasBonos(r, MIN_GRADO, 2); // máximo personal 2 años, muy por debajo de la duración real
     expect(alertas.some(a => a.severidad === 'warn' && a.texto.includes('Duración promedio') && a.texto.includes('máximo personal'))).toBe(true);
     // con un máximo personal generoso (100 años), la misma cartera no alerta por este motivo
-    expect(alertasBonos(r, 100, 0, MIN_GRADO, 100).some(a => a.texto.includes('máximo personal'))).toBe(false);
+    expect(alertasBonos(r, MIN_GRADO, 100).some(a => a.texto.includes('máximo personal'))).toBe(false);
   });
 
   it('spread negativo (TIR < tasa libre de riesgo): alerta neg', () => {
     const b = conRating('AL30', 500, 'S&P', 'AAA');
-    const r = resumenBonos([b], 2, 10); // risk-free 10% (absurdamente alto a propósito, fuerza spread negativo)
-    expect(alertasBonos(r, 2, 50, MIN_GRADO, MAX_DURACION).some(a => a.severidad === 'neg' && a.texto.includes('spread'))).toBe(true);
+    const r = resumenBonos([b], 10); // risk-free 10% (absurdamente alto a propósito, fuerza spread negativo)
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.severidad === 'neg' && a.texto.includes('spread'))).toBe(true);
   });
 
   it('bonos sin datos: alerta warn', () => {
     const incompleto = calcularBono({ ...basePos, ticker: 'XXX', cupon_tasa: null }, 0.6, HOY);
-    const r = resumenBonos([incompleto], 2);
-    expect(alertasBonos(r, 2, 50, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('sin cupón o vencimiento'))).toBe(true);
+    const r = resumenBonos([incompleto]);
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('sin cupón o vencimiento'))).toBe(true);
   });
 
   it('cartera vacía: sin alertas, no revienta', () => {
-    expect(alertasBonos(resumenBonos([], 2), 2, 50, MIN_GRADO, MAX_DURACION)).toHaveLength(0);
+    expect(alertasBonos(resumenBonos([]), MIN_GRADO, MAX_DURACION)).toHaveLength(0);
   });
 });

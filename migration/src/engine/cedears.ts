@@ -115,8 +115,8 @@ export function resumenCedears(cedearsCalc: CedearCalc[]): ResumenCedears {
 // coloreaban los Stats de CedearsPage, ahora en un único lugar para que CedearsPage y el resumen
 // del Dashboard muestren EXACTAMENTE la misma lista (nunca "en una pantalla avisa y en la otra no").
 // `concentracionSectorPct`/`concentracionEstiloPct` son umbrales PERSONALES (0..100, no fracciones,
-// mismo criterio que `objPct` en alertasBonos) — obligatorios como parámetro, quien llama los trae
-// de useObjetivoConcentracion (localStorage por portfolio).
+// mismo criterio que `minGradoInversionPct` en alertasBonos) — obligatorios como parámetro, quien
+// llama los trae de useObjetivoConcentracion (localStorage por portfolio).
 export function alertasCedears(r: ResumenCedears, concentracionSectorPct: number, concentracionEstiloPct: number): Alerta[] {
   const alertas: Alerta[] = [];
 

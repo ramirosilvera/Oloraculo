@@ -260,7 +260,7 @@ function AlertasResumen({ alloc, patrimonio }: { alloc: { mkt: number; tipo: Ass
   const { active } = usePortfolios();
   const { cedearsCalc, isLoading: cedearsLoading } = useCedearsCalc(active?.id);
   const { bonosCalc, isLoading: bonosLoading } = useBonosCalc(active?.id);
-  const { anios: objAnios, pct: objPct, minGradoInversionPct, maxDuracionAnios } = useObjetivoDuracion(active?.id);
+  const { minGradoInversionPct, maxDuracionAnios } = useObjetivoDuracion(active?.id);
   const { sectorPct: concentracionSectorPct, estiloPct: concentracionEstiloPct } = useObjetivoConcentracion(active?.id);
   const { objetivoPct: objetivoFijaPct, toleranciaPct: toleranciaDistribucionPct } = useObjetivoDistribucion(active?.id);
   // Mismo risk-free que BonosPage (tasa a 10 años UST) — sin esto, spreadPromedio siempre da null
@@ -272,7 +272,7 @@ function AlertasResumen({ alloc, patrimonio }: { alloc: { mkt: number; tipo: Ass
 
   const alertas = [
     ...alertasCedears(resumenCedears(cedearsCalc), concentracionSectorPct, concentracionEstiloPct),
-    ...alertasBonos(resumenBonos(bonosCalc, objAnios, riskFree), objAnios, objPct, minGradoInversionPct, maxDuracionAnios),
+    ...alertasBonos(resumenBonos(bonosCalc, riskFree), minGradoInversionPct, maxDuracionAnios),
     ...alertasDistribucion(pctRentaFija(alloc, patrimonio), objetivoFijaPct, toleranciaDistribucionPct),
   ];
   if (alertas.length === 0) return null;
@@ -318,25 +318,25 @@ function CedearsResumen() {
   );
 }
 
-// Resumen de Bonos: capital, TIR y duración promedio ponderadas, y cuánto del capital está dentro
-// del objetivo de "corto plazo" definido en /bonos. Mismo cálculo que BonosPage (useBonosCalc +
-// resumenBonos compartidos) así los dos lugares nunca muestran números distintos.
+// Resumen de Bonos: capital, TIR y duración promedio ponderada vs. el máximo personal definido en
+// /bonos. Mismo cálculo que BonosPage (useBonosCalc + resumenBonos compartidos) así los dos lugares
+// nunca muestran números distintos.
 function BonosResumen() {
   const { active } = usePortfolios();
   const { bonos, bonosCalc, isLoading } = useBonosCalc(active?.id);
-  const { anios: objAnios, pct: objPct } = useObjetivoDuracion(active?.id);
+  const { maxDuracionAnios } = useObjetivoDuracion(active?.id);
 
   if (isLoading || bonos.length === 0) return null;
 
-  const { totalMkt, duracionPromedio, tirPromedio, pctCortoPlazo, distribucionGrado } = resumenBonos(bonosCalc, objAnios);
-  const cumpleObjetivo = pctCortoPlazo != null && pctCortoPlazo * 100 >= objPct;
+  const { totalMkt, duracionPromedio, tirPromedio, distribucionGrado } = resumenBonos(bonosCalc);
+  const cumpleObjetivo = duracionPromedio != null && duracionPromedio <= maxDuracionAnios;
 
   return (
     <Card>
       <CardHeader title="Bonos" sub={`${bonos.length} bono${bonos.length > 1 ? 's' : ''} en cartera · precio por nominal (data912)`}
         right={<Link to="/bonos" className="inline-flex items-center gap-1.5">
-          {pctCortoPlazo != null
-            ? <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>{fmtPct(pctCortoPlazo, 0)} a ≤{objAnios}a (obj. {objPct}%)</Badge>
+          {duracionPromedio != null
+            ? <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>{fmtNum(duracionPromedio, 1)}a promedio (máx. {maxDuracionAnios}a)</Badge>
             : <span className="text-[11px] text-celeste-600 hover:underline">Ver bonos →</span>}
         </Link>} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">

@@ -3,7 +3,7 @@ import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations, useMacro } from '../hooks/usePosiciones';
-import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos, DEFAULT_ANIOS_CORTO_PLAZO, DEFAULT_MIN_GRADO_INVERSION_PCT, DEFAULT_MAX_DURACION_ANIOS } from '../hooks/useBonos';
+import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos, DEFAULT_MIN_GRADO_INVERSION_PCT, DEFAULT_MAX_DURACION_ANIOS } from '../hooks/useBonos';
 import { CONCENTRACION_POSICION_ALERTA } from '../engine/bonos';
 import { CALIFICADORAS, CALIFICADORAS_CLASIFICABLES, ETIQUETA_GRADO, ETIQUETA_ESCALA, type GradoCredito, type EscalaRating } from '../engine/rating';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, AlertasBanner } from '../components/ui';
@@ -49,7 +49,6 @@ export function BonosPage() {
   const [editBono, setEditBono] = useState<Posicion | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
   const {
-    anios: objAnios, pct: objPct, setAnios: setObjAnios, setPct: setObjPct,
     minGradoInversionPct, maxDuracionAnios, setMinGradoInversionPct, setMaxDuracionAnios,
   } = useObjetivoDuracion(active?.id);
   const chart = useChartTheme();
@@ -59,9 +58,9 @@ export function BonosPage() {
 
   if (!active) return null;
 
-  const resumen = resumenBonos(bonosCalc, objAnios, riskFree);
-  const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo, mayorPosicion, distribucionGrado } = resumen;
-  const alertas = alertasBonos(resumen, objAnios, objPct, minGradoInversionPct, maxDuracionAnios);
+  const resumen = resumenBonos(bonosCalc, riskFree);
+  const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, mayorPosicion, distribucionGrado } = resumen;
+  const alertas = alertasBonos(resumen, minGradoInversionPct, maxDuracionAnios);
 
   // Gráfico: solo entran los bonos con duración calculable (cupón + vencimiento cargados, y no
   // vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
@@ -73,7 +72,7 @@ export function BonosPage() {
   const sinDuracion = bonosCalc.filter(b => b.duracion == null);
   const sinDuracionVencidos = sinDuracion.filter(b => b.pos.vencimiento != null && b.pos.vencimiento <= hoy);
   const sinDuracionIncompletos = sinDuracion.filter(b => !(b.pos.vencimiento != null && b.pos.vencimiento <= hoy));
-  const cumpleObjetivo = pctCortoPlazo != null && pctCortoPlazo * 100 >= objPct;
+  const cumpleObjetivo = duracionPromedio != null && duracionPromedio <= maxDuracionAnios;
 
   const posColor = dark ? '#15A34A' : '#15803D';
   const accentColor = '#4F97D4';
@@ -131,7 +130,7 @@ export function BonosPage() {
                     </td>
                     <td className="text-right px-3 tnum">
                       {bc.duracion != null
-                        ? <span className={bc.duracion.macaulay <= objAnios ? 'text-pos' : 'text-ink-700'}>{fmtNum(bc.duracion.macaulay, 1)}a</span>
+                        ? <span className={bc.duracion.macaulay <= maxDuracionAnios ? 'text-pos' : 'text-ink-700'}>{fmtNum(bc.duracion.macaulay, 1)}a</span>
                         : <span className="text-ink-500">—</span>}
                     </td>
                     <td className="text-right px-3 tnum text-ink-600">{b.vencimiento ?? '—'}</td>
@@ -211,28 +210,12 @@ export function BonosPage() {
       {bonos.length > 0 && (
         <Card>
           <CardHeader title="Duración vs. capital"
-            sub="Cada punto es un bono: eje X = duración (Macaulay, años, sensibilidad a la tasa) · eje Y = capital. Definí tu propio objetivo de corto plazo."
-            right={pctCortoPlazo != null &&
+            sub="Cada punto es un bono: eje X = duración (Macaulay, años, sensibilidad a la tasa) · eje Y = capital. Definí tu máximo aceptable de duración promedio."
+            right={duracionPromedio != null &&
               <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>
-                {fmtPct(pctCortoPlazo, 0)} a ≤{objAnios}a (objetivo {objPct}%)
+                {fmtNum(duracionPromedio, 1)}a promedio (máx. {maxDuracionAnios}a)
               </Badge>} />
           <div className="px-4 py-3 flex flex-wrap gap-3 items-end text-sm border-b border-line">
-            <Field label="Corto plazo hasta (años)">
-              <input type="number" min="0.25" step="0.25" value={objAnios}
-                onChange={e => {
-                  // `Number(x) || DEFAULT` trataba "0" (mientras se tipea "0.25") como vacío y saltaba
-                  // al default — no se podía escribir 0.25/0.5/0.75 a mano. Vacío sí cae al default.
-                  if (e.target.value === '') { setObjAnios(DEFAULT_ANIOS_CORTO_PLAZO); return; }
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n)) setObjAnios(Math.max(0.25, n));
-                }}
-                className={`${inputCls} w-24`} />
-            </Field>
-            <Field label="Objetivo (% del capital)">
-              <input type="number" min="0" max="100" step="5" value={objPct}
-                onChange={e => setObjPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                className={`${inputCls} w-24`} />
-            </Field>
             <Field label="Duración promedio máxima (años)">
               <input type="number" min="0.25" step="0.25" value={maxDuracionAnios}
                 onChange={e => {
@@ -252,12 +235,12 @@ export function BonosPage() {
                 <ScatterChart margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
                   <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="duracionAnios" name="Duración" unit="a" stroke={chart.axis} fontSize={11}
-                    domain={[0, (max: number) => Math.max(max, objAnios) * 1.15]} />
+                    domain={[0, (max: number) => Math.max(max, maxDuracionAnios) * 1.15]} />
                   <YAxis type="number" dataKey="capitalUsado" name="Capital" stroke={chart.axis} fontSize={11}
                     tickFormatter={v => fmtUsdCompact(v)} width={64} />
                   <ZAxis type="number" range={[80, 320]} dataKey="capitalUsado" />
-                  <ReferenceLine x={objAnios} stroke={warnColor} strokeDasharray="4 4"
-                    label={{ value: `objetivo ${objAnios}a`, position: 'insideTopRight', fill: chart.axis, fontSize: 10 }} />
+                  <ReferenceLine x={maxDuracionAnios} stroke={warnColor} strokeDasharray="4 4"
+                    label={{ value: `máximo ${maxDuracionAnios}a`, position: 'insideTopRight', fill: chart.axis, fontSize: 10 }} />
                   <Tooltip cursor={{ strokeDasharray: '3 3' }}
                     content={({ active: on, payload }) => {
                       if (!on || !payload?.length) return null;
@@ -273,7 +256,7 @@ export function BonosPage() {
                     }} />
                   <Scatter data={puntos} name="Bonos">
                     {puntos.map((p, i) => (
-                      <Cell key={i} fill={p.duracion!.macaulay <= objAnios ? posColor : accentColor} />
+                      <Cell key={i} fill={p.duracion!.macaulay <= maxDuracionAnios ? posColor : accentColor} />
                     ))}
                   </Scatter>
                 </ScatterChart>
