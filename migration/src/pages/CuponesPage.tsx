@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { CalendarClock, Wallet, Trash2, Plus, Sparkles, Check, X } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useDividendosProyectados } from '../hooks/usePosiciones';
@@ -548,7 +548,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
       ) : (
         <>
           <Card>
-            <CardHeader title="Calendario 12 meses" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD), no lo ya cobrado. Cupones (confiables si el bono no entra en default) + dividendos (mezcla declarado/estimado) + capital (gris — devolución de capital, no renta: amortización programada o rescate al vencimiento) — el detalle de abajo distingue cada uno." />
+            <CardHeader title="Calendario 12 meses — Renta" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD) en cupones + dividendos, no lo ya cobrado. Cupones (confiables si el bono no entra en default) + dividendos (mezcla declarado/estimado). El capital (amortización/rescate) tiene escala propia abajo — mezclarlo acá tapa la renta cuando hay un rescate grande." />
             <div className="p-2 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
@@ -557,13 +557,31 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
                   <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
                   <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                     formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
-                  <Bar dataKey="Cupones" stackId="p" fill="#4F97D4" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Dividendos" stackId="p" fill="#E3B341" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Capital" stackId="p" fill="#8B96A5" radius={[3, 3, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: chart.tooltipText }} />
+                  <Bar dataKey="Cupones" stackId="r" fill="#4F97D4" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Dividendos" stackId="r" fill="#E3B341" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
+
+          {capitalAnual > 0 && (
+            <Card>
+              <CardHeader title="Calendario 12 meses — Capital" sub="Devolución de capital proyectada (amortización programada o rescate al vencimiento) — NO es renta, escala propia (los montos acá suelen ser mucho más grandes que los de arriba, sobre todo el mes del rescate)." />
+              <div className="p-2 h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                    <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="mes" stroke={chart.axis} fontSize={11} />
+                    <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
+                    <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
+                      formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(139,150,165,0.12)' }} />
+                    <Bar dataKey="Capital" fill="#8B96A5" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
 
           <Card>
             <CardHeader title="Detalle por mes" sub="🔵 cupón de bono · 🟡 dividendo (declarado o estimado, a confirmar) · ⚪ capital (amortización o rescate — no es renta)" />
