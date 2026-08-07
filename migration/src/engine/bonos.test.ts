@@ -6,7 +6,7 @@ const basePos: Posicion = {
   id: '1', portfolio_id: 'p', tipo: 'bono', ticker: 'GD30', empresa: null, sector: null, rol: null,
   cantidad: 1000, precio_compra: 0.5, fecha_compra: '2024-01-01', peso_objetivo: null, ratio_cedear: null,
   tir_esperada: null, beta: null, cupon_tasa: 0.08, cupon_frecuencia: 2, cupon_mes: 1, vencimiento: '2031-07-24',
-  calificadora: null, calificacion: null, notas: null, created_at: '2024-01-01',
+  calificadora: null, calificacion: null, amortizable: false, valor_residual: null, notas: null, created_at: '2024-01-01',
 };
 const HOY = '2026-07-24';
 
@@ -48,6 +48,35 @@ describe('calcularBono', () => {
     const b = calcularBono(basePos, 0.6, HOY);
     expect(b.grado).toBeNull();
     expect(b.escalaGrado).toBeNull();
+  });
+
+  describe('amortizable / valor_residual', () => {
+    it('bullet (amortizable: false): valorResidual siempre 1, aunque haya un valor_residual cargado por error', () => {
+      const b = calcularBono({ ...basePos, amortizable: false, valor_residual: 0.5 }, 0.6, HOY);
+      expect(b.valorResidual).toBe(1);
+    });
+
+    it('amortizable sin valor_residual cargado: se trata como 1 (bullet) por defecto, no revienta', () => {
+      const b = calcularBono({ ...basePos, amortizable: true, valor_residual: null }, 0.6, HOY);
+      expect(b.valorResidual).toBe(1);
+    });
+
+    it('amortizable con valor_residual cargado: se usa para TIR/duración/rendimiento corriente', () => {
+      const bullet = calcularBono({ ...basePos, amortizable: false, valor_residual: null }, 0.6, HOY);
+      const amort = calcularBono({ ...basePos, amortizable: true, valor_residual: 0.5 }, 0.6, HOY);
+      expect(amort.valorResidual).toBe(0.5);
+      // A mismo precio, cobrar menos capital real (mitad) da una TIR menor que asumir el 100%.
+      expect(amort.tir!).toBeLessThan(bullet.tir!);
+      expect(amort.rendCorriente).toBeCloseTo(bullet.rendCorriente! * 0.5, 6);
+    });
+
+    it('valor_residual NUNCA ajusta paridad/mkt/capital — el precio de mercado ya refleja el valor real', () => {
+      const bullet = calcularBono({ ...basePos, amortizable: false, valor_residual: null }, 0.6, HOY);
+      const amort = calcularBono({ ...basePos, amortizable: true, valor_residual: 0.5 }, 0.6, HOY);
+      expect(amort.paridad).toBe(bullet.paridad);
+      expect(amort.mkt).toBe(bullet.mkt);
+      expect(amort.capital).toBe(bullet.capital);
+    });
   });
 });
 
@@ -105,6 +134,14 @@ describe('resumenBonos — agregados', () => {
     const completo = calcularBono({ ...basePos, ticker: 'YYY' }, 0.6, HOY);
     const r = resumenBonos([incompleto, completo]);
     expect(r.bonosSinDatos).toBe(1);
+  });
+
+  it('bonosAmortizablesSinVR cuenta los marcados amortizable sin valor_residual cargado (no los que ya lo tienen, ni los bullet)', () => {
+    const sinVR = calcularBono({ ...basePos, ticker: 'XXX', amortizable: true, valor_residual: null }, 0.6, HOY);
+    const conVR = calcularBono({ ...basePos, ticker: 'YYY', amortizable: true, valor_residual: 0.7 }, 0.6, HOY);
+    const bullet = calcularBono({ ...basePos, ticker: 'ZZZ', amortizable: false, valor_residual: null }, 0.6, HOY);
+    const r = resumenBonos([sinVR, conVR, bullet]);
+    expect(r.bonosAmortizablesSinVR).toBe(1);
   });
 });
 
@@ -178,6 +215,18 @@ describe('alertasBonos', () => {
     const incompleto = calcularBono({ ...basePos, ticker: 'XXX', cupon_tasa: null }, 0.6, HOY);
     const r = resumenBonos([incompleto]);
     expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('sin cupón o vencimiento'))).toBe(true);
+  });
+
+  it('bono marcado amortizable sin valor residual cargado: alerta warn', () => {
+    const sinVR = calcularBono({ ...basePos, ticker: 'XXX', amortizable: true, valor_residual: null }, 0.6, HOY);
+    const r = resumenBonos([sinVR]);
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('amortizable') && a.texto.includes('valor residual'))).toBe(true);
+  });
+
+  it('bono amortizable CON valor residual cargado: no dispara esa alerta', () => {
+    const conVR = calcularBono({ ...basePos, ticker: 'YYY', amortizable: true, valor_residual: 0.7 }, 0.6, HOY);
+    const r = resumenBonos([conVR]);
+    expect(alertasBonos(r, MIN_GRADO, MAX_DURACION).some(a => a.texto.includes('valor residual'))).toBe(false);
   });
 
   it('cartera vacía: sin alertas, no revienta', () => {

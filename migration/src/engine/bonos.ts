@@ -30,32 +30,39 @@ export interface BonoCalc {
   grado: GradoCredito | null;     // null = sin calificar, o calificadora 'Otra' (notación desconocida)
   escalaGrado: EscalaRating | null;   // a qué escala corresponde `grado` — global o nacional (Arg.)
   capitalUsado: number;        // mkt si hay cotización, si no cae al costo
+  valorResidual: number;       // fracción 0..1 usada en TIR/duración/rend. corriente (1 = bullet)
 }
 
 // Un solo bono: capital, mercado, TIR, duración, rendimiento corriente y clasificación de rating.
+// `mkt`/`paridad`/`capital` NUNCA se ajustan por valor residual: si hay cotización de mercado, el
+// precio ya refleja lo que vale el bono hoy (por definición) — ajustarlo de nuevo con un % cargado a
+// mano sería corregir dos veces (o mal) algo que el mercado ya resolvió. `valorResidual` solo corrige
+// TIR/duración/rendimiento corriente, donde SIEMPRE es correcto sin importar de dónde salió el precio
+// (ver el comentario de ytm() en engine/coupons.ts).
 export function calcularBono(pos: Posicion, px: number | null, hoy: string): BonoCalc {
   const paridad = px != null ? px * 100 : null;
   const capital = pos.precio_compra * pos.cantidad;
   const mkt = px != null ? px * pos.cantidad : null;
   const res = mkt != null ? mkt - capital : null;
   const cuponOk = pos.cupon_tasa != null && pos.cupon_frecuencia != null && pos.cupon_mes != null;
+  const valorResidual = pos.amortizable && pos.valor_residual != null ? pos.valor_residual : 1;
   // TIR al vencimiento sobre el precio de MERCADO (si no hay, sobre el costo).
   const precioNominal = px ?? (pos.precio_compra > 0 ? pos.precio_compra : null);
   const tir = precioNominal != null && pos.cupon_tasa != null && pos.cupon_frecuencia != null && pos.vencimiento
-    ? ytm({ precio: precioNominal, tasaAnual: pos.cupon_tasa, frecuencia: pos.cupon_frecuencia, vencimiento: pos.vencimiento, hoy })
+    ? ytm({ precio: precioNominal, tasaAnual: pos.cupon_tasa, frecuencia: pos.cupon_frecuencia, vencimiento: pos.vencimiento, hoy, valorResidual })
     : null;
   // Duración: se descuenta a la MISMA TIR de arriba (consistencia, ver engine/coupons.ts).
   const duracion = tir != null && pos.cupon_tasa != null && pos.cupon_frecuencia != null && pos.vencimiento
-    ? bondDuration({ tasaAnual: pos.cupon_tasa, frecuencia: pos.cupon_frecuencia, vencimiento: pos.vencimiento, hoy, ytmAnual: tir })
+    ? bondDuration({ tasaAnual: pos.cupon_tasa, frecuencia: pos.cupon_frecuencia, vencimiento: pos.vencimiento, hoy, ytmAnual: tir, valorResidual })
     : null;
   const rendCorriente = precioNominal != null && pos.cupon_tasa != null
-    ? rendimientoCorriente(pos.cupon_tasa, precioNominal)
+    ? rendimientoCorriente(pos.cupon_tasa, precioNominal, valorResidual)
     : null;
   const clasif = clasificarRating(pos.calificadora, pos.calificacion);
   return {
     pos, px, paridad, capital, mkt, res, cuponOk, tir, duracion, rendCorriente,
     grado: clasif?.grado ?? null, escalaGrado: clasif?.escala ?? null,
-    capitalUsado: mkt ?? capital,
+    capitalUsado: mkt ?? capital, valorResidual,
   };
 }
 
@@ -75,6 +82,9 @@ export interface ResumenBonos {
   // Bonos con cupón o vencimiento sin cargar (no se les puede estimar TIR ni duración) — distinto
   // de un bono YA VENCIDO (ese sí tiene los datos completos, simplemente no tiene TIR futura).
   bonosSinDatos: number;
+  // Marcados amortizable=true pero sin valor_residual cargado — se están tratando como bullet
+  // (100%) por defecto, lo que puede sobre/subestimar bastante su TIR real (ver engine/coupons.ts).
+  bonosAmortizablesSinVR: number;
 }
 
 // Promedio ponderado por capitalUsado de `sel(b)` sobre los bonos donde `sel(b)` no es null.
@@ -104,6 +114,7 @@ export function resumenBonos(bonosCalc: BonoCalc[], riskFree?: number | null): R
   const capDefault = sumGrado('default');
   const capSinCalificar = totalMkt - capGradoInversion - capEspeculativo - capDefault;
   const bonosSinDatos = bonosCalc.filter(b => !b.cuponOk || !b.pos.vencimiento).length;
+  const bonosAmortizablesSinVR = bonosCalc.filter(b => b.pos.amortizable && b.pos.valor_residual == null).length;
 
   return {
     totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio,
@@ -111,7 +122,7 @@ export function resumenBonos(bonosCalc: BonoCalc[], riskFree?: number | null): R
     distribucionGrado: totalMkt > 0
       ? { gradoInversion: capGradoInversion / totalMkt, especulativo: capEspeculativo / totalMkt, default: capDefault / totalMkt, sinCalificar: capSinCalificar / totalMkt }
       : { gradoInversion: 0, especulativo: 0, default: 0, sinCalificar: 0 },
-    bonosSinDatos,
+    bonosSinDatos, bonosAmortizablesSinVR,
   };
 }
 
@@ -150,6 +161,10 @@ export function alertasBonos(r: ResumenBonos, minGradoInversionPct: number, maxD
 
   if (r.bonosSinDatos > 0) {
     alertas.push({ severidad: 'warn', texto: `${r.bonosSinDatos} bono${r.bonosSinDatos > 1 ? 's' : ''} sin cupón o vencimiento cargado — no se puede estimar su TIR ni duración.` });
+  }
+
+  if (r.bonosAmortizablesSinVR > 0) {
+    alertas.push({ severidad: 'warn', texto: `${r.bonosAmortizablesSinVR} bono${r.bonosAmortizablesSinVR > 1 ? 's' : ''} marcado${r.bonosAmortizablesSinVR > 1 ? 's' : ''} amortizable sin valor residual cargado — se está calculando su TIR y duración como si fuera bullet (100% del capital al vencimiento).` });
   }
 
   return alertas;

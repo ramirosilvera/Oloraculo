@@ -74,6 +74,28 @@ describe('ytm — TIR al vencimiento (vs current yield)', () => {
     expect(ytm({ precio: 1, tasaAnual: 0.07, frecuencia: 2, vencimiento: '2020-01-01', hoy: '2026-07-24' })).toBeNull();
     expect(ytm({ precio: 1, tasaAnual: 0.07, frecuencia: 2, vencimiento: 'nope', hoy: '2026-07-24' })).toBeNull();
   });
+
+  describe('valorResidual (bonos amortizables)', () => {
+    const base = { tasaAnual: 0.06, frecuencia: 2, vencimiento: '2031-07-24', hoy: '2026-07-24' };
+
+    it('sin valorResidual (u omitido) equivale a valorResidual: 1 (bullet, compatibilidad hacia atrás)', () => {
+      const sinParam = ytm({ precio: 0.9, ...base })!;
+      const conUno = ytm({ precio: 0.9, ...base, valorResidual: 1 })!;
+      expect(sinParam).toBeCloseTo(conUno, 10);
+    });
+
+    it('escala invariante: pagar k×precio por k×valorResidual da la MISMA TIR que pagar precio por valorResidual 1 (XIRR es lineal en escala)', () => {
+      const completo = ytm({ precio: 1, ...base, valorResidual: 1 })!;
+      const mitad = ytm({ precio: 0.5, ...base, valorResidual: 0.5 })!;
+      expect(mitad).toBeCloseTo(completo, 8);
+    });
+
+    it('a precio fijo, un valorResidual más bajo (menos capital por cobrar) da una TIR menor', () => {
+      const conTodo = ytm({ precio: 0.9, ...base, valorResidual: 1 })!;
+      const conMitad = ytm({ precio: 0.9, ...base, valorResidual: 0.5 })!;
+      expect(conMitad).toBeLessThan(conTodo);
+    });
+  });
 });
 
 describe('bondDuration — Macaulay y modificada', () => {
@@ -112,6 +134,23 @@ describe('bondDuration — Macaulay y modificada', () => {
     expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: 'nope', hoy: '2026-07-24', ytmAnual: 0.08 })).toBeNull();
     expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: '2030-01-01', hoy: '2026-07-24', ytmAnual: NaN })).toBeNull();
   });
+
+  describe('valorResidual (bonos amortizables)', () => {
+    it('sin valorResidual (u omitido) equivale a valorResidual: 1 (bullet, compatibilidad hacia atrás)', () => {
+      const base = { tasaAnual: 0.07, frecuencia: 2, vencimiento: '2033-01-15', hoy: '2026-07-24', ytmAnual: 0.095 };
+      const sinParam = bondDuration(base)!;
+      const conUno = bondDuration({ ...base, valorResidual: 1 })!;
+      expect(sinParam.macaulay).toBeCloseTo(conUno.macaulay, 10);
+    });
+
+    it('escalar TODOS los flujos por el mismo valorResidual no cambia la duración (es un promedio ponderado, invariante a la escala)', () => {
+      const base = { tasaAnual: 0.07, frecuencia: 2, vencimiento: '2033-01-15', hoy: '2026-07-24', ytmAnual: 0.095 };
+      const completo = bondDuration({ ...base, valorResidual: 1 })!;
+      const mitad = bondDuration({ ...base, valorResidual: 0.5 })!;
+      expect(mitad.macaulay).toBeCloseTo(completo.macaulay, 8);
+      expect(mitad.modified).toBeCloseTo(completo.modified, 8);
+    });
+  });
 });
 
 describe('rendimientoCorriente — current yield', () => {
@@ -136,5 +175,15 @@ describe('rendimientoCorriente — current yield', () => {
     expect(rendimientoCorriente(0.08, 0)).toBeNull();
     expect(rendimientoCorriente(0.08, -1)).toBeNull();
     expect(rendimientoCorriente(-0.01, 1)).toBeNull();
+  });
+
+  describe('valorResidual (bonos amortizables)', () => {
+    it('sin valorResidual (u omitido) equivale a valorResidual: 1 (bullet, compatibilidad hacia atrás)', () => {
+      expect(rendimientoCorriente(0.08, 0.9)).toBeCloseTo(rendimientoCorriente(0.08, 0.9, 1)!, 10);
+    });
+
+    it('el cupón se paga sobre el capital remanente: valorResidual 0.5 da la mitad de rendimiento corriente', () => {
+      expect(rendimientoCorriente(0.08, 1, 0.5)).toBeCloseTo(0.04, 6);
+    });
   });
 });

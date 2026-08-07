@@ -25,12 +25,14 @@ const SIN_CALIFICAR_COLOR = '#8B96A5';
 // inflar la TIR bastante por encima del cupón nominal — no es que el bono rinda eso en la práctica.
 const SIN_COTIZACION_HINT = 'Sin cotización de mercado todavía (puede ser un bono recién suscripto en licitación primaria) — se estima con tu precio de compra. Si hay un pago de cupón próximo, esta TIR puede estar inflada (el cálculo no descuenta el interés corrido).';
 
-// Ningún campo del schema registra un cronograma de amortización — Paridad/TIR/Duración asumen
-// bullet (todo el capital al vencimiento) para TODOS los bonos de la tabla, sin poder distinguir
-// cuáles amortizan en cuotas. El sesgo puede ser grande (no "leve") y cambia de signo según si el
-// bono cotiza bajo o sobre la par — ver el comentario de ytm() en engine/coupons.ts. Si un bono
-// amortiza, registrá cada amortización en Cupones (reduce el nominal) para no arrastrar el error.
-const BULLET_HINT = 'Paridad, TIR y duración asumen que el 100% del capital se devuelve recién al vencimiento (bullet). Si el bono amortiza en cuotas, estos números son orientativos — el error puede ser grande, sobre todo después de la primera amortización. Registrala en Cupones (reduce el nominal) para mantener la cartera al día.';
+// Ningún proveedor (ni data912, verificado a mano contra su respuesta real) publica cronograma de
+// amortización ni valor residual — TIR/duración/rendimiento corriente asumen bullet (100% del
+// capital recién al vencimiento) salvo que marques el bono como "Amortizable" y cargues el valor
+// residual con el ✏️ (ver CuponModal). El sesgo de dejarlo en bullet cuando en los hechos amortiza
+// puede ser grande (no "leve") y cambia de signo según si el bono cotiza bajo o sobre la par — ver
+// el comentario de ytm() en engine/coupons.ts. "Paridad" y "Valor mercado" NUNCA se ajustan por
+// valor residual: si hay cotización de mercado, el precio ya refleja lo que vale el bono hoy.
+const BULLET_HINT = 'TIR, duración y rendimiento corriente asumen bullet (100% del capital al vencimiento) salvo que marques el bono como "Amortizable" y cargues el valor residual con el ✏️. Paridad y Valor mercado no se ajustan por esto: si hay cotización de mercado, ya reflejan el valor real.';
 
 // Badge de rating: tono por grado (pos=grado de inversión, warn=especulativo, neg=default,
 // gris=sin calificar o 'Otra' calificadora). Nunca inventa un grado que el motor no dio.
@@ -124,8 +126,17 @@ export function BonosPage() {
                 const b = bc.pos;
                 return (
                   <tr key={b.id} className="hover:bg-canvas align-top">
-                    <td className="px-4 py-2" title={b.notas ?? undefined}>
-                      <span className="font-semibold text-ink-900">{b.ticker}</span>
+                    <td className="px-4 py-2">
+                      <span className="inline-flex items-center gap-1.5" title={b.notas ?? undefined}>
+                        <span className="font-semibold text-ink-900">{b.ticker}</span>
+                        {b.amortizable && (
+                          <span title={b.valor_residual != null
+                            ? `Amortizable — valor residual cargado: ${fmtPct(b.valor_residual, 0)} del nominal original`
+                            : 'Amortizable, pero sin valor residual cargado todavía — se está calculando como bullet (100%). Editalo con el ✏️.'}>
+                            <Badge tone={b.valor_residual != null ? 'accent' : 'warn'}>Amort.</Badge>
+                          </span>
+                        )}
+                      </span>
                       {(b.empresa || b.notas) && <span className="block text-[10px] text-ink-600 max-w-[220px] truncate">{b.empresa || b.notas}</span>}
                     </td>
                     <td className="px-3"><RatingBadge calificadora={b.calificadora} calificacion={b.calificacion} grado={bc.grado} escala={bc.escalaGrado} /></td>
@@ -320,6 +331,8 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
   const [vto, setVto] = useState(bono.vencimiento ?? '');
   const [calificadora, setCalificadora] = useState(bono.calificadora ?? '');
   const [calificacion, setCalificacion] = useState(bono.calificacion ?? '');
+  const [amortizable, setAmortizable] = useState(bono.amortizable);
+  const [valorResidualPct, setValorResidualPct] = useState(bono.valor_residual != null ? String(+(bono.valor_residual * 100).toFixed(2)) : '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -333,6 +346,9 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
         vencimiento: vto || null,
         calificadora: calificadora || null,
         calificacion: calificacion.trim() || null,
+        amortizable,
+        // Si se vuelve a bullet, no arrastramos un valor residual viejo que ya no aplica.
+        valor_residual: amortizable && valorResidualPct ? Number(valorResidualPct) / 100 : null,
       });
     } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo guardar'); setBusy(false); }
   };
@@ -371,12 +387,24 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
             <Field label="Calificación">
               <input value={calificacion} onChange={e => setCalificacion(e.target.value)} placeholder="ej. BB-, Ba3, AAA(arg)" className={inputCls} />
             </Field>
+            <Field label="Estructura de repago">
+              <select value={amortizable ? 'amortizable' : 'bullet'} onChange={e => setAmortizable(e.target.value === 'amortizable')} className={`${inputCls} appearance-none`}>
+                <option value="bullet">Bullet (100% al vencimiento)</option>
+                <option value="amortizable">Amortizable (paga capital en cuotas)</option>
+              </select>
+            </Field>
+            {amortizable && (
+              <Field label="Valor residual actual (%)" hint="% del nominal original que todavía queda por cobrar. No hay ninguna fuente que lo publique automático (ni data912) — cargalo cuando lo confirmes en la ficha técnica del bono o el extracto de tu bróker.">
+                <input type="number" min="1" max="100" step="1" value={valorResidualPct}
+                  onChange={e => setValorResidualPct(e.target.value)} placeholder="ej. 75" className={inputCls} />
+              </Field>
+            )}
           </div>
           <p className="px-4 -mt-1 text-[11px] text-ink-500 flex items-center gap-1.5">
             <CalendarClock className="w-3.5 h-3.5 shrink-0" /> El "mes de un pago" alcanza: los demás se derivan por la frecuencia (ej. semestral desde mayo → may y nov).
           </p>
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
-            El calendario asume cupón fijo sobre el nominal actual (bullet). Para bonos que amortizan o con step-up, los pagos posteriores a la amortización quedan sobrestimados.
+            El calendario de Cupones (proyección de cobros) siempre asume el nominal completo, amortice o no. Marcar "Amortizable" y cargar el valor residual solo corrige la TIR, la duración y el rendimiento corriente de esta pantalla — no el calendario.
           </p>
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
             FIX SCR y Moody's Local (escala nacional argentina, la que vas a usar casi siempre) clasifican en grado de inversión/especulativo/default automáticamente (badge de color). S&amp;P/Moody's/Fitch (escala global) también, solo para el caso puntual de una ON con rating internacional — no equivale a la escala nacional. "Otra" no se clasifica (notación desconocida).

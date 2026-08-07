@@ -86,10 +86,12 @@ export function cuponAnualTotal(bonds: CouponBond[]): number {
 // Rendimiento corriente (current yield) = cupón anual / precio hoy. A diferencia de la YTM, ignora
 // la ganancia/pérdida de capital hasta el rescate (pull-to-par) — mide solo el ingreso por cupón
 // sobre lo que cuesta HOY. Complementa la YTM: un bono puede tener alto rendimiento corriente y baja
-// YTM (comprado sobre la par) o viceversa (comprado muy bajo la par).
-export function rendimientoCorriente(tasaAnual: number, precio: number): number | null {
+// YTM (comprado sobre la par) o viceversa (comprado muy bajo la par). `valorResidual` (0..1, default
+// 1) escala el cupón: un bono amortizable paga cupón sobre el capital que TODAVÍA le queda, no sobre
+// el nominal original — ver el comentario de ytm() más abajo para el porqué de esta corrección.
+export function rendimientoCorriente(tasaAnual: number, precio: number, valorResidual = 1): number | null {
   if (!(tasaAnual >= 0) || !(precio > 0)) return null;
-  return tasaAnual / precio;
+  return (tasaAnual * valorResidual) / precio;
 }
 
 // Fechas de pago (ISO, ascendentes) desde `hoy` hasta el vencimiento, generadas HACIA ATRÁS desde
@@ -120,30 +122,38 @@ function fechasCupon(vencimiento: string, frecuencia: number, hoy: string): stri
 // El "current yield" (cupón/precio) ignora la ganancia de capital hasta el rescate: un bono cupón
 // 7% comprado a 60 de paridad rinde MUCHO más que 11,7%. La YTM descuenta los flujos reales:
 // hoy −precio, cada cupón hasta el vencimiento, y el capital (1 por nominal) al final.
-// Asume BULLET (todo el capital recién al vencimiento) — no modela amortizaciones en cuotas ni
-// interés corrido (precio "sucio"). El sesgo NO es "leve" ni siempre en la misma dirección:
-// verificado numéricamente (bono 2 años, semestral, cupón 6%, amortizando 25% del capital por
-// período) — comprado bajo la par (85) el bullet da 15,5% pero el amortizable real rinde 21,6%
-// (subestima, porque el amortizable te devuelve capital antes, a precio de descuento); comprado
-// sobre la par (105) el bullet da 3,4% contra 1,9% real (ahí sí sobrestima). Para un bono que en
-// los hechos amortiza, tratar este número como orientativo, no exacto — más aún si además no hay
-// cotización de mercado (ver SIN_COTIZACION_HINT en BonosPage.tsx).
+// Asume BULLET (100% del capital recién al vencimiento) salvo que se pase `valorResidual` — no
+// modela interés corrido (precio "sucio") ni un cronograma de amortización completo, solo una FOTO
+// puntual de cuánto capital queda. El sesgo de asumir bullet en un bono que en los hechos amortiza
+// NO es "leve" ni siempre en la misma dirección: verificado numéricamente (bono 2 años, semestral,
+// cupón 6%, amortizando 25% del capital por período) — comprado bajo la par (85) el bullet da
+// 15,5% pero el amortizable real rinde 21,6% (subestima, porque el amortizable te devuelve capital
+// antes, a precio de descuento); comprado sobre la par (105) el bullet da 3,4% contra 1,9% real (ahí
+// sí sobrestima). `valorResidual` (0..1, default 1) corrige esto de forma inequívoca — no depende de
+// ninguna convención de mercado, solo de cuánto capital queda realmente por cobrar: escala CADA
+// cupón (se paga sobre el saldo remanente, no sobre el nominal original) y reemplaza el rescate de 1
+// por `valorResidual` en el último flujo. Simplificación deliberada: trata el remanente como si se
+// repagara TODO junto al vencimiento (no modela cuotas futuras que todavía no ocurrieron) — mejor
+// que asumir 100%, pero sigue siendo una aproximación si al bono le quedan más amortizaciones por
+// delante.
 export function ytm(p: {
   precio: number;        // precio por nominal hoy (0.982 = 98,2% de paridad)
   tasaAnual: number;     // cupón nominal anual (0.06 = 6%)
   frecuencia: number;    // pagos por año
   vencimiento: string;   // ISO 'YYYY-MM-DD'
   hoy: string;
+  valorResidual?: number; // fracción 0..1 del nominal que queda por cobrar — default 1 (bullet)
 }): number | null {
   if (!(p.precio > 0) || !(p.tasaAnual >= 0)) return null;
   const fechas = fechasCupon(p.vencimiento, p.frecuencia, p.hoy);
   if (!fechas) return null;
 
-  const cupon = p.tasaAnual / clampFreq(p.frecuencia);
+  const vr = p.valorResidual ?? 1;
+  const cupon = (p.tasaAnual / clampFreq(p.frecuencia)) * vr;
   const flows = [
     { date: p.hoy, amount: -p.precio },
     ...fechas.map(f => ({ date: f, amount: cupon })),
-    { date: fechas[fechas.length - 1], amount: 1 },   // rescate del capital al vencimiento
+    { date: fechas[fechas.length - 1], amount: vr },   // rescate del capital remanente al vencimiento
   ];
   return xirr(flows);
 }
@@ -154,23 +164,26 @@ export function ytm(p: {
 // cambios de tasa y menos tiempo queda expuesto. Se descuenta a la YTM (ya calculada por ytm() con
 // el precio real de mercado) para que ambas cuentas sean consistentes entre sí — nunca un supuesto
 // nuevo. Modificada = Macaulay / (1+YTM): aproxima directamente %ΔPrecio ante ΔTasa de 1pp.
+// `valorResidual` (0..1, default 1): mismo criterio que en ytm() — ver ese comentario.
 export function bondDuration(p: {
   tasaAnual: number;      // cupón nominal anual (0.06 = 6%)
   frecuencia: number;     // pagos por año
   vencimiento: string;    // ISO 'YYYY-MM-DD'
   hoy: string;
   ytmAnual: number;       // tasa de descuento — usar la YTM ya calculada con ytm()
+  valorResidual?: number; // fracción 0..1 del nominal que queda por cobrar — default 1 (bullet)
 }): { macaulay: number; modified: number } | null {
   if (!(p.tasaAnual >= 0) || !Number.isFinite(p.ytmAnual) || p.ytmAnual <= -1) return null;
   const fechas = fechasCupon(p.vencimiento, p.frecuencia, p.hoy);
   if (!fechas) return null;
 
-  const cupon = p.tasaAnual / clampFreq(p.frecuencia);
+  const vr = p.valorResidual ?? 1;
+  const cupon = (p.tasaAnual / clampFreq(p.frecuencia)) * vr;
   const hoyMs = new Date(p.hoy + 'T00:00:00Z').getTime();
   const DAY = 24 * 60 * 60 * 1000;
   let sumPv = 0, sumTPv = 0;
   fechas.forEach((f, i) => {
-    const amount = cupon + (i === fechas.length - 1 ? 1 : 0);   // el último incluye el rescate
+    const amount = cupon + (i === fechas.length - 1 ? vr : 0);   // el último incluye el rescate
     if (amount <= 0) return;
     const t = (Date.parse(f) - hoyMs) / (365 * DAY);
     if (t <= 0) return;

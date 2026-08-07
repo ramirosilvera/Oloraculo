@@ -45,6 +45,9 @@ export interface Posicion {
   // Calificación crediticia (bonos/ONs) — cargada a mano, ver engine/rating.ts para la clasificación:
   calificadora: string | null;   // 'S&P' | 'Moody's' | 'Fitch' | 'FIX SCR' | 'Moody's Local' | 'Otra'
   calificacion: string | null;   // nota tal cual (ej. 'BB-', 'Ba3', 'AAA(arg)')
+  // Estructura de repago (bonos/ONs) — cargada a mano, ver engine/coupons.ts:
+  amortizable: boolean;           // false = bullet (100% del capital al vencimiento)
+  valor_residual: number | null;  // fracción 0..1 del nominal original que queda por cobrar (foto manual, no cronograma); solo aplica si amortizable
   notas: string | null;
   created_at: string;
 }
