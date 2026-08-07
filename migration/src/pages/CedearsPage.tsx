@@ -10,9 +10,10 @@ import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme } from '../hooks/usePrefs';
 import type { Posicion, AssetRole } from '../types/domain';
 
-// Sugeridos al tipear (datalist, no un <select> cerrado): `sector` es texto libre compartido con
-// Posiciones/acción/ETF — forzar un enum acá rompería valores que el usuario ya haya cargado antes
-// desde otro lado. Lista estilo GICS en español, igual a la que ya aparece en el seed de ejemplo.
+// Lista cerrada (select) estilo GICS en español, igual a la que ya aparece en el seed de ejemplo.
+// `sector` sigue siendo texto libre en la columna (compartida con Posiciones/acción/ETF, que no
+// tocamos) — el ClasificarModal ofrece la opción actual como extra si no matchea ninguna de estas,
+// para no perder en silencio un valor cargado antes desde otro lado.
 const SECTORES_SUGERIDOS = [
   'Energía', 'Materiales', 'Industriales', 'Consumo discrecional', 'Consumo básico',
   'Salud', 'Finanzas', 'Tecnología', 'Comunicación', 'Servicios públicos', 'Inmobiliario',
@@ -220,10 +221,14 @@ function ClasificarModal({ pos, onClose, onSave }: { pos: Posicion; onClose: () 
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
           <div className="p-4 space-y-3 text-sm">
             <Field label="Sector">
-              <input list="cedears-sectores" value={sector} onChange={e => setSector(e.target.value)} placeholder="ej. Tecnología" className={inputCls} />
-              <datalist id="cedears-sectores">
-                {SECTORES_SUGERIDOS.map(s => <option key={s} value={s} />)}
-              </datalist>
+              <select value={sector} onChange={e => setSector(e.target.value)} className={`${inputCls} appearance-none`}>
+                <option value="">—</option>
+                {/* Si ya tenía cargado un sector fuera de la lista (texto libre de antes de este
+                    cambio), lo dejamos como opción extra arriba para no perderlo en silencio al
+                    abrir el modal — el select no lo pisa hasta que el usuario elija otra cosa. */}
+                {sector && !SECTORES_SUGERIDOS.includes(sector) && <option value={sector}>{sector} (no está en la lista)</option>}
+                {SECTORES_SUGERIDOS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </Field>
             <Field label="Estilo (Peter Lynch)">
               <select value={rol} onChange={e => setRol(e.target.value as AssetRole | '')} className={`${inputCls} appearance-none`}>
