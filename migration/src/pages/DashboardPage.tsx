@@ -15,6 +15,8 @@ import { useCikMap } from '../hooks/useCikMap';
 import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
 import { useRadarTicker } from '../hooks/useRadarTicker';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos } from '../hooks/useBonos';
+import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
+import { CONCENTRACION_SECTOR_ALERTA } from '../engine/cedears';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -227,6 +229,8 @@ export function DashboardPage() {
       {/* Distribución: donut + actual vs objetivo. */}
       <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
 
+      <CedearsResumen />
+
       <BonosResumen />
 
       <RadarResumen />
@@ -242,6 +246,43 @@ export function DashboardPage() {
 
       <AdminResumen />
     </div>
+  );
+}
+
+// Resumen de CEDEARs: capital, concentración (mayor posición + HHI sectorial) y diversificación
+// (sectores distintos). Mismo cálculo que CedearsPage (useCedearsCalc + resumenCedears
+// compartidos) así los dos lugares nunca muestran números distintos.
+function CedearsResumen() {
+  const { active } = usePortfolios();
+  const { cedears, cedearsCalc, isLoading } = useCedearsCalc(active?.id);
+
+  if (isLoading || cedears.length === 0) return null;
+
+  const { totalMkt, mayorPosicion, nSectores, hhiSector, porSector } = resumenCedears(cedearsCalc);
+  const mayorSector = porSector.length > 0 ? porSector[0] : null;
+
+  return (
+    <Card>
+      <CardHeader title="CEDEARs" sub={`${cedears.length} CEDEAR${cedears.length > 1 ? 's' : ''} en cartera · sector y estilo (Peter Lynch)`}
+        right={<Link to="/cedears" className="inline-flex items-center gap-1.5">
+          {mayorSector
+            ? <Badge tone={mayorSector.pct >= CONCENTRACION_SECTOR_ALERTA ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
+            : <span className="text-[11px] text-celeste-600 hover:underline">Ver CEDEARs →</span>}
+        </Link>} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+        <Stat label="Capital" value={fmtUsdCompact(totalMkt)} />
+        <Stat label="Mayor posición" value={mayorPosicion
+          ? <span className={mayorPosicion.pct >= CONCENTRACION_SECTOR_ALERTA ? 'text-warn' : 'text-ink-900'}>{mayorPosicion.ticker} · {fmtPct(mayorPosicion.pct, 0)}</span>
+          : <span className="text-ink-500">—</span>}
+          hint="% del capital en CEDEARs concentrado en un solo ticker" />
+        <Stat label="Sectores distintos" value={nSectores}
+          hint="Cantidad de sectores distintos con capital cargado (no cuenta 'Sin sector')" />
+        <Stat label="Concentración sectorial" value={hhiSector != null
+          ? <span className={hhiSector >= 0.33 ? 'text-warn' : 'text-ink-900'}>{fmtNum(hhiSector, 2)}</span>
+          : <span className="text-ink-500">—</span>}
+          hint="Índice de Herfindahl (Σ pesoᵢ²) sobre el capital por sector: 1/N con N sectores parejos, 1 = todo en un sector." />
+      </div>
+    </Card>
   );
 }
 

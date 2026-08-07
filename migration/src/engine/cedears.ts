@@ -30,6 +30,13 @@ export const ROL_COLOR: Record<AssetRole, string> = {
 };
 export const SIN_CLASIFICAR_COLOR = '#8B96A5';
 
+// Umbrales de alerta de concentración — compartidos entre CedearsPage y el resumen del Dashboard
+// para que nunca muestren un criterio distinto de "esto está concentrado". Dos constantes DISTINTAS
+// (aunque hoy compartan el mismo valor): una posición individual y un sector completo son riesgos
+// conceptualmente distintos, y no deberían moverse juntos si mañana se ajusta solo uno.
+export const CONCENTRACION_POSICION_ALERTA = 0.40;  // un solo ticker concentra esto o más del capital en CEDEARs
+export const CONCENTRACION_SECTOR_ALERTA = 0.40;    // un solo sector concentra esto o más (repartido entre varios tickers)
+
 export interface CedearCalc {
   pos: Posicion;
   mkt: number | null;         // valor de mercado (null si no hay cotización)

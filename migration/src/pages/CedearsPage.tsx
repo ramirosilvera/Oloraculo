@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations } from '../hooks/usePosiciones';
 import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
-import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR } from '../engine/cedears';
+import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, CONCENTRACION_SECTOR_ALERTA } from '../engine/cedears';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, PIE_COLORS } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme } from '../hooks/usePrefs';
@@ -18,11 +18,6 @@ const SECTORES_SUGERIDOS = [
   'Energía', 'Materiales', 'Industriales', 'Consumo discrecional', 'Consumo básico',
   'Salud', 'Finanzas', 'Tecnología', 'Comunicación', 'Servicios públicos', 'Inmobiliario',
 ];
-
-// Dos umbrales DISTINTOS, aunque hoy compartan el mismo valor — separados para que cambiar uno
-// (ej. si "mayor posición" individual se vuelve más laxo) no mueva el otro sin querer.
-const CONCENTRACION_POSICION_ALERTA = 0.40;  // un solo ticker concentra esto o más del capital en CEDEARs
-const CONCENTRACION_SECTOR_ALERTA = 0.40;    // un solo sector concentra esto o más (repartido entre varios tickers)
 
 function RolBadge({ rol }: { rol: AssetRole | null }) {
   if (!rol) return <span className="text-ink-500 text-[11px]">—</span>;
