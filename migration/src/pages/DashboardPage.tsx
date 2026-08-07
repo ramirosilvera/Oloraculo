@@ -275,7 +275,7 @@ function BonosResumen() {
         <Stat label="Duración prom." value={duracionPromedio != null ? `${fmtNum(duracionPromedio, 1)}a` : '—'}
           hint="Duración de Macaulay promedio ponderada por capital — sensibilidad de la cartera de bonos a la tasa" />
         <Stat label="Grado inversión" value={fmtPct(distribucionGrado.gradoInversion, 0)}
-          hint="% del capital en bonos calificados grado de inversión, dentro de su propia escala (global S&P/Moody's/Fitch, o nacional Arg. FIX SCR/Moody's Local) — no mezcladas 1 a 1. El resto es especulativo, default, o sin calificar" />
+          hint="% del capital en bonos calificados grado de inversión, dentro de su propia escala — nacional Arg. (FIX SCR/Moody's Local, lo habitual) o global (S&P/Moody's/Fitch), no mezcladas 1 a 1. El resto es especulativo, default, o sin calificar" />
       </div>
     </Card>
   );

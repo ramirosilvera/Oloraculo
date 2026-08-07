@@ -187,7 +187,7 @@ export function BonosPage() {
                   {distribucionGrado.sinCalificar > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SIN_CALIFICAR_COLOR }} />Sin calificar {fmtPct(distribucionGrado.sinCalificar, 0)}</span>}
                 </div>
                 <p className="text-[10px] text-ink-500 mt-1.5">
-                  S&amp;P/Moody's/Fitch (global) y FIX SCR/Moody's Local (nacional Arg.) clasifican cada bono DENTRO de su propia escala — nunca mezcladas 1 a 1 (un "grado de inversión" nacional no equivale al global).
+                  Clasificado en escala NACIONAL argentina (FIX SCR/Moody's Local) — la que aplica a la gran mayoría de bonos y ONs locales. No equivale a grado de inversión global (S&amp;P/Moody's/Fitch), que solo aparecería en alguna ON hard-dollar con rating internacional.
                 </p>
               </>
             ) : <p className="text-[11px] text-ink-500">Sin capital valuado todavía.</p>}
@@ -346,7 +346,7 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
             El calendario asume cupón fijo sobre el nominal actual (bullet). Para bonos que amortizan o con step-up, los pagos posteriores a la amortización quedan sobrestimados.
           </p>
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
-            S&amp;P/Moody's/Fitch (escala global) y FIX SCR/Moody's Local (escala nacional argentina) se clasifican automáticamente en grado de inversión/especulativo/default (badge de color) — cada uno DENTRO de su propia escala, nunca mezcladas entre sí: un "AAA" nacional no equivale a un "AAA" global. Solo "Otra" no se clasifica (notación desconocida).
+            FIX SCR y Moody's Local (escala nacional argentina, la que vas a usar casi siempre) clasifican en grado de inversión/especulativo/default automáticamente (badge de color). S&amp;P/Moody's/Fitch (escala global) también, solo para el caso puntual de una ON con rating internacional — no equivale a la escala nacional. "Otra" no se clasifica (notación desconocida).
           </p>
           {err && <p className="px-4 pt-2 text-xs text-warn">{err}</p>}
           <div className="px-4 py-4 flex justify-end gap-2">
