@@ -23,7 +23,7 @@ import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { resumenCobros } from '../engine/cobros';
-import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond } from '../engine/coupons';
+import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond, type CapitalMonthBucket } from '../engine/coupons';
 import { redondearPct, TOLERANCIA_OBJETIVO } from '../engine/rebalance';
 import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
@@ -50,6 +50,25 @@ export function DashboardPage() {
   const { data: flujo = [] } = useFlujo();
   const { data: cobros = [] } = useCobros(active?.id);
   const resumenCobrado = useMemo(() => resumenCobros(cobros), [cobros]);
+  // Próximo capital (amortización/rescate) proyectado — separado de resumenCobrado (que es SOLO plata
+  // ya cobrada) a propósito. Se calcula acá (no dentro de CobrosResumen) para poder mostrar la tarjeta
+  // aunque todavía no haya ningún cobro registrado (portfolio nuevo con un bono por vencer pronto).
+  const { data: amortizaciones = [] } = useAmortizaciones();
+  const cuotasPorPosicion = useMemo(() => agruparCuotasPorPosicion(amortizaciones), [amortizaciones]);
+  const hoyCapital = new Date();
+  const hoyCapitalISO = hoyCapital.toISOString().slice(0, 10);
+  const proximoCapital = useMemo<CapitalMonthBucket | null>(() => {
+    const capitalBonds: CapitalBond[] = posiciones.filter(p => p.tipo === 'bono').map(p => ({
+      ticker: p.ticker, faceValue: p.cantidad, vencimiento: p.vencimiento,
+      valorResidual: p.amortizable && p.valor_residual != null ? p.valor_residual : 1,
+      // Cuotas de ESTE mes ya cobradas y registradas (valor_residual ya las descontó) siguen en la
+      // tabla hasta que el usuario las borre — capitalEvents() solo filtra por mes, no por día, así
+      // que acá filtramos por fecha exacta para no mostrar como "próximo" algo que ya se cobró hoy.
+      amortizaciones: (cuotasPorPosicion.get(p.id) ?? []).filter(c => c.fecha >= hoyCapitalISO),
+    }));
+    if (capitalBonds.length === 0) return null;
+    return capitalCalendar(capitalBonds, hoyCapital.getFullYear(), hoyCapital.getMonth() + 1, 12).find(m => m.total > 0) ?? null;
+  }, [posiciones, cuotasPorPosicion, hoyCapitalISO, hoyCapital.getFullYear(), hoyCapital.getMonth()]);
   // Sugeridos por el cron, sin confirmar todavía — resumenCobros los excluye a propósito de los
   // totales (no son plata confirmada), así que se cuentan aparte solo para avisar que hay algo
   // esperando revisión en /cupones.
@@ -243,7 +262,7 @@ export function DashboardPage() {
       {/* Patrimonio por broker: dónde está físicamente cada posición. */}
       <PatrimonioBrokers posiciones={posiciones} quotes={quotes} isLoading={qPos.isLoading} />
 
-      {cobros.length > 0 && <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} />}
+      {(cobros.length > 0 || proximoCapital) && <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} proximoCapital={proximoCapital} />}
 
       {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
 
@@ -591,22 +610,7 @@ const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 's
 // "Renta" (es devolución de capital, no ganancia). Las 3 tarjetas son SIEMPRE plata ya cobrada — el
 // aviso de "próximo capital" de abajo es lo único proyectado acá, separado a propósito (mismo
 // criterio que "Capital a cobrar 12m" en /cupones: nunca se mezcla lo realizado con lo estimado).
-function CobrosResumen({ resumen, pendientesCount }: { resumen: ReturnType<typeof resumenCobros>; pendientesCount: number }) {
-  const { active } = usePortfolios();
-  const { data: posiciones = [] } = usePosiciones(active?.id);
-  const { data: amortizaciones = [] } = useAmortizaciones();
-  const cuotasPorPosicion = useMemo(() => agruparCuotasPorPosicion(amortizaciones), [amortizaciones]);
-  const proximoCapital = useMemo(() => {
-    const capitalBonds: CapitalBond[] = posiciones.filter(p => p.tipo === 'bono').map(p => ({
-      ticker: p.ticker, faceValue: p.cantidad, vencimiento: p.vencimiento,
-      valorResidual: p.amortizable && p.valor_residual != null ? p.valor_residual : 1,
-      amortizaciones: cuotasPorPosicion.get(p.id) ?? [],
-    }));
-    if (capitalBonds.length === 0) return null;
-    const hoy = new Date();
-    return capitalCalendar(capitalBonds, hoy.getFullYear(), hoy.getMonth() + 1, 12).find(m => m.total > 0) ?? null;
-  }, [posiciones, cuotasPorPosicion]);
-
+function CobrosResumen({ resumen, pendientesCount, proximoCapital }: { resumen: ReturnType<typeof resumenCobros>; pendientesCount: number; proximoCapital: CapitalMonthBucket | null }) {
   return (
     <Card>
       <CardHeader title="Cobros" sub="Dividendos, intereses y amortizaciones efectivamente cobrados."
@@ -631,8 +635,9 @@ function CobrosResumen({ resumen, pendientesCount }: { resumen: ReturnType<typeo
         </div>
       </div>
       {proximoCapital && (
-        <p className="px-4 pb-3 text-[11px] text-ink-500 border-t border-line pt-2.5">
-          Próximo capital <span className="italic">proyectado</span> (amortización o rescate al vencimiento, no es renta): <span className="tnum font-semibold text-ink-700">{fmtUsdCompact(proximoCapital.total)}</span> en {MESES_CORTOS[proximoCapital.month - 1]} {proximoCapital.year} — <Link to="/cupones" className="text-celeste-600 hover:underline">detalle en Cupones →</Link>
+        <p className="px-4 pb-3 text-[11px] text-ink-500 border-t border-line pt-2.5"
+          title="Devolución de capital (amortización + rescate al vencimiento) de todos los bonos, ventana de 12 meses — NO es renta. Bonos amortizables sin cronograma cargado se estiman con su valor residual, todo junto al vencimiento.">
+          Próximo mes con capital <span className="italic">proyectado</span> (amortización o rescate al vencimiento, no es renta): <span className="tnum font-semibold text-ink-700">{fmtUsdCompact(proximoCapital.total)}</span> en {MESES_CORTOS[proximoCapital.month - 1]} {proximoCapital.year} — <Link to="/cupones" className="text-celeste-600 hover:underline">detalle en Cupones →</Link>
         </p>
       )}
     </Card>
