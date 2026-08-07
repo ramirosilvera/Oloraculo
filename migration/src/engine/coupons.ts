@@ -55,15 +55,19 @@ function esMesDePago(mon: number, mesRef: number, frecuencia: number): boolean {
 // los pagos siguientes, nunca para el que está cayendo justo ese mes (cobrás cupón sobre lo que
 // tuviste ADEMÁS de la cuota, no sobre lo que queda después). Sin `amortizaciones`/`valorResidual`
 // se comporta exactamente igual que antes (saldo fijo en 1) — retrocompatible.
+// Solo se aplican cuotas del mes de inicio (fromYear/fromMonth) en adelante: `valorResidual` ya
+// refleja lo que se pagó hasta HOY (se actualiza vía useCobros.ts#registrarAmortizacionVR), así que
+// una cuota vieja que quedó cargada en el cronograma sin borrar NO se descuenta una segunda vez.
 export function couponEvents(
   bonds: CouponBond[], fromYear: number, fromMonth: number, meses = 12,
 ): CouponEvent[] {
   const events: CouponEvent[] = [];
+  const ymInicio = `${fromYear}-${String(fromMonth).padStart(2, '0')}`;
   for (const b of bonds) {
     if (!(b.tasaAnual > 0) || !(b.faceValue > 0) || !b.mesRef) continue;
     const freq = clampFreq(b.frecuencia);
     const vto = b.vencimiento ? new Date(b.vencimiento + 'T00:00:00Z') : null;
-    const schedule = [...(b.amortizaciones ?? [])].sort((x, y) => x.fecha.localeCompare(y.fecha));
+    const schedule = [...(b.amortizaciones ?? [])].filter(c => c.fecha.slice(0, 7) >= ymInicio).sort((x, y) => x.fecha.localeCompare(y.fecha));
     let balance = b.valorResidual ?? 1;
     let schedIdx = 0;
     for (let i = 0; i < meses; i++) {
@@ -127,6 +131,10 @@ export interface CapitalMonthBucket {
 // sin cronograma, solo con valor_residual) devuelve directamente ese remanente entero al vencimiento
 // — mismo criterio y misma simplificación deliberada que ytm()/bondDuration() (ver su comentario):
 // se asume que lo no programado se repaga TODO junto al final, no es un cronograma garantizado.
+// Cuotas ANTERIORES al mes de inicio (fromYear/fromMonth) se ignoran del todo — ni generan evento
+// ni descuentan de `cubierto` — porque se presume que ya están reflejadas en `valorResidual` (mismo
+// criterio que couponEvents). Cuotas FUTURAS más allá de la ventana de `meses` SÍ siguen restando de
+// `cubierto` (así el rescate final no las vuelve a contar), aunque no tengan evento propio acá.
 export function capitalEvents(
   bonds: CapitalBond[], fromYear: number, fromMonth: number, meses = 12,
 ): CapitalEvent[] {
@@ -140,9 +148,10 @@ export function capitalEvents(
     for (const c of schedule) {
       const d = new Date(c.fecha + 'T00:00:00Z');
       if (Number.isNaN(d.getTime()) || !(c.porcentaje > 0)) continue;
-      cubierto += c.porcentaje;
       const abs = d.getUTCFullYear() * 12 + d.getUTCMonth();
-      if (abs < inicio || abs > fin) continue;
+      if (abs < inicio) continue; // ya pasó — se presume reflejada en valorResidual, no se cuenta de nuevo
+      cubierto += c.porcentaje;
+      if (abs > fin) continue; // futura pero fuera de la ventana: resta de `cubierto`, sin evento propio
       const monto = +(b.faceValue * c.porcentaje).toFixed(2);
       if (monto > 0) events.push({ ym: c.fecha.slice(0, 7), year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, ticker: b.ticker, monto, tipo: 'cuota' });
     }

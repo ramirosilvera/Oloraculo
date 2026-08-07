@@ -54,11 +54,20 @@ describe('couponEvents', () => {
       expect(ev.every(e => e.monto === 20)).toBe(true); // 1000 × 0.5 × 0.08/2
     });
 
-    it('el saldo nunca baja de 0 aunque el cronograma sume más del 100% (el cupón siguiente da 0 y no se lista)', () => {
+    it('el cronograma sumando más del 100% no produce cupones negativos: el pago siguiente directamente no se lista', () => {
       const bono: CouponBond = { ...semestral, amortizaciones: [{ fecha: '2026-02-01', porcentaje: 0.6 }, { fecha: '2026-03-01', porcentaje: 0.6 }] };
       const ev = couponEvents([bono], 2026, 1, 12);
       expect(ev.find(e => e.month === 7 && e.year === 2026)).toBeUndefined();
       expect(ev.every(e => e.monto >= 0)).toBe(true);
+    });
+
+    it('una cuota ANTERIOR al mes de inicio de la proyección se ignora — se presume ya reflejada en valorResidual, no se descuenta de nuevo', () => {
+      // Proyectando desde julio 2026: la cuota de enero 2026 (antes del inicio) no debe bajar el
+      // saldo — si se descontara igual, julio saldría a 20 en vez de 40 (doble conteo).
+      const bono: CouponBond = { ...semestral, amortizaciones: [{ fecha: '2026-01-05', porcentaje: 0.5 }] };
+      const ev = couponEvents([bono], 2026, 7, 6); // julio a diciembre 2026
+      const julio = ev.find(e => e.month === 7 && e.year === 2026)!;
+      expect(julio.monto).toBe(40); // NO 20 — la cuota de enero (pasada) no cuenta acá
     });
   });
 });
@@ -102,6 +111,24 @@ describe('capitalEvents', () => {
     const bono: CapitalBond = { ...bullet, vencimiento: '2028-01-15', amortizaciones: [{ fecha: '2027-06-01', porcentaje: 0.2 }] };
     const ev = capitalEvents([bono], 2026, 1, 12); // ventana: 2026-01 a 2026-12
     expect(ev).toHaveLength(0);
+  });
+
+  it('una cuota FUTURA pero fuera de la ventana de 12 meses igual resta del rescate (aunque no tenga evento propio acá)', () => {
+    // vencimiento SÍ cae dentro de la ventana; la cuota de 2027 es futura pero queda afuera de los
+    // 12 meses proyectados — el rescate final tiene que reflejar que ya está "comprometida".
+    const bono: CapitalBond = { ticker: 'X', faceValue: 1000, vencimiento: '2026-11-01', amortizaciones: [{ fecha: '2027-06-01', porcentaje: 0.2 }] };
+    const ev = capitalEvents([bono], 2026, 1, 12); // ventana: 2026-01 a 2026-12 — la cuota de 2027 queda afuera
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ tipo: 'rescate', monto: 800 }); // 1000 × (1 − 0.2), no 1000
+  });
+
+  it('una cuota ANTERIOR al mes de inicio de la proyección se ignora del todo — ni evento ni descuento del rescate', () => {
+    // Proyectando desde julio 2026: si la cuota de enero (pasada) contara igual, el rescate sería
+    // 800 en vez de 1000 — doble conteo sobre algo que valorResidual ya debería reflejar.
+    const bono: CapitalBond = { ...bullet, amortizaciones: [{ fecha: '2026-01-05', porcentaje: 0.2 }] };
+    const ev = capitalEvents([bono], 2026, 7, 12);
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ tipo: 'rescate', monto: 1000 });
   });
 
   it('faceValue inválido: se ignora, no revienta', () => {

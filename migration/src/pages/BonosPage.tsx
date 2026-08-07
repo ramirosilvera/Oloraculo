@@ -429,7 +429,10 @@ function CuponModal({ bono, onClose, onSave, cuotas, onAgregarCuota, onEliminarC
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
             Marcar "Amortizable" y cargar el valor residual corrige la TIR, la duración y el rendimiento corriente de esta pantalla. Si además cargás el cronograma de cuotas de abajo, también corrige el calendario de Cupones (proyección) — cupón futuro sobre el saldo remanente, más las cuotas de capital.
           </p>
-          {amortizable && <CronogramaCuotas cuotas={cuotas} onAgregar={onAgregarCuota} onEliminar={onEliminarCuota} />}
+          {amortizable && (
+            <CronogramaCuotas cuotas={cuotas} onAgregar={onAgregarCuota} onEliminar={onEliminarCuota}
+              valorResidualActual={(() => { const n = Number(valorResidualPct); return valorResidualPct !== '' && n > 0 && n <= 100 ? n / 100 : 1; })()} />
+          )}
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
             FIX SCR y Moody's Local (escala nacional argentina, la que vas a usar casi siempre) clasifican en grado de inversión/especulativo/default automáticamente (badge de color). S&amp;P/Moody's/Fitch (escala global) también, solo para el caso puntual de una ON con rating internacional — no equivale a la escala nacional. "Otra" no se clasifica (notación desconocida).
           </p>
@@ -448,14 +451,16 @@ function CuponModal({ bono, onClose, onSave, cuotas, onAgregarCuota, onEliminarC
 // ver 0028_amortizaciones_programadas.sql). Alimenta la proyección de Cupones (couponEvents baja el
 // cupón después de cada cuota, capitalEvents las muestra como flujo de capital) — no toca la TIR ni
 // la valuación de esta página, que siguen usando solo el valor residual de HOY.
-function CronogramaCuotas({ cuotas, onAgregar, onEliminar }: {
+function CronogramaCuotas({ cuotas, onAgregar, onEliminar, valorResidualActual }: {
   cuotas: AmortizacionProgramada[]; onAgregar: (fecha: string, porcentaje: number) => Promise<void>; onEliminar: (id: string) => Promise<void>;
+  valorResidualActual: number; // fracción 0..1 — para avisar si el cronograma programa amortizar más de lo que en realidad queda
 }) {
   const [fecha, setFecha] = useState('');
   const [pct, setPct] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
+  const [borrarErr, setBorrarErr] = useState<string | null>(null);
   const ordenadas = [...cuotas].sort((a, b) => a.fecha.localeCompare(b.fecha));
   const cubierto = ordenadas.reduce((s, c) => s + c.porcentaje, 0);
 
@@ -471,8 +476,9 @@ function CronogramaCuotas({ cuotas, onAgregar, onEliminar }: {
     finally { setBusy(false); }
   };
   const eliminar = async (id: string) => {
-    setBorrandoId(id);
-    try { await onEliminar(id); } catch { /* la fila sigue en la lista, el usuario puede reintentar */ }
+    setBorrandoId(id); setBorrarErr(null);
+    try { await onEliminar(id); }
+    catch (e) { setBorrarErr(e instanceof Error ? e.message : 'No se pudo borrar'); }
     finally { setBorrandoId(null); }
   };
 
@@ -492,10 +498,11 @@ function CronogramaCuotas({ cuotas, onAgregar, onEliminar }: {
             </div>
           ))}
           <p className="text-[10px] text-ink-500">
-            Cubierto por el cronograma: {Math.round(cubierto * 100)}%{cubierto > 1.0001 ? ' — suma más del 100%, revisá las fechas' : ''}. El resto se proyecta como rescate entero al vencimiento.
+            Cubierto por el cronograma: {Math.round(cubierto * 100)}%{cubierto > valorResidualActual + 0.0001 ? ` — suma más de tu valor residual actual (${Math.round(valorResidualActual * 100)}%), revisá las fechas` : ''}. El resto ({Math.max(0, Math.round((valorResidualActual - cubierto) * 100))}%) se proyecta como rescate entero al vencimiento.
           </p>
         </div>
       )}
+      {borrarErr && <p className="text-[11px] text-warn mb-1.5">{borrarErr}</p>}
       <div className="flex items-end gap-2">
         <Field label="Fecha" className="flex-1">
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} />

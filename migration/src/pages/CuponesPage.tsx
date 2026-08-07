@@ -444,6 +444,11 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
     return m;
   }, [amortizaciones]);
 
+  // `faceValue: p.cantidad` asume la convención "nominal constante" (valor_residual baja, cantidad
+  // no) — si en cambio registraste una amortización con la OTRA convención (registrarAmortizacion,
+  // que sí reduce cantidad), cargar además un cronograma acá sobre ese mismo bono puede descontar
+  // capital de más. Es la misma ambigüedad de mercado ya documentada en useCobros.ts — no resuelta
+  // acá, solo advertida en el toggle de Cobros cuando ambas convenciones se mezclan en un bono.
   const bonds = useMemo<CouponBond[]>(() =>
     posiciones
       .filter((p: Posicion) => p.tipo === 'bono' && p.cupon_tasa && p.cupon_frecuencia && p.cupon_mes)
@@ -458,9 +463,12 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         amortizaciones: cuotasPorPosicion.get(p.id) ?? [],
       })), [posiciones, cuotasPorPosicion]);
 
+  // NO filtramos por vencimiento cargado: capitalEvents() ya maneja vencimiento=null sin romper
+  // (simplemente no emite el evento de "rescate", pero sí las cuotas programadas que haya) — filtrar
+  // acá de más perdía las cuotas de un bono al que todavía no le cargaste la fecha de vencimiento.
   const capitalBonds = useMemo<CapitalBond[]>(() =>
     posiciones
-      .filter((p: Posicion) => p.tipo === 'bono' && p.vencimiento)
+      .filter((p: Posicion) => p.tipo === 'bono')
       .map(p => ({
         ticker: p.ticker,
         faceValue: p.cantidad,
