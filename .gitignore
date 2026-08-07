@@ -64,6 +64,7 @@ secrets.json
 ## Node / Vite (migration app)
 migration/node_modules/
 migration/dist/
+/node_modules/
 
 ## OS files
 .DS_Store
