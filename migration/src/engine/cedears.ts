@@ -31,14 +31,14 @@ export const ROL_COLOR: Record<AssetRole, string> = {
 };
 export const SIN_CLASIFICAR_COLOR = '#8B96A5';
 
-// Umbrales de alerta de concentración — compartidos entre CedearsPage y el resumen del Dashboard
-// para que nunca muestren un criterio distinto de "esto está concentrado". Dos constantes DISTINTAS
-// (aunque hoy compartan el mismo valor): una posición individual y un sector completo son riesgos
-// conceptualmente distintos, y no deberían moverse juntos si mañana se ajusta solo uno.
+// Umbral de alerta de concentración por POSICIÓN (ticker) — a diferencia de sector/estilo (más
+// abajo), este no es personalizable por el usuario: no se pidió, y una alerta de "un solo ticker
+// es X% de la cartera" es un riesgo bastante universal (no depende tanto del criterio personal).
 export const CONCENTRACION_POSICION_ALERTA = 0.40;  // un solo ticker concentra esto o más del capital en CEDEARs
-export const CONCENTRACION_SECTOR_ALERTA = 0.40;    // un solo sector concentra esto o más (repartido entre varios tickers)
 // HHI ≈ 0.33 equivale a 3 sectores parejos (1/3): por debajo de eso, la cartera está más repartida
-// que "3 sectores del mismo tamaño"; por encima, más concentrada que eso.
+// que "3 sectores del mismo tamaño"; por encima, más concentrada que eso. Fijo (no personalizable):
+// es una referencia estadística, no una preferencia — el umbral que SÍ es personal es el de abajo
+// (% en un solo sector), pedido directamente por el usuario.
 export const HHI_SECTOR_ALERTA = 0.33;
 // % del capital sin sector cargado a partir del cual vale la pena avisar (no es un riesgo de
 // mercado — es un hueco de datos que le resta precisión al resto de los indicadores de esta página).
@@ -114,7 +114,10 @@ export function resumenCedears(cedearsCalc: CedearCalc[]): ResumenCedears {
 // Alertas de riesgo/calidad de datos sobre la cartera de CEDEARs — mismos umbrales que ya
 // coloreaban los Stats de CedearsPage, ahora en un único lugar para que CedearsPage y el resumen
 // del Dashboard muestren EXACTAMENTE la misma lista (nunca "en una pantalla avisa y en la otra no").
-export function alertasCedears(r: ResumenCedears): Alerta[] {
+// `concentracionSectorPct`/`concentracionEstiloPct` son umbrales PERSONALES (0..100, no fracciones,
+// mismo criterio que `objPct` en alertasBonos) — obligatorios como parámetro, quien llama los trae
+// de useObjetivoConcentracion (localStorage por portfolio).
+export function alertasCedears(r: ResumenCedears, concentracionSectorPct: number, concentracionEstiloPct: number): Alerta[] {
   const alertas: Alerta[] = [];
 
   if (r.mayorPosicion && r.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA) {
@@ -122,12 +125,17 @@ export function alertasCedears(r: ResumenCedears): Alerta[] {
   }
 
   const mayorSector = r.porSector.find(s => s.sector !== 'Sin sector');
-  if (mayorSector && mayorSector.pct >= CONCENTRACION_SECTOR_ALERTA) {
-    alertas.push({ severidad: 'warn', texto: `${Math.round(mayorSector.pct * 100)}% del capital en CEDEARs está en el sector ${mayorSector.sector}.` });
+  if (mayorSector && mayorSector.pct * 100 >= concentracionSectorPct) {
+    alertas.push({ severidad: 'warn', texto: `${Math.round(mayorSector.pct * 100)}% del capital en CEDEARs está en el sector ${mayorSector.sector} — por encima de tu máximo personal de ${concentracionSectorPct}%.` });
   }
 
   if (r.hhiSector != null && r.hhiSector >= HHI_SECTOR_ALERTA) {
     alertas.push({ severidad: 'warn', texto: `Concentración sectorial (HHI) en ${r.hhiSector.toFixed(2)} — equivale a repartir el capital en solo ~${(1 / r.hhiSector).toFixed(1)} sectores parejos.` });
+  }
+
+  const mayorEstilo = r.porRol.find(x => x.rol !== 'sin_clasificar');
+  if (mayorEstilo && mayorEstilo.pct * 100 >= concentracionEstiloPct) {
+    alertas.push({ severidad: 'warn', texto: `${Math.round(mayorEstilo.pct * 100)}% del capital en CEDEARs está en el estilo "${ROL_LABEL[mayorEstilo.rol as AssetRole].label}" (Peter Lynch) — por encima de tu máximo personal de ${concentracionEstiloPct}%, poca diversificación de perfil de riesgo/crecimiento.` });
   }
 
   const sinSector = r.porSector.find(s => s.sector === 'Sin sector');

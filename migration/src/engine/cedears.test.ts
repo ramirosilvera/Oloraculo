@@ -96,50 +96,97 @@ describe('resumenCedears — agregados', () => {
 });
 
 describe('alertasCedears', () => {
+  // Umbrales personales por defecto usados en la mayoría de los tests (40% / 40%, igual a los
+  // valores por defecto de useObjetivoConcentracion) — los tests que necesitan otro umbral lo pasan
+  // explícito.
+  const SECTOR_PCT = 40, ESTILO_PCT = 40;
+
   it('cartera bien diversificada: sin alertas', () => {
-    // 6 tickers de 6 sectores distintos, todos clasificados, ~16.6% cada uno -> HHI ≈ 0.167
+    // 6 tickers de 6 sectores y 6 estilos distintos, ~16.6% cada uno -> HHI ≈ 0.167
+    const roles = ['stalwart', 'fast_grower', 'slow_grower', 'cyclical', 'turnaround', 'asset_play'] as const;
     const bonos = ['Tecnología', 'Salud', 'Finanzas', 'Materiales', 'Energía', 'Industriales']
-      .map((sector, i) => calcularCedear({ ...basePos, ticker: `T${i}`, sector, rol: 'stalwart', cantidad: 100, ratio_cedear: 1 }, 1));
+      .map((sector, i) => calcularCedear({ ...basePos, ticker: `T${i}`, sector, rol: roles[i], cantidad: 100, ratio_cedear: 1 }, 1));
     const r = resumenCedears(bonos);
-    expect(alertasCedears(r)).toHaveLength(0);
+    expect(alertasCedears(r, SECTOR_PCT, ESTILO_PCT)).toHaveLength(0);
   });
 
   it('mayor posición ≥40%: alerta warn', () => {
     const dominante = calcularCedear({ ...basePos, ticker: 'MSFT', sector: 'Tecnología', cantidad: 500, ratio_cedear: 1 }, 1); // 500
     const resto = calcularCedear({ ...basePos, ticker: 'MELI', sector: 'Consumo discrecional', cantidad: 500, ratio_cedear: 1 }, 1); // 500
     const r = resumenCedears([dominante, resto]);
-    const alertas = alertasCedears(r);
+    const alertas = alertasCedears(r, SECTOR_PCT, ESTILO_PCT);
     expect(alertas.some(a => a.severidad === 'warn' && a.texto.includes('MSFT'))).toBe(true);
   });
 
-  it('mayor sector ≥40% repartido en varios tickers (sin que ninguno solo llegue al umbral de posición)', () => {
+  it('mayor sector ≥ umbral personal repartido en varios tickers (sin que ninguno solo llegue al umbral de posición)', () => {
     const a = calcularCedear({ ...basePos, ticker: 'AAA', sector: 'Tecnología', cantidad: 200, ratio_cedear: 1 }, 1);
     const b = calcularCedear({ ...basePos, ticker: 'BBB', sector: 'Tecnología', cantidad: 200, ratio_cedear: 1 }, 1);
     const c = calcularCedear({ ...basePos, ticker: 'CCC', sector: 'Salud', cantidad: 250, ratio_cedear: 1 }, 1);
     const r = resumenCedears([a, b, c]); // total 650: Tecnología = 400/650 ≈ 61.5%, mayor ticker (CCC) = 250/650 ≈ 38.5%
     expect(r.mayorPosicion!.pct).toBeLessThan(0.40); // ningún ticker solo pasa el umbral de posición
-    const alertas = alertasCedears(r);
+    const alertas = alertasCedears(r, SECTOR_PCT, ESTILO_PCT);
     expect(alertas.some(al => al.texto.includes('Tecnología'))).toBe(true); // pero el sector sí (≥40%)
   });
 
-  it('HHI ≥0.33: alerta de concentración sectorial', () => {
+  it('umbral de sector personalizado: sube el umbral y la misma cartera deja de alertar', () => {
+    // Tecnología es el sector MAYOR, a exactamente 45% (entre 40 y 50) para que el umbral de 40
+    // alerte y el de 50 no.
+    const a = calcularCedear({ ...basePos, ticker: 'AAA', sector: 'Tecnología', cantidad: 450, ratio_cedear: 1 }, 1);
+    const b = calcularCedear({ ...basePos, ticker: 'BBB', sector: 'Salud', cantidad: 300, ratio_cedear: 1 }, 1);
+    const c = calcularCedear({ ...basePos, ticker: 'CCC', sector: 'Finanzas', cantidad: 250, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([a, b, c]);
+    expect(r.porSector[0]).toMatchObject({ sector: 'Tecnología', pct: 0.45 });
+    expect(alertasCedears(r, 40, ESTILO_PCT).some(al => al.texto.includes('Tecnología'))).toBe(true);
+    expect(alertasCedears(r, 50, ESTILO_PCT).some(al => al.texto.includes('Tecnología'))).toBe(false);
+  });
+
+  it('HHI ≥0.33: alerta de concentración sectorial (umbral fijo, no personalizable)', () => {
     const a = calcularCedear({ ...basePos, ticker: 'A', sector: 'Tecnología', cantidad: 340, ratio_cedear: 1 }, 1);
     const b = calcularCedear({ ...basePos, ticker: 'B', sector: 'Salud', cantidad: 330, ratio_cedear: 1 }, 1);
     const c = calcularCedear({ ...basePos, ticker: 'C', sector: 'Finanzas', cantidad: 330, ratio_cedear: 1 }, 1);
     const r = resumenCedears([a, b, c]); // ~3 sectores parejos -> HHI ≈ 0.333
     expect(r.hhiSector!).toBeGreaterThanOrEqual(0.33);
-    expect(alertasCedears(r).some(al => al.texto.includes('HHI'))).toBe(true);
+    expect(alertasCedears(r, SECTOR_PCT, ESTILO_PCT).some(al => al.texto.includes('HHI'))).toBe(true);
+  });
+
+  it('mayor estilo (Peter Lynch) ≥ umbral personal: alerta warn mencionando el estilo', () => {
+    const a = calcularCedear({ ...basePos, ticker: 'AAA', sector: 'Tecnología', rol: 'compounder', cantidad: 500, ratio_cedear: 1 }, 1);
+    const b = calcularCedear({ ...basePos, ticker: 'BBB', sector: 'Salud', rol: 'compounder', cantidad: 100, ratio_cedear: 1 }, 1);
+    const c = calcularCedear({ ...basePos, ticker: 'CCC', sector: 'Finanzas', rol: 'cyclical', cantidad: 400, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([a, b, c]); // compounder = 600/1000 = 60%
+    const alertas = alertasCedears(r, SECTOR_PCT, ESTILO_PCT);
+    expect(alertas.some(al => al.texto.includes('Compounder'))).toBe(true);
+  });
+
+  it('estilo "sin_clasificar" dominante NO dispara la alerta de estilo (solo estilos reales cuentan)', () => {
+    const sinRol = calcularCedear({ ...basePos, ticker: 'AAA', sector: 'Tecnología', rol: null, cantidad: 800, ratio_cedear: 1 }, 1);
+    const conRol = calcularCedear({ ...basePos, ticker: 'BBB', sector: 'Salud', rol: 'stalwart', cantidad: 200, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([sinRol, conRol]);
+    const alertas = alertasCedears(r, SECTOR_PCT, ESTILO_PCT);
+    expect(alertas.some(al => al.texto.includes('Peter Lynch'))).toBe(false);
+  });
+
+  it('umbral de estilo personalizado: sube el umbral y la misma cartera deja de alertar', () => {
+    // 'stalwart' es el estilo MAYOR, a exactamente 45% (entre 40 y 50) para que el umbral de 40
+    // alerte y el de 50 no.
+    const a = calcularCedear({ ...basePos, ticker: 'AAA', sector: 'Tecnología', rol: 'stalwart', cantidad: 450, ratio_cedear: 1 }, 1);
+    const b = calcularCedear({ ...basePos, ticker: 'BBB', sector: 'Salud', rol: 'cyclical', cantidad: 300, ratio_cedear: 1 }, 1);
+    const c = calcularCedear({ ...basePos, ticker: 'CCC', sector: 'Finanzas', rol: 'turnaround', cantidad: 250, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([a, b, c]);
+    expect(r.porRol[0]).toMatchObject({ rol: 'stalwart', pct: 0.45 });
+    expect(alertasCedears(r, SECTOR_PCT, 40).some(al => al.texto.includes('Peter Lynch'))).toBe(true);
+    expect(alertasCedears(r, SECTOR_PCT, 50).some(al => al.texto.includes('Peter Lynch'))).toBe(false);
   });
 
   it('≥20% del capital sin sector: alerta de dato faltante', () => {
     const clasificado = calcularCedear({ ...basePos, ticker: 'MSFT', sector: 'Tecnología', cantidad: 800, ratio_cedear: 1 }, 1);
     const sinSector = calcularCedear({ ...basePos, ticker: 'XYZ', sector: null, cantidad: 200, ratio_cedear: 1 }, 1);
     const r = resumenCedears([clasificado, sinSector]);
-    expect(alertasCedears(r).some(a => a.texto.includes('no tiene sector cargado'))).toBe(true);
+    expect(alertasCedears(r, SECTOR_PCT, ESTILO_PCT).some(a => a.texto.includes('no tiene sector cargado'))).toBe(true);
   });
 
   it('cartera vacía: sin alertas, no revienta', () => {
-    expect(alertasCedears(resumenCedears([]))).toHaveLength(0);
+    expect(alertasCedears(resumenCedears([]), SECTOR_PCT, ESTILO_PCT)).toHaveLength(0);
   });
 });
 

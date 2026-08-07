@@ -15,8 +15,9 @@ import { useCikMap } from '../hooks/useCikMap';
 import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
 import { useRadarTicker } from '../hooks/useRadarTicker';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos } from '../hooks/useBonos';
-import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
-import { CONCENTRACION_SECTOR_ALERTA, alertasCedears } from '../engine/cedears';
+import { useCedearsCalc, resumenCedears, useObjetivoConcentracion, alertasCedears } from '../hooks/useCedears';
+import { CONCENTRACION_POSICION_ALERTA, HHI_SECTOR_ALERTA } from '../engine/cedears';
+import { categoriaDe, pctRentaFija, alertasDistribucion, type CategoriaPatrimonio } from '../engine/distribucion';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -26,7 +27,7 @@ import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
-import { Card, CardHeader, Stat, Badge, AlertasBanner, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, Field, AlertasBanner, inputCls, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
@@ -169,7 +170,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      <AlertasResumen />
+      <AlertasResumen alloc={alloc} patrimonio={patrimonio} />
 
       {/* Hero: lo esencial, sin repetir. Patrimonio con más peso visual — es el número más
           decisivo de la página — el resto queda como Stat normal debajo. */}
@@ -255,11 +256,13 @@ export function DashboardPage() {
 // apenas se entra al Dashboard, sin tener que visitar /cedears y /bonos por separado. Misma fuente
 // (alertasCedears/alertasBonos + los hooks que ya usan CedearsResumen/BonosResumen) así la lista acá
 // es EXACTAMENTE la misma que la de cada página — nunca "en el Dashboard no avisa pero en la sección sí".
-function AlertasResumen() {
+function AlertasResumen({ alloc, patrimonio }: { alloc: { mkt: number; tipo: AssetType }[]; patrimonio: number }) {
   const { active } = usePortfolios();
   const { cedearsCalc, isLoading: cedearsLoading } = useCedearsCalc(active?.id);
   const { bonosCalc, isLoading: bonosLoading } = useBonosCalc(active?.id);
-  const { anios: objAnios, pct: objPct } = useObjetivoDuracion(active?.id);
+  const { anios: objAnios, pct: objPct, minGradoInversionPct, maxDuracionAnios } = useObjetivoDuracion(active?.id);
+  const { sectorPct: concentracionSectorPct, estiloPct: concentracionEstiloPct } = useObjetivoConcentracion(active?.id);
+  const { objetivoPct: objetivoFijaPct, toleranciaPct: toleranciaDistribucionPct } = useObjetivoDistribucion(active?.id);
   // Mismo risk-free que BonosPage (tasa a 10 años UST) — sin esto, spreadPromedio siempre da null
   // acá y la alerta de "spread negativo" nunca podría aparecer en el Dashboard aunque sí en /bonos.
   const { data: macro = {} } = useMacro();
@@ -268,8 +271,9 @@ function AlertasResumen() {
   if (cedearsLoading || bonosLoading) return null;
 
   const alertas = [
-    ...alertasCedears(resumenCedears(cedearsCalc)),
-    ...alertasBonos(resumenBonos(bonosCalc, objAnios, riskFree), objAnios, objPct),
+    ...alertasCedears(resumenCedears(cedearsCalc), concentracionSectorPct, concentracionEstiloPct),
+    ...alertasBonos(resumenBonos(bonosCalc, objAnios, riskFree), objAnios, objPct, minGradoInversionPct, maxDuracionAnios),
+    ...alertasDistribucion(pctRentaFija(alloc, patrimonio), objetivoFijaPct, toleranciaDistribucionPct),
   ];
   if (alertas.length === 0) return null;
 
@@ -282,6 +286,7 @@ function AlertasResumen() {
 function CedearsResumen() {
   const { active } = usePortfolios();
   const { cedears, cedearsCalc, isLoading } = useCedearsCalc(active?.id);
+  const { sectorPct: concentracionSectorPct } = useObjetivoConcentracion(active?.id);
 
   if (isLoading || cedears.length === 0) return null;
 
@@ -293,19 +298,19 @@ function CedearsResumen() {
       <CardHeader title="CEDEARs" sub={`${cedears.length} CEDEAR${cedears.length > 1 ? 's' : ''} en cartera · sector y estilo (Peter Lynch)`}
         right={<Link to="/cedears" className="inline-flex items-center gap-1.5">
           {mayorSector
-            ? <Badge tone={mayorSector.pct >= CONCENTRACION_SECTOR_ALERTA ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
+            ? <Badge tone={mayorSector.pct * 100 >= concentracionSectorPct ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
             : <span className="text-[11px] text-celeste-600 hover:underline">Ver CEDEARs →</span>}
         </Link>} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
         <Stat label="Capital" value={fmtUsdCompact(totalMkt)} />
         <Stat label="Mayor posición" value={mayorPosicion
-          ? <span className={mayorPosicion.pct >= CONCENTRACION_SECTOR_ALERTA ? 'text-warn' : 'text-ink-900'}>{mayorPosicion.ticker} · {fmtPct(mayorPosicion.pct, 0)}</span>
+          ? <span className={mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA ? 'text-warn' : 'text-ink-900'}>{mayorPosicion.ticker} · {fmtPct(mayorPosicion.pct, 0)}</span>
           : <span className="text-ink-500">—</span>}
           hint="% del capital en CEDEARs concentrado en un solo ticker" />
         <Stat label="Sectores distintos" value={nSectores}
           hint="Cantidad de sectores distintos con capital cargado (no cuenta 'Sin sector')" />
         <Stat label="Concentración sectorial" value={hhiSector != null
-          ? <span className={hhiSector >= 0.33 ? 'text-warn' : 'text-ink-900'}>{fmtNum(hhiSector, 2)}</span>
+          ? <span className={hhiSector >= HHI_SECTOR_ALERTA ? 'text-warn' : 'text-ink-900'}>{fmtNum(hhiSector, 2)}</span>
           : <span className="text-ink-500">—</span>}
           hint="Índice de Herfindahl (Σ pesoᵢ²) sobre el capital por sector: 1/N con N sectores parejos, 1 = todo en un sector." />
       </div>
@@ -429,16 +434,49 @@ function AdminResumen() {
   );
 }
 
-// Renta fija = bono (coherente con la sección /bonos). Liquidez = cash (no es una posición
-// "variable" en el sentido de riesgo de mercado, se muestra aparte). Todo lo demás (cedear, acción
-// US/AR, ETF) es renta variable.
-type Categoria = 'variable' | 'fija' | 'liquidez';
-const categoriaDe = (tipo: AssetType): Categoria => tipo === 'bono' ? 'fija' : tipo === 'cash' ? 'liquidez' : 'variable';
-const CATEGORIA_LABEL: Record<Categoria, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
-const CATEGORIA_COLOR: Record<Categoria, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
+// Etiquetas/colores presentacionales de cada categoría — la clasificación en sí (categoriaDe) vive
+// en engine/distribucion.ts, compartida con el cálculo de la alerta de renta fija consolidada.
+const CATEGORIA_LABEL: Record<CategoriaPatrimonio, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
+const CATEGORIA_COLOR: Record<CategoriaPatrimonio, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
+const DEFAULT_OBJETIVO_FIJA_PCT = 30;
+const DEFAULT_TOLERANCIA_DISTRIBUCION_PCT = 10;
+
+// Objetivo personal de % en renta fija (vs. variable), con tolerancia — persistido en localStorage
+// por portfolio, mismo patrón que useObjetivoDuracion (Bonos). Vive acá (no en un hook de engine)
+// porque solo lo usan Distribucion() y AlertasResumen(), ambas en este archivo.
+function useObjetivoDistribucion(portfolioId: string | undefined) {
+  const key = portfolioId ? `dashboard.objetivoFija.${portfolioId}` : null;
+  const [objetivoPct, setObjetivoState] = useState(DEFAULT_OBJETIVO_FIJA_PCT);
+  const [toleranciaPct, setToleranciaState] = useState(DEFAULT_TOLERANCIA_DISTRIBUCION_PCT);
+
+  useEffect(() => {
+    let o = DEFAULT_OBJETIVO_FIJA_PCT, t = DEFAULT_TOLERANCIA_DISTRIBUCION_PCT;
+    try {
+      const raw = key ? localStorage.getItem(key) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Number.isFinite(parsed.objetivoPct) && parsed.objetivoPct >= 0 && parsed.objetivoPct <= 100) o = parsed.objetivoPct;
+        if (Number.isFinite(parsed.toleranciaPct) && parsed.toleranciaPct >= 0 && parsed.toleranciaPct <= 100) t = parsed.toleranciaPct;
+      }
+    } catch { /* */ }
+    setObjetivoState(o); setToleranciaState(t);
+  }, [key]);
+
+  const persist = (o: number, t: number) => {
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify({ objetivoPct: o, toleranciaPct: t })); } catch { /* */ }
+  };
+  return {
+    objetivoPct, toleranciaPct,
+    setObjetivoPct: (o: number) => { setObjetivoState(o); persist(o, toleranciaPct); },
+    setToleranciaPct: (t: number) => { setToleranciaState(t); persist(objetivoPct, t); },
+  };
+}
 
 function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mkt: number; target: number | null; tipo: AssetType }[]; total: number; isLoading: boolean }) {
   const chart = useChartTheme();
+  const { active } = usePortfolios();
+  const { objetivoPct: objetivoFijaPct, toleranciaPct: toleranciaDistribucionPct, setObjetivoPct: setObjetivoFijaPct, setToleranciaPct: setToleranciaDistribucionPct } = useObjetivoDistribucion(active?.id);
   if (isLoading) {
     return <Card><CardHeader title="Distribución" /><p className="p-4 text-sm text-ink-600">Cargando…</p></Card>;
   }
@@ -457,16 +495,36 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
     return Math.abs(w - a.target) >= TOLERANCIA_OBJETIVO;
   }).length;
 
-  const categorias: Categoria[] = ['variable', 'fija', 'liquidez'];
+  const categorias: CategoriaPatrimonio[] = ['variable', 'fija', 'liquidez'];
   const data = categorias
     .map(cat => ({ cat, value: alloc.filter(a => categoriaDe(a.tipo) === cat).reduce((s, a) => s + a.mkt, 0) }))
     .filter(c => c.value > 0)
     .sort((a, b) => b.value - a.value);
+  const fijaPct = pctRentaFija(alloc, total);
 
   return (
     <Card>
       <CardHeader title="Distribución" sub="Renta fija vs. variable · objetivo por ticker dentro de cada sección."
         right={desviados > 0 ? <Badge tone="warn">{desviados} fuera del objetivo</Badge> : undefined} />
+      <div className="px-4 py-3 flex flex-wrap gap-3 items-end text-sm border-b border-line">
+        <Field label="Objetivo renta fija (%)">
+          <input type="number" min="0" max="100" step="5" value={objetivoFijaPct}
+            onChange={e => {
+              if (e.target.value === '') { setObjetivoFijaPct(DEFAULT_OBJETIVO_FIJA_PCT); return; }
+              setObjetivoFijaPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)));
+            }}
+            className={`${inputCls} w-24`} />
+        </Field>
+        <Field label="Tolerancia (±pp)">
+          <input type="number" min="0" max="50" step="1" value={toleranciaDistribucionPct}
+            onChange={e => {
+              if (e.target.value === '') { setToleranciaDistribucionPct(DEFAULT_TOLERANCIA_DISTRIBUCION_PCT); return; }
+              setToleranciaDistribucionPct(Math.min(50, Math.max(0, Number(e.target.value) || 0)));
+            }}
+            className={`${inputCls} w-24`} />
+        </Field>
+        <p className="text-[11px] text-ink-600 ml-auto">Renta fija actual: <span className="tnum font-semibold text-ink-800">{fmtNum(fijaPct, 0)}%</span></p>
+      </div>
       <div className="p-4 grid sm:grid-cols-[minmax(0,180px)_1fr] gap-4 items-center border-b border-line">
         <div className="h-[160px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -475,7 +533,7 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
                 {data.map((c, i) => <Cell key={i} fill={CATEGORIA_COLOR[c.cat]} />)}
               </Pie>
               <Tooltip
-                formatter={(v: number, n: string) => [fmtUsd(v, 0), CATEGORIA_LABEL[n as Categoria]]}
+                formatter={(v: number, n: string) => [fmtUsd(v, 0), CATEGORIA_LABEL[n as CategoriaPatrimonio]]}
                 contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, color: chart.tooltipText, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>

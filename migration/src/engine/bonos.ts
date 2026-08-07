@@ -123,8 +123,11 @@ export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?:
 
 // Alertas de riesgo/calidad de datos sobre la cartera de bonos — mismos umbrales que ya coloreaban
 // los Stats de BonosPage, ahora en un único lugar para que BonosPage y el resumen del Dashboard
-// muestren EXACTAMENTE la misma lista.
-export function alertasBonos(r: ResumenBonos, objAnios: number, objPct: number): Alerta[] {
+// muestren EXACTAMENTE la misma lista. `minGradoInversionPct` y `maxDuracionAnios` son umbrales
+// PERSONALES del usuario (no una constante fija del motor, a diferencia de los de arriba) — se
+// piden como parámetro obligatorio, igual que `objAnios`/`objPct`, y quien llama los trae de
+// useObjetivoDuracion (localStorage por portfolio).
+export function alertasBonos(r: ResumenBonos, objAnios: number, objPct: number, minGradoInversionPct: number, maxDuracionAnios: number): Alerta[] {
   const alertas: Alerta[] = [];
 
   if (r.mayorPosicion && r.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA) {
@@ -141,6 +144,14 @@ export function alertasBonos(r: ResumenBonos, objAnios: number, objPct: number):
 
   if (r.distribucionGrado.especulativo >= ESPECULATIVO_ALERTA) {
     alertas.push({ severidad: 'warn', texto: `${Math.round(r.distribucionGrado.especulativo * 100)}% del capital en bonos es especulativo (por debajo de grado de inversión, dentro de su escala).` });
+  }
+
+  if (r.totalMkt > 0 && r.distribucionGrado.gradoInversion * 100 < minGradoInversionPct) {
+    alertas.push({ severidad: 'warn', texto: `Solo ${Math.round(r.distribucionGrado.gradoInversion * 100)}% del capital en bonos está en grado de inversión — por debajo de tu mínimo personal de ${minGradoInversionPct}%.` });
+  }
+
+  if (r.duracionPromedio != null && r.duracionPromedio > maxDuracionAnios) {
+    alertas.push({ severidad: 'warn', texto: `Duración promedio de ${r.duracionPromedio.toFixed(1)} años — por encima de tu máximo personal de ${maxDuracionAnios} años (mayor sensibilidad a suba de tasas).` });
   }
 
   if (r.spreadPromedio != null && r.spreadPromedio < 0) {

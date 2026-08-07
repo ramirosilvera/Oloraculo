@@ -3,7 +3,7 @@ import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations, useMacro } from '../hooks/usePosiciones';
-import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos, DEFAULT_ANIOS_CORTO_PLAZO } from '../hooks/useBonos';
+import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos, DEFAULT_ANIOS_CORTO_PLAZO, DEFAULT_MIN_GRADO_INVERSION_PCT, DEFAULT_MAX_DURACION_ANIOS } from '../hooks/useBonos';
 import { CONCENTRACION_POSICION_ALERTA } from '../engine/bonos';
 import { CALIFICADORAS, CALIFICADORAS_CLASIFICABLES, ETIQUETA_GRADO, ETIQUETA_ESCALA, type GradoCredito, type EscalaRating } from '../engine/rating';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, AlertasBanner } from '../components/ui';
@@ -48,7 +48,10 @@ export function BonosPage() {
   const { update } = usePosicionMutations(active?.id);
   const [editBono, setEditBono] = useState<Posicion | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
-  const { anios: objAnios, pct: objPct, setAnios: setObjAnios, setPct: setObjPct } = useObjetivoDuracion(active?.id);
+  const {
+    anios: objAnios, pct: objPct, setAnios: setObjAnios, setPct: setObjPct,
+    minGradoInversionPct, maxDuracionAnios, setMinGradoInversionPct, setMaxDuracionAnios,
+  } = useObjetivoDuracion(active?.id);
   const chart = useChartTheme();
   const dark = useIsDark();
   const { data: macro = {} } = useMacro();
@@ -58,7 +61,7 @@ export function BonosPage() {
 
   const resumen = resumenBonos(bonosCalc, objAnios, riskFree);
   const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo, mayorPosicion, distribucionGrado } = resumen;
-  const alertas = alertasBonos(resumen, objAnios, objPct);
+  const alertas = alertasBonos(resumen, objAnios, objPct, minGradoInversionPct, maxDuracionAnios);
 
   // Gráfico: solo entran los bonos con duración calculable (cupón + vencimiento cargados, y no
   // vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
@@ -188,6 +191,17 @@ export function BonosPage() {
                 <p className="text-[10px] text-ink-500 mt-1.5">
                   Clasificado en escala NACIONAL argentina (FIX SCR/Moody's Local) — la que aplica a la gran mayoría de bonos y ONs locales. No equivale a grado de inversión global (S&amp;P/Moody's/Fitch), que solo aparecería en alguna ON hard-dollar con rating internacional.
                 </p>
+                <div className="flex items-end gap-3 mt-3">
+                  <Field label="Grado de inversión mínimo (%)">
+                    <input type="number" min="0" max="100" step="5" value={minGradoInversionPct}
+                      onChange={e => {
+                        if (e.target.value === '') { setMinGradoInversionPct(DEFAULT_MIN_GRADO_INVERSION_PCT); return; }
+                        setMinGradoInversionPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)));
+                      }}
+                      className={`${inputCls} w-24`} />
+                  </Field>
+                  <p className="text-[11px] text-ink-500">Alerta si el % del capital en grado de inversión cae por debajo de tu mínimo personal.</p>
+                </div>
               </>
             ) : <p className="text-[11px] text-ink-500">Sin capital valuado todavía.</p>}
           </div>
@@ -217,6 +231,15 @@ export function BonosPage() {
             <Field label="Objetivo (% del capital)">
               <input type="number" min="0" max="100" step="5" value={objPct}
                 onChange={e => setObjPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                className={`${inputCls} w-24`} />
+            </Field>
+            <Field label="Duración promedio máxima (años)">
+              <input type="number" min="0.25" step="0.25" value={maxDuracionAnios}
+                onChange={e => {
+                  if (e.target.value === '') { setMaxDuracionAnios(DEFAULT_MAX_DURACION_ANIOS); return; }
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n)) setMaxDuracionAnios(Math.max(0.25, n));
+                }}
                 className={`${inputCls} w-24`} />
             </Field>
             {duracionPromedio != null && (

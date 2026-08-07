@@ -3,8 +3,8 @@ import { Building2, Pencil, X } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations } from '../hooks/usePosiciones';
-import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
-import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, alertasCedears } from '../engine/cedears';
+import { useCedearsCalc, resumenCedears, useObjetivoConcentracion, DEFAULT_CONCENTRACION_SECTOR_PCT, DEFAULT_CONCENTRACION_ESTILO_PCT } from '../hooks/useCedears';
+import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, HHI_SECTOR_ALERTA, alertasCedears } from '../engine/cedears';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, PIE_COLORS, AlertasBanner } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme } from '../hooks/usePrefs';
@@ -32,6 +32,7 @@ export function CedearsPage() {
   const { active } = usePortfolios();
   const { cedears, cedearsCalc, isLoading: posLoading } = useCedearsCalc(active?.id);
   const { update } = usePosicionMutations(active?.id);
+  const { sectorPct: concentracionSectorPct, estiloPct: concentracionEstiloPct, setSectorPct: setConcentracionSectorPct, setEstiloPct: setConcentracionEstiloPct } = useObjetivoConcentracion(active?.id);
   const [editPos, setEditPos] = useState<Posicion | null>(null);
   const chart = useChartTheme();
 
@@ -39,7 +40,7 @@ export function CedearsPage() {
 
   const resumen = resumenCedears(cedearsCalc);
   const { totalCapital, totalMkt, mayorPosicion, nSectores, hhiSector, porSector, porRol } = resumen;
-  const alertas = alertasCedears(resumen);
+  const alertas = alertasCedears(resumen, concentracionSectorPct, concentracionEstiloPct);
 
   const sectorData = porSector.map(s => ({ name: s.sector, value: s.pct }));
   const rolData = porRol.map(r => ({ name: r.rol === 'sin_clasificar' ? 'Sin clasificar' : ROL_LABEL[r.rol].label, key: r.rol, value: r.pct }));
@@ -112,9 +113,9 @@ export function CedearsPage() {
             <Stat label="Sectores distintos" value={nSectores}
               hint="Cantidad de sectores distintos con capital cargado (no cuenta 'Sin sector')" />
             <Stat label="Concentración sectorial" value={hhiSector != null
-              ? <span className={hhiSector >= 0.33 ? 'text-warn' : 'text-ink-900'}>{fmtNum(hhiSector, 2)}</span>
+              ? <span className={hhiSector >= HHI_SECTOR_ALERTA ? 'text-warn' : 'text-ink-900'}>{fmtNum(hhiSector, 2)}</span>
               : <span className="text-ink-500">—</span>}
-              hint="Índice de Herfindahl (Σ pesoᵢ²) sobre el capital por sector: 1/N con N sectores parejos, 1 = todo en un sector. Por encima de 0.33 (equivalente a ~3 sectores parejos) empieza a ser una concentración alta." />
+              hint={`Índice de Herfindahl (Σ pesoᵢ²) sobre el capital por sector: 1/N con N sectores parejos, 1 = todo en un sector. Por encima de ${fmtNum(HHI_SECTOR_ALERTA, 2)} (equivalente a ~3 sectores parejos) empieza a ser una concentración alta.`} />
           </div>
         </Card>
       )}
@@ -122,6 +123,25 @@ export function CedearsPage() {
       {cedears.length > 0 && (
         <Card>
           <CardHeader title="Distribución por sector y estilo" sub="Peso sobre el capital en CEDEARs (valor de mercado, o costo si no hay cotización)." />
+          <div className="px-4 py-3 flex flex-wrap gap-3 items-end text-sm border-b border-line">
+            <Field label="Concentración sectorial máxima (%)">
+              <input type="number" min="0" max="100" step="5" value={concentracionSectorPct}
+                onChange={e => {
+                  if (e.target.value === '') { setConcentracionSectorPct(DEFAULT_CONCENTRACION_SECTOR_PCT); return; }
+                  setConcentracionSectorPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)));
+                }}
+                className={`${inputCls} w-24`} />
+            </Field>
+            <Field label="Concentración por estilo máxima (%)">
+              <input type="number" min="0" max="100" step="5" value={concentracionEstiloPct}
+                onChange={e => {
+                  if (e.target.value === '') { setConcentracionEstiloPct(DEFAULT_CONCENTRACION_ESTILO_PCT); return; }
+                  setConcentracionEstiloPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)));
+                }}
+                className={`${inputCls} w-24`} />
+            </Field>
+            <p className="text-[11px] text-ink-600 ml-auto">Umbrales personales — alertan arriba cuando un sector o estilo concentra más de lo que definiste acá.</p>
+          </div>
           <div className="p-4 grid sm:grid-cols-2 gap-6">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold mb-2">Por sector</p>
