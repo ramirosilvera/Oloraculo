@@ -25,6 +25,13 @@ const SIN_CALIFICAR_COLOR = '#8B96A5';
 // inflar la TIR bastante por encima del cupón nominal — no es que el bono rinda eso en la práctica.
 const SIN_COTIZACION_HINT = 'Sin cotización de mercado todavía (puede ser un bono recién suscripto en licitación primaria) — se estima con tu precio de compra. Si hay un pago de cupón próximo, esta TIR puede estar inflada (el cálculo no descuenta el interés corrido).';
 
+// Ningún campo del schema registra un cronograma de amortización — Paridad/TIR/Duración asumen
+// bullet (todo el capital al vencimiento) para TODOS los bonos de la tabla, sin poder distinguir
+// cuáles amortizan en cuotas. El sesgo puede ser grande (no "leve") y cambia de signo según si el
+// bono cotiza bajo o sobre la par — ver el comentario de ytm() en engine/coupons.ts. Si un bono
+// amortiza, registrá cada amortización en Cupones (reduce el nominal) para no arrastrar el error.
+const BULLET_HINT = 'Paridad, TIR y duración asumen que el 100% del capital se devuelve recién al vencimiento (bullet). Si el bono amortiza en cuotas, estos números son orientativos — el error puede ser grande, sobre todo después de la primera amortización. Registrala en Cupones (reduce el nominal) para mantener la cartera al día.';
+
 // Badge de rating: tono por grado (pos=grado de inversión, warn=especulativo, neg=default,
 // gris=sin calificar o 'Otra' calificadora). Nunca inventa un grado que el motor no dio.
 // `grado === null` puede ser por 3 motivos DISTINTOS — mezclarlos en un solo mensaje genérico le
@@ -159,8 +166,11 @@ export function BonosPage() {
             </tbody>
           </table>
         </div>
+        {bonos.length > 0 && (
+          <p className="px-4 pb-1.5 pt-1 text-[11px] text-ink-500">{BULLET_HINT}</p>
+        )}
         {haySinCotizacion && (
-          <p className="px-4 pb-3 pt-1 text-[11px] text-ink-500">
+          <p className="px-4 pb-3 text-[11px] text-ink-500">
             <sup className="text-[9px]">e</sup> Sin cotización de mercado todavía (puede ser un bono recién suscripto en licitación primaria, que suele tardar en aparecer en el proveedor de precios) — TIR y duración se estiman con tu precio de compra, y pueden estar distorsionadas si hay un pago de cupón próximo (el cálculo no descuenta el interés corrido).
           </p>
         )}

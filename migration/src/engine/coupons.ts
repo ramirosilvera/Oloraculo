@@ -120,7 +120,14 @@ function fechasCupon(vencimiento: string, frecuencia: number, hoy: string): stri
 // El "current yield" (cupón/precio) ignora la ganancia de capital hasta el rescate: un bono cupón
 // 7% comprado a 60 de paridad rinde MUCHO más que 11,7%. La YTM descuenta los flujos reales:
 // hoy −precio, cada cupón hasta el vencimiento, y el capital (1 por nominal) al final.
-// Asume bullet: para amortizables sobrestima levemente.
+// Asume BULLET (todo el capital recién al vencimiento) — no modela amortizaciones en cuotas ni
+// interés corrido (precio "sucio"). El sesgo NO es "leve" ni siempre en la misma dirección:
+// verificado numéricamente (bono 2 años, semestral, cupón 6%, amortizando 25% del capital por
+// período) — comprado bajo la par (85) el bullet da 15,5% pero el amortizable real rinde 21,6%
+// (subestima, porque el amortizable te devuelve capital antes, a precio de descuento); comprado
+// sobre la par (105) el bullet da 3,4% contra 1,9% real (ahí sí sobrestima). Para un bono que en
+// los hechos amortiza, tratar este número como orientativo, no exacto — más aún si además no hay
+// cotización de mercado (ver SIN_COTIZACION_HINT en BonosPage.tsx).
 export function ytm(p: {
   precio: number;        // precio por nominal hoy (0.982 = 98,2% de paridad)
   tasaAnual: number;     // cupón nominal anual (0.06 = 6%)
