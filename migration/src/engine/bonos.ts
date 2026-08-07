@@ -7,7 +7,7 @@
 // =============================================================================
 
 import { ytm, bondDuration, rendimientoCorriente } from './coupons';
-import { clasificarRating, type GradoCredito } from './rating';
+import { clasificarRating, type GradoCredito, type EscalaRating } from './rating';
 import type { Posicion } from '../types/domain';
 
 export interface BonoCalc {
@@ -21,7 +21,8 @@ export interface BonoCalc {
   tir: number | null;          // YTM
   duracion: { macaulay: number; modified: number } | null;
   rendCorriente: number | null;   // cupón / precio (ignora pull-to-par, a diferencia de la YTM)
-  grado: GradoCredito | null;     // null = sin calificar, o calificadora de escala local (no clasificamos)
+  grado: GradoCredito | null;     // null = sin calificar, o calificadora 'Otra' (notación desconocida)
+  escalaGrado: EscalaRating | null;   // a qué escala corresponde `grado` — global o nacional (Arg.)
   capitalUsado: number;        // mkt si hay cotización, si no cae al costo
 }
 
@@ -44,8 +45,12 @@ export function calcularBono(pos: Posicion, px: number | null, hoy: string): Bon
   const rendCorriente = precioNominal != null && pos.cupon_tasa != null
     ? rendimientoCorriente(pos.cupon_tasa, precioNominal)
     : null;
-  const grado = clasificarRating(pos.calificadora, pos.calificacion);
-  return { pos, px, paridad, capital, mkt, res, cuponOk, tir, duracion, rendCorriente, grado, capitalUsado: mkt ?? capital };
+  const clasif = clasificarRating(pos.calificadora, pos.calificacion);
+  return {
+    pos, px, paridad, capital, mkt, res, cuponOk, tir, duracion, rendCorriente,
+    grado: clasif?.grado ?? null, escalaGrado: clasif?.escala ?? null,
+    capitalUsado: mkt ?? capital,
+  };
 }
 
 export interface ResumenBonos {

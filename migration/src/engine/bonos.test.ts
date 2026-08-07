@@ -32,14 +32,22 @@ describe('calcularBono', () => {
     expect(b.rendCorriente).toBeCloseTo(0.08 / 0.6, 6);
   });
 
-  it('clasifica el grado a partir de calificadora + calificación', () => {
+  it('clasifica el grado a partir de calificadora + calificación (escala global)', () => {
     const b = calcularBono({ ...basePos, calificadora: 'S&P', calificacion: 'BB-' }, 0.6, HOY);
     expect(b.grado).toBe('especulativo');
+    expect(b.escalaGrado).toBe('global');
   });
 
-  it('sin calificar → grado null', () => {
+  it('calificadora de escala nacional (FIX SCR): clasifica igual, marcando escala "local"', () => {
+    const b = calcularBono({ ...basePos, calificadora: 'FIX SCR', calificacion: 'AAA(arg)' }, 0.6, HOY);
+    expect(b.grado).toBe('grado_inversion');
+    expect(b.escalaGrado).toBe('local');
+  });
+
+  it('sin calificar → grado y escalaGrado null', () => {
     const b = calcularBono(basePos, 0.6, HOY);
     expect(b.grado).toBeNull();
+    expect(b.escalaGrado).toBeNull();
   });
 });
 

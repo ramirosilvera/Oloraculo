@@ -4,7 +4,7 @@ import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Res
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations, useMacro } from '../hooks/usePosiciones';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos, DEFAULT_ANIOS_CORTO_PLAZO } from '../hooks/useBonos';
-import { CALIFICADORAS, CALIFICADORAS_GLOBALES, ETIQUETA_GRADO, type GradoCredito } from '../engine/rating';
+import { CALIFICADORAS, CALIFICADORAS_CLASIFICABLES, ETIQUETA_GRADO, ETIQUETA_ESCALA, type GradoCredito, type EscalaRating } from '../engine/rating';
 import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme, useIsDark } from '../hooks/usePrefs';
@@ -21,17 +21,21 @@ const SIN_CALIFICAR_COLOR = '#8B96A5';
 const CONCENTRACION_POSICION_ALERTA = 0.40;
 
 // Badge de rating: tono por grado (pos=grado de inversión, warn=especulativo, neg=default,
-// gris=sin calificar o escala local no clasificada). Nunca inventa un grado que el motor no dio.
+// gris=sin calificar o 'Otra' calificadora). Nunca inventa un grado que el motor no dio.
 // `grado === null` puede ser por 3 motivos DISTINTOS — mezclarlos en un solo mensaje genérico le
-// mentiría al usuario en 2 de los 3 casos (ej. decirle "escala nacional" a un S&P sin nota cargada).
-function RatingBadge({ calificadora, calificacion, grado }: { calificadora: string | null; calificacion: string | null; grado: GradoCredito | null }) {
+// mentiría al usuario en 2 de los 3 casos (ej. decirle "notación desconocida" a un S&P sin nota
+// cargada). Cuando SÍ hay grado, el hint siempre aclara la escala (global vs. nacional Arg.) —
+// nunca deja que un "grado de inversión" nacional se lea como si fuera comparable al global.
+function RatingBadge({ calificadora, calificacion, grado, escala }: {
+  calificadora: string | null; calificacion: string | null; grado: GradoCredito | null; escala: EscalaRating | null;
+}) {
   if (!calificadora && !calificacion) return <span className="text-ink-500 text-[11px]">—</span>;
   const tone = grado === 'grado_inversion' ? 'pos' : grado === 'especulativo' ? 'warn' : grado === 'default' ? 'neg' : 'gray';
-  const esGlobal = calificadora != null && (CALIFICADORAS_GLOBALES as readonly string[]).includes(calificadora);
-  const hint = grado != null
-    ? `${calificadora}: ${ETIQUETA_GRADO[grado]}`
+  const clasificable = calificadora != null && (CALIFICADORAS_CLASIFICABLES as readonly string[]).includes(calificadora);
+  const hint = grado != null && escala != null
+    ? `${calificadora}: ${ETIQUETA_GRADO[grado]} (${ETIQUETA_ESCALA[escala]})`
     : !calificadora ? 'Sin calificadora cargada'
-    : !esGlobal ? `${calificadora} — escala nacional u otra, no comparable con la escala global (no se clasifica automático)`
+    : !clasificable ? `${calificadora} — notación desconocida, no se clasifica automático`
     : !calificacion ? `${calificadora} — falta cargar la nota`
     : `${calificadora} — "${calificacion}" no matchea ninguna nota conocida de esta escala (¿typo?)`;
   return (
@@ -107,7 +111,7 @@ export function BonosPage() {
                       <span className="font-semibold text-ink-900">{b.ticker}</span>
                       {(b.empresa || b.notas) && <span className="block text-[10px] text-ink-600 max-w-[220px] truncate">{b.empresa || b.notas}</span>}
                     </td>
-                    <td className="px-3"><RatingBadge calificadora={b.calificadora} calificacion={b.calificacion} grado={bc.grado} /></td>
+                    <td className="px-3"><RatingBadge calificadora={b.calificadora} calificacion={b.calificacion} grado={bc.grado} escala={bc.escalaGrado} /></td>
                     <td className="text-right px-3 tnum">{fmtNum(b.cantidad, 0)}</td>
                     <td className="text-right px-3 tnum text-ink-700">{fmtUsdCompact(bc.capital)}</td>
                     <td className="text-right px-3 tnum text-accent">{bc.paridad != null ? fmtPct(bc.paridad / 100, 1) : '—'}</td>
@@ -168,20 +172,23 @@ export function BonosPage() {
               <>
                 <div className="h-3 rounded-full overflow-hidden flex bg-canvas ring-1 ring-inset ring-line">
                   {distribucionGrado.gradoInversion > 0 &&
-                    <div className="bg-pos h-full" style={{ width: `${distribucionGrado.gradoInversion * 100}%` }} title={`Grado de inversión: ${fmtPct(distribucionGrado.gradoInversion, 0)}`} />}
+                    <div className="bg-pos h-full" style={{ width: `${distribucionGrado.gradoInversion * 100}%` }} title={`Grado de inversión (dentro de su escala, global o nacional): ${fmtPct(distribucionGrado.gradoInversion, 0)}`} />}
                   {distribucionGrado.especulativo > 0 &&
-                    <div className="bg-warn h-full" style={{ width: `${distribucionGrado.especulativo * 100}%` }} title={`Especulativo: ${fmtPct(distribucionGrado.especulativo, 0)}`} />}
+                    <div className="bg-warn h-full" style={{ width: `${distribucionGrado.especulativo * 100}%` }} title={`Especulativo (dentro de su escala, global o nacional): ${fmtPct(distribucionGrado.especulativo, 0)}`} />}
                   {distribucionGrado.default > 0 &&
                     <div className="bg-neg h-full" style={{ width: `${distribucionGrado.default * 100}%` }} title={`Default: ${fmtPct(distribucionGrado.default, 0)}`} />}
                   {distribucionGrado.sinCalificar > 0 &&
-                    <div className="h-full" style={{ width: `${distribucionGrado.sinCalificar * 100}%`, background: SIN_CALIFICAR_COLOR }} title={`Sin calificar (o escala local): ${fmtPct(distribucionGrado.sinCalificar, 0)}`} />}
+                    <div className="h-full" style={{ width: `${distribucionGrado.sinCalificar * 100}%`, background: SIN_CALIFICAR_COLOR }} title={`Sin calificar (o calificadora "Otra"/nota no reconocida): ${fmtPct(distribucionGrado.sinCalificar, 0)}`} />}
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] text-ink-600">
                   {distribucionGrado.gradoInversion > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pos" />Grado de inversión {fmtPct(distribucionGrado.gradoInversion, 0)}</span>}
                   {distribucionGrado.especulativo > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warn" />Especulativo {fmtPct(distribucionGrado.especulativo, 0)}</span>}
                   {distribucionGrado.default > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-neg" />Default {fmtPct(distribucionGrado.default, 0)}</span>}
-                  {distribucionGrado.sinCalificar > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SIN_CALIFICAR_COLOR }} />Sin calificar (o escala local) {fmtPct(distribucionGrado.sinCalificar, 0)}</span>}
+                  {distribucionGrado.sinCalificar > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SIN_CALIFICAR_COLOR }} />Sin calificar {fmtPct(distribucionGrado.sinCalificar, 0)}</span>}
                 </div>
+                <p className="text-[10px] text-ink-500 mt-1.5">
+                  S&amp;P/Moody's/Fitch (global) y FIX SCR/Moody's Local (nacional Arg.) clasifican cada bono DENTRO de su propia escala — nunca mezcladas 1 a 1 (un "grado de inversión" nacional no equivale al global).
+                </p>
               </>
             ) : <p className="text-[11px] text-ink-500">Sin capital valuado todavía.</p>}
           </div>
@@ -339,7 +346,7 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
             El calendario asume cupón fijo sobre el nominal actual (bullet). Para bonos que amortizan o con step-up, los pagos posteriores a la amortización quedan sobrestimados.
           </p>
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
-            S&amp;P/Moody's/Fitch se clasifican automáticamente en grado de inversión/especulativo (badge de color). FIX SCR/Moody's Local/Otra son escalas nacionales — se muestran tal cual, sin clasificar (no son comparables 1 a 1 con la escala global).
+            S&amp;P/Moody's/Fitch (escala global) y FIX SCR/Moody's Local (escala nacional argentina) se clasifican automáticamente en grado de inversión/especulativo/default (badge de color) — cada uno DENTRO de su propia escala, nunca mezcladas entre sí: un "AAA" nacional no equivale a un "AAA" global. Solo "Otra" no se clasifica (notación desconocida).
           </p>
           {err && <p className="px-4 pt-2 text-xs text-warn">{err}</p>}
           <div className="px-4 py-4 flex justify-end gap-2">

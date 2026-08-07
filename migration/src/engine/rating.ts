@@ -1,25 +1,42 @@
 // =============================================================================
 // Calificación crediticia de bonos/ONs. La calificadora y la nota las carga el usuario a mano (no
 // hay API configurada en este proyecto que dé rating por bono — ni data912 ni las fuentes de
-// acciones lo tienen). Lo único que calcula el código es la CLASIFICACIÓN en grado de inversión /
-// especulativo / default, y SOLO para escalas globales (S&P, Moody's, Fitch): un "AAA" en escala
-// nacional (FIX SCR, Moody's Local) no es comparable a un AAA global — el techo soberano argentino
-// hace que el mejor bono en escala local pueda convivir con una calificación soberana global mucho
-// más baja. Mezclarlas en la misma clasificación sería financieramente incorrecto, así que para
-// calificadoras locales se muestra la nota tal cual, sin clasificar.
+// acciones lo tienen).
+//
+// Escala GLOBAL (S&P, Moody's, Fitch) vs. escala NACIONAL/local (FIX SCR, Moody's Local): NO son
+// comparables entre sí — el techo soberano argentino hace que el mejor bono en escala nacional
+// (ej. "AAA(arg)") pueda convivir con una calificación soberana GLOBAL mucho más baja. Por eso cada
+// nota se clasifica DENTRO de su propia escala (el código nunca mezcla "grado de inversión global"
+// con "grado de inversión nacional" como si fueran lo mismo — ver `escala` en el resultado, y cada
+// lugar de la UI que muestra el grado aclara a qué escala corresponde).
+//
+// FIX SCR (afiliada local de Fitch) y Moody's Local Argentina publican sus categorías con la MISMA
+// estructura de letras/números que sus controlantes globales (AAA(arg)...D(arg); Aaa.ar...C.ar),
+// solo que aplicada y comparada dentro del universo de emisores argentinos — así que reutilizamos
+// las mismas tablas de letras, normalizando el sufijo de escala nacional antes de buscar.
 // =============================================================================
 
 export type GradoCredito = 'grado_inversion' | 'especulativo' | 'default';
+export type EscalaRating = 'global' | 'local';
+export interface RatingClasificado { grado: GradoCredito; escala: EscalaRating }
 
-// Calificadoras de escala GLOBAL (comparables entre países) — las únicas que clasificamos.
+// Calificadoras de escala GLOBAL (comparables entre países).
 export const CALIFICADORAS_GLOBALES = ['S&P', "Moody's", 'Fitch'] as const;
-// Calificadoras de escala LOCAL/nacional u otras — se muestran tal cual, sin clasificar.
+// Calificadoras de escala NACIONAL/local — clasificables (FIX SCR, Moody's Local) o no ('Otra': no
+// conocemos su notación, nunca "adivinamos").
 export const CALIFICADORAS_LOCALES = ['FIX SCR', "Moody's Local", 'Otra'] as const;
-export const CALIFICADORAS = [...CALIFICADORAS_GLOBALES, ...CALIFICADORAS_LOCALES] as const;
+// Orden del selector: las locales (FIX SCR, Moody's Local) primero — son las que se usan en la
+// enorme mayoría de bonos/ONs argentinos; el techo soberano hace que casi ningún emisor local
+// tenga rating GLOBAL de grado de inversión, así que S&P/Moody's/Fitch quedan como el caso menos
+// frecuente (ej. ONs hard-dollar con rating internacional) y 'Otra' al final como comodín.
+export const CALIFICADORAS = ['FIX SCR', "Moody's Local", ...CALIFICADORAS_GLOBALES, 'Otra'] as const;
 export type Calificadora = typeof CALIFICADORAS[number];
+// Todas las que sí clasificamos automáticamente (todas menos 'Otra').
+export const CALIFICADORAS_CLASIFICABLES = [...CALIFICADORAS_GLOBALES, 'FIX SCR', "Moody's Local"] as const;
 
 // S&P y Fitch comparten notación de letras (fuente: escalas públicas de S&P Global Ratings y
 // Fitch Ratings, largo plazo). BBB- es el último escalón de grado de inversión; D/RD/SD = default.
+// FIX SCR (Fitch Argentina) usa la MISMA estructura de letras en su escala nacional.
 const ESCALA_SP_FITCH: Record<string, GradoCredito> = {
   AAA: 'grado_inversion', 'AA+': 'grado_inversion', AA: 'grado_inversion', 'AA-': 'grado_inversion',
   'A+': 'grado_inversion', A: 'grado_inversion', 'A-': 'grado_inversion',
@@ -31,7 +48,8 @@ const ESCALA_SP_FITCH: Record<string, GradoCredito> = {
 };
 
 // Moody's usa notación numérica (1/2/3) en vez de +/-. Baa3 es el último escalón de grado de
-// inversión; C es el piso (default/en incumplimiento).
+// inversión; C es el piso (default/en incumplimiento). Moody's Local Argentina usa la MISMA
+// estructura en su escala nacional (Aaa.ar...C.ar).
 const ESCALA_MOODYS: Record<string, GradoCredito> = {
   AAA: 'grado_inversion', AA1: 'grado_inversion', AA2: 'grado_inversion', AA3: 'grado_inversion',
   A1: 'grado_inversion', A2: 'grado_inversion', A3: 'grado_inversion',
@@ -42,20 +60,44 @@ const ESCALA_MOODYS: Record<string, GradoCredito> = {
   C: 'default',
 };
 
-// Clasifica en grado de inversión / especulativo / default — null si falta algún dato, si la
-// calificadora es de escala local, o si la nota no matchea ninguna escala conocida (nunca
-// "adivina": mejor mostrar sin clasificar que clasificar mal).
-export function clasificarRating(calificadora: string | null | undefined, calificacion: string | null | undefined): GradoCredito | null {
+// Quita el sufijo de escala nacional argentina si está presente, para que "AAA", "AAA(arg)" y
+// "AAA.ar" busquen todos la misma nota base en la tabla de letras/números.
+function notaBase(calificacion: string): string {
+  return calificacion.trim().toUpperCase()
+    .replace(/\s*\(ARG\)\s*$/, '')
+    .replace(/\.AR$/, '')
+    .trim();
+}
+
+// Clasifica en grado de inversión / especulativo / default DENTRO de la escala de la calificadora
+// (global o nacional) — null si falta algún dato, si la calificadora es 'Otra' (notación
+// desconocida), o si la nota no matchea ninguna escala conocida (nunca "adivina").
+export function clasificarRating(calificadora: string | null | undefined, calificacion: string | null | undefined): RatingClasificado | null {
   if (!calificadora || !calificacion) return null;
-  const nota = calificacion.trim().toUpperCase();
+  const nota = notaBase(calificacion);
   if (!nota) return null;
-  if (calificadora === 'S&P' || calificadora === 'Fitch') return ESCALA_SP_FITCH[nota] ?? null;
-  if (calificadora === "Moody's") return ESCALA_MOODYS[nota] ?? null;
-  return null; // FIX SCR / Moody's Local / Otra: escala no comparable, no clasificamos
+  if (calificadora === 'S&P' || calificadora === 'Fitch') {
+    const g = ESCALA_SP_FITCH[nota]; return g ? { grado: g, escala: 'global' } : null;
+  }
+  if (calificadora === "Moody's") {
+    const g = ESCALA_MOODYS[nota]; return g ? { grado: g, escala: 'global' } : null;
+  }
+  if (calificadora === 'FIX SCR') {
+    const g = ESCALA_SP_FITCH[nota]; return g ? { grado: g, escala: 'local' } : null;
+  }
+  if (calificadora === "Moody's Local") {
+    const g = ESCALA_MOODYS[nota]; return g ? { grado: g, escala: 'local' } : null;
+  }
+  return null; // 'Otra': no conocemos su notación, no clasificamos
 }
 
 export const ETIQUETA_GRADO: Record<GradoCredito, string> = {
   grado_inversion: 'Grado de inversión',
   especulativo: 'Especulativo',
   default: 'Default',
+};
+
+export const ETIQUETA_ESCALA: Record<EscalaRating, string> = {
+  global: 'escala global',
+  local: 'escala nacional (Arg.)',
 };
