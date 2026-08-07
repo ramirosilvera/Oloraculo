@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { PosicionesPage } from './pages/PosicionesPage';
 import { AnalisisPage } from './pages/AnalisisPage';
 import { BonosPage } from './pages/BonosPage';
+import { CedearsPage } from './pages/CedearsPage';
 import { AportesPage } from './pages/AportesPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { ConsolidadoPage } from './pages/ConsolidadoPage';
@@ -48,6 +49,7 @@ export function App() {
           <Route path="analisis" element={<AnalisisHomePage />} />
           <Route path="analisis/:ticker" element={<AnalisisPage />} />
           <Route path="bonos" element={<BonosPage />} />
+          <Route path="cedears" element={<CedearsPage />} />
           <Route path="tasas" element={<TasasPage />} />
           <Route path="cupones" element={<CuponesPage />} />
           <Route path="radar" element={<RadarPage />} />
