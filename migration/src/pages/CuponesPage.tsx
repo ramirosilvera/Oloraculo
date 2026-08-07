@@ -503,6 +503,11 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
   // Mismo eje de meses para las 3 series (los 3 calendarios arrancan en el mismo fromYear/fromMonth
   // con 12 meses) — se combinan índice a índice para el chart apilado y la tabla de detalle.
   const chartData = cal.map((m, i) => ({ mes: MESES[m.month - 1], Cupones: m.total, Dividendos: divCal[i]?.total ?? 0, Capital: capCal[i]?.total ?? 0 }));
+  // Ojo: NO usar `anual + divAnual > 0` acá — cuponAnualTotal() es una aproximación "año completo"
+  // que ignora vencimiento/mesRef, así que puede dar >0 aunque la ventana real de 12 meses (chartData,
+  // construida con couponCalendar) esté vacía (ej. bono vence antes de su próximo mesRef). Se chequea
+  // directo sobre lo que el chart de Renta va a graficar.
+  const hayRenta = chartData.some(d => d.Cupones + d.Dividendos > 0);
 
   const totalBonos = posiciones.filter(p => p.tipo === 'bono').length;
   const conCupon = bonds.length;
@@ -530,7 +535,7 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         <Stat label="Dividendos anual (estimado)" value={fmtUsd(divAnual, 0)} hint="CEDEARs/acciones — a confirmar contra el cobro real" />
         <Stat label="Próximo dividendo" value={proximoDiv ? `${MESES[proximoDiv.month - 1]} ${proximoDiv.year}` : '—'} hint={proximoDiv ? fmtUsd(proximoDiv.total, 0) : undefined} />
         <Stat label="Cargados (dividendos)" value={`${conDividendo}/${equities.length}`} hint="con dato del proveedor / total de CEDEARs-acciones" />
-        <Stat label="Total proyectado 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones (confiables) + dividendos (mezcla declarado/estimado) — sin capital, ver abajo" />
+        <Stat label="Total renta 12m" value={fmtUsd(anual + divAnual, 0)} hint="cupones (confiables) + dividendos (mezcla declarado/estimado) — sin capital, ver el gráfico de Capital abajo" />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Stat label="Capital a cobrar 12m" value={fmtUsd(capitalAnual, 0)} hint="Devolución de capital (amortización + rescate al vencimiento) — NO es renta, no suma al total de arriba. Bonos amortizables sin cronograma cargado se estiman con su valor residual, todo junto al vencimiento." />
@@ -547,25 +552,32 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
         </Card>
       ) : (
         <>
-          <Card>
-            <CardHeader title="Calendario 12 meses — Renta" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD) en cupones + dividendos, no lo ya cobrado. Cupones (confiables si el bono no entra en default) + dividendos (mezcla declarado/estimado). El capital (amortización/rescate) tiene escala propia abajo — mezclarlo acá tapa la renta cuando hay un rescate grande." />
-            <div className="p-2 h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                  <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="mes" stroke={chart.axis} fontSize={11} />
-                  <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
-                  <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
-                    formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: chart.tooltipText }} />
-                  <Bar dataKey="Cupones" stackId="r" fill="#4F97D4" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Dividendos" stackId="r" fill="#E3B341" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          {hayRenta ? (
+            <Card>
+              <CardHeader title="Calendario 12 meses — Renta" sub="Proyección — cuánto DEBERÍAS cobrar cada mes (USD) en cupones + dividendos, no lo ya cobrado. Cupones (confiables si el bono no entra en default) + dividendos (mezcla declarado/estimado). El capital (amortización/rescate) tiene escala propia abajo — mezclarlo acá tapa la renta cuando hay un rescate grande." />
+              <div className="p-2 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                    <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="mes" stroke={chart.axis} fontSize={11} />
+                    <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
+                    <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
+                      formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: chart.tooltipText }} />
+                    <Bar dataKey="Cupones" stackId="r" fill="#4F97D4" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Dividendos" stackId="r" fill="#E3B341" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader title="Calendario 12 meses — Renta" />
+              <p className="px-4 pb-4 text-[11px] text-ink-500">Sin cupones ni dividendos proyectados en los próximos 12 meses — cargá tasa/frecuencia/mes de cupón en tus bonos o esperá a que el proveedor tenga calendario de dividendos.</p>
+            </Card>
+          )}
 
-          {capitalAnual > 0 && (
+          {capitalAnual > 0 ? (
             <Card>
               <CardHeader title="Calendario 12 meses — Capital" sub="Devolución de capital proyectada (amortización programada o rescate al vencimiento) — NO es renta, escala propia (los montos acá suelen ser mucho más grandes que los de arriba, sobre todo el mes del rescate)." />
               <div className="p-2 h-40">
@@ -573,13 +585,18 @@ function ProyectadoTab({ portfolioId }: { portfolioId: string }) {
                   <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
                     <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="mes" stroke={chart.axis} fontSize={11} />
-                    <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} />
+                    <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => `US$${v}`} width={52} domain={[0, 'auto']} />
                     <Tooltip contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
                       formatter={(v: number) => fmtUsd(v, 0)} cursor={{ fill: 'rgba(139,150,165,0.12)' }} />
                     <Bar dataKey="Capital" fill="#8B96A5" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+            </Card>
+          ) : totalBonos > 0 && (
+            <Card>
+              <CardHeader title="Calendario 12 meses — Capital" />
+              <p className="px-4 pb-4 text-[11px] text-ink-500">Sin capital proyectado en los próximos 12 meses (tenés bonos, pero ninguno amortiza ni vence en esta ventana) — ver "Próximo capital" arriba.</p>
             </Card>
           )}
 
