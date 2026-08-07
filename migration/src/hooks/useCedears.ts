@@ -34,8 +34,8 @@ export function useObjetivoConcentracion(portfolioId: string | undefined) {
       const raw = key ? localStorage.getItem(key) : null;
       if (raw) {
         const o = JSON.parse(raw);
-        if (Number.isFinite(o.sectorPct) && o.sectorPct > 0 && o.sectorPct <= 100) s = o.sectorPct;
-        if (Number.isFinite(o.estiloPct) && o.estiloPct > 0 && o.estiloPct <= 100) e = o.estiloPct;
+        if (Number.isFinite(o.sectorPct) && o.sectorPct >= 0 && o.sectorPct <= 100) s = o.sectorPct;
+        if (Number.isFinite(o.estiloPct) && o.estiloPct >= 0 && o.estiloPct <= 100) e = o.estiloPct;
       }
     } catch { /* */ }
     setSectorState(s); setEstiloState(e);

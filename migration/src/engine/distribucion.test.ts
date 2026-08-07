@@ -22,8 +22,8 @@ describe('pctRentaFija', () => {
     expect(pctRentaFija(alloc, 1000)).toBeCloseTo(30, 6);
   });
 
-  it('total <= 0: devuelve 0, no divide por cero', () => {
-    expect(pctRentaFija([{ mkt: 100, tipo: 'bono' }], 0)).toBe(0);
+  it('total <= 0: devuelve null (no 0 — "sin patrimonio" no es lo mismo que "0% en fija")', () => {
+    expect(pctRentaFija([{ mkt: 100, tipo: 'bono' }], 0)).toBeNull();
   });
 
   it('sin bonos: 0%', () => {
@@ -52,5 +52,10 @@ describe('alertasDistribucion', () => {
     const alertas = alertasDistribucion(50, 30, 10);
     expect(alertas).toHaveLength(1);
     expect(alertas[0].texto).toContain('encima');
+  });
+
+  it('fijaPct null (portfolio vacío/sin valuar): sin alertas, no revienta — evita el falso positivo de "0% del patrimonio" en un portfolio recién creado', () => {
+    expect(alertasDistribucion(null, 30, 10)).toHaveLength(0);
+    expect(alertasDistribucion(pctRentaFija([], 0), 30, 10)).toHaveLength(0);
   });
 });

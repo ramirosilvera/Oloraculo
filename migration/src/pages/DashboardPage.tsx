@@ -523,7 +523,7 @@ function Distribucion({ alloc, total, isLoading }: { alloc: { ticker: string; mk
             }}
             className={`${inputCls} w-24`} />
         </Field>
-        <p className="text-[11px] text-ink-600 ml-auto">Renta fija actual: <span className="tnum font-semibold text-ink-800">{fmtNum(fijaPct, 0)}%</span></p>
+        <p className="text-[11px] text-ink-600 ml-auto">Renta fija actual: <span className="tnum font-semibold text-ink-800">{fijaPct != null ? `${fmtNum(fijaPct, 0)}%` : '—'}</span></p>
       </div>
       <div className="p-4 grid sm:grid-cols-[minmax(0,180px)_1fr] gap-4 items-center border-b border-line">
         <div className="h-[160px]">
