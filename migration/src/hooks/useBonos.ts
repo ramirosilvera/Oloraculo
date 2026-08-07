@@ -3,7 +3,7 @@ import { usePosiciones, useQuotes } from './usePosiciones';
 import { calcularBono, type BonoCalc } from '../engine/bonos';
 
 export type { BonoCalc } from '../engine/bonos';
-export { resumenBonos, type ResumenBonos } from '../engine/bonos';
+export { resumenBonos, alertasBonos, type ResumenBonos } from '../engine/bonos';
 
 // Cálculo compartido por bono (capital, mercado, TIR, duración, rating) — usado tanto por la
 // tabla+gráfico de BonosPage como por el resumen del Dashboard, así nunca se desincronizan entre sí

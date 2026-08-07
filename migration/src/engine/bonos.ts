@@ -8,7 +8,13 @@
 
 import { ytm, bondDuration, rendimientoCorriente } from './coupons';
 import { clasificarRating, type GradoCredito, type EscalaRating } from './rating';
+import type { Alerta } from './alertas';
 import type { Posicion } from '../types/domain';
+
+// Umbrales de alerta — compartidos entre BonosPage y el resumen del Dashboard para que nunca
+// muestren un criterio distinto de "esto necesita tu atención".
+export const CONCENTRACION_POSICION_ALERTA = 0.40;  // un solo ticker concentra esto o más del capital en bonos
+export const ESPECULATIVO_ALERTA = 0.40;            // % del capital en bonos "especulativo" a partir del cual avisar
 
 export interface BonoCalc {
   pos: Posicion;
@@ -67,6 +73,9 @@ export interface ResumenBonos {
   mayorPosicion: { ticker: string; pct: number } | null;
   // Fracciones (0..1) del capital total en bonos por calidad crediticia — suman 1 si totalMkt > 0.
   distribucionGrado: { gradoInversion: number; especulativo: number; default: number; sinCalificar: number };
+  // Bonos con cupón o vencimiento sin cargar (no se les puede estimar TIR ni duración) — distinto
+  // de un bono YA VENCIDO (ese sí tiene los datos completos, simplemente no tiene TIR futura).
+  bonosSinDatos: number;
 }
 
 // Promedio ponderado por capitalUsado de `sel(b)` sobre los bonos donde `sel(b)` no es null.
@@ -100,6 +109,7 @@ export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?:
   const capEspeculativo = sumGrado('especulativo');
   const capDefault = sumGrado('default');
   const capSinCalificar = totalMkt - capGradoInversion - capEspeculativo - capDefault;
+  const bonosSinDatos = bonosCalc.filter(b => !b.cuponOk || !b.pos.vencimiento).length;
 
   return {
     totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo,
@@ -107,5 +117,39 @@ export function resumenBonos(bonosCalc: BonoCalc[], objAnios: number, riskFree?:
     distribucionGrado: totalMkt > 0
       ? { gradoInversion: capGradoInversion / totalMkt, especulativo: capEspeculativo / totalMkt, default: capDefault / totalMkt, sinCalificar: capSinCalificar / totalMkt }
       : { gradoInversion: 0, especulativo: 0, default: 0, sinCalificar: 0 },
+    bonosSinDatos,
   };
+}
+
+// Alertas de riesgo/calidad de datos sobre la cartera de bonos — mismos umbrales que ya coloreaban
+// los Stats de BonosPage, ahora en un único lugar para que BonosPage y el resumen del Dashboard
+// muestren EXACTAMENTE la misma lista.
+export function alertasBonos(r: ResumenBonos, objAnios: number, objPct: number): Alerta[] {
+  const alertas: Alerta[] = [];
+
+  if (r.mayorPosicion && r.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA) {
+    alertas.push({ severidad: 'warn', texto: `${r.mayorPosicion.ticker} concentra ${Math.round(r.mayorPosicion.pct * 100)}% del capital en bonos — un solo ticker por encima del ${Math.round(CONCENTRACION_POSICION_ALERTA * 100)}%.` });
+  }
+
+  if (r.pctCortoPlazo != null && r.pctCortoPlazo * 100 < objPct) {
+    alertas.push({ severidad: 'warn', texto: `Solo ${Math.round(r.pctCortoPlazo * 100)}% del capital en bonos está a ≤${objAnios} años de duración (tu objetivo es ${objPct}%).` });
+  }
+
+  if (r.distribucionGrado.default > 0) {
+    alertas.push({ severidad: 'neg', texto: `${Math.round(r.distribucionGrado.default * 100)}% del capital en bonos está calificado en DEFAULT.` });
+  }
+
+  if (r.distribucionGrado.especulativo >= ESPECULATIVO_ALERTA) {
+    alertas.push({ severidad: 'warn', texto: `${Math.round(r.distribucionGrado.especulativo * 100)}% del capital en bonos es especulativo (por debajo de grado de inversión, dentro de su escala).` });
+  }
+
+  if (r.spreadPromedio != null && r.spreadPromedio < 0) {
+    alertas.push({ severidad: 'neg', texto: `La TIR promedio de tus bonos está por debajo de la tasa libre de riesgo (spread ${Math.round(r.spreadPromedio * 100)}%) — el mercado no te está pagando prima por este riesgo.` });
+  }
+
+  if (r.bonosSinDatos > 0) {
+    alertas.push({ severidad: 'warn', texto: `${r.bonosSinDatos} bono${r.bonosSinDatos > 1 ? 's' : ''} sin cupón o vencimiento cargado — no se puede estimar su TIR ni duración.` });
+  }
+
+  return alertas;
 }

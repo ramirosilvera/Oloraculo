@@ -14,9 +14,9 @@ import { useWatchlist } from '../hooks/useWatchlist';
 import { useCikMap } from '../hooks/useCikMap';
 import { useDcfInputs, type StoredDcf } from '../hooks/useDcfInputs';
 import { useRadarTicker } from '../hooks/useRadarTicker';
-import { useBonosCalc, useObjetivoDuracion, resumenBonos } from '../hooks/useBonos';
+import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos } from '../hooks/useBonos';
 import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
-import { CONCENTRACION_SECTOR_ALERTA } from '../engine/cedears';
+import { CONCENTRACION_SECTOR_ALERTA, alertasCedears } from '../engine/cedears';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -26,7 +26,7 @@ import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
-import { Card, CardHeader, Stat, Badge, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
+import { Card, CardHeader, Stat, Badge, AlertasBanner, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
@@ -169,6 +169,8 @@ export function DashboardPage() {
         </div>
       )}
 
+      <AlertasResumen />
+
       {/* Hero: lo esencial, sin repetir. Patrimonio con más peso visual — es el número más
           decisivo de la página — el resto queda como Stat normal debajo. */}
       <div className="space-y-2">
@@ -247,6 +249,27 @@ export function DashboardPage() {
       <AdminResumen />
     </div>
   );
+}
+
+// Alertas consolidadas de CEDEARs + Bonos, arriba de todo — así lo que necesita atención se ve
+// apenas se entra al Dashboard, sin tener que visitar /cedears y /bonos por separado. Misma fuente
+// (alertasCedears/alertasBonos + los hooks que ya usan CedearsResumen/BonosResumen) así la lista acá
+// es EXACTAMENTE la misma que la de cada página — nunca "en el Dashboard no avisa pero en la sección sí".
+function AlertasResumen() {
+  const { active } = usePortfolios();
+  const { cedearsCalc, isLoading: cedearsLoading } = useCedearsCalc(active?.id);
+  const { bonosCalc, isLoading: bonosLoading } = useBonosCalc(active?.id);
+  const { anios: objAnios, pct: objPct } = useObjetivoDuracion(active?.id);
+
+  if (cedearsLoading || bonosLoading) return null;
+
+  const alertas = [
+    ...alertasCedears(resumenCedears(cedearsCalc)),
+    ...alertasBonos(resumenBonos(bonosCalc, objAnios), objAnios, objPct),
+  ];
+  if (alertas.length === 0) return null;
+
+  return <AlertasBanner alertas={alertas} />;
 }
 
 // Resumen de CEDEARs: capital, concentración (mayor posición + HHI sectorial) y diversificación

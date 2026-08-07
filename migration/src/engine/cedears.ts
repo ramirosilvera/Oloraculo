@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { unitValueUSD, marketValueUSD, costUSD } from '../lib/valuation';
+import type { Alerta } from './alertas';
 import type { Posicion, AssetRole } from '../types/domain';
 
 // Las 6 categorías canónicas de "One Up on Wall Street" (Peter Lynch) + 'compounder', un agregado
@@ -36,6 +37,12 @@ export const SIN_CLASIFICAR_COLOR = '#8B96A5';
 // conceptualmente distintos, y no deberían moverse juntos si mañana se ajusta solo uno.
 export const CONCENTRACION_POSICION_ALERTA = 0.40;  // un solo ticker concentra esto o más del capital en CEDEARs
 export const CONCENTRACION_SECTOR_ALERTA = 0.40;    // un solo sector concentra esto o más (repartido entre varios tickers)
+// HHI ≈ 0.33 equivale a 3 sectores parejos (1/3): por debajo de eso, la cartera está más repartida
+// que "3 sectores del mismo tamaño"; por encima, más concentrada que eso.
+export const HHI_SECTOR_ALERTA = 0.33;
+// % del capital sin sector cargado a partir del cual vale la pena avisar (no es un riesgo de
+// mercado — es un hueco de datos que le resta precisión al resto de los indicadores de esta página).
+export const SIN_CLASIFICAR_ALERTA = 0.20;
 
 export interface CedearCalc {
   pos: Posicion;
@@ -102,6 +109,33 @@ export function resumenCedears(cedearsCalc: CedearCalc[]): ResumenCedears {
     mayorPosicion: mayor && totalMkt > 0 ? { ticker: mayor.pos.ticker, pct: mayor.capitalUsado / totalMkt } : null,
     nSectores, hhiSector, porSector, porRol,
   };
+}
+
+// Alertas de riesgo/calidad de datos sobre la cartera de CEDEARs — mismos umbrales que ya
+// coloreaban los Stats de CedearsPage, ahora en un único lugar para que CedearsPage y el resumen
+// del Dashboard muestren EXACTAMENTE la misma lista (nunca "en una pantalla avisa y en la otra no").
+export function alertasCedears(r: ResumenCedears): Alerta[] {
+  const alertas: Alerta[] = [];
+
+  if (r.mayorPosicion && r.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA) {
+    alertas.push({ severidad: 'warn', texto: `${r.mayorPosicion.ticker} concentra ${Math.round(r.mayorPosicion.pct * 100)}% del capital en CEDEARs — un solo ticker por encima del ${Math.round(CONCENTRACION_POSICION_ALERTA * 100)}%.` });
+  }
+
+  const mayorSector = r.porSector.find(s => s.sector !== 'Sin sector');
+  if (mayorSector && mayorSector.pct >= CONCENTRACION_SECTOR_ALERTA) {
+    alertas.push({ severidad: 'warn', texto: `${Math.round(mayorSector.pct * 100)}% del capital en CEDEARs está en el sector ${mayorSector.sector}.` });
+  }
+
+  if (r.hhiSector != null && r.hhiSector >= HHI_SECTOR_ALERTA) {
+    alertas.push({ severidad: 'warn', texto: `Concentración sectorial (HHI) en ${r.hhiSector.toFixed(2)} — equivale a repartir el capital en solo ~${(1 / r.hhiSector).toFixed(1)} sectores parejos.` });
+  }
+
+  const sinSector = r.porSector.find(s => s.sector === 'Sin sector');
+  if (sinSector && sinSector.pct >= SIN_CLASIFICAR_ALERTA) {
+    alertas.push({ severidad: 'warn', texto: `${Math.round(sinSector.pct * 100)}% del capital en CEDEARs no tiene sector cargado — clasificalo para que la distribución sea precisa.` });
+  }
+
+  return alertas;
 }
 
 // unitValueUSD se reexporta por conveniencia (paridad/precio unitario en la tabla de CedearsPage).

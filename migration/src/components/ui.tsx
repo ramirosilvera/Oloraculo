@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import type { Alerta } from '../engine/alertas';
 
 // Paleta categórica para gráficos de torta/donut — estable, funciona en claro y oscuro. Un solo
 // lugar para que Dashboard/Brokers/Consolidado (o cualquier otro donut futuro) usen los mismos
@@ -84,6 +86,24 @@ export function CardHeader({ title, sub, right }: { title: string; sub?: string;
         {sub && <p className="text-[11px] text-ink-600 mt-0.5 leading-snug">{sub}</p>}
       </div>
       {right}
+    </div>
+  );
+}
+
+// Lista de alertas de riesgo/calidad de datos — mismo look que ya usaba el aviso de "sin cotización"
+// del Dashboard, generalizado para CedearsPage/BonosPage/Dashboard. Severidad 'neg' (rojo) para
+// riesgos serios (default, spread negativo); 'warn' (ámbar) para el resto. No renderiza nada si la
+// lista viene vacía — así el caller puede pasarla siempre sin envolverla en un `if` propio.
+export function AlertasBanner({ alertas }: { alertas: Alerta[] }) {
+  if (alertas.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      {alertas.map((a, i) => (
+        <div key={i} className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-[11px] ring-1 ring-inset ${a.severidad === 'neg' ? 'bg-neg/10 ring-neg/25 text-ink-800' : 'bg-warn/10 ring-warn/25 text-ink-700'}`}>
+          <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${a.severidad === 'neg' ? 'text-neg' : 'text-warn'}`} />
+          <p>{a.texto}</p>
+        </div>
+      ))}
     </div>
   );
 }

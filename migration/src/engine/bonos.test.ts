@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularBono, resumenBonos, type BonoCalc } from './bonos';
+import { calcularBono, resumenBonos, alertasBonos, type BonoCalc } from './bonos';
 import type { Posicion } from '../types/domain';
 
 const basePos: Posicion = {
@@ -98,5 +98,69 @@ describe('resumenBonos — agregados', () => {
     expect(r.tirPromedio).toBeNull();
     expect(r.mayorPosicion).toBeNull();
     expect(r.distribucionGrado).toEqual({ gradoInversion: 0, especulativo: 0, default: 0, sinCalificar: 0 });
+  });
+
+  it('bonosSinDatos cuenta los que no tienen cupón o vencimiento completo (no los ya vencidos)', () => {
+    const incompleto = calcularBono({ ...basePos, ticker: 'XXX', cupon_tasa: null }, 0.6, HOY);
+    const completo = calcularBono({ ...basePos, ticker: 'YYY' }, 0.6, HOY);
+    const r = resumenBonos([incompleto, completo], 2);
+    expect(r.bonosSinDatos).toBe(1);
+  });
+});
+
+describe('alertasBonos', () => {
+  const conRating = (ticker: string, cantidad: number, calificadora: string | null, calificacion: string | null) =>
+    calcularBono({ ...basePos, ticker, cantidad, calificadora, calificacion }, 1, HOY); // precio=1 -> capitalUsado = cantidad
+
+  it('cartera balanceada, sin bonos especulativos/default, objetivo cumplido: sin alertas', () => {
+    // 3 posiciones parejas (~33% c/u) para que ninguna sola pase el umbral de concentración (40%).
+    const a = conRating('AL30', 340, 'S&P', 'AAA');
+    const b = conRating('GD30', 330, 'S&P', 'AAA');
+    const c = conRating('AL35', 330, 'S&P', 'AAA');
+    const r = resumenBonos([a, b, c], 100); // objAnios muy alto -> todo entra en "corto plazo"
+    expect(alertasBonos(r, 100, 50)).toHaveLength(0);
+  });
+
+  it('mayor posición ≥40%: alerta warn', () => {
+    const dominante = conRating('AL30', 500, 'S&P', 'AAA');
+    const resto = conRating('GD30', 500, 'S&P', 'AAA');
+    const r = resumenBonos([dominante, resto], 2);
+    expect(alertasBonos(r, 2, 50).some(a => a.severidad === 'warn' && a.texto.includes('AL30'))).toBe(true);
+  });
+
+  it('% a corto plazo por debajo del objetivo: alerta warn', () => {
+    const b = calcularBono({ ...basePos, ticker: 'LARGO', vencimiento: '2040-07-24' }, 1, HOY); // vence lejos -> duración larga
+    const r = resumenBonos([b], 2); // objetivo de corto plazo: 2 años
+    expect(alertasBonos(r, 2, 80).some(a => a.texto.includes('objetivo'))).toBe(true);
+  });
+
+  it('capital en default: alerta neg (severidad alta)', () => {
+    const enDefault = conRating('DEF1', 100, 'S&P', 'D');
+    const r = resumenBonos([enDefault], 2);
+    const alertas = alertasBonos(r, 2, 50);
+    expect(alertas.some(a => a.severidad === 'neg' && a.texto.includes('DEFAULT'))).toBe(true);
+  });
+
+  it('≥40% especulativo: alerta warn', () => {
+    const especulativo = conRating('SPEC', 500, 'S&P', 'BB');
+    const inversionGrade = conRating('SAFE', 500, 'S&P', 'AAA');
+    const r = resumenBonos([especulativo, inversionGrade], 2);
+    expect(alertasBonos(r, 2, 50).some(a => a.texto.includes('especulativo'))).toBe(true);
+  });
+
+  it('spread negativo (TIR < tasa libre de riesgo): alerta neg', () => {
+    const b = conRating('AL30', 500, 'S&P', 'AAA');
+    const r = resumenBonos([b], 2, 10); // risk-free 10% (absurdamente alto a propósito, fuerza spread negativo)
+    expect(alertasBonos(r, 2, 50).some(a => a.severidad === 'neg' && a.texto.includes('spread'))).toBe(true);
+  });
+
+  it('bonos sin datos: alerta warn', () => {
+    const incompleto = calcularBono({ ...basePos, ticker: 'XXX', cupon_tasa: null }, 0.6, HOY);
+    const r = resumenBonos([incompleto], 2);
+    expect(alertasBonos(r, 2, 50).some(a => a.texto.includes('sin cupón o vencimiento'))).toBe(true);
+  });
+
+  it('cartera vacía: sin alertas, no revienta', () => {
+    expect(alertasBonos(resumenBonos([], 2), 2, 50)).toHaveLength(0);
   });
 });

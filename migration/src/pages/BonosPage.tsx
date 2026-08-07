@@ -3,9 +3,10 @@ import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations, useMacro } from '../hooks/usePosiciones';
-import { useBonosCalc, useObjetivoDuracion, resumenBonos, DEFAULT_ANIOS_CORTO_PLAZO } from '../hooks/useBonos';
+import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos, DEFAULT_ANIOS_CORTO_PLAZO } from '../hooks/useBonos';
+import { CONCENTRACION_POSICION_ALERTA } from '../engine/bonos';
 import { CALIFICADORAS, CALIFICADORAS_CLASIFICABLES, ETIQUETA_GRADO, ETIQUETA_ESCALA, type GradoCredito, type EscalaRating } from '../engine/rating';
-import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, AlertasBanner } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme, useIsDark } from '../hooks/usePrefs';
 import type { Posicion } from '../types/domain';
@@ -15,10 +16,6 @@ const FREC: Record<number, string> = { 1: 'Anual', 2: 'Semestral', 4: 'Trimestra
 // Gris neutro para "sin calificar" en la barra de calidad crediticia — mismo criterio que
 // SIN_ASIGNAR_COLOR en components/ui.tsx (colorDeBroker): no compite con los tonos pos/warn/neg.
 const SIN_CALIFICAR_COLOR = '#8B96A5';
-// Umbral de alerta de concentración DENTRO de la cartera de bonos (más laxo que el 30% de
-// "mayor posición" a nivel portfolio: una cartera de renta fija suele tener menos nombres por
-// diseño — ej. 2-3 soberanos — así que 40% acá no es necesariamente una señal de alarma).
-const CONCENTRACION_POSICION_ALERTA = 0.40;
 
 // Badge de rating: tono por grado (pos=grado de inversión, warn=especulativo, neg=default,
 // gris=sin calificar o 'Otra' calificadora). Nunca inventa un grado que el motor no dio.
@@ -59,8 +56,9 @@ export function BonosPage() {
 
   if (!active) return null;
 
-  const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo, mayorPosicion, distribucionGrado } =
-    resumenBonos(bonosCalc, objAnios, riskFree);
+  const resumen = resumenBonos(bonosCalc, objAnios, riskFree);
+  const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo, mayorPosicion, distribucionGrado } = resumen;
+  const alertas = alertasBonos(resumen, objAnios, objPct);
 
   // Gráfico: solo entran los bonos con duración calculable (cupón + vencimiento cargados, y no
   // vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
@@ -81,6 +79,7 @@ export function BonosPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-ink-900 font-display">Renta fija · {active.nombre}</h1>
+      <AlertasBanner alertas={alertas} />
       <Card>
         <CardHeader title="Bonos y ONs" sub="Precio por nominal (data912). Editá el cupón (✏️) para que aparezcan en el calendario de Cupones."
           right={<span className="text-xs text-ink-600 tnum">Capital {fmtUsdCompact(totalCapital)} · Mercado {fmtUsdCompact(totalMkt)}</span>} />

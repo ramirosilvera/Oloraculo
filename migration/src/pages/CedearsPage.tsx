@@ -4,8 +4,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosicionMutations } from '../hooks/usePosiciones';
 import { useCedearsCalc, resumenCedears } from '../hooks/useCedears';
-import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, CONCENTRACION_SECTOR_ALERTA } from '../engine/cedears';
-import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, PIE_COLORS } from '../components/ui';
+import { ROL_LABEL, ROLES, ROL_COLOR, SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA, CONCENTRACION_SECTOR_ALERTA, alertasCedears } from '../engine/cedears';
+import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct, PIE_COLORS, AlertasBanner } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme } from '../hooks/usePrefs';
 import type { Posicion, AssetRole } from '../types/domain';
@@ -37,7 +37,9 @@ export function CedearsPage() {
 
   if (!active) return null;
 
-  const { totalCapital, totalMkt, mayorPosicion, nSectores, hhiSector, porSector, porRol } = resumenCedears(cedearsCalc);
+  const resumen = resumenCedears(cedearsCalc);
+  const { totalCapital, totalMkt, mayorPosicion, nSectores, hhiSector, porSector, porRol } = resumen;
+  const alertas = alertasCedears(resumen);
   const mayorSector = porSector.length > 0 ? porSector[0] : null;
 
   const sectorData = porSector.map(s => ({ name: s.sector, value: s.pct }));
@@ -52,6 +54,7 @@ export function CedearsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-ink-900 font-display">CEDEARs · {active.nombre}</h1>
+      <AlertasBanner alertas={alertas} />
       <Card>
         <CardHeader title="Renta variable" sub="Sector y estilo (Peter Lynch) por posición. Editá con el ✏️ para clasificar."
           right={<span className="text-xs text-ink-600 tnum">Capital {fmtUsdCompact(totalCapital)} · Mercado {fmtUsdCompact(totalMkt)}</span>} />

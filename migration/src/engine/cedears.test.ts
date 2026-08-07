@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularCedear, resumenCedears, herfindahl, ROL_LABEL, ROLES } from './cedears';
+import { calcularCedear, resumenCedears, herfindahl, alertasCedears, ROL_LABEL, ROLES } from './cedears';
 import type { Posicion } from '../types/domain';
 
 const basePos: Posicion = {
@@ -92,6 +92,54 @@ describe('resumenCedears — agregados', () => {
     expect(r.hhiSector).toBeNull();
     expect(r.porSector).toEqual([]);
     expect(r.porRol).toEqual([]);
+  });
+});
+
+describe('alertasCedears', () => {
+  it('cartera bien diversificada: sin alertas', () => {
+    // 6 tickers de 6 sectores distintos, todos clasificados, ~16.6% cada uno -> HHI ≈ 0.167
+    const bonos = ['Tecnología', 'Salud', 'Finanzas', 'Materiales', 'Energía', 'Industriales']
+      .map((sector, i) => calcularCedear({ ...basePos, ticker: `T${i}`, sector, rol: 'stalwart', cantidad: 100, ratio_cedear: 1 }, 1));
+    const r = resumenCedears(bonos);
+    expect(alertasCedears(r)).toHaveLength(0);
+  });
+
+  it('mayor posición ≥40%: alerta warn', () => {
+    const dominante = calcularCedear({ ...basePos, ticker: 'MSFT', sector: 'Tecnología', cantidad: 500, ratio_cedear: 1 }, 1); // 500
+    const resto = calcularCedear({ ...basePos, ticker: 'MELI', sector: 'Consumo discrecional', cantidad: 500, ratio_cedear: 1 }, 1); // 500
+    const r = resumenCedears([dominante, resto]);
+    const alertas = alertasCedears(r);
+    expect(alertas.some(a => a.severidad === 'warn' && a.texto.includes('MSFT'))).toBe(true);
+  });
+
+  it('mayor sector ≥40% repartido en varios tickers (sin que ninguno solo llegue al umbral de posición)', () => {
+    const a = calcularCedear({ ...basePos, ticker: 'AAA', sector: 'Tecnología', cantidad: 200, ratio_cedear: 1 }, 1);
+    const b = calcularCedear({ ...basePos, ticker: 'BBB', sector: 'Tecnología', cantidad: 200, ratio_cedear: 1 }, 1);
+    const c = calcularCedear({ ...basePos, ticker: 'CCC', sector: 'Salud', cantidad: 250, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([a, b, c]); // total 650: Tecnología = 400/650 ≈ 61.5%, mayor ticker (CCC) = 250/650 ≈ 38.5%
+    expect(r.mayorPosicion!.pct).toBeLessThan(0.40); // ningún ticker solo pasa el umbral de posición
+    const alertas = alertasCedears(r);
+    expect(alertas.some(al => al.texto.includes('Tecnología'))).toBe(true); // pero el sector sí (≥40%)
+  });
+
+  it('HHI ≥0.33: alerta de concentración sectorial', () => {
+    const a = calcularCedear({ ...basePos, ticker: 'A', sector: 'Tecnología', cantidad: 340, ratio_cedear: 1 }, 1);
+    const b = calcularCedear({ ...basePos, ticker: 'B', sector: 'Salud', cantidad: 330, ratio_cedear: 1 }, 1);
+    const c = calcularCedear({ ...basePos, ticker: 'C', sector: 'Finanzas', cantidad: 330, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([a, b, c]); // ~3 sectores parejos -> HHI ≈ 0.333
+    expect(r.hhiSector!).toBeGreaterThanOrEqual(0.33);
+    expect(alertasCedears(r).some(al => al.texto.includes('HHI'))).toBe(true);
+  });
+
+  it('≥20% del capital sin sector: alerta de dato faltante', () => {
+    const clasificado = calcularCedear({ ...basePos, ticker: 'MSFT', sector: 'Tecnología', cantidad: 800, ratio_cedear: 1 }, 1);
+    const sinSector = calcularCedear({ ...basePos, ticker: 'XYZ', sector: null, cantidad: 200, ratio_cedear: 1 }, 1);
+    const r = resumenCedears([clasificado, sinSector]);
+    expect(alertasCedears(r).some(a => a.texto.includes('no tiene sector cargado'))).toBe(true);
+  });
+
+  it('cartera vacía: sin alertas, no revienta', () => {
+    expect(alertasCedears(resumenCedears([]))).toHaveLength(0);
   });
 });
 
