@@ -17,6 +17,14 @@ const FREC: Record<number, string> = { 1: 'Anual', 2: 'Semestral', 4: 'Trimestra
 // SIN_ASIGNAR_COLOR en components/ui.tsx (colorDeBroker): no compite con los tonos pos/warn/neg.
 const SIN_CALIFICAR_COLOR = '#8B96A5';
 
+// Sin cotización de mercado (bc.mkt == null — típico de un bono recién suscripto en licitación
+// primaria, que puede tardar en aparecer en el proveedor de precios): la TIR/duración de esa fila
+// no salen del precio de mercado sino de tu precio de compra (mismo criterio que "capitalUsado" cae
+// al costo). Además, si "hoy" cae cerca de una fecha de cupón calculada desde el vencimiento, el
+// motor no descuenta el interés corrido (no modela precio "sucio") y ese cupón casi inmediato puede
+// inflar la TIR bastante por encima del cupón nominal — no es que el bono rinda eso en la práctica.
+const SIN_COTIZACION_HINT = 'Sin cotización de mercado todavía (puede ser un bono recién suscripto en licitación primaria) — se estima con tu precio de compra. Si hay un pago de cupón próximo, esta TIR puede estar inflada (el cálculo no descuenta el interés corrido).';
+
 // Badge de rating: tono por grado (pos=grado de inversión, warn=especulativo, neg=default,
 // gris=sin calificar o 'Otra' calificadora). Nunca inventa un grado que el motor no dio.
 // `grado === null` puede ser por 3 motivos DISTINTOS — mezclarlos en un solo mensaje genérico le
@@ -61,6 +69,7 @@ export function BonosPage() {
   const resumen = resumenBonos(bonosCalc, riskFree);
   const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, mayorPosicion, distribucionGrado } = resumen;
   const alertas = alertasBonos(resumen, minGradoInversionPct, maxDuracionAnios);
+  const haySinCotizacion = bonosCalc.some(bc => bc.mkt == null && bc.tir != null);
 
   // Gráfico: solo entran los bonos con duración calculable (cupón + vencimiento cargados, y no
   // vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
@@ -125,12 +134,16 @@ export function BonosPage() {
                     </td>
                     <td className="text-right px-3 tnum">
                       {bc.tir != null
-                        ? <span className={bc.tir >= 0 ? 'text-pos font-semibold' : 'text-neg'}>{fmtPct(bc.tir, 1)}</span>
+                        ? <span className={bc.tir >= 0 ? 'text-pos font-semibold' : 'text-neg'} title={bc.mkt == null ? SIN_COTIZACION_HINT : undefined}>
+                            {fmtPct(bc.tir, 1)}{bc.mkt == null && <sup className="text-[9px] text-ink-500 font-normal ml-0.5">e</sup>}
+                          </span>
                         : <span className="text-ink-500">—</span>}
                     </td>
                     <td className="text-right px-3 tnum">
                       {bc.duracion != null
-                        ? <span className={bc.duracion.macaulay <= maxDuracionAnios ? 'text-pos' : 'text-ink-700'}>{fmtNum(bc.duracion.macaulay, 1)}a</span>
+                        ? <span className={bc.duracion.macaulay <= maxDuracionAnios ? 'text-pos' : 'text-ink-700'} title={bc.mkt == null ? SIN_COTIZACION_HINT : undefined}>
+                            {fmtNum(bc.duracion.macaulay, 1)}a{bc.mkt == null && <sup className="text-[9px] text-ink-500 ml-0.5">e</sup>}
+                          </span>
                         : <span className="text-ink-500">—</span>}
                     </td>
                     <td className="text-right px-3 tnum text-ink-600">{b.vencimiento ?? '—'}</td>
@@ -146,6 +159,11 @@ export function BonosPage() {
             </tbody>
           </table>
         </div>
+        {haySinCotizacion && (
+          <p className="px-4 pb-3 pt-1 text-[11px] text-ink-500">
+            <sup className="text-[9px]">e</sup> Sin cotización de mercado todavía (puede ser un bono recién suscripto en licitación primaria, que suele tardar en aparecer en el proveedor de precios) — TIR y duración se estiman con tu precio de compra, y pueden estar distorsionadas si hay un pago de cupón próximo (el cálculo no descuenta el interés corrido).
+          </p>
+        )}
       </Card>
 
       {bonos.length > 0 && (
