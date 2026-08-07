@@ -42,6 +42,9 @@ export interface Posicion {
   cupon_frecuencia: number | null;   // pagos por año (1/2/4)
   cupon_mes: number | null;          // mes (1-12) de un pago de referencia
   vencimiento: string | null;        // ISO date
+  // Calificación crediticia (bonos/ONs) — cargada a mano, ver engine/rating.ts para la clasificación:
+  calificadora: string | null;   // 'S&P' | 'Moody's' | 'Fitch' | 'FIX SCR' | 'Moody's Local' | 'Otra'
+  calificacion: string | null;   // nota tal cual (ej. 'BB-', 'Ba3', 'AAA(arg)')
   notas: string | null;
   created_at: string;
 }

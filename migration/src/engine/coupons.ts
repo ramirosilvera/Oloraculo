@@ -83,6 +83,15 @@ export function cuponAnualTotal(bonds: CouponBond[]): number {
   return +bonds.reduce((s, b) => s + (b.tasaAnual > 0 && b.faceValue > 0 ? b.faceValue * b.tasaAnual : 0), 0).toFixed(2);
 }
 
+// Rendimiento corriente (current yield) = cupón anual / precio hoy. A diferencia de la YTM, ignora
+// la ganancia/pérdida de capital hasta el rescate (pull-to-par) — mide solo el ingreso por cupón
+// sobre lo que cuesta HOY. Complementa la YTM: un bono puede tener alto rendimiento corriente y baja
+// YTM (comprado sobre la par) o viceversa (comprado muy bajo la par).
+export function rendimientoCorriente(tasaAnual: number, precio: number): number | null {
+  if (!(tasaAnual >= 0) || !(precio > 0)) return null;
+  return tasaAnual / precio;
+}
+
 // Fechas de pago (ISO, ascendentes) desde `hoy` hasta el vencimiento, generadas HACIA ATRÁS desde
 // el vencimiento (así el último pago cae justo con el rescate, que es como funcionan estos bonos).
 // Compartida por ytm() y bondDuration() — un solo lugar que decide "cuándo cobra este bono".

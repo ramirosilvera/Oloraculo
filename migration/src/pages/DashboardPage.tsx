@@ -255,7 +255,7 @@ function BonosResumen() {
 
   if (isLoading || bonos.length === 0) return null;
 
-  const { totalMkt, duracionPromedio, tirPromedio, pctCortoPlazo } = resumenBonos(bonosCalc, objAnios);
+  const { totalMkt, duracionPromedio, tirPromedio, pctCortoPlazo, distribucionGrado } = resumenBonos(bonosCalc, objAnios);
   const cumpleObjetivo = pctCortoPlazo != null && pctCortoPlazo * 100 >= objPct;
 
   return (
@@ -266,7 +266,7 @@ function BonosResumen() {
             ? <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>{fmtPct(pctCortoPlazo, 0)} a ≤{objAnios}a (obj. {objPct}%)</Badge>
             : <span className="text-[11px] text-celeste-600 hover:underline">Ver bonos →</span>}
         </Link>} />
-      <div className="grid grid-cols-3 gap-2 p-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
         <Stat label="Capital" value={fmtUsdCompact(totalMkt)} />
         <Stat label="TIR promedio" value={tirPromedio != null
           ? <span className={tirPromedio >= 0 ? 'text-pos' : 'text-neg'}>{fmtPct(tirPromedio)}</span>
@@ -274,6 +274,8 @@ function BonosResumen() {
           hint="Promedio ponderado por capital de la TIR (YTM) de cada bono" />
         <Stat label="Duración prom." value={duracionPromedio != null ? `${fmtNum(duracionPromedio, 1)}a` : '—'}
           hint="Duración de Macaulay promedio ponderada por capital — sensibilidad de la cartera de bonos a la tasa" />
+        <Stat label="Grado inversión" value={fmtPct(distribucionGrado.gradoInversion, 0)}
+          hint="% del capital en bonos calificados grado de inversión por S&P/Moody's/Fitch (escala global) — el resto es especulativo, default, o sin calificar" />
       </div>
     </Card>
   );

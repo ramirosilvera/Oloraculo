@@ -2,15 +2,44 @@ import { useState } from 'react';
 import { Landmark, Pencil, X, CalendarClock } from 'lucide-react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosicionMutations } from '../hooks/usePosiciones';
+import { usePosicionMutations, useMacro } from '../hooks/usePosiciones';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos, DEFAULT_ANIOS_CORTO_PLAZO } from '../hooks/useBonos';
-import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
+import { CALIFICADORAS, CALIFICADORAS_GLOBALES, ETIQUETA_GRADO, type GradoCredito } from '../engine/rating';
+import { Card, CardHeader, Button, Badge, Stat, Field, Empty, inputCls, fmtUsdCompact, fmtNum, fmtPct } from '../components/ui';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { useChartTheme, useIsDark } from '../hooks/usePrefs';
 import type { Posicion } from '../types/domain';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const FREC: Record<number, string> = { 1: 'Anual', 2: 'Semestral', 4: 'Trimestral', 12: 'Mensual' };
+// Gris neutro para "sin calificar" en la barra de calidad crediticia — mismo criterio que
+// SIN_ASIGNAR_COLOR en components/ui.tsx (colorDeBroker): no compite con los tonos pos/warn/neg.
+const SIN_CALIFICAR_COLOR = '#8B96A5';
+// Umbral de alerta de concentración DENTRO de la cartera de bonos (más laxo que el 30% de
+// "mayor posición" a nivel portfolio: una cartera de renta fija suele tener menos nombres por
+// diseño — ej. 2-3 soberanos — así que 40% acá no es necesariamente una señal de alarma).
+const CONCENTRACION_POSICION_ALERTA = 0.40;
+
+// Badge de rating: tono por grado (pos=grado de inversión, warn=especulativo, neg=default,
+// gris=sin calificar o escala local no clasificada). Nunca inventa un grado que el motor no dio.
+// `grado === null` puede ser por 3 motivos DISTINTOS — mezclarlos en un solo mensaje genérico le
+// mentiría al usuario en 2 de los 3 casos (ej. decirle "escala nacional" a un S&P sin nota cargada).
+function RatingBadge({ calificadora, calificacion, grado }: { calificadora: string | null; calificacion: string | null; grado: GradoCredito | null }) {
+  if (!calificadora && !calificacion) return <span className="text-ink-500 text-[11px]">—</span>;
+  const tone = grado === 'grado_inversion' ? 'pos' : grado === 'especulativo' ? 'warn' : grado === 'default' ? 'neg' : 'gray';
+  const esGlobal = calificadora != null && (CALIFICADORAS_GLOBALES as readonly string[]).includes(calificadora);
+  const hint = grado != null
+    ? `${calificadora}: ${ETIQUETA_GRADO[grado]}`
+    : !calificadora ? 'Sin calificadora cargada'
+    : !esGlobal ? `${calificadora} — escala nacional u otra, no comparable con la escala global (no se clasifica automático)`
+    : !calificacion ? `${calificadora} — falta cargar la nota`
+    : `${calificadora} — "${calificacion}" no matchea ninguna nota conocida de esta escala (¿typo?)`;
+  return (
+    <span title={hint}>
+      <Badge tone={tone}>{calificacion || '—'}{calificadora && <span className="ml-1 text-[9px] opacity-70">{calificadora}</span>}</Badge>
+    </span>
+  );
+}
 
 export function BonosPage() {
   const { active } = usePortfolios();
@@ -21,10 +50,13 @@ export function BonosPage() {
   const { anios: objAnios, pct: objPct, setAnios: setObjAnios, setPct: setObjPct } = useObjetivoDuracion(active?.id);
   const chart = useChartTheme();
   const dark = useIsDark();
+  const { data: macro = {} } = useMacro();
+  const riskFree = (macro as Record<string, number | null>).dgs10 != null ? (macro as Record<string, number | null>).dgs10! / 100 : null;
 
   if (!active) return null;
 
-  const { totalCapital, totalMkt, duracionPromedio, pctCortoPlazo } = resumenBonos(bonosCalc, objAnios);
+  const { totalCapital, totalMkt, duracionPromedio, tirPromedio, rendCorrientePromedio, spreadPromedio, pctCortoPlazo, mayorPosicion, distribucionGrado } =
+    resumenBonos(bonosCalc, objAnios, riskFree);
 
   // Gráfico: solo entran los bonos con duración calculable (cupón + vencimiento cargados, y no
   // vencidos). `duracionAnios` es un campo plano (no `duracion.macaulay`) a propósito: el eje X
@@ -49,10 +81,11 @@ export function BonosPage() {
         <CardHeader title="Bonos y ONs" sub="Precio por nominal (data912). Editá el cupón (✏️) para que aparezcan en el calendario de Cupones."
           right={<span className="text-xs text-ink-600 tnum">Capital {fmtUsdCompact(totalCapital)} · Mercado {fmtUsdCompact(totalMkt)}</span>} />
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="w-full text-sm min-w-[880px]">
             <thead className="text-[11px] text-ink-600 border-b border-line">
               <tr>
                 <th className="text-left px-4 py-2">Especie</th>
+                <th className="text-left px-3">Rating</th>
                 <th className="text-right px-3">Nominales</th>
                 <th className="text-right px-3">Capital</th>
                 <th className="text-right px-3">Paridad</th>
@@ -74,6 +107,7 @@ export function BonosPage() {
                       <span className="font-semibold text-ink-900">{b.ticker}</span>
                       {(b.empresa || b.notas) && <span className="block text-[10px] text-ink-600 max-w-[220px] truncate">{b.empresa || b.notas}</span>}
                     </td>
+                    <td className="px-3"><RatingBadge calificadora={b.calificadora} calificacion={b.calificacion} grado={bc.grado} /></td>
                     <td className="text-right px-3 tnum">{fmtNum(b.cantidad, 0)}</td>
                     <td className="text-right px-3 tnum text-ink-700">{fmtUsdCompact(bc.capital)}</td>
                     <td className="text-right px-3 tnum text-accent">{bc.paridad != null ? fmtPct(bc.paridad / 100, 1) : '—'}</td>
@@ -96,18 +130,63 @@ export function BonosPage() {
                     </td>
                     <td className="text-right px-3 tnum text-ink-600">{b.vencimiento ?? '—'}</td>
                     <td className="px-2 text-right">
-                      <button onClick={() => setEditBono(b)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Editar cupón" aria-label="Editar cupón"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => setEditBono(b)} className="text-ink-600 hover:text-celeste-600 inline-flex items-center justify-center w-9 h-9" title="Editar cupón y rating" aria-label="Editar cupón y rating"><Pencil className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 );
               })}
               {posLoading
-                ? <tr><td colSpan={11}><p className="p-4 text-sm text-ink-600">Cargando…</p></td></tr>
-                : bonos.length === 0 && <tr><td colSpan={11}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
+                ? <tr><td colSpan={12}><p className="p-4 text-sm text-ink-600">Cargando…</p></td></tr>
+                : bonos.length === 0 && <tr><td colSpan={12}><Empty icon={Landmark} title="Sin bonos ni ONs">Agregá uno en Posiciones con el tipo "Bono / ON".</Empty></td></tr>}
             </tbody>
           </table>
         </div>
       </Card>
+
+      {bonos.length > 0 && (
+        <Card>
+          <CardHeader title="Indicadores clave" sub="Rendimiento, riesgo de crédito y concentración de la cartera de renta fija." />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+            <Stat label="TIR promedio" value={tirPromedio != null
+              ? <span className={tirPromedio >= 0 ? 'text-pos' : 'text-neg'}>{fmtPct(tirPromedio)}</span>
+              : <span className="text-ink-500">—</span>}
+              hint="Promedio ponderado por capital de la TIR (YTM) de cada bono" />
+            <Stat label="Rend. corriente" value={rendCorrientePromedio != null ? fmtPct(rendCorrientePromedio) : '—'}
+              hint="Cupón/precio, ponderado por capital — a diferencia de la YTM, ignora la ganancia o pérdida de capital hasta el rescate" />
+            <Stat label="Spread s/UST10y" value={spreadPromedio != null
+              ? <span className={spreadPromedio >= 0 ? 'text-ink-900' : 'text-neg'}>{spreadPromedio >= 0 ? '+' : ''}{fmtPct(spreadPromedio)}</span>
+              : <span className="text-ink-500">—</span>}
+              hint="TIR promedio menos la tasa libre de riesgo (UST10y) — la prima de riesgo que exige el mercado por esta cartera" />
+            <Stat label="Mayor posición" value={mayorPosicion
+              ? <span className={mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA ? 'text-warn' : 'text-ink-900'}>{mayorPosicion.ticker} · {fmtPct(mayorPosicion.pct, 0)}</span>
+              : <span className="text-ink-500">—</span>}
+              hint={`% del capital en bonos concentrado en un solo ticker — alerta a partir de ${fmtPct(CONCENTRACION_POSICION_ALERTA, 0)}. No agrupa por emisor real: distintas series del mismo emisor (ej. varios bonos soberanos) cuentan aparte.`} />
+          </div>
+          <div className="px-4 pb-4">
+            <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold mb-1.5">Calidad crediticia</p>
+            {totalMkt > 0 ? (
+              <>
+                <div className="h-3 rounded-full overflow-hidden flex bg-canvas ring-1 ring-inset ring-line">
+                  {distribucionGrado.gradoInversion > 0 &&
+                    <div className="bg-pos h-full" style={{ width: `${distribucionGrado.gradoInversion * 100}%` }} title={`Grado de inversión: ${fmtPct(distribucionGrado.gradoInversion, 0)}`} />}
+                  {distribucionGrado.especulativo > 0 &&
+                    <div className="bg-warn h-full" style={{ width: `${distribucionGrado.especulativo * 100}%` }} title={`Especulativo: ${fmtPct(distribucionGrado.especulativo, 0)}`} />}
+                  {distribucionGrado.default > 0 &&
+                    <div className="bg-neg h-full" style={{ width: `${distribucionGrado.default * 100}%` }} title={`Default: ${fmtPct(distribucionGrado.default, 0)}`} />}
+                  {distribucionGrado.sinCalificar > 0 &&
+                    <div className="h-full" style={{ width: `${distribucionGrado.sinCalificar * 100}%`, background: SIN_CALIFICAR_COLOR }} title={`Sin calificar (o escala local): ${fmtPct(distribucionGrado.sinCalificar, 0)}`} />}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] text-ink-600">
+                  {distribucionGrado.gradoInversion > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pos" />Grado de inversión {fmtPct(distribucionGrado.gradoInversion, 0)}</span>}
+                  {distribucionGrado.especulativo > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warn" />Especulativo {fmtPct(distribucionGrado.especulativo, 0)}</span>}
+                  {distribucionGrado.default > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-neg" />Default {fmtPct(distribucionGrado.default, 0)}</span>}
+                  {distribucionGrado.sinCalificar > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: SIN_CALIFICAR_COLOR }} />Sin calificar (o escala local) {fmtPct(distribucionGrado.sinCalificar, 0)}</span>}
+                </div>
+              </>
+            ) : <p className="text-[11px] text-ink-500">Sin capital valuado todavía.</p>}
+          </div>
+        </Card>
+      )}
 
       {bonos.length > 0 && (
         <Card>
@@ -191,13 +270,16 @@ export function BonosPage() {
   );
 }
 
-// Editar/cargar los datos de cupón de un bono existente (tasa, frecuencia, mes de referencia, venc).
+// Editar/cargar los datos de un bono existente: cupón (tasa, frecuencia, mes de referencia,
+// vencimiento) y calificación crediticia (calificadora + nota).
 function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => void; onSave: (patch: Partial<Posicion>) => Promise<void> }) {
   useEscapeClose(onClose);
   const [tasa, setTasa] = useState(bono.cupon_tasa != null ? String(+(bono.cupon_tasa * 100).toFixed(4)) : '');
   const [freq, setFreq] = useState(bono.cupon_frecuencia != null ? String(bono.cupon_frecuencia) : '');
   const [mes, setMes] = useState(bono.cupon_mes != null ? String(bono.cupon_mes) : '');
   const [vto, setVto] = useState(bono.vencimiento ?? '');
+  const [calificadora, setCalificadora] = useState(bono.calificadora ?? '');
+  const [calificacion, setCalificacion] = useState(bono.calificacion ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -209,15 +291,17 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
         cupon_frecuencia: freq ? Number(freq) : null,
         cupon_mes: mes ? Number(mes) : null,
         vencimiento: vto || null,
+        calificadora: calificadora || null,
+        calificacion: calificacion.trim() || null,
       });
     } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo guardar'); setBusy(false); }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-md" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Cupón ${bono.ticker}`}>
+      <div className="w-full max-w-md" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Detalles de ${bono.ticker}`}>
         <Card className="animate-rise">
-          <CardHeader title={`Cupón · ${bono.ticker}`} sub="Con estos datos el bono aparece en el calendario de Cupones."
+          <CardHeader title={`Detalles del bono · ${bono.ticker}`} sub="Cupón para el calendario de Cupones · calificación para el indicador de calidad crediticia."
             right={<button onClick={onClose} aria-label="Cerrar" className="text-ink-600 hover:text-ink-900 hover:bg-canvas inline-flex items-center justify-center w-9 h-9 rounded-full"><X className="w-4 h-4" /></button>} />
           <div className="p-4 grid grid-cols-2 gap-3 text-sm">
             <Field label="Tasa cupón (% anual)">
@@ -238,6 +322,15 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
             <Field label="Vencimiento">
               <input type="date" value={vto} onChange={e => setVto(e.target.value)} className={inputCls} />
             </Field>
+            <Field label="Calificadora">
+              <select value={calificadora} onChange={e => setCalificadora(e.target.value)} className={`${inputCls} appearance-none`}>
+                <option value="">—</option>
+                {CALIFICADORAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Calificación">
+              <input value={calificacion} onChange={e => setCalificacion(e.target.value)} placeholder="ej. BB-, Ba3, AAA(arg)" className={inputCls} />
+            </Field>
           </div>
           <p className="px-4 -mt-1 text-[11px] text-ink-500 flex items-center gap-1.5">
             <CalendarClock className="w-3.5 h-3.5 shrink-0" /> El "mes de un pago" alcanza: los demás se derivan por la frecuencia (ej. semestral desde mayo → may y nov).
@@ -245,10 +338,13 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
           <p className="px-4 pt-1.5 text-[11px] text-ink-500">
             El calendario asume cupón fijo sobre el nominal actual (bullet). Para bonos que amortizan o con step-up, los pagos posteriores a la amortización quedan sobrestimados.
           </p>
+          <p className="px-4 pt-1.5 text-[11px] text-ink-500">
+            S&amp;P/Moody's/Fitch se clasifican automáticamente en grado de inversión/especulativo (badge de color). FIX SCR/Moody's Local/Otra son escalas nacionales — se muestran tal cual, sin clasificar (no son comparables 1 a 1 con la escala global).
+          </p>
           {err && <p className="px-4 pt-2 text-xs text-warn">{err}</p>}
           <div className="px-4 py-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button onClick={guardar} disabled={busy}>{busy ? 'Guardando…' : 'Guardar cupón'}</Button>
+            <Button onClick={guardar} disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</Button>
           </div>
         </Card>
       </div>

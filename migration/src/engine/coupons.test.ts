@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { couponEvents, couponCalendar, cuponAnualTotal, ytm, bondDuration, type CouponBond } from './coupons';
+import { couponEvents, couponCalendar, cuponAnualTotal, ytm, bondDuration, rendimientoCorriente, type CouponBond } from './coupons';
 
 const semestral: CouponBond = { ticker: 'GD46', faceValue: 1000, tasaAnual: 0.08, frecuencia: 2, mesRef: 1 };
 // paga en enero y julio; cupón por período = 1000 × 0.08/2 = 40
@@ -111,5 +111,30 @@ describe('bondDuration — Macaulay y modificada', () => {
     expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: '2020-01-01', hoy: '2026-07-24', ytmAnual: 0.08 })).toBeNull();
     expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: 'nope', hoy: '2026-07-24', ytmAnual: 0.08 })).toBeNull();
     expect(bondDuration({ tasaAnual: 0.07, frecuencia: 2, vencimiento: '2030-01-01', hoy: '2026-07-24', ytmAnual: NaN })).toBeNull();
+  });
+});
+
+describe('rendimientoCorriente — current yield', () => {
+  it('a la par: rendimiento corriente = tasa del cupón', () => {
+    expect(rendimientoCorriente(0.08, 1)).toBeCloseTo(0.08, 6);
+  });
+
+  it('bajo la par: rendimiento corriente > tasa del cupón', () => {
+    expect(rendimientoCorriente(0.07, 0.60)).toBeCloseTo(0.07 / 0.60, 6);
+    expect(rendimientoCorriente(0.07, 0.60)).toBeGreaterThan(0.07);
+  });
+
+  it('sobre la par: rendimiento corriente < tasa del cupón', () => {
+    expect(rendimientoCorriente(0.08, 1.15)).toBeLessThan(0.08);
+  });
+
+  it('cupón 0 → rendimiento corriente 0 (no es null, 0 es válido)', () => {
+    expect(rendimientoCorriente(0, 0.5)).toBe(0);
+  });
+
+  it('precio inválido → null (no inventa)', () => {
+    expect(rendimientoCorriente(0.08, 0)).toBeNull();
+    expect(rendimientoCorriente(0.08, -1)).toBeNull();
+    expect(rendimientoCorriente(-0.01, 1)).toBeNull();
   });
 });

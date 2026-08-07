@@ -15,6 +15,9 @@ import { supabase } from './supabase';
 // filas sueltas ahí, sin la posición exacta que originaron, podría dejar el historial inconsistente.
 // El estado de las posiciones en sí (cantidades post-transferencia) sí se restaura normal, vía la
 // tabla posiciones.
+// calificadora/calificacion (0026_bond_rating.sql) NO requirieron bump de versión ni cambios acá:
+// son 2 columnas nuevas en `posiciones`, tabla ya incluida — el select('*') de fetchAll() y el
+// upsert genérico de restore.ts las traen/restauran solas, igual que cupon_tasa/vencimiento en v1.
 export const BACKUP_VERSION = 6;
 
 const TABLAS = [
