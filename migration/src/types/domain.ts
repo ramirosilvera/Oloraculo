@@ -85,8 +85,11 @@ export interface Movimiento {
   created_at: string;
 }
 
-// Cobro de dividendo/interés/amortización de una posición. 'amortizacion' es devolución de capital
-// (reduce el nominal vía un movimiento 'ajuste'), no renta — ver 0011_cobros.sql.
+// Cobro de dividendo/interés/amortización de una posición. 'amortizacion' es devolución de
+// capital, no renta — ver 0011_cobros.sql. Se registra de 2 formas excluyentes según lo que haga el
+// bróker con la tenencia (ver useCobros.ts registrarAmortizacion/registrarAmortizacionVR): reduce
+// el nominal vía un movimiento 'ajuste', O deja el nominal igual y actualiza posiciones.valor_residual
+// (0027_bond_amortizable.sql) — nunca las dos para el mismo pago.
 // estado='pendiente': lo generó el cron (dividendo/cupón proyectado que llegó a su fecha) y TODAVÍA
 // no es plata confirmada por el usuario. estado='descartado': el usuario lo rechazó — la fila se
 // conserva (no se borra) para que el cron no lo vuelva a sugerir (índice cobros_cron_dedupe).

@@ -18,6 +18,10 @@ import { supabase } from './supabase';
 // calificadora/calificacion (0026_bond_rating.sql) NO requirieron bump de versión ni cambios acá:
 // son 2 columnas nuevas en `posiciones`, tabla ya incluida — el select('*') de fetchAll() y el
 // upsert genérico de restore.ts las traen/restauran solas, igual que cupon_tasa/vencimiento en v1.
+// amortizable/valor_residual (0027_bond_amortizable.sql) tampoco: mismo caso — 2 columnas nuevas en
+// `posiciones`, cubiertas por el mismo select('*')/upsert genérico. El registro del EVENTO de
+// amortización (cobro + el ajuste de nominal o de valor_residual que haga, ver useCobros.ts) también
+// viaja solo: son filas normales en `cobros`/`movimientos`, tablas ya incluidas.
 export const BACKUP_VERSION = 6;
 
 const TABLAS = [

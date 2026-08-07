@@ -39,7 +39,7 @@ export function CuponesPage() {
 // ── Cobrado: registro REAL de dividendos/intereses/amortizaciones ────────────────────────────
 function CobradoTab({ portfolioId }: { portfolioId: string }) {
   const { data: posiciones = [] } = usePosiciones(portfolioId);
-  const { data: cobros, isLoading, registrar, registrarAmortizacion, marcarEstado, confirmarPendiente, descartarPendiente, remove } = useCobros(portfolioId);
+  const { data: cobros, isLoading, registrar, registrarAmortizacion, registrarAmortizacionVR, marcarEstado, confirmarPendiente, descartarPendiente, remove } = useCobros(portfolioId);
   const { data: inversiones, marcarInversion, remove: removeInversion } = useCobrosInversiones(portfolioId);
   const resumen = useMemo(() => resumenCobros(cobros), [cobros]);
   const saldo = useMemo(() => saldoInvertible(resumen.disponible, inversiones), [resumen.disponible, inversiones]);
@@ -57,13 +57,18 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
   const [fecha, setFecha] = useState(hoy());
   const [monto, setMonto] = useState('');
   const [nominales, setNominales] = useState('');
+  // Qué le pasó REALMENTE a la tenencia en el bróker — las 2 convenciones son excluyentes para el
+  // mismo pago (ver hint en el formulario y el comentario de registrarAmortizacion en useCobros.ts).
+  const [modoAmort, setModoAmort] = useState<'nominales' | 'valorResidual'>('nominales');
+  const [valorResidualPct, setValorResidualPct] = useState('');
   const [nota, setNota] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
-  // Amortización: solo puede ser una posición EXISTENTE de tipo bono (reduce su nominal real).
+  // Amortización: solo puede ser una posición EXISTENTE de tipo bono (ver el toggle "¿Qué cambió
+  // en tu bróker?" más abajo — reduce el nominal O el valor residual, nunca los dos).
   const opcionesPosicion = tipo === 'amortizacion' ? posiciones.filter(p => p.tipo === 'bono') : posiciones;
   const onTipoChange = (t: CobroTipo) => {
     setTipo(t);
@@ -86,13 +91,19 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
     try {
       if (tipo === 'amortizacion') {
         if (!pos) { setErr('La amortización requiere elegir un bono existente de la cartera.'); setBusy(false); return; }
-        const nom = Number(nominales) || 0;
-        if (!(nom > 0)) { setErr('Ingresá los nominales amortizados.'); setBusy(false); return; }
-        await registrarAmortizacion({ posicionId: pos.id, ticker, fecha, monto: m, nominales: nom, nota: nota || null });
+        if (modoAmort === 'nominales') {
+          const nom = Number(nominales) || 0;
+          if (!(nom > 0)) { setErr('Ingresá los nominales amortizados.'); setBusy(false); return; }
+          await registrarAmortizacion({ posicionId: pos.id, ticker, fecha, monto: m, nominales: nom, nota: nota || null });
+        } else {
+          const vr = Number(valorResidualPct) || 0;
+          if (!(vr > 0 && vr <= 100)) { setErr('Ingresá el nuevo valor residual (mayor a 0% y hasta 100%).'); setBusy(false); return; }
+          await registrarAmortizacionVR({ posicionId: pos.id, ticker, fecha, monto: m, valorResidualPct: vr, nota: nota || null });
+        }
       } else {
         await registrar({ posicionId: pos?.id ?? null, ticker, tipo, fecha, monto: m, nota: nota || null });
       }
-      setMonto(''); setNominales(''); setNota('');
+      setMonto(''); setNominales(''); setValorResidualPct(''); setNota('');
     } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo registrar'); }
     finally { setBusy(false); }
   };
@@ -121,7 +132,7 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
       <SaldoInvertibleCard saldo={saldo} inversiones={inversiones} onMarcar={marcarInversion} onBorrar={removeInversion} />
 
       <Card>
-        <CardHeader title="Registrar un cobro" sub="Dividendo/interés no tocan la posición. Amortización reduce el nominal del bono (movimiento 'ajuste')." />
+        <CardHeader title="Registrar un cobro" sub="Dividendo/interés no tocan la posición. Amortización cambia la posición de una de dos formas — elegí según lo que muestre tu bróker." />
         <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div className="col-span-2 sm:col-span-2 flex items-center gap-2">
             <button type="button" onClick={() => setModo('existente')} disabled={opcionesPosicion.length === 0}
@@ -155,9 +166,34 @@ function CobradoTab({ portfolioId }: { portfolioId: string }) {
 
           <Field label="Monto cobrado (USD)"><input type="number" value={monto} onChange={e => setMonto(e.target.value)} className={inputCls} placeholder="USD" /></Field>
           {tipo === 'amortizacion' && (
-            <Field label="Nominales amortizados" hint={pos ? `tenencia actual: ${pos.cantidad}` : undefined}>
-              <input type="number" value={nominales} onChange={e => setNominales(e.target.value)} className={inputCls} placeholder="nominales" />
-            </Field>
+            <>
+              <Field label="¿Qué cambió en tu bróker?" className="col-span-2 sm:col-span-4">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setModoAmort('nominales')}
+                    className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${modoAmort === 'nominales' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'}`}>Bajaron mis nominales</button>
+                  <button type="button" onClick={() => setModoAmort('valorResidual')}
+                    className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold ${modoAmort === 'valorResidual' ? 'bg-celeste-500 text-white' : 'bg-canvas text-ink-600'}`}>Nominales iguales, bajó el valor residual</button>
+                </div>
+              </Field>
+              {modoAmort === 'nominales' ? (
+                <Field label="Nominales amortizados" className="col-span-2" hint={pos ? `tenencia actual: ${pos.cantidad}` : undefined}>
+                  <input type="number" value={nominales} onChange={e => setNominales(e.target.value)} className={inputCls} placeholder="nominales" />
+                </Field>
+              ) : (
+                <Field label="Nuevo valor residual (%)" className="col-span-2"
+                  hint={pos ? `valor residual actual: ${pos.valor_residual != null ? `${Math.round(pos.valor_residual * 100)}%` : 'sin cargar (100% = bullet)'} — ingresá el nuevo total, no cuánto bajó` : undefined}>
+                  <input type="number" min="1" max="100" value={valorResidualPct} onChange={e => setValorResidualPct(e.target.value)} className={inputCls} placeholder="ej. 75" />
+                </Field>
+              )}
+              <p className="col-span-2 sm:col-span-4 text-[11px] text-ink-500 -mt-1">
+                Son excluyentes para el mismo pago: o baja tu cantidad de nominales, o baja el valor residual de cada uno — nunca las dos, sería contar la baja de capital dos veces.
+              </p>
+              {modoAmort === 'nominales' && pos?.amortizable && (
+                <p className="col-span-2 sm:col-span-4 -mt-1 text-[11px] text-warn">
+                  {pos.ticker} ya tiene un valor residual cargado ({pos.valor_residual != null ? `${Math.round(pos.valor_residual * 100)}%` : 'sin cargar todavía'}) — este bono viene usando la convención de "valor residual", no la de nominales. Si en tu bróker los nominales realmente NO bajaron, usá "Nominales iguales, bajó el valor residual" en vez de esto, o vas a contar la baja de capital dos veces.
+                </p>
+              )}
+            </>
           )}
           <Field label="Nota (opcional)" className="col-span-2 sm:col-span-2">
             <input value={nota} onChange={e => setNota(e.target.value)} className={inputCls} placeholder="opcional" />

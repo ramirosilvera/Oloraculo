@@ -337,7 +337,21 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
   const [err, setErr] = useState<string | null>(null);
 
   const guardar = async () => {
-    setBusy(true); setErr(null);
+    setErr(null);
+    // Mismo rango que el check constraint de la base (>0 y <=100%) — validado acá para no
+    // depender de un error crudo de Postgres si alguien tipea 0 (string "0" es truthy en JS, así
+    // que sin este chequeo explícito se colaba como si tuviera un valor cargado) o un número fuera
+    // de rango.
+    let valorResidual: number | null = null;
+    if (amortizable && valorResidualPct !== '') {
+      const n = Number(valorResidualPct);
+      if (!Number.isFinite(n) || n <= 0 || n > 100) {
+        setErr('El valor residual debe ser mayor a 0% y hasta 100%.');
+        return;
+      }
+      valorResidual = n / 100;
+    }
+    setBusy(true);
     try {
       await onSave({
         cupon_tasa: tasa ? Number(tasa) / 100 : null,
@@ -348,7 +362,7 @@ function CuponModal({ bono, onClose, onSave }: { bono: Posicion; onClose: () => 
         calificacion: calificacion.trim() || null,
         amortizable,
         // Si se vuelve a bullet, no arrastramos un valor residual viejo que ya no aplica.
-        valor_residual: amortizable && valorResidualPct ? Number(valorResidualPct) / 100 : null,
+        valor_residual: valorResidual,
       });
     } catch (e) { setErr(e instanceof Error ? e.message : 'No se pudo guardar'); setBusy(false); }
   };
