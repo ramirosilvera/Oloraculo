@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Flame, LayoutGrid, Plus, Check } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
-import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
-import { useAportes } from '../hooks/useAportes';
+import { useMacro, useDrawdowns } from '../hooks/usePosiciones';
+import { useRendimientoAnual } from '../hooks/useRendimientoAnual';
 import { useFlujo } from '../hooks/useFlujo';
 import { useCobros } from '../hooks/useCobros';
 import { useAmortizaciones } from '../hooks/useAmortizaciones';
@@ -28,8 +28,7 @@ import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond, type Capit
 import { redondearPct, TOLERANCIA_OBJETIVO } from '../engine/rebalance';
 import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
-import { rendimientoPorAnio } from '../engine/rendimiento';
-import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
+import { useRecordSnapshot } from '../hooks/useSnapshots';
 import { useDashboardLayout } from '../hooks/useDashboardLayout';
 import { Card, CardHeader, Stat, Badge, Field, AlertasBanner, inputCls, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
 import { WidgetGrid } from '../components/dashboard/WidgetGrid';
@@ -42,16 +41,17 @@ import type { Posicion, AssetType, SeccionKey, DashboardWidget, Aporte } from '.
 
 export function DashboardPage() {
   const { active } = usePortfolios();
-  const qPos = usePosiciones(active?.id);
-  const posiciones = qPos.data ?? [];
-  const equity = posiciones.filter(p => p.tipo === 'cedear' || p.tipo === 'accion' || p.tipo === 'etf').map(p => p.ticker);
-  const bonds = posiciones.filter(p => p.tipo === 'bono').map(p => p.ticker);
-  const arStocks = posiciones.filter(p => p.tipo === 'accion_ar').map(p => p.ticker);
-  const qQuotes = useQuotes(equity, bonds, arStocks);
-  const quotes = qQuotes.data ?? {};
+  // Patrimonio/costo/alloc + rendimiento por año calendario — un solo hook compartido con
+  // AportesPage (que muestra el detalle completo), así los dos lugares NUNCA calculan estos números
+  // distinto. Ver hooks/useRendimientoAnual.ts.
+  const {
+    qPos, qQuotes, qAportes, qSnaps,
+    posiciones, quotes, aportes, snaps,
+    sinPrecio, valuacionDeMercado,
+    patrimonio, costo, pnl, alloc,
+    hoy, anioActual, inceptionYear, aportadoNeto, porAnio, hayDatos,
+  } = useRendimientoAnual(active?.id);
   const { data: macro = {} } = useMacro();
-  const qAportes = useAportes(active?.id);
-  const aportes = qAportes.data ?? [];
   const { data: flujo = [] } = useFlujo();
   const { data: cobros = [] } = useCobros(active?.id);
   const resumenCobrado = useMemo(() => resumenCobros(cobros), [cobros]);
@@ -79,31 +79,15 @@ export function DashboardPage() {
   // esperando revisión en /cupones.
   const pendientesCount = useMemo(() => cobros.filter(c => c.estado === 'pendiente').length, [cobros]);
 
-  const { patrimonio, costo, pnl, alloc, sinPrecio } = useMemo(() => {
-    let patrimonio = 0, costo = 0;
-    const parts: { ticker: string; mkt: number; target: number | null; tipo: AssetType }[] = [];
-    // Posiciones ABIERTAS con ticker cotizable que quedaron sin precio: se valúan a costo, así que
-    // el patrimonio no es "de mercado". Hay que decirlo (y no grabar ese valor en el histórico).
-    const sinPrecio: string[] = [];
-    for (const p of posiciones) {
-      const u = unitUSD(p, quotes[p.ticker] ?? null);
-      const mkt = u != null ? u * p.cantidad : p.precio_compra * p.cantidad;
-      if (u == null && p.cantidad > 0 && p.tipo !== 'cash') sinPrecio.push(p.ticker);
-      patrimonio += mkt;
-      costo += p.precio_compra * p.cantidad;
-      if (mkt > 0) parts.push({ ticker: p.ticker, mkt, target: p.peso_objetivo, tipo: p.tipo });
-    }
-    parts.sort((a, b) => b.mkt - a.mkt);
-    return { patrimonio, costo, pnl: patrimonio - costo, alloc: parts, sinPrecio };
-  }, [posiciones, quotes]);
-
-  // TIR money-weighted: aportes (capital externo) + patrimonio actual como flujo terminal.
+  // TIR money-weighted: aportes (capital externo) + patrimonio actual como flujo terminal. Reusa el
+  // `hoy` del hook (antes se calculaba una segunda vez acá con el mismo `new Date()` — un solo
+  // string de fecha por render, no dos).
   const tir = useMemo(() => portfolioTir({
     aportes: aportes.map(a => ({ monto: a.monto, fecha: a.fecha, retiro: a.tipo === 'retiro' })),
     costos: posiciones.filter(p => p.cantidad > 0).map(p => ({ costo: p.precio_compra * p.cantidad, fecha: p.fecha_compra })),
     valorActual: patrimonio,
-    hoy: new Date().toISOString().slice(0, 10),
-  }), [aportes, posiciones, patrimonio]);
+    hoy,
+  }), [aportes, posiciones, patrimonio, hoy]);
 
   const semaforos: Lectura[] = SEMAFOROS.map(s => {
     const v = (macro as Record<string, number | null>)[s.key];
@@ -114,58 +98,22 @@ export function DashboardPage() {
   const mep = (macro as Record<string, number | null>).dolar_mep ?? (macro as Record<string, number | null>).dolar_ccl ?? null;
   const flujoR = resumenFlujo(flujo, mep);
   const objetivo = active?.capital_objetivo ?? null;
+  const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
 
-  // ── Rendimiento por año calendario (a partir de snapshots diarios del valor) ──
-  const hoy = new Date().toISOString().slice(0, 10);
-  const anioActual = Number(hoy.slice(0, 10).slice(0, 4));
-  // Capital aportado neto: aportes (aportes − retiros) si están cargados; si no, el costo de las
-  // posiciones (mismo criterio que portfolioTir) para que el rendimiento se pueda calcular igual.
-  // NO reemplazar por resumenAportes(aportes).neto: ese helper (engine/aportes.ts, usado por la
-  // tarjeta "Aportes" del Dashboard personalizable y por AportesPage) da 0 con la lista vacía a
-  // propósito — acá el fallback a `costo` es necesario, porque snapshots/TIR/rendimiento por año no
-  // pueden calcularse con 0 aportado en un portfolio que sí tiene posiciones cargadas.
-  const aportadoNeto = aportes.length
-    ? aportes.reduce((s, a) => s + (a.tipo === 'retiro' ? -a.monto : a.monto), 0)
-    : costo;
-  const qSnaps = useSnapshots(active?.id);
-  const snaps = qSnaps.data ?? [];
   const record = useRecordSnapshot();
   const recordedRef = useRef('');
 
   // El snapshot solo es fiable cuando TODO resolvió: si se graba antes de que lleguen las
   // cotizaciones, el patrimonio cae a costo; y si se graba antes que los aportes, `aportadoNeto`
   // usa el fallback de costo. Cualquiera de las dos cosas ensucia el histórico de rendimiento.
-  const sinTickers = equity.length + bonds.length + arStocks.length === 0;
-  const datosListos = qPos.isSuccess && qAportes.isSuccess && qSnaps.isSuccess
-    && (sinTickers || (qQuotes.isSuccess && !qQuotes.isFetching))
-    // Clave: isSuccess es true aunque la respuesta venga VACÍA (allSettled). Si alguna posición
-    // quedó sin precio, el patrimonio es costo disfrazado de mercado: no se graba el snapshot.
-    && sinPrecio.length === 0;
-
-  // Año de creación real (primer aporte o primera compra), para no atribuir mal el rendimiento.
-  const inceptionYear = useMemo(() => {
-    const fechas = [
-      ...aportes.map(a => a.fecha),
-      ...posiciones.map(p => p.fecha_compra).filter((f): f is string => !!f),
-    ].filter(f => f && !Number.isNaN(Date.parse(f))).sort();
-    return fechas.length ? Number(fechas[0].slice(0, 4)) : anioActual;
-  }, [aportes, posiciones, anioActual]);
-
-  // Serie de puntos = snapshots históricos + el valor de HOY en vivo (fresco).
-  const porAnio = useMemo(() => {
-    const puntos = [...snaps.filter(s => s.fecha !== hoy), { fecha: hoy, valor: patrimonio, aportado: aportadoNeto }];
-    // Flujos fechados → el rendimiento del año usa Modified Dietz (pondera por tiempo invertido),
-    // así un aporte grande a fin de año no distorsiona el %.
-    const flujos = aportes
-      .filter(a => a.fecha && !Number.isNaN(Date.parse(a.fecha)))
-      .map(a => ({ fecha: a.fecha, monto: a.tipo === 'retiro' ? -a.monto : a.monto }));
-    return rendimientoPorAnio(puntos, inceptionYear, hoy, flujos);
-  }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear, aportes]);
-  const rendActual = porAnio.find(r => r.anio === anioActual)?.rendimiento ?? null;
+  const datosListos = qPos.isSuccess && qAportes.isSuccess && qSnaps.isSuccess && valuacionDeMercado;
 
   // Registra el snapshot de hoy (idempotente por día). El lock incluye el valor grabado, así que si
   // el patrimonio se corrige (llegan cotizaciones frescas) el snapshot del día se actualiza en vez
-  // de quedar clavado en un valor provisorio.
+  // de quedar clavado en un valor provisorio. Este efecto (a diferencia del resto del cálculo de
+  // rendimiento por año) se queda acá y NO se mueve al hook compartido: es un side-effect de esta
+  // página, no un cálculo — no tendría sentido grabar el snapshot del día solo porque el usuario
+  // entró directo a /aportes sin pasar por el Dashboard.
   useEffect(() => {
     if (!active?.id || !datosListos || !(patrimonio > 0)) return;
     const key = `${active.id}:${hoy}:${Math.round(patrimonio)}:${Math.round(aportadoNeto)}`;
@@ -201,7 +149,7 @@ export function DashboardPage() {
   // perezoso) — una sección que el usuario sacó del layout simplemente nunca corre sus queries.
   const seccionNodes: Partial<Record<SeccionKey, ReactNode>> = {
     objetivo_capital: <ObjetivoCapitalCard objetivo={objetivo} patrimonio={patrimonio} />,
-    rendimiento_por_anio: <RendimientoPorAnioCard porAnio={porAnio} anioActual={anioActual} hayDatos={tir.base !== 'sin-datos'} />,
+    rendimiento_por_anio: <RendimientoPorAnioCard porAnio={porAnio} anioActual={anioActual} hayDatos={hayDatos} />,
     distribucion: <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />,
     cedears: <CedearsResumen personalizando={personalizando} />,
     bonos: <BonosResumen personalizando={personalizando} />,
@@ -350,16 +298,23 @@ function ObjetivoCapitalCard({ objetivo, patrimonio }: { objetivo: number | null
 }
 
 // Rendimiento por año calendario (estilo fondo) — extraído del Dashboard por el mismo motivo que
-// ObjetivoCapitalCard arriba.
+// ObjetivoCapitalCard arriba. Muestra solo los últimos N años (más años acumulándose año a año, sin
+// límite, hacía que esta tarjeta creciera indefinidamente en el inicio) — el detalle completo, con
+// tabla ordenable/filtrable, vive en /aportes (mismo `porAnio`, mismo hook, nunca recalculado).
+const ANIOS_VISIBLES_DASHBOARD = 5;
+
 function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
   porAnio: { anio: number; rendimiento: number | null }[]; anioActual: number; hayDatos: boolean;
 }) {
   if (!hayDatos) return null;
+  const ordenado = [...porAnio].reverse(); // más reciente primero
+  const visibles = ordenado.slice(0, ANIOS_VISIBLES_DASHBOARD);
+  const restantes = ordenado.length - visibles.length;
   return (
     <Card>
       <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)." />
       <div className="p-4 flex flex-wrap gap-2">
-        {[...porAnio].reverse().map(({ anio, rendimiento }) => (
+        {visibles.map(({ anio, rendimiento }) => (
           <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
             <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
             <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
@@ -368,8 +323,16 @@ function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
           </div>
         ))}
       </div>
+      {/* Evaluado sobre TODOS los años (no solo los visibles) — los "—" se concentran justo en los
+          años más viejos, que son los que este texto explica; si se evaluara sobre `visibles`
+          desaparecería la explicación exactamente cuando hace falta. */}
       {porAnio.some(r => r.rendimiento == null) && (
-        <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+        <p className="px-4 pb-1 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+      )}
+      {restantes > 0 && (
+        <p className="px-4 pb-3 text-[11px]">
+          <Link to="/aportes" className="text-celeste-600 hover:underline">Ver los {restantes} año{restantes > 1 ? 's' : ''} restante{restantes > 1 ? 's' : ''} →</Link>
+        </p>
       )}
     </Card>
   );

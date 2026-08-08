@@ -1,12 +1,17 @@
-import { useState } from 'react';
-import { Plus, Trash2, Wallet } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Plus, Trash2, Wallet, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAportes, useAporteMutations } from '../hooks/useAportes';
+import { useRendimientoAnual } from '../hooks/useRendimientoAnual';
 import { resumenAportes } from '../engine/aportes';
-import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd, fmtPct } from '../components/ui';
 import type { Aporte, AporteTipo } from '../types/domain';
 
 const TIPO_TONE: Record<AporteTipo, 'accent' | 'gray' | 'warn' | 'neg'> = { inicial: 'accent', recurrente: 'gray', adelanto: 'warn', retiro: 'neg' };
+
+type AnioFiltro = 'todos' | 'positivos' | 'negativos' | 'sindatos';
+const FILTRO_LABEL: Record<AnioFiltro, string> = { todos: 'Todos', positivos: 'Positivos', negativos: 'Negativos', sindatos: 'Sin datos' };
+type AnioSortKey = 'anio' | 'rendimiento';
 
 export function AportesPage() {
   const { active } = usePortfolios();
@@ -21,6 +26,29 @@ export function AportesPage() {
   });
 
   const { aportado, retirado, neto } = resumenAportes(aportes);
+
+  // Detalle completo de rendimiento por año — MISMO hook que usa el resumen del Dashboard
+  // (RendimientoPorAnioCard), nunca recalculado acá con su propia copia (regla de oro #1).
+  const { porAnio, anioActual, valuacionDeMercado, hayDatos } = useRendimientoAnual(active?.id);
+  const [filtroAnio, setFiltroAnio] = useState<AnioFiltro>('todos');
+  const [sortAnio, setSortAnio] = useState<{ key: AnioSortKey; dir: 'asc' | 'desc' }>({ key: 'anio', dir: 'desc' });
+  const handleSortAnio = (key: AnioSortKey) => setSortAnio(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' });
+
+  const filasAnio = useMemo(() => {
+    let filas = porAnio;
+    if (filtroAnio === 'positivos') filas = filas.filter(r => r.rendimiento != null && r.rendimiento >= 0);
+    else if (filtroAnio === 'negativos') filas = filas.filter(r => r.rendimiento != null && r.rendimiento < 0);
+    else if (filtroAnio === 'sindatos') filas = filas.filter(r => r.rendimiento == null);
+    return [...filas].sort((a, b) => {
+      if (sortAnio.key === 'anio') return sortAnio.dir === 'asc' ? a.anio - b.anio : b.anio - a.anio;
+      // Rendimiento: los años "sin datos" siempre al final, sea cual sea la dirección — null no es
+      // "peor que -100%", es una pregunta sin respuesta todavía.
+      if (a.rendimiento == null && b.rendimiento == null) return 0;
+      if (a.rendimiento == null) return 1;
+      if (b.rendimiento == null) return -1;
+      return sortAnio.dir === 'asc' ? a.rendimiento - b.rendimiento : b.rendimiento - a.rendimiento;
+    });
+  }, [porAnio, filtroAnio, sortAnio]);
 
   const borrar = async (a: Aporte) => {
     if (!window.confirm(`¿Borrar el aporte de ${fmtUsd(a.monto)} del ${a.fecha}?`)) return;
@@ -94,6 +122,64 @@ export function AportesPage() {
           ))}
         </div>
       </Card>
+
+      {hayDatos && (
+        <Card>
+          <CardHeader title="Rendimiento por año" sub="Detalle completo, año por año — mismo cálculo que el resumen del Dashboard." />
+          {!valuacionDeMercado && (
+            <p className="px-4 pt-3 text-[11px] text-warn">Alguna posición está sin cotización de mercado: el año en curso se calcula a costo, no a precio de mercado.</p>
+          )}
+          <div className="px-4 pt-3 flex flex-wrap gap-2">
+            {(['todos', 'positivos', 'negativos', 'sindatos'] as const).map(f => (
+              <button key={f} onClick={() => setFiltroAnio(f)} aria-pressed={filtroAnio === f}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border ${filtroAnio === f ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-700 hover:bg-canvas'}`}>
+                {FILTRO_LABEL[f]}
+              </button>
+            ))}
+          </div>
+          <div className="overflow-x-auto mt-1">
+            <table className="w-full text-sm">
+              <thead className="text-[11px] text-ink-600">
+                <tr className="border-b border-line">
+                  <ThSortAnio label="Año" sortKey="anio" sort={sortAnio} onClick={handleSortAnio} align="left" />
+                  <ThSortAnio label="Rendimiento" sortKey="rendimiento" sort={sortAnio} onClick={handleSortAnio} />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {filasAnio.length === 0 ? (
+                  <tr><td colSpan={2} className="px-4 py-3 text-ink-600">Sin años que coincidan con el filtro.</td></tr>
+                ) : filasAnio.map(({ anio, rendimiento }) => (
+                  <tr key={anio}>
+                    <td className="px-4 py-2 text-left tnum text-ink-800">{anio}{anio === anioActual ? ' · en curso' : ''}</td>
+                    <td className={`px-3 py-2 text-right tnum font-semibold ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
+                      {rendimiento != null ? fmtPct(rendimiento) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-4 py-3 text-[11px] text-ink-500">Rendimiento del PASADO, no anualizado ni proyectado — un año se calcula solo cuando hay historial diario suficiente.</p>
+        </Card>
+      )}
     </div>
+  );
+}
+
+// Mismo patrón que ThSort en RadarPage.tsx (columna ordenable con click + flecha) — copiado local
+// en vez de compartido porque son columnas/tipos de dato distintos (acá 2 columnas nada más).
+function ThSortAnio({ label, sortKey, sort, onClick, align = 'right' }: {
+  label: string; sortKey: AnioSortKey; sort: { key: AnioSortKey; dir: 'asc' | 'desc' }; onClick: (key: AnioSortKey) => void; align?: 'left' | 'right';
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className={align === 'left' ? 'text-left px-4 py-2' : 'text-right px-3 py-2'}>
+      <button onClick={() => onClick(sortKey)} className={`inline-flex items-center gap-1 hover:text-ink-900 transition-colors ${active ? 'text-ink-900 font-semibold' : ''}`}>
+        {label}
+        {active
+          ? (sort.dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+      </button>
+    </th>
   );
 }

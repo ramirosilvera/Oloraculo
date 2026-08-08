@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resumenAportes } from './aportes';
+import { resumenAportes, flujosFirmados } from './aportes';
 import type { Aporte } from '../types/domain';
 
 const aporte = (over: Partial<Aporte>): Aporte => ({
@@ -41,5 +41,31 @@ describe('resumenAportes', () => {
     ];
     const aportadoNetoEquivalente = lista.reduce((s, a) => s + (a.tipo === 'retiro' ? -a.monto : a.monto), 0);
     expect(resumenAportes(lista).neto).toBe(aportadoNetoEquivalente);
+  });
+});
+
+describe('flujosFirmados', () => {
+  it('aporte no-retiro: monto positivo tal cual', () => {
+    expect(flujosFirmados([aporte({ monto: 500, fecha: '2026-03-01', tipo: 'recurrente' })]))
+      .toEqual([{ fecha: '2026-03-01', monto: 500 }]);
+  });
+
+  it('retiro: monto negativo', () => {
+    expect(flujosFirmados([aporte({ monto: 500, fecha: '2026-03-01', tipo: 'retiro' })]))
+      .toEqual([{ fecha: '2026-03-01', monto: -500 }]);
+  });
+
+  it('lista vacía: array vacío', () => {
+    expect(flujosFirmados([])).toEqual([]);
+  });
+
+  it('suma de flujosFirmados equivale a resumenAportes().neto (misma convención de signo, dos formas de leerla)', () => {
+    const lista = [
+      aporte({ monto: 1000, tipo: 'inicial' }),
+      aporte({ monto: 250, tipo: 'adelanto' }),
+      aporte({ monto: 400, tipo: 'retiro' }),
+    ];
+    const suma = flujosFirmados(lista).reduce((s, f) => s + f.monto, 0);
+    expect(suma).toBe(resumenAportes(lista).neto);
   });
 });
