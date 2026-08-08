@@ -140,9 +140,14 @@ export interface CobroInversion {
 // ── Dashboard personalizable (0029_dashboard_layout.sql) ──────────────────────
 // Layout = 1 fila JSONB por usuario (dashboard_layout.widgets), no 1 fila por tarjeta — ver
 // engine/dashboardCatalog.ts para el catálogo de secciones/métricas y el layout default.
+// 'aportes' (sección propia) se fusionó con 'rendimiento_por_anio' en una sola tarjeta configurable
+// — ver ALIASES en engine/dashboardCatalog.ts. No queda en este union (nadie debería poder
+// SELECCIONARLA de nuevo), pero un layout guardado con esa key vieja sigue resolviendo bien: los
+// widgets se leen como `unknown` y se castean en normalizarWidget (useDashboardLayout.ts), así que
+// la ausencia acá no rompe datos existentes.
 export type SeccionKey =
   | 'objetivo_capital' | 'rendimiento_por_anio' | 'distribucion' | 'cedears' | 'bonos' | 'radar'
-  | 'patrimonio_broker' | 'cobros' | 'liquidez_fci' | 'macro' | 'aportes';
+  | 'patrimonio_broker' | 'cobros' | 'liquidez_fci' | 'macro';
 
 export type MetricKey =
   | 'distribucion_categoria' | 'distribucion_tipo_activo'

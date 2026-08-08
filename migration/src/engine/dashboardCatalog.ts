@@ -40,7 +40,13 @@ export interface SeccionDef {
 
 export const SECCION_CATALOG: SeccionDef[] = [
   { key: 'objetivo_capital', titulo: 'Objetivo de capital', descripcion: 'Progreso hacia tu meta de patrimonio — se muestra solo si cargaste un objetivo en el portfolio.' },
-  { key: 'rendimiento_por_anio', titulo: 'Rendimiento por año', descripcion: 'Cuánto rindió cada año calendario, a partir del historial diario de patrimonio.' },
+  // Título/descripción fijos del catálogo (usados en "Agregar tarjeta" y en el placeholder de
+  // "ya no disponible") — la tarjeta en sí es dinámica: agrupa Rendimiento por año Y Aportes, con
+  // un selector de modo en su propio header (ver CapitalResumen en DashboardPage.tsx). Antes eran
+  // 2 secciones separadas (`aportes` incluida acá); se fusionaron en una sola tarjeta configurable
+  // — `aportes` sigue resolviendo acá vía ALIASES, así un layout guardado con la key vieja no
+  // rompe ni duplica la tarjeta.
+  { key: 'rendimiento_por_anio', titulo: 'Rendimiento por año / Aportes', descripcion: 'Cuánto rindió cada año calendario y/o cuánto capital aportaste — elegís qué ver desde la propia tarjeta.' },
   { key: 'distribucion', titulo: 'Distribución', descripcion: 'Renta fija vs. variable, con objetivo editable y desvío por ticker.' },
   { key: 'cedears', titulo: 'CEDEARs', descripcion: 'Capital, concentración y diversificación sectorial.' },
   { key: 'bonos', titulo: 'Bonos', descripcion: 'Capital, TIR y duración promedio ponderada.' },
@@ -49,10 +55,6 @@ export const SECCION_CATALOG: SeccionDef[] = [
   { key: 'cobros', titulo: 'Cobros', descripcion: 'Dividendos, intereses y amortizaciones cobrados + próximo capital proyectado.' },
   { key: 'liquidez_fci', titulo: 'Liquidez & FCI', descripcion: 'Fondos y billetera en pesos — compartido entre todos tus portfolios.' },
   { key: 'macro', titulo: 'Contexto macro', descripcion: 'Semáforos de mercado, de un vistazo.' },
-  // No está en DEFAULT_LAYOUT a propósito — se suma al catálogo (seleccionable desde "Agregar
-  // tarjeta") pero no aparece sola en el layout de nadie que nunca personalizó, para no cambiarle la
-  // vista a un usuario existente sin que lo haya pedido.
-  { key: 'aportes', titulo: 'Aportes', descripcion: 'Capital aportado y retirado del portfolio — lo que mueve la TIR, no el rendimiento de mercado.' },
 ];
 
 export const METRIC_CATALOG: MetricDef[] = [
@@ -92,9 +94,16 @@ export const DEFAULT_LAYOUT: DashboardWidget[] = [
   { id: 'default-macro', kind: 'seccion', seccion: 'macro' },
 ];
 
-// Renames futuros de key (métrica o sección) — vacío hoy, listo para cuando haga falta. Se resuelve
-// ANTES de buscar en el catálogo, así un layout viejo con una key renombrada sigue funcionando.
-export const ALIASES: Record<string, string> = {};
+// Renames/fusiones de key (métrica o sección). Se resuelve ANTES de buscar en el catálogo, así un
+// layout viejo con una key renombrada (o fusionada a otra tarjeta, como acá) sigue funcionando.
+// `aportes` era su propia sección hasta que se fusionó con `rendimiento_por_anio` en una sola
+// tarjeta configurable — un layout guardado con la key vieja resuelve al mismo slot, en vez de
+// mostrar "esta tarjeta ya no está disponible". `useDashboardLayout.ts` además deduplica por key
+// YA resuelta, así un layout que llegó a tener las dos secciones a la vez no termina mostrando el
+// mismo contenido dos veces.
+export const ALIASES: Record<string, string> = {
+  aportes: 'rendimiento_por_anio',
+};
 
 export function resolveKey(key: string): string { return ALIASES[key] ?? key; }
 

@@ -149,7 +149,10 @@ export function DashboardPage() {
   // perezoso) — una sección que el usuario sacó del layout simplemente nunca corre sus queries.
   const seccionNodes: Partial<Record<SeccionKey, ReactNode>> = {
     objetivo_capital: <ObjetivoCapitalCard objetivo={objetivo} patrimonio={patrimonio} />,
-    rendimiento_por_anio: <RendimientoPorAnioCard porAnio={porAnio} anioActual={anioActual} hayDatos={hayDatos} />,
+    // Rendimiento por año + Aportes unificados en una sola tarjeta (antes 2 separadas) — el usuario
+    // elige qué mostrar (selector en el header, persistido por portfolio); por default solo
+    // Rendimiento, para no duplicar de entrada lo que ya se ve completo en /aportes.
+    rendimiento_por_anio: <CapitalResumen porAnio={porAnio} anioActual={anioActual} hayDatosRendimiento={hayDatos} aportes={aportes} personalizando={personalizando} />,
     distribucion: <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />,
     cedears: <CedearsResumen personalizando={personalizando} />,
     bonos: <BonosResumen personalizando={personalizando} />,
@@ -158,7 +161,6 @@ export function DashboardPage() {
     cobros: (cobros.length > 0 || proximoCapital) ? <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} proximoCapital={proximoCapital} /> : null,
     liquidez_fci: flujo.length > 0 ? <LiquidezFci resumen={flujoR} mep={mep} /> : null,
     macro: <MacroResumen resumen={resumen} />,
-    aportes: aportes.length > 0 ? <AportesResumen aportes={aportes} /> : null,
   };
 
   if (!active) return null;
@@ -297,40 +299,114 @@ function ObjetivoCapitalCard({ objetivo, patrimonio }: { objetivo: number | null
   );
 }
 
-// Rendimiento por año calendario (estilo fondo) — extraído del Dashboard por el mismo motivo que
-// ObjetivoCapitalCard arriba. Muestra solo los últimos N años (más años acumulándose año a año, sin
-// límite, hacía que esta tarjeta creciera indefinidamente en el inicio) — el detalle completo, con
-// tabla ordenable/filtrable, vive en /aportes (mismo `porAnio`, mismo hook, nunca recalculado).
+// Rendimiento por año calendario Y/O Aportes — dos vistas del mismo concepto de capital ("cómo
+// rindió" vs. "cuánto metí"), fusionadas en una sola tarjeta con un selector de modo en vez de 2
+// tarjetas separadas. El rendimiento muestra solo los últimos N años (más años acumulándose año a
+// año, sin límite, hacía que esta tarjeta creciera indefinidamente en el inicio) — el detalle
+// completo de las dos vistas (historial de movimientos, tabla ordenable/filtrable de rendimiento)
+// vive en /aportes, con los MISMOS `porAnio`/`aportes` (mismo hook, nunca recalculados acá).
 const ANIOS_VISIBLES_DASHBOARD = 5;
+type ModoCapital = 'rendimiento' | 'aportes' | 'ambos';
+const MODO_CAPITAL_LABEL: Record<ModoCapital, string> = { rendimiento: 'Rendimiento', aportes: 'Aportes', ambos: 'Ambos' };
 
-function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
-  porAnio: { anio: number; rendimiento: number | null }[]; anioActual: number; hayDatos: boolean;
+// Qué mostrar en la tarjeta — preferencia de VISTA, no de layout: vive en localStorage por
+// portfolio (mismo patrón que useObjetivoDistribucion más abajo), no en dashboard_layout. No es
+// "agregar/quitar una tarjeta" (eso ya lo cubre el Dashboard personalizable) — es una preferencia
+// de cómo se ve ESTA tarjeta puntual, así que no tiene sentido que viaje con el resto del layout ni
+// que "Restaurar predeterminado" la toque.
+function useModoCapital(portfolioId: string | undefined) {
+  const key = portfolioId ? `dashboard.modoCapital.${portfolioId}` : null;
+  const [modo, setModoState] = useState<ModoCapital>('rendimiento');
+  useEffect(() => {
+    let m: ModoCapital = 'rendimiento';
+    try {
+      const raw = key ? localStorage.getItem(key) : null;
+      if (raw === 'rendimiento' || raw === 'aportes' || raw === 'ambos') m = raw;
+    } catch { /* */ }
+    setModoState(m);
+  }, [key]);
+  const setModo = (m: ModoCapital) => {
+    setModoState(m);
+    if (key) { try { localStorage.setItem(key, m); } catch { /* */ } }
+  };
+  return { modo, setModo };
+}
+
+function CapitalResumen({ porAnio, anioActual, hayDatosRendimiento, aportes, personalizando }: {
+  porAnio: { anio: number; rendimiento: number | null }[]; anioActual: number; hayDatosRendimiento: boolean;
+  aportes: Aporte[]; personalizando: boolean;
 }) {
-  if (!hayDatos) return null;
+  const { active } = usePortfolios();
+  const { modo, setModo } = useModoCapital(active?.id);
+  const hayAportes = aportes.length > 0;
+  // 'aportes' se gatea con su propio criterio (mismo que la tarjeta vieja) — 'rendimiento'/'ambos'
+  // con hayDatosRendimiento, que YA incluye "hay aportes" como una de sus dos condiciones (ver
+  // useRendimientoAnual.ts), así que cubre el caso de "ambos" con datos solo de un lado.
+  const visible = modo === 'aportes' ? hayAportes : hayDatosRendimiento;
+  if (!visible) return null;
+
   const ordenado = [...porAnio].reverse(); // más reciente primero
-  const visibles = ordenado.slice(0, ANIOS_VISIBLES_DASHBOARD);
-  const restantes = ordenado.length - visibles.length;
+  const visiblesAnio = ordenado.slice(0, ANIOS_VISIBLES_DASHBOARD);
+  const restantes = ordenado.length - visiblesAnio.length;
+  const { aportado, retirado, neto } = resumenAportes(aportes);
+  const titulo = modo === 'rendimiento' ? 'Rendimiento por año' : modo === 'aportes' ? 'Aportes' : 'Rendimiento y aportes';
+  const href = modo === 'aportes' ? '/aportes' : '/aportes#rendimiento-anual';
+
   return (
     <Card>
-      <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)."
-        right={restantes > 0
-          ? <Link to="/aportes#rendimiento-anual" className="text-[11px] text-celeste-600 hover:underline">Ver los {restantes} año{restantes > 1 ? 's' : ''} más →</Link>
-          : undefined} />
-      <div className="p-4 flex flex-wrap gap-2">
-        {visibles.map(({ anio, rendimiento }) => (
-          <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
-            <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
-            <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-600' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
-              {rendimiento != null ? fmtPct(rendimiento) : '—'}
-            </p>
+      <CardHeader title={titulo}
+        sub={modo === 'aportes'
+          ? `${aportes.length} movimiento${aportes.length > 1 ? 's' : ''} de capital — lo que mueve la TIR, no el rendimiento de mercado.`
+          : 'Cuánto rindió cada año calendario (del pasado, no anualizado).'}
+        right={!personalizando && (
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div role="radiogroup" aria-label="Qué mostrar" className="inline-flex rounded-full border border-line overflow-hidden text-[10px] font-semibold">
+              {(['rendimiento', 'aportes', 'ambos'] as const).map(m => (
+                <button key={m} onClick={() => setModo(m)} role="radio" aria-checked={modo === m}
+                  className={`px-2 py-1 transition-colors ${modo === m ? 'bg-celeste-500 text-white' : 'bg-surface text-ink-600 hover:bg-canvas'}`}>
+                  {MODO_CAPITAL_LABEL[m]}
+                </button>
+              ))}
+            </div>
+            <Link to={href} className="text-[11px] text-celeste-600 hover:underline">
+              {modo === 'rendimiento' && restantes > 0 ? `Ver ${restantes} año${restantes > 1 ? 's' : ''} más →` : 'Ver detalle →'}
+            </Link>
           </div>
-        ))}
-      </div>
-      {/* Evaluado sobre TODOS los años (no solo los visibles) — los "—" se concentran justo en los
-          años más viejos, que son los que este texto explica; si se evaluara sobre `visibles`
-          desaparecería la explicación exactamente cuando hace falta. */}
-      {porAnio.some(r => r.rendimiento == null) && (
-        <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+        )} />
+
+      {(modo === 'rendimiento' || modo === 'ambos') && (
+        <div className={modo === 'ambos' ? 'border-b border-line' : ''}>
+          <div className="p-4 flex flex-wrap gap-2">
+            {visiblesAnio.map(({ anio, rendimiento }) => (
+              <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
+                <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
+                <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-600' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
+                  {rendimiento != null ? fmtPct(rendimiento) : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+          {/* Evaluado sobre TODOS los años (no solo los visibles) — los "—" se concentran justo en
+              los años más viejos, que son los que este texto explica; si se evaluara sobre
+              `visiblesAnio` desaparecería la explicación exactamente cuando hace falta. */}
+          {porAnio.some(r => r.rendimiento == null) && (
+            <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+          )}
+        </div>
+      )}
+
+      {(modo === 'aportes' || modo === 'ambos') && (
+        hayAportes ? (
+          <div className="grid grid-cols-3 gap-2 p-3">
+            <Stat label="Aportado" value={fmtUsdCompact(aportado)} hint="Suma de todos los aportes (inicial + recurrente + adelanto)" />
+            <Stat label="Retirado" value={fmtUsdCompact(retirado)} hint="Suma de todos los retiros de capital" />
+            {/* Sin color pos/neg: acá no significa ganancia/pérdida (ese semáforo lo usa el resto de
+                la app para P&L) — "positivo" solo dice que aportaste más de lo que retiraste. */}
+            <Stat label="Neto aportado" value={fmtUsdCompact(neto)} hint="Aportado − retirado — no es rendimiento" />
+          </div>
+        ) : modo === 'ambos' ? (
+          <p className="px-4 pb-3 text-[11px] text-ink-500">Sin aportes registrados todavía.</p>
+        ) : null
       )}
     </Card>
   );
@@ -724,26 +800,6 @@ function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo
             <p className="text-[10px] text-ink-500 mt-0.5 truncate">{t.sub}</p>
           </div>
         ))}
-      </div>
-    </Card>
-  );
-}
-
-// Aportes: capital que entró/salió del portfolio, y neto. Mismo cálculo que AportesPage
-// (resumenAportes compartido) así los dos lugares nunca muestran números distintos.
-function AportesResumen({ aportes }: { aportes: Aporte[] }) {
-  const { aportado, retirado, neto } = resumenAportes(aportes);
-  return (
-    <Card>
-      <CardHeader title="Aportes"
-        sub={`${aportes.length} movimiento${aportes.length > 1 ? 's' : ''} de capital — lo que mueve la TIR, no el rendimiento de mercado.`}
-        right={<Link to="/aportes" className="text-[11px] text-celeste-600 hover:underline">Ver historial →</Link>} />
-      <div className="grid grid-cols-3 gap-2 p-3">
-        <Stat label="Aportado" value={fmtUsdCompact(aportado)} hint="Suma de todos los aportes (inicial + recurrente + adelanto)" />
-        <Stat label="Retirado" value={fmtUsdCompact(retirado)} hint="Suma de todos los retiros de capital" />
-        {/* Sin color pos/neg: acá no significa ganancia/pérdida (ese semáforo lo usa el resto de la
-            app para P&L) — "positivo" solo dice que aportaste más de lo que retiraste. */}
-        <Stat label="Neto aportado" value={fmtUsdCompact(neto)} hint="Aportado − retirado — no es rendimiento" />
       </div>
     </Card>
   );

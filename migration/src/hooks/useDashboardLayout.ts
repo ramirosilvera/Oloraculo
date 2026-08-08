@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
-import { DEFAULT_LAYOUT } from '../engine/dashboardCatalog';
+import { DEFAULT_LAYOUT, resolveKey } from '../engine/dashboardCatalog';
 import type { DashboardWidget, SeccionKey, MetricKey, DashboardViz } from '../types/domain';
 
 // Convierte una fila cruda del JSONB a un DashboardWidget válido, o `null` si no se puede — NUNCA
@@ -39,10 +39,20 @@ function normalizarWidget(w: unknown): DashboardWidget | null {
 function parseWidgets(raw: unknown): DashboardWidget[] | null {
   if (!Array.isArray(raw)) return null;
   const vistos = new Set<string>();
+  const seccionesResueltas = new Set<string>();
   const out: DashboardWidget[] = [];
   for (const item of raw) {
     const w = normalizarWidget(item);
     if (!w || vistos.has(w.id)) continue; // ids duplicados → keys de React rotas
+    if (w.kind === 'seccion') {
+      // Dedupe por key YA resuelta (no por `w.seccion` crudo) — necesario cuando un ALIASES fusiona
+      // 2 secciones viejas en 1 sola tarjeta (ej. 'aportes' → 'rendimiento_por_anio'): un layout que
+      // llegó a tener ambas guardadas por separado no debe renderizar la misma tarjeta fusionada
+      // dos veces. Se limpia solo (la próxima vez que se persista algo, el duplicado ya no vuelve).
+      const key = resolveKey(w.seccion);
+      if (seccionesResueltas.has(key)) continue;
+      seccionesResueltas.add(key);
+    }
     vistos.add(w.id);
     out.push(w);
   }

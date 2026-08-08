@@ -85,11 +85,14 @@ describe('DEFAULT_LAYOUT', () => {
 });
 
 describe('resolveKey / getMetricDef / getSeccionDef', () => {
-  // ALIASES es un singleton a nivel de módulo — si un assert de acá arriba tirara antes del
-  // `delete`, la mutación quedaba pegada para el resto de los tests del archivo. afterEach la
-  // limpia siempre, pase lo que pase adentro del test.
+  // ALIASES es un singleton a nivel de módulo y hoy YA trae alias reales de producción (ver
+  // dashboardCatalog.ts) — el afterEach no puede simplemente vaciarlo (eso borraría también los
+  // alias reales para el resto de la test suite); restaura la foto tomada al cargar este archivo,
+  // así los tests de acá abajo pueden agregar/mutar libremente sin dejar nada pegado.
+  const aliasesBase = { ...ALIASES };
   afterEach(() => {
     for (const k of Object.keys(ALIASES)) delete ALIASES[k];
+    Object.assign(ALIASES, aliasesBase);
   });
 
   it('sin alias: devuelve la key tal cual', () => {
@@ -105,6 +108,11 @@ describe('resolveKey / getMetricDef / getSeccionDef', () => {
   it('key inexistente: undefined, no revienta', () => {
     expect(getMetricDef('no_existe')).toBeUndefined();
     expect(getSeccionDef('no_existe')).toBeUndefined();
+  });
+
+  it('alias real de producción: "aportes" (sección vieja, fusionada) resuelve a rendimiento_por_anio', () => {
+    expect(resolveKey('aportes')).toBe('rendimiento_por_anio');
+    expect(getSeccionDef('aportes')?.key).toBe('rendimiento_por_anio');
   });
 });
 
