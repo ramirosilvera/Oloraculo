@@ -774,12 +774,15 @@ function AportesResumen({ aportes }: { aportes: Aporte[] }) {
   const { aportado, retirado, neto } = resumenAportes(aportes);
   return (
     <Card>
-      <CardHeader title="Aportes" sub={`${aportes.length} movimiento${aportes.length > 1 ? 's' : ''} de capital registrados.`}
+      <CardHeader title="Aportes"
+        sub={`${aportes.length} movimiento${aportes.length > 1 ? 's' : ''} de capital — lo que mueve la TIR, no el rendimiento de mercado.`}
         right={<Link to="/aportes" className="text-[11px] text-celeste-600 hover:underline">Ver historial →</Link>} />
       <div className="grid grid-cols-3 gap-2 p-3">
         <Stat label="Aportado" value={fmtUsdCompact(aportado)} hint="Suma de todos los aportes (inicial + recurrente + adelanto)" />
         <Stat label="Retirado" value={fmtUsdCompact(retirado)} hint="Suma de todos los retiros de capital" />
-        <Stat label="Neto" value={<span className={neto >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(neto)}</span>} hint="Aportado − retirado" />
+        {/* Sin color pos/neg: acá no significa ganancia/pérdida (ese semáforo lo usa el resto de la
+            app para P&L) — "positivo" solo dice que aportaste más de lo que retiraste. */}
+        <Stat label="Neto aportado" value={fmtUsdCompact(neto)} hint="Aportado − retirado — no es rendimiento" />
       </div>
     </Card>
   );

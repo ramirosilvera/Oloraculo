@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   METRIC_CATALOG, SECCION_CATALOG, DEFAULT_LAYOUT, ALIASES,
-  resolveKey, getMetricDef, getSeccionDef, resolveViz,
+  resolveKey, getMetricDef, getSeccionDef, resolveViz, tituloWidget,
 } from './dashboardCatalog';
 
 describe('METRIC_CATALOG', () => {
@@ -119,5 +119,31 @@ describe('resolveViz', () => {
 
   it('métrica inexistente: devuelve el viz tal cual (no hay catálogo contra el cual validar)', () => {
     expect(resolveViz('no_existe', 'bar')).toBe('bar');
+  });
+});
+
+describe('tituloWidget', () => {
+  it('1 sola métrica: su propio título de catálogo', () => {
+    expect(tituloWidget(['bonos_capital'])).toBe('Capital en bonos');
+  });
+
+  it('1 métrica inexistente: cae a la key tal cual', () => {
+    expect(tituloWidget(['no_existe'])).toBe('no_existe');
+  });
+
+  it('2+ métricas de la misma categoría: el nombre de la categoría', () => {
+    expect(tituloWidget(['bonos_tir_promedio', 'bonos_duracion_promedio', 'bonos_proximo_capital'])).toBe('Bonos');
+  });
+
+  it('2+ métricas de categorías distintas: unión de títulos', () => {
+    expect(tituloWidget(['bonos_capital', 'liquidez_disponible'])).toBe('Capital en bonos · Disponible');
+  });
+
+  it('2+ métricas con alguna inexistente: no colapsa a "misma categoría", usa la key cruda para la que falta', () => {
+    expect(tituloWidget(['bonos_capital', 'no_existe'])).toBe('Capital en bonos · no_existe');
+  });
+
+  it('WidgetGrid y AddWidgetModal comparten esta MISMA función — mismo resultado sin importar el orden de guardado', () => {
+    expect(tituloWidget(['bonos_duracion_promedio', 'bonos_tir_promedio'])).toBe(tituloWidget(['bonos_tir_promedio', 'bonos_duracion_promedio']));
   });
 });

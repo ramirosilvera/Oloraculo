@@ -71,8 +71,8 @@ export const METRIC_CATALOG: MetricDef[] = [
   { key: 'cobros_disponible', categoria: 'Cobros', titulo: 'Disponible para reinvertir', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cupones' },
   { key: 'macro_semaforos', categoria: 'Macro', titulo: 'Semáforos macro', descripcion: 'Cuántos indicadores en verde / atención / estrés.', shape: 'categorico', vizDisponibles: ['donut', 'bar'], vizDefault: 'donut', detalleHref: '/macro' },
   { key: 'liquidez_fci', categoria: 'Liquidez', titulo: 'FCI + billetera', descripcion: 'En pesos — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
-  { key: 'liquidez_disponible', categoria: 'Liquidez', titulo: 'Disponible', descripcion: 'Ingresos menos egresos del flujo de caja — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
-  { key: 'liquidez_sin_asignar', categoria: 'Liquidez', titulo: 'Sin asignar', descripcion: 'Disponible que todavía no se colocó en ningún destino — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
+  { key: 'liquidez_disponible', categoria: 'Liquidez', titulo: 'Disponible', descripcion: 'En pesos — ingresos menos egresos del flujo de caja, compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
+  { key: 'liquidez_sin_asignar', categoria: 'Liquidez', titulo: 'Sin asignar', descripcion: 'En pesos — disponible que todavía no se colocó en ningún destino, compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
 ];
 
 // Layout que hoy está hardcodeado en el Dashboard — se usa cuando el usuario todavía no personalizó
@@ -112,6 +112,20 @@ export function resolveViz(metricKey: string, viz: DashboardViz): DashboardViz {
   const def = getMetricDef(metricKey);
   if (!def) return viz;
   return def.vizDisponibles.includes(viz) ? viz : def.vizDefault;
+}
+
+// Título default de una tarjeta 'metrica' cuando el usuario no puso uno propio — UN solo lugar
+// (antes AddWidgetModal calculaba su preview con un criterio y WidgetGrid derivaba el título real con
+// otro: "Bonos" vs. "Capital en bonos · TIR promedio" para la MISMA combinación). 1 métrica: su
+// propio título de catálogo. 2+: el nombre de categoría si todas la comparten (ej. "Bonos"), si no,
+// la unión de los títulos — mismo criterio en ambos lados, así el preview del constructor y la
+// tarjeta ya guardada siempre coinciden.
+export function tituloWidget(metricas: string[]): string {
+  if (metricas.length === 1) return getMetricDef(metricas[0])?.titulo ?? metricas[0];
+  const defs = metricas.map(k => getMetricDef(k));
+  const categorias = new Set(defs.map(d => d?.categoria).filter((c): c is string => !!c));
+  if (categorias.size === 1 && defs.every(d => !!d)) return [...categorias][0];
+  return metricas.map((k, i) => defs[i]?.titulo ?? k).join(' · ');
 }
 
 // =============================================================================

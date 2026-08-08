@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Card, CardHeader, Field, Button, inputCls } from '../ui';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
-import { METRIC_CATALOG, SECCION_CATALOG, getMetricDef, resolveKey, resolveViz } from '../../engine/dashboardCatalog';
+import { METRIC_CATALOG, SECCION_CATALOG, getMetricDef, resolveKey, resolveViz, tituloWidget } from '../../engine/dashboardCatalog';
 import type { DashboardViz, DashboardWidget, MetricKey, SeccionKey } from '../../types/domain';
 
 const VIZ_LABEL: Record<DashboardViz, string> = { stat: 'Número', donut: 'Donut', bar: 'Barras', table: 'Tabla' };
@@ -39,13 +39,11 @@ export function AddWidgetModal({
   const seccionesDisponibles = SECCION_CATALOG.filter(s => !seccionesUsadas.has(s.key));
 
   const defsSeleccionados = seleccion.map(k => getMetricDef(k)).filter((d): d is NonNullable<typeof d> => !!d);
-  const categoriasCompartidas = new Set(defsSeleccionados.map(d => d.categoria));
-  // Con 2+ métricas no hay un título "default" único del catálogo (cada una tiene el suyo) — se
-  // arma uno razonable: el nombre de la categoría si todas la comparten (ej. "Bonos"), si no, la
-  // unión de los títulos.
-  const tituloDefaultCombo = defsSeleccionados.length > 1
-    ? (categoriasCompartidas.size === 1 ? [...categoriasCompartidas][0] : defsSeleccionados.map(d => d.titulo).join(' · '))
-    : defsSeleccionados[0]?.titulo;
+  // Mismo helper que usa WidgetGrid para derivar el título real de una tarjeta guardada — antes cada
+  // lado calculaba esto con un criterio propio (acá "Bonos", en WidgetGrid "Capital en bonos · TIR
+  // promedio", para la MISMA combinación), así que el preview de este modal podía no coincidir con
+  // cómo terminaba viéndose la tarjeta ya guardada.
+  const tituloDefault = seleccion.length > 0 ? tituloWidget(seleccion) : '';
 
   const toggleMetrica = (key: MetricKey) => {
     const yaElegida = seleccion.includes(key);
@@ -77,7 +75,11 @@ export function AddWidgetModal({
     setErr(null); setBusy(true);
     try {
       const vizFinal: DashboardViz = seleccion.length === 1 ? viz! : 'stat'; // ignorado en modo combo, pero el tipo lo pide
-      const tituloFinal = titulo.trim() || (seleccion.length > 1 ? tituloDefaultCombo : undefined);
+      // Nunca persistir el título derivado (undefined si el usuario no escribió uno propio) — así se
+      // re-deriva en cada render vía tituloWidget(), y agregar/quitar una métrica de un combo ya
+      // guardado (re-editándolo) actualiza el título solo, en vez de quedar pegado al título viejo
+      // calculado la primera vez que se guardó la tarjeta.
+      const tituloFinal = titulo.trim() || undefined;
       if (editing) await onActualizarMetrica(editing.id, seleccion, vizFinal, tituloFinal);
       else await onAgregarMetrica(seleccion, vizFinal, tituloFinal);
       onClose();
@@ -119,14 +121,18 @@ export function AddWidgetModal({
                     <div className="flex flex-wrap gap-2">
                       {metricas.map(m => {
                         const yaElegida = seleccion.includes(m.key);
+                        const alcanzoMax = seleccion.length >= MAX_COMBO;
                         const hayCategoricaElegida = seleccion.some(k => getMetricDef(k)?.shape === 'categorico');
-                        const deshabilitada = !yaElegida && (
-                          busy || seleccion.length >= MAX_COMBO || hayCategoricaElegida
-                          || (seleccion.length > 0 && m.shape === 'categorico')
-                        );
+                        const chocaConCategorica = seleccion.length > 0 && (hayCategoricaElegida || m.shape === 'categorico');
+                        const deshabilitada = !yaElegida && (busy || alcanzoMax || chocaConCategorica);
+                        // El motivo real varía — antes siempre decía "solo numéricas", incluso cuando
+                        // la causa real era haber llegado al máximo de 4 elegidas.
+                        const motivo = deshabilitada
+                          ? (alcanzoMax && !chocaConCategorica ? `Ya elegiste el máximo de ${MAX_COMBO} métricas` : 'Solo se pueden combinar métricas numéricas entre sí')
+                          : (m.descripcion || undefined);
                         return (
                           <button key={m.key} disabled={deshabilitada} onClick={() => toggleMetrica(m.key)}
-                            title={deshabilitada ? 'Solo se pueden combinar métricas numéricas entre sí' : (m.descripcion || undefined)}
+                            title={motivo}
                             aria-pressed={yaElegida}
                             className={`px-3 py-1.5 rounded-full text-sm font-semibold border disabled:opacity-40 ${yaElegida ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300'}`}>
                             {m.titulo}
@@ -139,29 +145,33 @@ export function AddWidgetModal({
               </div>
             </div>
 
-            {seleccion.length > 0 && (
-              <div className="space-y-3 pt-1">
-                {seleccion.length === 1 && viz && (
-                  <Field label="Visualización">
-                    <div className="flex flex-wrap gap-2">
-                      {defsSeleccionados[0]!.vizDisponibles.map(v => (
-                        <button key={v} disabled={busy} onClick={() => setViz(v)} aria-pressed={viz === v}
-                          className={`px-3 py-1.5 rounded-full text-sm font-semibold border disabled:opacity-50 ${viz === v ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300'}`}>
-                          {VIZ_LABEL[v]}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                )}
-                <Field label="Título (opcional)" hint={`Default: "${tituloDefaultCombo}"`}>
-                  <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder={tituloDefaultCombo} className={inputCls} maxLength={60} />
+            <div className="space-y-3 pt-1">
+              {seleccion.length === 1 && viz && (
+                <Field label="Visualización">
+                  <div className="flex flex-wrap gap-2">
+                    {defsSeleccionados[0]!.vizDisponibles.map(v => (
+                      <button key={v} disabled={busy} onClick={() => setViz(v)} aria-pressed={viz === v}
+                        className={`px-3 py-1.5 rounded-full text-sm font-semibold border disabled:opacity-50 ${viz === v ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300'}`}>
+                        {VIZ_LABEL[v]}
+                      </button>
+                    ))}
+                  </div>
                 </Field>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
-                  <Button onClick={guardarMetrica} disabled={busy}>{editing ? 'Guardar' : 'Agregar tarjeta'}</Button>
-                </div>
+              )}
+              {seleccion.length > 0 && (
+                <Field label="Título (opcional)" hint={`Default: "${tituloDefault}"`}>
+                  <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder={tituloDefault} className={inputCls} maxLength={60} />
+                </Field>
+              )}
+              {/* Siempre visible (antes se ocultaba con selección vacía) — deseleccionar todo mientras
+                  se edita una tarjeta ya guardada no debía dejar al usuario sin Cancelar a la vista. */}
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
+                <Button onClick={guardarMetrica} disabled={busy || seleccion.length === 0 || (seleccion.length === 1 && !viz)}>
+                  {editing ? 'Guardar' : 'Agregar tarjeta'}
+                </Button>
               </div>
-            )}
+            </div>
           </div>
         </Card>
       </div>

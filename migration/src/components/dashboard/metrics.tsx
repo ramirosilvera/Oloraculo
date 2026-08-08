@@ -281,16 +281,22 @@ function useRadarCompraAgresivaValue() {
   // tarjeta mostraba "0 de N" mientras cada probe (fundamentals/DCF, varios segundos en frío) seguía
   // resolviendo — un 0 provisorio indistinguible del resultado real, justo lo que este mismo archivo
   // documenta evitar (ver el comentario de `status` en engine/dashboardCatalog.ts).
+  //
+  // OJO: `agresiva` de useRadarTicker es `false` TAMBIÉN mientras el DCF todavía está en vuelo (no
+  // solo cuando ya se resolvió sin compra agresiva) — así que un probe no puede reportarse "listo"
+  // apenas monta (ver RadarProbe abajo, que ahora manda también `listo`), o el gate de arriba queda
+  // inútil: reportados se llena en el primer render con el `false` provisorio de TODOS los tickers,
+  // antes de que ningún DCF haya terminado.
   const [reportados, setReportados] = useState<Set<string>>(new Set());
 
-  const onProbe = useCallback((ticker: string, agresiva: boolean) => {
+  const onProbe = useCallback((ticker: string, agresiva: boolean, listo: boolean) => {
     setAgresivos(prev => {
       if (prev.has(ticker) === agresiva) return prev;
       const next = new Set(prev);
       if (agresiva) next.add(ticker); else next.delete(ticker);
       return next;
     });
-    setReportados(prev => (prev.has(ticker) ? prev : new Set(prev).add(ticker)));
+    if (listo) setReportados(prev => (prev.has(ticker) ? prev : new Set(prev).add(ticker)));
   }, []);
 
   const probesListos = items.length === 0 || items.every(it => reportados.has(it.ticker.toUpperCase()));
@@ -325,11 +331,18 @@ function RadarCompraAgresivaMetric({ viz, titulo, sub, detalleHref, personalizan
 function RadarProbe({ ticker, cik, cikLoading, riskFree, saved, onResult }: {
   ticker: string; cik: string | undefined; cikLoading: boolean; riskFree: number;
   saved: StoredDcf | undefined;
-  onResult: (ticker: string, agresiva: boolean) => void;
+  onResult: (ticker: string, agresiva: boolean, listo: boolean) => void;
 }) {
-  const { agresiva } = useRadarTicker(ticker, cik, cikLoading, riskFree, saved);
-  useEffect(() => { onResult(ticker, agresiva); }, [ticker, agresiva, onResult]);
-  useEffect(() => () => onResult(ticker, false), [ticker, onResult]);
+  const { agresiva, isFetching } = useRadarTicker(ticker, cik, cikLoading, riskFree, saved);
+  // Latcheado (nunca vuelve a false): una vez que el primer fetch terminó, un refetch de fondo
+  // (window focus, etc.) NO debe hacer "desaparecer" al ticker de `reportados` en el padre — eso
+  // haría reaparecer el "Cargando…" con datos que ya se mostraron una vez.
+  const [listoAlguna, setListoAlguna] = useState(false);
+  useEffect(() => {
+    if (!cikLoading && !isFetching) setListoAlguna(true);
+  }, [cikLoading, isFetching]);
+  useEffect(() => { onResult(ticker, agresiva, listoAlguna); }, [ticker, agresiva, listoAlguna, onResult]);
+  useEffect(() => () => onResult(ticker, false, false), [ticker, onResult]);
   return null;
 }
 
@@ -465,12 +478,16 @@ export function MetricWidgetRenderer({ ctx, metricas, viz, titulo, sub, personal
   const combinables = metricas.filter(k => getMetricDef(k)?.shape === 'scalar');
   const hrefs = new Set(combinables.map(k => getMetricDef(k)?.detalleHref).filter((h): h is string => !!h));
   const href = hrefs.size === 1 ? [...hrefs][0] : undefined;
+  // grid-cols-4 fijo dejaba huecos con 2 o 3 tiles (mismo criterio que las grillas a mano de
+  // CobrosResumen/LiquidezFci en DashboardPage.tsx, que usan grid-cols-3 para 3 tiles, no 4 con un
+  // hueco) — acá el conteo es dinámico (1 a MAX_COMBO), así que se resuelve por lookup.
+  const cols = combinables.length <= 2 ? 'grid-cols-2' : combinables.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4';
 
   return (
     <Card>
       <CardHeader title={titulo} sub={sub} right={<VerDetalle href={href} personalizando={personalizando} />} />
       <MetricModoContext.Provider value="compacto">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+        <div className={`grid ${cols} gap-2 p-3`}>
           {combinables.map(k => {
             const Comp = METRIC_COMPONENTS[k];
             const def = getMetricDef(k);

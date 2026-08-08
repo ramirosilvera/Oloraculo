@@ -4,7 +4,7 @@
 // usa la sección equivalente) y entrega acá solo el resultado tipado.
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useChartTheme } from '../../hooks/usePrefs';
-import { fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArsCompact, PIE_COLORS, Stat } from '../ui';
+import { fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArsCompact, PIE_COLORS } from '../ui';
 import type { Formato, MetricValue, Tono } from '../../engine/dashboardCatalog';
 
 function fmtValor(n: number | null, format: Formato | undefined, dp?: number): string {
@@ -42,19 +42,25 @@ export function StatViz({ mv }: { mv: Extract<MetricValue, { status: 'ok'; shape
   );
 }
 
-// Tile chico para tarjetas combinadas (2+ métricas en una sola Card) — reusa el mismo `Stat` de
-// ui.tsx que ya arma la grilla de 4 números de CedearsResumen/BonosResumen, así una tarjeta
-// combinada se ve exactamente igual que la grilla nativa de esas secciones. Solo maneja `scalar`
-// (el constructor de tarjetas solo deja combinar métricas escalares) — el caso `categorico` es
-// defensivo, no debería alcanzarse nunca en uso normal.
+// Tile chico para tarjetas combinadas (2+ métricas en una sola Card) — mismo look que los tiles a
+// mano de CobrosResumen/LiquidezFci en DashboardPage.tsx (rounded-2xl con label/valor/sub visibles),
+// NO el `Stat` genérico de ui.tsx: `Stat` solo expone su `hint` como `title` (tooltip), invisible en
+// touch — y acá el sub casi siempre es información que cambia el significado del número ("no es
+// renta", la unidad "años", "compartido entre todos tus portfolios", el signo de una tasa en otra
+// moneda), no un detalle accesorio que valga la pena esconder. Solo maneja `scalar` (el constructor
+// de tarjetas solo deja combinar métricas escalares) — el caso `categorico` es defensivo, no debería
+// alcanzarse nunca en uso normal.
 export function StatCompactoViz({ titulo, mv }: { titulo: string; mv: MetricValue }) {
-  if (mv.status === 'loading') return <Stat label={titulo} value="…" />;
-  if (mv.status === 'empty') return <Stat label={titulo} value={<span className="text-ink-500">—</span>} hint={mv.motivo} />;
-  if (mv.shape !== 'scalar') return <Stat label={titulo} value={<span className="text-ink-500">—</span>} />;
+  const cuerpo = mv.status === 'loading' ? { valor: <>…</>, sub: undefined, tono: undefined as string | undefined }
+    : mv.status === 'empty' ? { valor: <span className="text-ink-500">—</span>, sub: mv.motivo, tono: undefined }
+    : mv.shape !== 'scalar' ? { valor: <span className="text-ink-500">—</span>, sub: undefined, tono: undefined }
+    : { valor: mv.label ?? fmtValor(mv.value, mv.format, mv.dp), sub: mv.sub, tono: TONO_CLASE[mv.tone ?? 'neutral'] };
   return (
-    <Stat label={titulo}
-      value={<span className={TONO_CLASE[mv.tone ?? 'neutral']}>{mv.label ?? fmtValor(mv.value, mv.format, mv.dp)}</span>}
-      hint={mv.sub} />
+    <div className="rounded-2xl border border-line bg-surface shadow-soft px-3 py-3 min-w-0">
+      <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold truncate">{titulo}</p>
+      <p className={`text-lg font-bold font-display tnum mt-1 truncate ${cuerpo.tono ?? 'text-ink-900'}`}>{cuerpo.valor}</p>
+      {cuerpo.sub && <p className="text-[10px] text-ink-500 mt-0.5 truncate" title={cuerpo.sub}>{cuerpo.sub}</p>}
+    </div>
   );
 }
 

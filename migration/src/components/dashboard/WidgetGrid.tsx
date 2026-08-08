@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardHeader } from '../ui';
-import { getMetricDef, getSeccionDef, resolveKey } from '../../engine/dashboardCatalog';
+import { getMetricDef, getSeccionDef, resolveKey, tituloWidget } from '../../engine/dashboardCatalog';
 import type { DashboardWidget, MetricKey, SeccionKey } from '../../types/domain';
 import { METRIC_COMPONENTS, MetricWidgetRenderer, type MetricContext } from './metrics';
 
@@ -59,7 +59,7 @@ export function WidgetGrid({
           // simple y más seguro que degradarla parcialmente.
           enCatalogo = metricas.length > 0 && defs.every(d => !!d && !!METRIC_COMPONENTS[d.key])
             && (metricas.length === 1 || defs.every(d => d!.shape === 'scalar'));
-          titulo = w.titulo ?? defs.map((d, i) => d?.titulo ?? metricas[i]).join(' · ');
+          titulo = w.titulo ?? tituloWidget(metricas);
           sub = personalizando ? undefined : (metricas.length === 1 ? defs[0]?.descripcion || undefined : undefined);
           // Las tarjetas 'metrica' siempre renderizan algo (Loading/Empty/valor real, vía
           // MetricWidgetRenderer → Render en metrics.tsx) — nunca quedan sin nodo, así que no aplica
@@ -109,7 +109,12 @@ export function WidgetGrid({
           <div key={w.id} className="relative group">
             {cuerpo}
             <Controles i={i} total={layout.length} onMover={dir => onMover(w.id, dir)}
-              onEditar={w.kind === 'metrica' ? () => onEditar(w) : undefined} onEliminar={() => onEliminar(w.id)} />
+              // Resolver alias ACÁ también (no solo al renderizar, arriba) — si no, el modal de edición
+              // arranca con las keys viejas sin resolver, el chip de la métrica renombrada aparece
+              // "no elegida" (comparación contra la key canónica del catálogo) y un click la duplica
+              // en vez de deseleccionarla.
+              onEditar={w.kind === 'metrica' ? () => onEditar({ ...w, metricas: w.metricas.map(m => resolveKey(m) as MetricKey) }) : undefined}
+              onEliminar={() => onEliminar(w.id)} />
           </div>
         );
       })}
