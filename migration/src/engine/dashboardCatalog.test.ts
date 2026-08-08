@@ -35,6 +35,17 @@ describe('METRIC_CATALOG', () => {
   it('todo título no vacío', () => {
     for (const m of METRIC_CATALOG) expect(m.titulo.trim().length).toBeGreaterThan(0);
   });
+
+  it('detalleHref, cuando está presente, es una ruta interna (empieza con "/")', () => {
+    for (const m of METRIC_CATALOG.filter(m => m.detalleHref)) {
+      expect(m.detalleHref).toMatch(/^\//);
+    }
+  });
+
+  it('solo las 2 métricas de Cartera (sin página propia) quedan sin detalleHref', () => {
+    const sinHref = METRIC_CATALOG.filter(m => !m.detalleHref).map(m => m.key);
+    expect(sinHref.sort()).toEqual(['distribucion_categoria', 'distribucion_tipo_activo']);
+  });
 });
 
 describe('SECCION_CATALOG', () => {

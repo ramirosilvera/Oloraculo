@@ -57,8 +57,10 @@ export function WidgetGrid({
           sub = personalizando ? undefined : def?.descripcion || undefined;
           const viz = resolveViz(key, w.viz);
           // Las tarjetas 'metrica' siempre renderizan algo (Loading/Empty/valor real vía Render en
-          // metrics.tsx) — nunca quedan sin nodo, así que no aplica el caso "sinDatosAhora".
-          contenido = enCatalogo && Comp ? <Comp ctx={ctx} viz={viz} /> : null;
+          // metrics.tsx) — nunca quedan sin nodo, así que no aplica el caso "sinDatosAhora". Cada
+          // Comp arma su PROPIO Card+CardHeader (con badge/link — ver metrics.tsx), así que `sub`
+          // viaja como prop en vez de envolverse acá.
+          contenido = enCatalogo && Comp ? <Comp ctx={ctx} viz={viz} titulo={titulo} sub={sub} personalizando={personalizando} /> : null;
         }
 
         if (!enCatalogo) {
@@ -90,11 +92,9 @@ export function WidgetGrid({
           );
         }
 
-        // Las 'seccion' ya son un <Card> completo (CedearsResumen, etc. arman su propio
-        // Card+CardHeader) — envolver de nuevo duplicaría el borde. Las 'metrica' sí se envuelven acá.
-        const cuerpo = w.kind === 'metrica'
-          ? <Card><CardHeader title={titulo} sub={sub} />{contenido}</Card>
-          : contenido;
+        // Tanto 'seccion' como 'metrica' llegan acá ya siendo un <Card> completo (armado por el
+        // componente, no por WidgetGrid) — envolver de nuevo duplicaría el borde.
+        const cuerpo = contenido;
 
         if (!personalizando) return <div key={w.id}>{cuerpo}</div>;
 

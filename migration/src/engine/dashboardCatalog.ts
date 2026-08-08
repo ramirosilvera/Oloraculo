@@ -25,6 +25,11 @@ export interface MetricDef {
   shape: MetricShape;
   vizDisponibles: DashboardViz[];
   vizDefault: DashboardViz;
+  // Ruta de la página fuente — "Ver detalle →" en el header de la tarjeta atómica, mismo patrón que
+  // el `right` de cada sección (CedearsResumen → /cedears, etc.). Estático (no depende de datos),
+  // así que vive acá y no en el componente. Ausente en las 2 métricas de Cartera: no tienen página
+  // propia (Distribución vive solo en el Dashboard).
+  detalleHref?: string;
 }
 
 export interface SeccionDef {
@@ -49,19 +54,19 @@ export const SECCION_CATALOG: SeccionDef[] = [
 export const METRIC_CATALOG: MetricDef[] = [
   { key: 'distribucion_categoria', categoria: 'Cartera', titulo: 'Distribución por categoría', descripcion: 'Renta fija / variable / liquidez — sin los controles de objetivo de la sección Distribución.', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut' },
   { key: 'distribucion_tipo_activo', categoria: 'Cartera', titulo: 'Distribución por tipo de activo', descripcion: 'CEDEARs / bonos / ETFs / acciones (US y AR) / cash.', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut' },
-  { key: 'cedears_capital', categoria: 'CEDEARs', titulo: 'Capital en CEDEARs', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'cedears_mayor_posicion', categoria: 'CEDEARs', titulo: 'Mayor posición (CEDEARs)', descripcion: 'Ticker con mayor % del capital en CEDEARs.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'cedears_por_sector', categoria: 'CEDEARs', titulo: 'CEDEARs por sector', descripcion: '', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut' },
-  { key: 'bonos_capital', categoria: 'Bonos', titulo: 'Capital en bonos', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'bonos_tir_promedio', categoria: 'Bonos', titulo: 'TIR promedio', descripcion: 'Promedio ponderado por capital.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'bonos_duracion_promedio', categoria: 'Bonos', titulo: 'Duración promedio', descripcion: 'Duración de Macaulay, promedio ponderado por capital.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'bonos_grado_inversion', categoria: 'Bonos', titulo: '% grado inversión', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'bonos_proximo_capital', categoria: 'Bonos', titulo: 'Próximo capital proyectado', descripcion: 'Amortización o rescate al vencimiento — no es renta.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'radar_compra_agresiva', categoria: 'Radar', titulo: 'Compra agresiva (Radar)', descripcion: 'Tickers en seguimiento con margen de seguridad amplio (DCF).', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'cobros_total', categoria: 'Cobros', titulo: 'Cobrado total', descripcion: 'Dividendos + intereses + amortizaciones.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'cobros_disponible', categoria: 'Cobros', titulo: 'Disponible para reinvertir', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
-  { key: 'macro_semaforos', categoria: 'Macro', titulo: 'Semáforos macro', descripcion: 'Cuántos indicadores en verde / atención / estrés.', shape: 'categorico', vizDisponibles: ['donut', 'bar'], vizDefault: 'donut' },
-  { key: 'liquidez_fci', categoria: 'Liquidez', titulo: 'FCI + billetera', descripcion: 'En pesos — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'cedears_capital', categoria: 'CEDEARs', titulo: 'Capital en CEDEARs', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cedears' },
+  { key: 'cedears_mayor_posicion', categoria: 'CEDEARs', titulo: 'Mayor posición (CEDEARs)', descripcion: 'Ticker con mayor % del capital en CEDEARs.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cedears' },
+  { key: 'cedears_por_sector', categoria: 'CEDEARs', titulo: 'CEDEARs por sector', descripcion: '', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut', detalleHref: '/cedears' },
+  { key: 'bonos_capital', categoria: 'Bonos', titulo: 'Capital en bonos', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/bonos' },
+  { key: 'bonos_tir_promedio', categoria: 'Bonos', titulo: 'TIR promedio', descripcion: 'Promedio ponderado por capital.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/bonos' },
+  { key: 'bonos_duracion_promedio', categoria: 'Bonos', titulo: 'Duración promedio', descripcion: 'Duración de Macaulay, promedio ponderado por capital.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/bonos' },
+  { key: 'bonos_grado_inversion', categoria: 'Bonos', titulo: '% grado inversión', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/bonos' },
+  { key: 'bonos_proximo_capital', categoria: 'Bonos', titulo: 'Próximo capital proyectado', descripcion: 'Amortización o rescate al vencimiento — no es renta.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cupones' },
+  { key: 'radar_compra_agresiva', categoria: 'Radar', titulo: 'Compra agresiva (Radar)', descripcion: 'Tickers en seguimiento con margen de seguridad amplio (DCF).', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/radar' },
+  { key: 'cobros_total', categoria: 'Cobros', titulo: 'Cobrado total', descripcion: 'Dividendos + intereses + amortizaciones.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cupones' },
+  { key: 'cobros_disponible', categoria: 'Cobros', titulo: 'Disponible para reinvertir', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cupones' },
+  { key: 'macro_semaforos', categoria: 'Macro', titulo: 'Semáforos macro', descripcion: 'Cuántos indicadores en verde / atención / estrés.', shape: 'categorico', vizDisponibles: ['donut', 'bar'], vizDefault: 'donut', detalleHref: '/macro' },
+  { key: 'liquidez_fci', categoria: 'Liquidez', titulo: 'FCI + billetera', descripcion: 'En pesos — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
 ];
 
 // Layout que hoy está hardcodeado en el Dashboard — se usa cuando el usuario todavía no personalizó
