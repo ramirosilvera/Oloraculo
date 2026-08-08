@@ -40,13 +40,16 @@ export function usePortfolioPatrimonio(portfolioId: string | undefined) {
     return { patrimonio, costo, pnl: patrimonio - costo, alloc: parts, sinPrecio };
   }, [posiciones, quotes]);
 
-  // "Se pudo valuar todo a precio de mercado, no a costo" — sin tickers cotizables no hay nada que
-  // esperar (sinTickers ya cubre ese caso); si los hay, tienen que haber resuelto Y ninguno quedar
-  // sin precio. Mismo criterio que usaba `datosListos` en DashboardPage.tsx, ahora expuesto acá para
-  // que cualquier otra pantalla (Aportes) sepa si el patrimonio/año en curso es de mercado o a costo.
-  const valuacionDeMercado = (sinTickers || (qQuotes.isSuccess && !qQuotes.isFetching)) && sinPrecio.length === 0;
+  // Separado en dos señales a propósito — "todavía no sabemos" (preciosPendientes) NO es lo mismo
+  // que "sabemos que falta un precio" (sinPrecio.length > 0): mientras las cotizaciones están en
+  // vuelo, `quotes` es `{}` y CADA posición cotizable cae en `sinPrecio` — sin distinguir esto, un
+  // consumidor (ver AportesPage) mostraría "sin cotización de mercado" en TODA carga fría, aunque
+  // después de un instante resuelva bien. `valuacionDeMercado` conserva el mismo valor de verdad que
+  // antes (se usa para `datosListos` en DashboardPage.tsx, que no cambia).
+  const preciosPendientes = !sinTickers && !(qQuotes.isSuccess && !qQuotes.isFetching);
+  const valuacionDeMercado = !preciosPendientes && sinPrecio.length === 0;
 
-  return { qPos, qQuotes, posiciones, quotes, sinTickers, valuacionDeMercado, patrimonio, costo, pnl, alloc, sinPrecio };
+  return { qPos, qQuotes, posiciones, quotes, sinTickers, preciosPendientes, valuacionDeMercado, patrimonio, costo, pnl, alloc, sinPrecio };
 }
 
 // Rendimiento por año calendario — mismo cálculo (mismas deps) que antes vivía inline en
@@ -54,7 +57,7 @@ export function usePortfolioPatrimonio(portfolioId: string | undefined) {
 // dos consumen ESTE hook, nunca recalculan porAnio por su cuenta.
 export function useRendimientoAnual(portfolioId: string | undefined) {
   const val = usePortfolioPatrimonio(portfolioId);
-  const { posiciones, patrimonio, costo } = val;
+  const { qPos, posiciones, patrimonio, costo } = val;
 
   const qAportes = useAportes(portfolioId);
   const aportes = qAportes.data ?? [];
@@ -90,9 +93,20 @@ export function useRendimientoAnual(portfolioId: string | undefined) {
     return rendimientoPorAnio(puntos, inceptionYear, hoy, flujos);
   }, [snaps, hoy, patrimonio, aportadoNeto, inceptionYear, aportes]);
 
-  // Un solo criterio de "hay algo real para mostrar" — usado tanto por el resumen del Dashboard como
-  // por el detalle en Aportes, así las dos pantallas ocultan/muestran la sección exactamente igual.
-  const hayDatos = porAnio.some(r => r.rendimiento != null);
+  // "Hay algo real para mostrar" — deliberadamente NO es "porAnio tiene algún año con rendimiento
+  // no-nulo": ese criterio esconde el caso legítimo de un portfolio con posiciones/aportes viejos
+  // pero sin snapshots todavía (todos los años dan null, y con ellos desaparecería también el
+  // texto que explica por qué) — acá alcanza con que el portfolio haya tenido actividad alguna vez.
+  // Un criterio ÚNICO, usado tanto por el resumen del Dashboard como por el detalle en Aportes, así
+  // las dos pantallas ocultan/muestran la sección exactamente igual.
+  const hayDatos = aportes.length > 0 || posiciones.length > 0;
 
-  return { ...val, qAportes, qSnaps, aportes, snaps, hoy, anioActual, inceptionYear, aportadoNeto, porAnio, hayDatos };
+  // Los inputs del cálculo (no la cotización de mercado, eso es `valuacionDeMercado`) todavía no
+  // resolvieron — mientras tanto `aportadoNeto` puede estar usando su fallback a `costo` aunque el
+  // portfolio SÍ tenga aportes reales cargados (todavía no llegaron), lo que da un "0.0%" transitorio
+  // para el año en curso. Un consumidor que muestra el número como definitivo (ver AportesPage) debe
+  // esperar a esto, no alcanza con que `porAnio` ya tenga algo.
+  const cargando = !(qPos.isSuccess && qAportes.isSuccess && qSnaps.isSuccess);
+
+  return { ...val, qAportes, qSnaps, aportes, snaps, hoy, anioActual, inceptionYear, aportadoNeto, porAnio, hayDatos, cargando };
 }

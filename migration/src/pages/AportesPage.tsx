@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Wallet, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAportes, useAporteMutations } from '../hooks/useAportes';
@@ -29,10 +29,19 @@ export function AportesPage() {
 
   // Detalle completo de rendimiento por año — MISMO hook que usa el resumen del Dashboard
   // (RendimientoPorAnioCard), nunca recalculado acá con su propia copia (regla de oro #1).
-  const { porAnio, anioActual, valuacionDeMercado, hayDatos } = useRendimientoAnual(active?.id);
+  const { porAnio, anioActual, sinPrecio: sinPrecioRend, preciosPendientes, valuacionDeMercado, hayDatos, cargando } = useRendimientoAnual(active?.id);
   const [filtroAnio, setFiltroAnio] = useState<AnioFiltro>('todos');
   const [sortAnio, setSortAnio] = useState<{ key: AnioSortKey; dir: 'asc' | 'desc' }>({ key: 'anio', dir: 'desc' });
   const handleSortAnio = (key: AnioSortKey) => setSortAnio(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' });
+
+  // Si se llegó desde el link "Ver los N años más →" del Dashboard, la tarjeta de detalle queda
+  // 3ra en la página (después del form y el historial) — sin esto, el usuario cae arriba de todo y
+  // tiene que buscarla a mano.
+  useEffect(() => {
+    if (window.location.hash === '#rendimiento-anual') {
+      document.getElementById('rendimiento-anual')?.scrollIntoView({ block: 'start' });
+    }
+  }, []);
 
   const filasAnio = useMemo(() => {
     let filas = porAnio;
@@ -123,58 +132,81 @@ export function AportesPage() {
         </div>
       </Card>
 
-      {hayDatos && (
-        <Card>
-          <CardHeader title="Rendimiento por año" sub="Detalle completo, año por año — mismo cálculo que el resumen del Dashboard." />
-          {!valuacionDeMercado && (
-            <p className="px-4 pt-3 text-[11px] text-warn">Alguna posición está sin cotización de mercado: el año en curso se calcula a costo, no a precio de mercado.</p>
-          )}
-          <div className="px-4 pt-3 flex flex-wrap gap-2">
-            {(['todos', 'positivos', 'negativos', 'sindatos'] as const).map(f => (
-              <button key={f} onClick={() => setFiltroAnio(f)} aria-pressed={filtroAnio === f}
-                className={`px-3 py-1 rounded-full text-xs font-semibold border ${filtroAnio === f ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-700 hover:bg-canvas'}`}>
-                {FILTRO_LABEL[f]}
-              </button>
-            ))}
-          </div>
-          <div className="overflow-x-auto mt-1">
-            <table className="w-full text-sm">
-              <thead className="text-[11px] text-ink-600">
-                <tr className="border-b border-line">
-                  <ThSortAnio label="Año" sortKey="anio" sort={sortAnio} onClick={handleSortAnio} align="left" />
-                  <ThSortAnio label="Rendimiento" sortKey="rendimiento" sort={sortAnio} onClick={handleSortAnio} />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {filasAnio.length === 0 ? (
-                  <tr><td colSpan={2} className="px-4 py-3 text-ink-600">Sin años que coincidan con el filtro.</td></tr>
-                ) : filasAnio.map(({ anio, rendimiento }) => (
-                  <tr key={anio}>
-                    <td className="px-4 py-2 text-left tnum text-ink-800">{anio}{anio === anioActual ? ' · en curso' : ''}</td>
-                    <td className={`px-3 py-2 text-right tnum font-semibold ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
-                      {rendimiento != null ? fmtPct(rendimiento) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="px-4 py-3 text-[11px] text-ink-500">Rendimiento del PASADO, no anualizado ni proyectado — un año se calcula solo cuando hay historial diario suficiente.</p>
-        </Card>
+      {(cargando || hayDatos) && (
+        <div id="rendimiento-anual" className="scroll-mt-4">
+          <Card>
+            <CardHeader title="Rendimiento por año"
+              sub="Detalle completo, año por año — % sobre el capital invertido, no montos. Mismo cálculo que el resumen del Dashboard." />
+            {cargando ? (
+              <p className="p-4 text-sm text-ink-600">Cargando…</p>
+            ) : (
+              <>
+                {/* `preciosPendientes` (cotizaciones todavía en vuelo) es DISTINTO de "falta un precio
+                    de verdad" — sin esta distinción, el aviso aparecía en CADA carga fría (quotes
+                    arranca vacío) aunque un instante después resolviera bien, entrenando al usuario a
+                    ignorarlo justo el día que sí importa. */}
+                {!preciosPendientes && !valuacionDeMercado && (
+                  <p className="px-4 pt-3 text-[11px] text-warn">
+                    Sin cotización de <b>{sinPrecioRend.slice(0, 4).join(', ')}{sinPrecioRend.length > 4 ? ` +${sinPrecioRend.length - 4}` : ''}</b>:
+                    el año en curso se calcula a costo, no a precio de mercado, y hoy no queda registrado en el histórico —
+                    el año que viene puede quedar sin punto de apertura.
+                  </p>
+                )}
+                <div role="radiogroup" aria-label="Filtrar años" className="px-4 pt-3 flex flex-wrap gap-2">
+                  {(['todos', 'positivos', 'negativos', 'sindatos'] as const).map(opt => (
+                    <button key={opt} onClick={() => setFiltroAnio(opt)} role="radio" aria-checked={filtroAnio === opt}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filtroAnio === opt ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-700 hover:bg-canvas'}`}>
+                      {FILTRO_LABEL[opt]}
+                    </button>
+                  ))}
+                </div>
+                <div className="overflow-x-auto mt-1">
+                  <table className="w-full text-sm">
+                    <thead className="text-[11px] text-ink-600">
+                      <tr className="border-b border-line">
+                        <ThSortAnio label="Año" sortKey="anio" sort={sortAnio} onClick={handleSortAnio} align="left" />
+                        <ThSortAnio label="Rendimiento" sortKey="rendimiento" sort={sortAnio} onClick={handleSortAnio} />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {filasAnio.length === 0 ? (
+                        <tr><td colSpan={2} className="px-4 py-3 text-ink-600">Sin años que coincidan con el filtro.</td></tr>
+                      ) : filasAnio.map(({ anio, rendimiento }) => (
+                        <tr key={anio}>
+                          <td className="px-4 py-2 text-left tnum text-ink-800">{anio}{anio === anioActual ? ' · en curso' : ''}</td>
+                          <td className={`px-3 py-2 text-right tnum font-semibold ${rendimiento == null ? 'text-ink-600' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}
+                            title={rendimiento == null ? 'Sin snapshot de cierre para este año' : undefined}>
+                            {rendimiento != null ? fmtPct(rendimiento) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="px-4 py-3 text-[11px] text-ink-500">Rendimiento del PASADO, no anualizado ni proyectado. Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+              </>
+            )}
+          </Card>
+        </div>
       )}
     </div>
   );
 }
 
 // Mismo patrón que ThSort en RadarPage.tsx (columna ordenable con click + flecha) — copiado local
-// en vez de compartido porque son columnas/tipos de dato distintos (acá 2 columnas nada más).
+// en vez de compartido porque son columnas/tipos de dato distintos (acá 2 columnas nada más). El
+// padding vive DENTRO del botón (no en el <th>) para que el área clickeable sea todo el label, no
+// solo el texto — un <th className="px-3 py-2"><button>...</button></th> deja un botón de ~16px de
+// alto, bajo el mínimo táctil recomendado de 24px.
 function ThSortAnio({ label, sortKey, sort, onClick, align = 'right' }: {
   label: string; sortKey: AnioSortKey; sort: { key: AnioSortKey; dir: 'asc' | 'desc' }; onClick: (key: AnioSortKey) => void; align?: 'left' | 'right';
 }) {
   const active = sort.key === sortKey;
   return (
-    <th className={align === 'left' ? 'text-left px-4 py-2' : 'text-right px-3 py-2'}>
-      <button onClick={() => onClick(sortKey)} className={`inline-flex items-center gap-1 hover:text-ink-900 transition-colors ${active ? 'text-ink-900 font-semibold' : ''}`}>
+    <th className={align === 'left' ? 'text-left' : 'text-right'}
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button onClick={() => onClick(sortKey)}
+        className={`inline-flex items-center gap-1 px-3 py-2 hover:text-ink-900 transition-colors ${align === 'left' ? '' : 'justify-end'} ${active ? 'text-ink-900 font-semibold' : ''}`}>
         {label}
         {active
           ? (sort.dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)

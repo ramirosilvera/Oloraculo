@@ -45,7 +45,7 @@ export function DashboardPage() {
   // AportesPage (que muestra el detalle completo), así los dos lugares NUNCA calculan estos números
   // distinto. Ver hooks/useRendimientoAnual.ts.
   const {
-    qPos, qQuotes, qAportes, qSnaps,
+    qPos, qAportes, qSnaps,
     posiciones, quotes, aportes, snaps,
     sinPrecio, valuacionDeMercado,
     patrimonio, costo, pnl, alloc,
@@ -312,12 +312,15 @@ function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
   const restantes = ordenado.length - visibles.length;
   return (
     <Card>
-      <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)." />
+      <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)."
+        right={restantes > 0
+          ? <Link to="/aportes#rendimiento-anual" className="text-[11px] text-celeste-600 hover:underline">Ver los {restantes} año{restantes > 1 ? 's' : ''} más →</Link>
+          : undefined} />
       <div className="p-4 flex flex-wrap gap-2">
         {visibles.map(({ anio, rendimiento }) => (
           <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
             <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
-            <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
+            <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-600' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
               {rendimiento != null ? fmtPct(rendimiento) : '—'}
             </p>
           </div>
@@ -327,12 +330,7 @@ function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
           años más viejos, que son los que este texto explica; si se evaluara sobre `visibles`
           desaparecería la explicación exactamente cuando hace falta. */}
       {porAnio.some(r => r.rendimiento == null) && (
-        <p className="px-4 pb-1 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
-      )}
-      {restantes > 0 && (
-        <p className="px-4 pb-3 text-[11px]">
-          <Link to="/aportes" className="text-celeste-600 hover:underline">Ver los {restantes} año{restantes > 1 ? 's' : ''} restante{restantes > 1 ? 's' : ''} →</Link>
-        </p>
+        <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
       )}
     </Card>
   );
