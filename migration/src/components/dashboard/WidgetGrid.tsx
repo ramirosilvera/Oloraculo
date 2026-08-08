@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardHeader } from '../ui';
-import { getMetricDef, getSeccionDef, resolveViz } from '../../engine/dashboardCatalog';
+import { getMetricDef, getSeccionDef, resolveKey, resolveViz } from '../../engine/dashboardCatalog';
 import type { DashboardWidget, SeccionKey } from '../../types/domain';
 import { METRIC_COMPONENTS, type MetricContext } from './metrics';
 
@@ -28,25 +28,40 @@ export function WidgetGrid({
         let titulo: string;
         let sub: string | undefined;
         let contenido: ReactNode;
-        let disponible = true;
+        let enCatalogo: boolean;
+        // Distinto de "no está en el catálogo" (se renombró/borró la key — ver más abajo): esto es
+        // una sección VÁLIDA que hoy no tiene nada que mostrar (ej. "Bonos" sin bonos cargados) — el
+        // componente ya se auto-oculta (null) igual que hacía antes de existir el Dashboard
+        // personalizable. En modo Personalizar necesita igual un lugar visible para sus controles
+        // (mover/eliminar), porque si no quedan flotando sobre nada.
+        let sinDatosAhora = false;
 
+        // Resolver alias ANTES de indexar cualquier catálogo/registro — si esto solo se resolviera
+        // en getMetricDef/getSeccionDef pero no acá, una key renombrada quedaba en un estado
+        // inconsistente: el catálogo la reconoce pero el componente/nodo no se encuentra nunca.
         if (w.kind === 'seccion') {
-          const def = getSeccionDef(w.seccion);
-          disponible = !!def && w.seccion in seccionNodes;
+          const key = resolveKey(w.seccion) as SeccionKey;
+          const def = getSeccionDef(key);
+          enCatalogo = !!def;
           titulo = def?.titulo ?? w.seccion;
           sub = undefined; // las secciones arman su propio CardHeader — no se envuelve de nuevo
-          contenido = disponible ? seccionNodes[w.seccion] : null;
+          const nodo = enCatalogo ? seccionNodes[key] : undefined;
+          sinDatosAhora = enCatalogo && nodo == null;
+          contenido = nodo ?? null;
         } else {
-          const def = getMetricDef(w.metrica);
-          const Comp = METRIC_COMPONENTS[w.metrica];
-          disponible = !!def && !!Comp;
+          const key = resolveKey(w.metrica) as typeof w.metrica;
+          const def = getMetricDef(key);
+          const Comp = METRIC_COMPONENTS[key];
+          enCatalogo = !!def && !!Comp;
           titulo = w.titulo ?? def?.titulo ?? w.metrica;
           sub = personalizando ? undefined : def?.descripcion || undefined;
-          const viz = def ? resolveViz(w.metrica, w.viz) : w.viz;
-          contenido = disponible && Comp ? <Comp ctx={ctx} viz={viz} /> : null;
+          const viz = resolveViz(key, w.viz);
+          // Las tarjetas 'metrica' siempre renderizan algo (Loading/Empty/valor real vía Render en
+          // metrics.tsx) — nunca quedan sin nodo, así que no aplica el caso "sinDatosAhora".
+          contenido = enCatalogo && Comp ? <Comp ctx={ctx} viz={viz} /> : null;
         }
 
-        if (!disponible) {
+        if (!enCatalogo) {
           // Nunca desaparece en silencio (una métrica/sección guardada dejó de existir en el
           // catálogo, ej. tras un rename mal migrado) — se ve como placeholder con botón Eliminar,
           // no como si el dato fuera 0 o el layout estuviera roto.
@@ -63,6 +78,18 @@ export function WidgetGrid({
           );
         }
 
+        if (sinDatosAhora) {
+          // Fuera de modo Personalizar, una sección sin datos no debe ocupar espacio — mismo
+          // comportamiento que antes de que existiera el Dashboard personalizable.
+          if (!personalizando) return null;
+          return (
+            <div key={w.id} className="relative group">
+              <Card><CardHeader title={titulo} sub="Sin datos en este portfolio — se mostrará cuando los haya." /></Card>
+              <Controles i={i} total={layout.length} onMover={dir => onMover(w.id, dir)} onEliminar={() => onEliminar(w.id)} />
+            </div>
+          );
+        }
+
         // Las 'seccion' ya son un <Card> completo (CedearsResumen, etc. arman su propio
         // Card+CardHeader) — envolver de nuevo duplicaría el borde. Las 'metrica' sí se envuelven acá.
         const cuerpo = w.kind === 'metrica'
@@ -72,19 +99,29 @@ export function WidgetGrid({
         if (!personalizando) return <div key={w.id}>{cuerpo}</div>;
 
         return (
-          <div key={w.id} className="relative group min-h-[52px]">
+          <div key={w.id} className="relative group">
             {cuerpo}
-            <div className="absolute top-3 right-3 flex items-center gap-0.5 bg-surface/95 backdrop-blur rounded-full border border-line shadow-soft px-1 py-0.5">
-              <button onClick={() => onMover(w.id, 'arriba')} disabled={i === 0} className={ctrlBtn} aria-label="Mover arriba"><ChevronUp className="w-4 h-4" /></button>
-              <button onClick={() => onMover(w.id, 'abajo')} disabled={i === layout.length - 1} className={ctrlBtn} aria-label="Mover abajo"><ChevronDown className="w-4 h-4" /></button>
-              {w.kind === 'metrica' && (
-                <button onClick={() => onEditar(w)} className={ctrlBtn} aria-label="Editar tarjeta"><Pencil className="w-4 h-4" /></button>
-              )}
-              <button onClick={() => onEliminar(w.id)} className={`${ctrlBtn} hover:text-neg`} aria-label="Eliminar tarjeta"><Trash2 className="w-4 h-4" /></button>
-            </div>
+            <Controles i={i} total={layout.length} onMover={dir => onMover(w.id, dir)}
+              onEditar={w.kind === 'metrica' ? () => onEditar(w) : undefined} onEliminar={() => onEliminar(w.id)} />
           </div>
         );
       })}
     </>
+  );
+}
+
+// Cluster de controles del modo Personalizar — posicionado AFUERA del borde de la tarjeta (no
+// "absolute top-3 right-3" hacia adentro) para no tapar el slot `right` del CardHeader (badges de
+// concentración, links "Ver más", etc.), que vive exactamente ahí.
+function Controles({ i, total, onMover, onEditar, onEliminar }: {
+  i: number; total: number; onMover: (dir: 'arriba' | 'abajo') => void; onEditar?: () => void; onEliminar: () => void;
+}) {
+  return (
+    <div className="absolute -top-2 -right-2 flex items-center gap-0.5 bg-surface/95 backdrop-blur rounded-full border border-line shadow-soft px-1 py-0.5 z-10">
+      <button onClick={() => onMover('arriba')} disabled={i === 0} className={ctrlBtn} aria-label="Mover arriba"><ChevronUp className="w-4 h-4" /></button>
+      <button onClick={() => onMover('abajo')} disabled={i === total - 1} className={ctrlBtn} aria-label="Mover abajo"><ChevronDown className="w-4 h-4" /></button>
+      {onEditar && <button onClick={onEditar} className={ctrlBtn} aria-label="Editar tarjeta"><Pencil className="w-4 h-4" /></button>}
+      <button onClick={onEliminar} className={`${ctrlBtn} hover:text-neg`} aria-label="Eliminar tarjeta"><Trash2 className="w-4 h-4" /></button>
+    </div>
   );
 }

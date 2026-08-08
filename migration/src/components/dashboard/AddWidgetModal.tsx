@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Card, CardHeader, Field, Button, inputCls } from '../ui';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
-import { METRIC_CATALOG, SECCION_CATALOG } from '../../engine/dashboardCatalog';
+import { METRIC_CATALOG, SECCION_CATALOG, resolveKey, resolveViz } from '../../engine/dashboardCatalog';
 import type { DashboardViz, DashboardWidget, MetricKey, SeccionKey } from '../../types/domain';
 
 const VIZ_LABEL: Record<DashboardViz, string> = { stat: 'Número', donut: 'Donut', bar: 'Barras', table: 'Tabla' };
@@ -24,12 +24,12 @@ export function AddWidgetModal({
   useEscapeClose(onClose);
   const [metricaKey, setMetricaKey] = useState<MetricKey | null>(editing?.metrica ?? null);
   const metricaDef = METRIC_CATALOG.find(m => m.key === metricaKey) ?? null;
-  const [viz, setViz] = useState<DashboardViz | null>(editing?.viz ?? null);
+  const [viz, setViz] = useState<DashboardViz | null>(editing ? resolveViz(editing.metrica, editing.viz) : null);
   const [titulo, setTitulo] = useState(editing?.titulo ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const seccionesUsadas = new Set(layout.filter(w => w.kind === 'seccion').map(w => w.seccion));
+  const seccionesUsadas = new Set(layout.filter(w => w.kind === 'seccion').map(w => resolveKey(w.seccion)));
   const seccionesDisponibles = SECCION_CATALOG.filter(s => !seccionesUsadas.has(s.key));
 
   const elegirMetrica = (key: MetricKey) => {
@@ -77,6 +77,7 @@ export function AddWidgetModal({
           )}
 
           <div className="p-4 space-y-4">
+            {err && <p className="text-xs text-neg">{err}</p>}
             {!editing && (
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-ink-600 font-semibold mb-2">Tarjeta a medida</p>
@@ -87,6 +88,7 @@ export function AddWidgetModal({
                       <div className="flex flex-wrap gap-2">
                         {metricas.map(m => (
                           <button key={m.key} disabled={busy} onClick={() => elegirMetrica(m.key)} title={m.descripcion || undefined}
+                            aria-pressed={metricaKey === m.key}
                             className={`px-3 py-1.5 rounded-full text-sm font-semibold border disabled:opacity-50 ${metricaKey === m.key ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300'}`}>
                             {m.titulo}
                           </button>
@@ -103,7 +105,7 @@ export function AddWidgetModal({
                 <Field label="Visualización">
                   <div className="flex flex-wrap gap-2">
                     {metricaDef.vizDisponibles.map(v => (
-                      <button key={v} disabled={busy} onClick={() => setViz(v)}
+                      <button key={v} disabled={busy} onClick={() => setViz(v)} aria-pressed={viz === v}
                         className={`px-3 py-1.5 rounded-full text-sm font-semibold border disabled:opacity-50 ${viz === v ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-800 hover:bg-canvas hover:border-celeste-300'}`}>
                         {VIZ_LABEL[v]}
                       </button>
@@ -113,7 +115,6 @@ export function AddWidgetModal({
                 <Field label="Título (opcional)" hint={`Default: "${metricaDef.titulo}"`}>
                   <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder={metricaDef.titulo} className={inputCls} maxLength={60} />
                 </Field>
-                {err && <p className="text-xs text-neg">{err}</p>}
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
                   <Button onClick={guardarMetrica} disabled={busy}>{editing ? 'Guardar' : 'Agregar tarjeta'}</Button>

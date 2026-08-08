@@ -61,9 +61,11 @@ describe('alertasDistribucion', () => {
 });
 
 describe('agruparPorTipo', () => {
+  // bono (300+150=450) < cedear (500) < ningún empate a propósito — el orden desc se prueba con
+  // valores DISTINTOS, no con el orden incidental de TODOS_LOS_TIPOS bajo un empate.
   const alloc = [
     { mkt: 300, tipo: 'bono' as const },
-    { mkt: 200, tipo: 'bono' as const },
+    { mkt: 150, tipo: 'bono' as const },
     { mkt: 500, tipo: 'cedear' as const },
     { mkt: 100, tipo: 'cash' as const },
   ];
@@ -71,7 +73,7 @@ describe('agruparPorTipo', () => {
   it('agrupa y suma por tipo, ordenado descendente por valor', () => {
     const grupos = agruparPorTipo(alloc);
     expect(grupos.map(g => g.tipo)).toEqual(['cedear', 'bono', 'cash']);
-    expect(grupos.find(g => g.tipo === 'bono')?.value).toBe(500);
+    expect(grupos.find(g => g.tipo === 'bono')?.value).toBe(450);
     expect(grupos.find(g => g.tipo === 'cedear')?.value).toBe(500);
   });
 

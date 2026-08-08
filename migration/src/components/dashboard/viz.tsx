@@ -4,17 +4,18 @@
 // usa la sección equivalente) y entrega acá solo el resultado tipado.
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useChartTheme } from '../../hooks/usePrefs';
-import { fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArsCompact } from '../ui';
+import { fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArsCompact, PIE_COLORS } from '../ui';
 import type { Formato, MetricValue, Tono } from '../../engine/dashboardCatalog';
 
-function fmtValor(n: number | null, format: Formato | undefined): string {
+function fmtValor(n: number | null, format: Formato | undefined, dp?: number): string {
   if (n == null) return '—';
   switch (format) {
-    case 'usd': return fmtUsd(n, 0);
+    case 'usd': return fmtUsd(n, dp ?? 0);
     case 'usd-compact': return fmtUsdCompact(n);
-    case 'pct': return fmtPct(n);
+    case 'pct': return fmtPct(n, dp ?? 1);
+    case 'int': return fmtNum(n, 0);
     case 'ars-compact': return fmtArsCompact(n);
-    default: return fmtNum(n, 2);
+    default: return fmtNum(n, dp ?? 2);
   }
 }
 
@@ -34,7 +35,7 @@ export function StatViz({ mv }: { mv: Extract<MetricValue, { status: 'ok'; shape
   return (
     <div className="p-4">
       <p className={`text-2xl font-bold font-display tnum ${TONO_CLASE[mv.tone ?? 'neutral']}`}>
-        {mv.label ?? fmtValor(mv.value, mv.format)}
+        {mv.label ?? fmtValor(mv.value, mv.format, mv.dp)}
       </p>
       {mv.sub && <p className="text-[11px] text-ink-500 mt-1">{mv.sub}</p>}
     </div>
@@ -50,7 +51,7 @@ export function DonutViz({ mv }: { mv: Extract<MetricValue, { status: 'ok'; shap
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={mv.items} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={40} outerRadius={68} paddingAngle={2} stroke="none">
-              {mv.items.map((it, i) => <Cell key={it.label} fill={it.color ?? `hsl(${(i * 47) % 360} 55% 55%)`} />)}
+              {mv.items.map((it, i) => <Cell key={it.label} fill={it.color ?? PIE_COLORS[i % PIE_COLORS.length]} />)}
             </Pie>
             <Tooltip formatter={(v: number, n: string) => [fmtValor(v, mv.format), n]}
               contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, color: chart.tooltipText, fontSize: 12 }} />
@@ -60,7 +61,7 @@ export function DonutViz({ mv }: { mv: Extract<MetricValue, { status: 'ok'; shap
       <div className="space-y-1.5">
         {mv.items.map((it, i) => (
           <div key={it.label} className="flex items-center gap-2 text-sm">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: it.color ?? `hsl(${(i * 47) % 360} 55% 55%)` }} />
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: it.color ?? PIE_COLORS[i % PIE_COLORS.length] }} />
             <span className="font-semibold text-ink-800 truncate">{it.label}</span>
             <span className="tnum text-ink-700 ml-auto">{total > 0 ? fmtPct(it.value / total, 0) : '—'}</span>
           </div>
@@ -80,9 +81,10 @@ export function BarViz({ mv }: { mv: Extract<MetricValue, { status: 'ok'; shape:
           <XAxis dataKey="label" stroke={chart.axis} fontSize={11} />
           <YAxis stroke={chart.axis} fontSize={11} tickFormatter={v => fmtValor(v, mv.format)} width={56} />
           <Tooltip formatter={(v: number) => fmtValor(v, mv.format)}
-            contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }} />
+            contentStyle={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 12, fontSize: 12, color: chart.tooltipText }}
+            cursor={{ fill: 'rgba(116,172,223,0.10)' }} />
           <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-            {mv.items.map((it, i) => <Cell key={it.label} fill={it.color ?? `hsl(${(i * 47) % 360} 55% 55%)`} />)}
+            {mv.items.map((it, i) => <Cell key={it.label} fill={it.color ?? PIE_COLORS[i % PIE_COLORS.length]} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

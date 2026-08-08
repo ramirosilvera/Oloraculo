@@ -25,12 +25,15 @@ import { supabase } from './supabase';
 // v7: agrega amortizaciones_programadas (cronograma manual de cuotas FUTURAS, solo para la
 // proyección de Cupones — ver 0028_amortizaciones_programadas.sql). Tabla nueva (no columnas sobre
 // una ya incluida, como los 2 casos de arriba), así que SÍ hace falta sumarla a TABLAS.
-export const BACKUP_VERSION = 7;
+// v8: agrega dashboard_layout (layout del Dashboard personalizable — qué tarjetas, en qué orden. Ver
+// 0029_dashboard_layout.sql). Tabla nueva, 1 fila JSONB por usuario (no por portfolio, mismo criterio
+// que flujo_items) — mismo motivo que v7, hace falta sumarla a TABLAS explícitamente.
+export const BACKUP_VERSION = 8;
 
 const TABLAS = [
   'portfolios', 'brokers', 'posiciones', 'posicion_brokers', 'movimientos', 'aportes', 'portfolio_snapshots',
   'flujo_items', 'dcf_inputs', 'proyeccion_inputs', 'cobros', 'cobros_inversiones', 'transferencias',
-  'amortizaciones_programadas', 'cik_map', 'watchlist', 'analisis_ia', 'profiles',
+  'amortizaciones_programadas', 'dashboard_layout', 'cik_map', 'watchlist', 'analisis_ia', 'profiles',
 ] as const;
 
 export interface BackupResult {

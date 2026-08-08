@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   METRIC_CATALOG, SECCION_CATALOG, DEFAULT_LAYOUT, ALIASES,
   resolveKey, getMetricDef, getSeccionDef, resolveViz,
@@ -63,6 +63,13 @@ describe('DEFAULT_LAYOUT', () => {
 });
 
 describe('resolveKey / getMetricDef / getSeccionDef', () => {
+  // ALIASES es un singleton a nivel de módulo — si un assert de acá arriba tirara antes del
+  // `delete`, la mutación quedaba pegada para el resto de los tests del archivo. afterEach la
+  // limpia siempre, pase lo que pase adentro del test.
+  afterEach(() => {
+    for (const k of Object.keys(ALIASES)) delete ALIASES[k];
+  });
+
   it('sin alias: devuelve la key tal cual', () => {
     expect(resolveKey('bonos_capital')).toBe('bonos_capital');
   });
@@ -71,7 +78,6 @@ describe('resolveKey / getMetricDef / getSeccionDef', () => {
     ALIASES['vieja_key'] = 'bonos_capital';
     expect(resolveKey('vieja_key')).toBe('bonos_capital');
     expect(getMetricDef('vieja_key')?.key).toBe('bonos_capital');
-    delete ALIASES['vieja_key'];
   });
 
   it('key inexistente: undefined, no revienta', () => {

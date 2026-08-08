@@ -38,12 +38,11 @@ const TIPO_COLOR: Record<AssetType, string> = {
 };
 const TODOS_LOS_TIPOS: AssetType[] = ['cedear', 'accion', 'accion_ar', 'etf', 'bono', 'cash'];
 
-// Etiqueta/color de cada categoría — mismos valores que ya usa el donut de Distribución en el
-// Dashboard (CATEGORIA_LABEL/CATEGORIA_COLOR locales de DashboardPage.tsx, no tocados acá para no
-// arriesgar esa pantalla ya en producción); esta copia es para el widget atómico "Distribución por
-// categoría" del Dashboard personalizable, que sí puede depender del engine directamente.
-const CATEGORIA_LABEL: Record<CategoriaPatrimonio, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
-const CATEGORIA_COLOR: Record<CategoriaPatrimonio, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
+// Etiqueta/color de cada categoría — única fuente (antes duplicada como constante local en
+// DashboardPage.tsx); tanto el donut de Distribución como el widget atómico "Distribución por
+// categoría" del Dashboard personalizable importan estas mismas dos constantes.
+export const CATEGORIA_LABEL: Record<CategoriaPatrimonio, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
+export const CATEGORIA_COLOR: Record<CategoriaPatrimonio, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
 const TODAS_LAS_CATEGORIAS: CategoriaPatrimonio[] = ['variable', 'fija', 'liquidez'];
 
 export interface GrupoCategoria { categoria: CategoriaPatrimonio; label: string; color: string; value: number }

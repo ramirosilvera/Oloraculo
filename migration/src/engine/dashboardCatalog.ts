@@ -14,7 +14,7 @@
 import type { DashboardWidget, DashboardViz, MetricKey, SeccionKey } from '../types/domain';
 
 export type MetricShape = 'scalar' | 'categorico';
-export type Formato = 'usd' | 'usd-compact' | 'pct' | 'num' | 'ars-compact';
+export type Formato = 'usd' | 'usd-compact' | 'pct' | 'num' | 'int' | 'ars-compact';
 export type Tono = 'pos' | 'neg' | 'warn' | 'neutral';
 
 export interface MetricDef {
@@ -113,5 +113,9 @@ export function resolveViz(metricKey: string, viz: DashboardViz): DashboardViz {
 export type MetricValue =
   | { status: 'loading' }
   | { status: 'empty'; motivo: string }
-  | { status: 'ok'; shape: 'scalar'; value: number | null; label?: string; sub?: string; format?: Formato; tone?: Tono }
+  // `dp` override opcional: por default cada `format` tiene su propia precisión (fmtValor en
+  // viz.tsx), pero cuando la MISMA métrica también se ve en su sección original con otra precisión
+  // (ej. "TIR promedio" en BonosResumen usa 1 decimal), se pasa acá para que no se vean dos números
+  // distintos del mismo dato en la misma página.
+  | { status: 'ok'; shape: 'scalar'; value: number | null; label?: string; sub?: string; format?: Formato; dp?: number; tone?: Tono }
   | { status: 'ok'; shape: 'categorico'; items: { label: string; value: number; color?: string }[]; format?: Formato };

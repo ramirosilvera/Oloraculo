@@ -14,11 +14,15 @@ export function useIsDark(): boolean {
 }
 
 // Colores para gráficos recharts según tema (recharts no resuelve CSS vars en atributos SVG).
+// pos/warn/neg acá son los MISMOS hex que --pos/--warn/--neg en index.css por modo (recharts no
+// puede resolver `rgb(var(--pos))` en un atributo SVG fill, necesita el hex ya resuelto) — para que
+// un semáforo/estado en un chart use el mismo verde/ámbar/rojo que el resto de la UI (badges,
+// texto), no un color de paleta categórica que por casualidad se le parece.
 export function useChartTheme() {
   const dark = useIsDark();
   return dark
-    ? { grid: '#263144', axis: '#96A3B2', tooltipBg: '#161D2D', tooltipBorder: '#263144', tooltipText: '#EDF2F8', line2: '#475466' }
-    : { grid: '#E4ECF4', axis: '#5C6A7D', tooltipBg: '#FFFFFF', tooltipBorder: '#E4ECF4', tooltipText: '#14212E', line2: '#C4CEDB' };
+    ? { grid: '#263144', axis: '#96A3B2', tooltipBg: '#161D2D', tooltipBorder: '#263144', tooltipText: '#EDF2F8', line2: '#475466', pos: '#15A34A', warn: '#E0952B', neg: '#E14B4B' }
+    : { grid: '#E4ECF4', axis: '#5C6A7D', tooltipBg: '#FFFFFF', tooltipBorder: '#E4ECF4', tooltipText: '#14212E', line2: '#C4CEDB', pos: '#15803D', warn: '#B45309', neg: '#DC2626' };
 }
 
 type Theme = 'light' | 'dark';

@@ -18,7 +18,7 @@ import { useRadarTicker } from '../hooks/useRadarTicker';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos, alertasBonos } from '../hooks/useBonos';
 import { useCedearsCalc, resumenCedears, useObjetivoConcentracion, alertasCedears } from '../hooks/useCedears';
 import { CONCENTRACION_POSICION_ALERTA, HHI_SECTOR_ALERTA } from '../engine/cedears';
-import { categoriaDe, pctRentaFija, alertasDistribucion, type CategoriaPatrimonio } from '../engine/distribucion';
+import { categoriaDe, pctRentaFija, alertasDistribucion, CATEGORIA_LABEL, CATEGORIA_COLOR, type CategoriaPatrimonio } from '../engine/distribucion';
 import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
@@ -176,10 +176,17 @@ export function DashboardPage() {
   }, [active?.id, datosListos, patrimonio, aportadoNeto, snaps, hoy, record]);
 
   // ── Dashboard personalizable: agregar/quitar/reordenar tarjetas ───────────────
-  const { widgets: layout, agregar, agregarSeccion, actualizar, eliminar, mover } = useDashboardLayout();
+  const { widgets: layout, agregar, agregarSeccion, actualizar, eliminar, mover, restaurarDefault } = useDashboardLayout();
   const [personalizando, setPersonalizando] = useState(false);
   const [agregando, setAgregando] = useState(false);
   const [editando, setEditando] = useState<Extract<DashboardWidget, { kind: 'metrica' }> | null>(null);
+  const [layoutErr, setLayoutErr] = useState<string | null>(null);
+  // mover/eliminar no tienen feedback propio (a diferencia del modal, que maneja su error inline) —
+  // sin este catch, un fallo de red dejaba el click sin ningún efecto visible ni explicación.
+  const conFeedback = (accion: () => Promise<void>) => {
+    setLayoutErr(null);
+    accion().catch(e => setLayoutErr(e instanceof Error ? e.message : 'No se pudo guardar el cambio.'));
+  };
 
   // Contexto compartido para las tarjetas atómicas de "Cartera" (distribución) — mismo alloc/
   // patrimonio que ya usan el Hero y la sección Distribución, nunca recalculado distinto.
@@ -243,14 +250,17 @@ export function DashboardPage() {
       {/* Cuerpo personalizable: agregar/quitar/reordenar tarjetas — ver components/dashboard/. El
           Hero y las Alertas de arriba quedan siempre fijos (identidad de la página / seguridad, no
           contenido opcional); Administración queda fija abajo (gateada por rol, no es una preferencia). */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-sm font-bold text-ink-700 font-display">Tus tarjetas</h2>
         <div className="flex items-center gap-2">
           {personalizando && (
-            <button onClick={() => setAgregando(true)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-celeste-600 hover:underline">
-              <Plus className="w-3.5 h-3.5" /> Agregar tarjeta
-            </button>
+            <>
+              <button onClick={() => setAgregando(true)}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-celeste-600 hover:underline">
+                <Plus className="w-3.5 h-3.5" /> Agregar tarjeta
+              </button>
+              <RestaurarDefault onRestaurar={() => conFeedback(restaurarDefault)} />
+            </>
           )}
           <button onClick={() => setPersonalizando(p => !p)}
             className={`inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-3 py-1.5 border ${personalizando ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-700 hover:bg-canvas'}`}>
@@ -260,13 +270,15 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {layoutErr && <p className="text-[11px] text-neg">{layoutErr}</p>}
+
       <WidgetGrid layout={layout} seccionNodes={seccionNodes} ctx={metricCtx} personalizando={personalizando}
-        onMover={(id, dir) => void mover(id, dir)}
-        onEliminar={id => void eliminar(id)}
+        onMover={(id, dir) => conFeedback(() => mover(id, dir))}
+        onEliminar={id => conFeedback(() => eliminar(id))}
         onEditar={w => setEditando(w)} />
 
       {(agregando || editando) && (
-        <AddWidgetModal layout={layout} editing={editando}
+        <AddWidgetModal key={editando?.id ?? 'nuevo'} layout={layout} editing={editando}
           onClose={() => { setAgregando(false); setEditando(null); }}
           onAgregarMetrica={(metrica, viz, titulo) => agregar({ kind: 'metrica', metrica, viz, titulo })}
           onAgregarSeccion={agregarSeccion}
@@ -357,6 +369,27 @@ function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
   );
 }
 
+// Botón "Restaurar predeterminado" del modo Personalizar — confirmación en 2 clicks in-place (no
+// window.confirm nativo, para mantener el mismo look del resto de la app) porque reemplaza TODO el
+// layout guardado del usuario, a diferencia de mover/eliminar 1 tarjeta.
+function RestaurarDefault({ onRestaurar }: { onRestaurar: () => void }) {
+  const [confirmando, setConfirmando] = useState(false);
+  if (confirmando) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px]">
+        <span className="text-ink-600">¿Restaurar todo?</span>
+        <button onClick={() => { onRestaurar(); setConfirmando(false); }} className="font-semibold text-neg hover:underline">Sí, restaurar</button>
+        <button onClick={() => setConfirmando(false)} className="text-ink-500 hover:underline">Cancelar</button>
+      </span>
+    );
+  }
+  return (
+    <button onClick={() => setConfirmando(true)} className="text-[11px] font-semibold text-ink-500 hover:text-ink-700 hover:underline">
+      Restaurar predeterminado
+    </button>
+  );
+}
+
 // Resumen de CEDEARs: capital, concentración (mayor posición + HHI sectorial) y diversificación
 // (sectores distintos). Mismo cálculo que CedearsPage (useCedearsCalc + resumenCedears
 // compartidos) así los dos lugares nunca muestran números distintos.
@@ -402,14 +435,13 @@ function BonosResumen() {
   const { active } = usePortfolios();
   const { bonos, bonosCalc, isLoading } = useBonosCalc(active?.id);
   const { maxDuracionAnios } = useObjetivoDuracion(active?.id);
-  // Mismo risk-free que AlertasResumen/BonosPage — sin esto, tirPromedio/spreadPromedio salían
-  // consistentes pero el spread quedaba siempre null acá (única diferencia real de omitir riskFree).
-  const { data: macro = {} } = useMacro();
-  const riskFree = (macro as Record<string, number | null>).dgs10 != null ? (macro as Record<string, number | null>).dgs10! / 100 : null;
 
   if (isLoading || bonos.length === 0) return null;
 
-  const { totalMkt, duracionPromedio, tirPromedio, distribucionGrado } = resumenBonos(bonosCalc, riskFree);
+  // Sin riskFree: esta tarjeta no muestra spreadPromedio (el único campo que ese parámetro afecta —
+  // ver AlertasResumen, que sí lo pasa porque alertasBonos() lo necesita para la alerta de spread
+  // negativo). Pasarlo acá sin usarlo agregaría una suscripción a useMacro() sin ningún efecto visible.
+  const { totalMkt, duracionPromedio, tirPromedio, distribucionGrado } = resumenBonos(bonosCalc);
   const cumpleObjetivo = duracionPromedio != null && duracionPromedio <= maxDuracionAnios;
 
   return (
@@ -517,8 +549,6 @@ function AdminResumen() {
 
 // Etiquetas/colores presentacionales de cada categoría — la clasificación en sí (categoriaDe) vive
 // en engine/distribucion.ts, compartida con el cálculo de la alerta de renta fija consolidada.
-const CATEGORIA_LABEL: Record<CategoriaPatrimonio, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
-const CATEGORIA_COLOR: Record<CategoriaPatrimonio, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
 const DEFAULT_OBJETIVO_FIJA_PCT = 30;
 const DEFAULT_TOLERANCIA_DISTRIBUCION_PCT = 10;
 
