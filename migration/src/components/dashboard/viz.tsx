@@ -4,7 +4,7 @@
 // usa la sección equivalente) y entrega acá solo el resultado tipado.
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useChartTheme } from '../../hooks/usePrefs';
-import { fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArsCompact, PIE_COLORS } from '../ui';
+import { fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArsCompact, PIE_COLORS, Stat } from '../ui';
 import type { Formato, MetricValue, Tono } from '../../engine/dashboardCatalog';
 
 function fmtValor(n: number | null, format: Formato | undefined, dp?: number): string {
@@ -39,6 +39,22 @@ export function StatViz({ mv }: { mv: Extract<MetricValue, { status: 'ok'; shape
       </p>
       {mv.sub && <p className="text-[11px] text-ink-500 mt-1">{mv.sub}</p>}
     </div>
+  );
+}
+
+// Tile chico para tarjetas combinadas (2+ métricas en una sola Card) — reusa el mismo `Stat` de
+// ui.tsx que ya arma la grilla de 4 números de CedearsResumen/BonosResumen, así una tarjeta
+// combinada se ve exactamente igual que la grilla nativa de esas secciones. Solo maneja `scalar`
+// (el constructor de tarjetas solo deja combinar métricas escalares) — el caso `categorico` es
+// defensivo, no debería alcanzarse nunca en uso normal.
+export function StatCompactoViz({ titulo, mv }: { titulo: string; mv: MetricValue }) {
+  if (mv.status === 'loading') return <Stat label={titulo} value="…" />;
+  if (mv.status === 'empty') return <Stat label={titulo} value={<span className="text-ink-500">—</span>} hint={mv.motivo} />;
+  if (mv.shape !== 'scalar') return <Stat label={titulo} value={<span className="text-ink-500">—</span>} />;
+  return (
+    <Stat label={titulo}
+      value={<span className={TONO_CLASE[mv.tone ?? 'neutral']}>{mv.label ?? fmtValor(mv.value, mv.format, mv.dp)}</span>}
+      hint={mv.sub} />
   );
 }
 

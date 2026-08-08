@@ -2,19 +2,35 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { DEFAULT_LAYOUT } from '../engine/dashboardCatalog';
-import type { DashboardWidget, SeccionKey } from '../types/domain';
+import type { DashboardWidget, SeccionKey, MetricKey, DashboardViz } from '../types/domain';
 
-// Chequeo de forma mínimo (no valida que `metrica`/`seccion` existan en el catálogo — eso lo hace
-// WidgetGrid en cada render, porque el catálogo puede cambiar con el tiempo; acá solo se descarta lo
-// que ni siquiera tiene la forma de un widget) — protege contra una fila corrupta (drift de schema,
-// edición manual) tirando abajo toda la página al hacer `.map()` sobre algo que no es un array.
-function esWidgetValido(w: unknown): w is DashboardWidget {
-  if (!w || typeof w !== 'object') return false;
+// Convierte una fila cruda del JSONB a un DashboardWidget válido, o `null` si no se puede — NUNCA
+// un simple type-guard booleano: un guard como `w is DashboardWidget` puede devolver `true` sobre un
+// objeto que en realidad no tiene la forma nueva (ver el caso `metrica` de abajo), y ese objeto
+// mentiroso pasaría intacto a WidgetGrid, que rompe al hacer `.map()` sobre un campo que no existe.
+// Acá se CONSTRUYE el objeto nuevo explícitamente, así no hay forma de que la validación mienta.
+//
+// Compat: layouts guardados ANTES de la selección múltiple tenían `{metrica: "x"}` (string), no
+// `{metricas: ["x"]}` (array) — se normalizan en esta misma función, así un layout viejo sigue
+// funcionando sin necesitar una migración de datos; el próximo guardado ya escribe el shape nuevo.
+function normalizarWidget(w: unknown): DashboardWidget | null {
+  if (!w || typeof w !== 'object') return null;
   const o = w as Record<string, unknown>;
-  if (typeof o.id !== 'string') return false;
-  if (o.kind === 'seccion') return typeof o.seccion === 'string';
-  if (o.kind === 'metrica') return typeof o.metrica === 'string' && typeof o.viz === 'string';
-  return false;
+  if (typeof o.id !== 'string') return null;
+  if (o.kind === 'seccion') {
+    return typeof o.seccion === 'string' ? { id: o.id, kind: 'seccion', seccion: o.seccion as SeccionKey } : null;
+  }
+  if (o.kind === 'metrica') {
+    if (typeof o.viz !== 'string') return null;
+    const metricasRaw = Array.isArray(o.metricas) && o.metricas.every(m => typeof m === 'string') ? o.metricas as string[]
+      : typeof o.metrica === 'string' ? [o.metrica] // legacy: 1 sola métrica en un campo singular
+      : null;
+    if (!metricasRaw) return null;
+    const metricas = [...new Set(metricasRaw)] as MetricKey[]; // dedupe — una key repetida rompería las keys de React en el grid del combo
+    if (metricas.length === 0) return null;
+    return { id: o.id, kind: 'metrica', metricas, viz: o.viz as DashboardViz, titulo: typeof o.titulo === 'string' ? o.titulo : undefined };
+  }
+  return null;
 }
 
 // `null` = no hay nada usable (la columna no es ni siquiera un array) → el caller cae a
@@ -25,9 +41,10 @@ function parseWidgets(raw: unknown): DashboardWidget[] | null {
   const vistos = new Set<string>();
   const out: DashboardWidget[] = [];
   for (const item of raw) {
-    if (!esWidgetValido(item) || vistos.has(item.id)) continue; // ids duplicados → keys de React rotas
-    vistos.add(item.id);
-    out.push(item);
+    const w = normalizarWidget(item);
+    if (!w || vistos.has(w.id)) continue; // ids duplicados → keys de React rotas
+    vistos.add(w.id);
+    out.push(w);
   }
   return out;
 }
@@ -87,7 +104,10 @@ export function useDashboardLayout() {
       mutate(prev => [...prev, { ...w, id: crypto.randomUUID() }]),
     agregarSeccion: (seccion: SeccionKey) =>
       mutate(prev => [...prev, { id: crypto.randomUUID(), kind: 'seccion', seccion }]),
-    actualizar: (id: string, patch: Partial<Omit<Extract<DashboardWidget, { kind: 'metrica' }>, 'id' | 'kind' | 'metrica'>>) =>
+    // Deliberadamente 'id'|'kind' (no también 'metrica', que ya ni existe en el tipo) — así
+    // `metricas` SÍ es patcheable, necesario para poder agregar/quitar métricas de una tarjeta combo
+    // ya guardada sin tener que borrarla y rearmarla desde cero.
+    actualizar: (id: string, patch: Partial<Omit<Extract<DashboardWidget, { kind: 'metrica' }>, 'id' | 'kind'>>) =>
       mutate(prev => prev.map(w => (w.id === id && w.kind === 'metrica' ? { ...w, ...patch } : w))),
     eliminar: (id: string) => mutate(prev => prev.filter(w => w.id !== id)),
     mover: (id: string, dir: 'arriba' | 'abajo') => mutate(prev => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2, Wallet } from 'lucide-react';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { useAportes, useAporteMutations } from '../hooks/useAportes';
+import { resumenAportes } from '../engine/aportes';
 import { Card, CardHeader, Button, Badge, Field, Empty, inputCls, fmtUsd } from '../components/ui';
 import type { Aporte, AporteTipo } from '../types/domain';
 
@@ -19,9 +20,7 @@ export function AportesPage() {
     monto: '', fecha: new Date().toISOString().slice(0, 10), tipo: 'recurrente', descripcion: '',
   });
 
-  const aportado = aportes.filter(a => a.tipo !== 'retiro').reduce((s, a) => s + a.monto, 0);
-  const retirado = aportes.filter(a => a.tipo === 'retiro').reduce((s, a) => s + a.monto, 0);
-  const neto = aportado - retirado;
+  const { aportado, retirado, neto } = resumenAportes(aportes);
 
   const borrar = async (a: Aporte) => {
     if (!window.confirm(`¿Borrar el aporte de ${fmtUsd(a.monto)} del ${a.fecha}?`)) return;

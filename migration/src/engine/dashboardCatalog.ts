@@ -49,6 +49,10 @@ export const SECCION_CATALOG: SeccionDef[] = [
   { key: 'cobros', titulo: 'Cobros', descripcion: 'Dividendos, intereses y amortizaciones cobrados + próximo capital proyectado.' },
   { key: 'liquidez_fci', titulo: 'Liquidez & FCI', descripcion: 'Fondos y billetera en pesos — compartido entre todos tus portfolios.' },
   { key: 'macro', titulo: 'Contexto macro', descripcion: 'Semáforos de mercado, de un vistazo.' },
+  // No está en DEFAULT_LAYOUT a propósito — se suma al catálogo (seleccionable desde "Agregar
+  // tarjeta") pero no aparece sola en el layout de nadie que nunca personalizó, para no cambiarle la
+  // vista a un usuario existente sin que lo haya pedido.
+  { key: 'aportes', titulo: 'Aportes', descripcion: 'Capital aportado y retirado del portfolio — lo que mueve la TIR, no el rendimiento de mercado.' },
 ];
 
 export const METRIC_CATALOG: MetricDef[] = [
@@ -67,6 +71,8 @@ export const METRIC_CATALOG: MetricDef[] = [
   { key: 'cobros_disponible', categoria: 'Cobros', titulo: 'Disponible para reinvertir', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/cupones' },
   { key: 'macro_semaforos', categoria: 'Macro', titulo: 'Semáforos macro', descripcion: 'Cuántos indicadores en verde / atención / estrés.', shape: 'categorico', vizDisponibles: ['donut', 'bar'], vizDefault: 'donut', detalleHref: '/macro' },
   { key: 'liquidez_fci', categoria: 'Liquidez', titulo: 'FCI + billetera', descripcion: 'En pesos — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
+  { key: 'liquidez_disponible', categoria: 'Liquidez', titulo: 'Disponible', descripcion: 'Ingresos menos egresos del flujo de caja — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
+  { key: 'liquidez_sin_asignar', categoria: 'Liquidez', titulo: 'Sin asignar', descripcion: 'Disponible que todavía no se colocó en ningún destino — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat', detalleHref: '/finanzas' },
 ];
 
 // Layout que hoy está hardcodeado en el Dashboard — se usa cuando el usuario todavía no personalizó

@@ -142,7 +142,7 @@ export interface CobroInversion {
 // engine/dashboardCatalog.ts para el catálogo de secciones/métricas y el layout default.
 export type SeccionKey =
   | 'objetivo_capital' | 'rendimiento_por_anio' | 'distribucion' | 'cedears' | 'bonos' | 'radar'
-  | 'patrimonio_broker' | 'cobros' | 'liquidez_fci' | 'macro';
+  | 'patrimonio_broker' | 'cobros' | 'liquidez_fci' | 'macro' | 'aportes';
 
 export type MetricKey =
   | 'distribucion_categoria' | 'distribucion_tipo_activo'
@@ -151,16 +151,19 @@ export type MetricKey =
   | 'radar_compra_agresiva'
   | 'cobros_total' | 'cobros_disponible'
   | 'macro_semaforos'
-  | 'liquidez_fci';
+  | 'liquidez_fci' | 'liquidez_disponible' | 'liquidez_sin_asignar';
 
 export type DashboardViz = 'stat' | 'donut' | 'bar' | 'table';
 
 // `kind:'seccion'` envuelve un componente YA EXISTENTE tal cual (mismos hooks, mismo cálculo, sin
-// cambios) — agregar/quitar/reordenar. `kind:'metrica'` es la tarjeta atómica libre: una métrica del
-// catálogo + una visualización compatible, con título opcional (default = el del catálogo).
+// cambios) — agregar/quitar/reordenar. `kind:'metrica'` es la tarjeta atómica libre: una o más
+// métricas del catálogo (`metricas.length > 1` = tarjeta combinada, solo entre métricas `scalar` —
+// se renderizan como una grilla de números dentro de una sola Card, no hay selección de
+// visualización) + una visualización compatible cuando es una sola, con título opcional (default =
+// el del catálogo, o la unión de títulos si es una combinación sin título propio).
 export type DashboardWidget =
   | { id: string; kind: 'seccion'; seccion: SeccionKey }
-  | { id: string; kind: 'metrica'; metrica: MetricKey; viz: DashboardViz; titulo?: string };
+  | { id: string; kind: 'metrica'; metricas: MetricKey[]; viz: DashboardViz; titulo?: string };
 
 export interface DashboardLayout {
   user_id: string;

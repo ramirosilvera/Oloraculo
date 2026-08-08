@@ -5,19 +5,24 @@
 // agrega varias tarjetas de la misma familia (ej. 2 métricas de CEDEARs), el hook subyacente
 // (useCedearsCalc) se pide una sola vez igual — no hace falta un store central para evitar refetching.
 //
-// Cada componente arma su PROPIO <Card><CardHeader/></Card> vía el helper MetricCard de abajo —
-// mismo patrón que las secciones (CedearsResumen, etc.), con badge/tono/link "Ver detalle →" que
-// reusan EXACTAMENTE el mismo hook/constante que ya usa la sección equivalente para lo mismo. Esto
-// es deliberado: WidgetGrid arma el CardHeader de una sección ANTES de conocer sus datos (mira
+// Cada componente termina en MetricShell (abajo) — mismo patrón que las secciones (CedearsResumen,
+// etc.) para el modo normal: arma su propio Card+CardHeader con badge/tono/link "Ver detalle →" que
+// reusan EXACTAMENTE el mismo hook/constante que ya usa la sección equivalente para lo mismo. Esto es
+// deliberado: WidgetGrid arma el CardHeader de una sección ANTES de conocer sus datos (mira
 // seccionNodes, ya renderizado); para que una tarjeta atómica tenga un badge que depende de datos
 // que solo ELLA calcula, tiene que armar su propio header — la alternativa (que WidgetGrid llame un
 // hook por widget dentro de un .map()) viola las reglas de hooks.
+//
+// MetricShell TAMBIÉN sabe pintarse "compacto" (una tarjeta combinando 2+ métricas escalares en una
+// sola Card — ver MetricWidgetRenderer al final) leyendo un Context en vez de un prop: así ningún
+// componente puede "olvidarse" de manejar el modo combo (no hay una rama que alguien tenga que
+// acordarse de escribir en cada uno de los 15) — el chequeo vive en UN solo lugar.
 //
 // `ctx` es SOLO para las 2 métricas de "Cartera" (distribución), que no tienen un hook propio — usan
 // `alloc`/`patrimonio` ya calculados por el componente principal del Dashboard (mismo dato que el
 // Hero y la sección Distribución), pasados por prop para no duplicar ni tocar ese cálculo sensible
 // (alimenta el registro histórico de rendimiento — ver DashboardPage.tsx).
-import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Flame } from 'lucide-react';
 import { usePortfolios } from '../../hooks/usePortfolios';
@@ -39,8 +44,8 @@ import { resumenFlujo } from '../../engine/flujo';
 import { SEMAFOROS, resumenMacro, type Lectura } from '../../engine/semaforos';
 import { agruparPorCategoria, agruparPorTipo } from '../../engine/distribucion';
 import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond } from '../../engine/coupons';
-import { LoadingViz, EmptyViz, StatViz, DonutViz, BarViz, TableViz } from './viz';
-import type { MetricValue } from '../../engine/dashboardCatalog';
+import { LoadingViz, EmptyViz, StatViz, StatCompactoViz, DonutViz, BarViz, TableViz } from './viz';
+import { getMetricDef, resolveViz, type MetricValue } from '../../engine/dashboardCatalog';
 import type { AssetType, DashboardViz, MetricKey } from '../../types/domain';
 
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -51,17 +56,25 @@ export interface MetricContext {
   isLoading: boolean;
 }
 
-// `titulo`/`sub`/`detalleHref` ya resueltos por WidgetGrid (a partir del catálogo — nunca un string
-// repetido a mano acá, para que no se pueda escribir la key de una métrica distinta por error al
-// copiar/pegar un componente). `personalizando`: mientras se edita el layout, el link "Ver detalle →"
-// se suprime (un click ahí navega fuera del Dashboard a mitad de una reordenada) — el badge, si lo
-// hay, se mantiene pero deja de ser clickeable.
+// `titulo`/`sub`/`detalleHref` ya resueltos por quien renderiza (WidgetGrid para 1 sola métrica,
+// MetricWidgetRenderer para una combinación — ver el final del archivo) a partir del catálogo, nunca
+// un string repetido a mano en cada componente. `personalizando`: mientras se edita el layout, el
+// link "Ver detalle →" se suprime (un click ahí navega fuera del Dashboard a mitad de una
+// reordenada) — el badge, si lo hay, se mantiene pero deja de ser clickeable.
 export type MetricComponent = ComponentType<{ ctx: MetricContext; viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }>;
 
-// Card+CardHeader compartido por las 15 tarjetas — mismo borde/spacing que las secciones, para que
-// una tarjeta atómica y una de sección se vean como parte del mismo sistema, no como dos productos.
-function MetricCard({ titulo, sub, right, children }: { titulo: string; sub?: string; right?: ReactNode; children: ReactNode }) {
-  return <Card><CardHeader title={titulo} sub={sub} right={right} />{children}</Card>;
+// 'card' (default): cada componente es dueño de su propia Card+CardHeader, como las secciones.
+// 'compacto': el componente vive DENTRO de la Card de otro (una tarjeta combinada) — se pinta como
+// un tile chico sin su propio borde/header/badge/link. Se lee vía Context, no vía prop, para que sea
+// estructuralmente imposible que un componente "se olvide" de respetarlo (ver MetricShell).
+const MetricModoContext = createContext<'card' | 'compacto'>('card');
+
+// Frame compartido por las 15 tarjetas — mismo borde/spacing que las secciones en modo 'card'; en
+// modo 'compacto' ignora `sub`/`right` (no tienen lugar en un tile chico) y pinta un Stat mini.
+function MetricShell({ titulo, sub, right, mv, viz }: { titulo: string; sub?: string; right?: ReactNode; mv: MetricValue; viz: DashboardViz }) {
+  const modo = useContext(MetricModoContext);
+  if (modo === 'compacto') return <StatCompactoViz titulo={titulo} mv={mv} />;
+  return <Card><CardHeader title={titulo} sub={sub} right={right} /><Render mv={mv} viz={viz} /></Card>;
 }
 
 // "Ver detalle →" — mismo texto/estilo que usa cada sección para su propio link. `null` cuando la
@@ -80,7 +93,8 @@ function BadgeConLink({ href, personalizando, children }: { href: string | undef
 }
 
 // Pinta un MetricValue con el renderer que corresponda a `viz` — separa "qué número es" (calculado
-// arriba, siempre igual) de "cómo se ve" (elegido por el usuario al armar la tarjeta).
+// arriba, siempre igual) de "cómo se ve" (elegido por el usuario al armar la tarjeta). Se usa SOLO en
+// modo 'card' (MetricShell) — el modo 'compacto' pasa directo por StatCompactoViz.
 function Render({ mv, viz }: { mv: MetricValue; viz: DashboardViz }) {
   if (mv.status === 'loading') return <LoadingViz />;
   if (mv.status === 'empty') return <EmptyViz motivo={mv.motivo} />;
@@ -97,7 +111,7 @@ function DistribucionCategoriaMetric({ ctx, viz, titulo, sub }: { ctx: MetricCon
   const mv: MetricValue = ctx.isLoading ? { status: 'loading' }
     : grupos.length === 0 ? { status: 'empty', motivo: 'Sin posiciones valuadas todavía.' }
     : { status: 'ok', shape: 'categorico', format: 'usd-compact', items: grupos.map(g => ({ label: g.label, value: g.value, color: g.color })) };
-  return <MetricCard titulo={titulo} sub={sub}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} mv={mv} viz={viz} />;
 }
 
 function DistribucionTipoActivoMetric({ ctx, viz, titulo, sub }: { ctx: MetricContext; viz: DashboardViz; titulo: string; sub?: string }) {
@@ -105,7 +119,7 @@ function DistribucionTipoActivoMetric({ ctx, viz, titulo, sub }: { ctx: MetricCo
   const mv: MetricValue = ctx.isLoading ? { status: 'loading' }
     : grupos.length === 0 ? { status: 'empty', motivo: 'Sin posiciones valuadas todavía.' }
     : { status: 'ok', shape: 'categorico', format: 'usd-compact', items: grupos.map(g => ({ label: g.label, value: g.value, color: g.color })) };
-  return <MetricCard titulo={titulo} sub={sub}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} mv={mv} viz={viz} />;
 }
 
 // ── CEDEARs (useCedearsCalc, igual que CedearsResumen/CedearsPage) ────────────
@@ -120,7 +134,7 @@ function CedearsCapitalMetric({ viz, titulo, sub, detalleHref, personalizando }:
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen ? { status: 'empty', motivo: 'Sin CEDEARs en este portfolio.' }
     : { status: 'ok', shape: 'scalar', value: resumen.totalMkt, format: 'usd-compact' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 function CedearsMayorPosicionMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
@@ -133,7 +147,7 @@ function CedearsMayorPosicionMetric({ viz, titulo, sub, detalleHref, personaliza
         label: `${resumen.mayorPosicion.ticker} · ${fmtPct(resumen.mayorPosicion.pct, 0)}`,
         tone: resumen.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA ? 'warn' : 'neutral',
       };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 function CedearsPorSectorMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
@@ -163,7 +177,7 @@ function CedearsPorSectorMetric({ viz, titulo, sub, detalleHref, personalizando 
         <Badge tone={mayorSector.pct * 100 >= concentracionSectorPct ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
       </BadgeConLink>
     : <VerDetalle href={detalleHref} personalizando={personalizando} />;
-  return <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={right} mv={mv} viz={viz} />;
 }
 
 // ── Bonos (useBonosCalc, igual que BonosResumen/BonosPage) ────────────────────
@@ -180,7 +194,7 @@ function BonosCapitalMetric({ viz, titulo, sub, detalleHref, personalizando }: {
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen ? { status: 'empty', motivo: 'Sin bonos en este portfolio.' }
     : { status: 'ok', shape: 'scalar', value: resumen.totalMkt, format: 'usd-compact' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 function BonosTirPromedioMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
@@ -188,7 +202,7 @@ function BonosTirPromedioMetric({ viz, titulo, sub, detalleHref, personalizando 
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen || resumen.tirPromedio == null ? { status: 'empty', motivo: 'Sin TIR calculable (faltan datos de cupón/vencimiento).' }
     : { status: 'ok', shape: 'scalar', value: resumen.tirPromedio, format: 'pct', tone: resumen.tirPromedio >= 0 ? 'pos' : 'neg' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 function BonosDuracionPromedioMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
@@ -208,7 +222,7 @@ function BonosDuracionPromedioMetric({ viz, titulo, sub, detalleHref, personaliz
   const right = resumen?.duracionPromedio != null
     ? <BadgeConLink href={detalleHref} personalizando={personalizando}><Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>máx. {maxDuracionAnios}a</Badge></BadgeConLink>
     : <VerDetalle href={detalleHref} personalizando={personalizando} />;
-  return <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={right} mv={mv} viz={viz} />;
 }
 
 function BonosGradoInversionMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
@@ -217,7 +231,7 @@ function BonosGradoInversionMetric({ viz, titulo, sub, detalleHref, personalizan
     : !resumen ? { status: 'empty', motivo: 'Sin bonos en este portfolio.' }
     // dp:0 — mismo redondeo que BonosResumen (fmtPct(x, 0)).
     : { status: 'ok', shape: 'scalar', value: resumen.distribucionGrado.gradoInversion, format: 'pct', dp: 0 };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 // Mismo cálculo EXACTO que `proximoCapital` en DashboardPage.tsx (capitalCalendar sobre
@@ -251,7 +265,7 @@ function BonosProximoCapitalMetric({ viz, titulo, sub, detalleHref, personalizan
         status: 'ok', shape: 'scalar', value: proximoCapital.total, format: 'usd-compact',
         sub: `${MESES_CORTOS[proximoCapital.month - 1]} ${proximoCapital.year} — amortización o rescate, no es renta`,
       };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 // ── Radar (useWatchlist + useRadarTicker por probe, igual que RadarResumen) ───
@@ -303,7 +317,7 @@ function RadarCompraAgresivaMetric({ viz, titulo, sub, detalleHref, personalizan
         return <RadarProbe key={it.id} ticker={T} cik={it.cik || cikMap.get(T)?.cik} cikLoading={cikLoading}
           riskFree={riskFree} saved={dcfMap.get(T)} onResult={onProbe} />;
       })}
-      <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>
+      <MetricShell titulo={titulo} sub={sub} right={right} mv={mv} viz={viz} />
     </>
   );
 }
@@ -331,7 +345,7 @@ function CobrosTotalMetric({ viz, titulo, sub, detalleHref, personalizando }: { 
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !tieneCobros ? { status: 'empty', motivo: 'Sin cobros registrados todavía.' }
     : { status: 'ok', shape: 'scalar', value: resumen.total, format: 'usd-compact' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 function CobrosDisponibleMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
@@ -339,7 +353,7 @@ function CobrosDisponibleMetric({ viz, titulo, sub, detalleHref, personalizando 
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !tieneCobros ? { status: 'empty', motivo: 'Sin cobros registrados todavía.' }
     : { status: 'ok', shape: 'scalar', value: resumen.disponible, format: 'usd-compact', tone: resumen.disponible > 0 ? 'warn' : 'neutral' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 // ── Macro (SEMAFOROS + resumenMacro, igual que MacroResumen/MacroPage) ────────
@@ -369,19 +383,41 @@ function MacroSemaforosMetric({ viz, titulo, sub, detalleHref, personalizando }:
   const right = conteo.total > 0
     ? <BadgeConLink href={detalleHref} personalizando={personalizando}><Badge tone={tono}>{tituloSalud}</Badge></BadgeConLink>
     : <VerDetalle href={detalleHref} personalizando={personalizando} />;
-  return <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricShell titulo={titulo} sub={sub} right={right} mv={mv} viz={viz} />;
 }
 
 // ── Liquidez (resumenFlujo, igual que LiquidezFci/finanzas) ───────────────────
-function LiquidezFciMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
+function useLiquidezResumenValue() {
   const { data: flujo = [], isLoading } = useFlujo();
   const { data: macro = {} } = useMacro();
   const mep = (macro as Record<string, number | null>).dolar_mep ?? (macro as Record<string, number | null>).dolar_ccl ?? null;
-  const { fci } = resumenFlujo(flujo, mep);
+  return { flujo, resumen: resumenFlujo(flujo, mep), mep, isLoading };
+}
+
+function LiquidezFciMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
+  const { flujo, resumen, mep, isLoading } = useLiquidezResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : flujo.length === 0 ? { status: 'empty', motivo: 'Sin flujo de caja cargado — cargalo en /finanzas.' }
-    : { status: 'ok', shape: 'scalar', value: fci, format: 'ars-compact', sub: mep ? `≈ US$${(fci / mep).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : undefined };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+    : { status: 'ok', shape: 'scalar', value: resumen.fci, format: 'ars-compact', sub: mep ? `≈ US$${(resumen.fci / mep).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : undefined };
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
+}
+
+function LiquidezDisponibleMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
+  const { flujo, resumen, isLoading } = useLiquidezResumenValue();
+  // Mismo sub/tono que la tarjeta "Disponible" de la sección Liquidez & FCI.
+  const mv: MetricValue = isLoading ? { status: 'loading' }
+    : flujo.length === 0 ? { status: 'empty', motivo: 'Sin flujo de caja cargado — cargalo en /finanzas.' }
+    : { status: 'ok', shape: 'scalar', value: resumen.disponible, format: 'ars-compact', sub: 'ingresos − egresos', tone: resumen.disponible >= 0 ? 'pos' : 'neg' };
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
+}
+
+function LiquidezSinAsignarMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
+  const { flujo, resumen, isLoading } = useLiquidezResumenValue();
+  // Mismo sub/tono que la tarjeta "Sin asignar" de la sección Liquidez & FCI.
+  const mv: MetricValue = isLoading ? { status: 'loading' }
+    : flujo.length === 0 ? { status: 'empty', motivo: 'Sin flujo de caja cargado — cargalo en /finanzas.' }
+    : { status: 'ok', shape: 'scalar', value: resumen.sinAsignar, format: 'ars-compact', sub: 'sin colocar', tone: resumen.sinAsignar >= 0 ? 'neutral' : 'neg' };
+  return <MetricShell titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />} mv={mv} viz={viz} />;
 }
 
 // ── Registro: MetricKey -> componente ──────────────────────────────────────────
@@ -401,4 +437,47 @@ export const METRIC_COMPONENTS: Partial<Record<MetricKey, MetricComponent>> = {
   cobros_disponible: CobrosDisponibleMetric,
   macro_semaforos: MacroSemaforosMetric,
   liquidez_fci: LiquidezFciMetric,
+  liquidez_disponible: LiquidezDisponibleMetric,
+  liquidez_sin_asignar: LiquidezSinAsignarMetric,
 };
+
+// ── Orquestador: 1 métrica → tarjeta normal; 2+ → combinada ───────────────────
+// `metricas.length === 1`: delega tal cual en el componente de esa métrica (cualquier shape/viz,
+// comportamiento IDÉNTICO a antes de que existiera la selección múltiple).
+// `metricas.length > 1`: todas deben ser `shape:'scalar'` (se valida al construir la tarjeta en
+// AddWidgetModal; acá se filtra de nuevo por las dudas — una fila corrupta o un rename mal migrado
+// no debería poder colar una categórica dentro de una grilla de números). Se arma UNA Card con UN
+// CardHeader (el link "Ver detalle →" solo aparece si TODAS las métricas comparten la misma página
+// fuente — combinar algo de Bonos con algo de Cobros no tiene un único destino razonable) y adentro,
+// en modo 'compacto' (Context), cada métrica se pinta como un tile chico — cada tile usa su propio
+// título de catálogo (no el título de la tarjeta combinada, que es el de la Card entera).
+export function MetricWidgetRenderer({ ctx, metricas, viz, titulo, sub, personalizando }: {
+  ctx: MetricContext; metricas: MetricKey[]; viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean;
+}) {
+  if (metricas.length <= 1) {
+    const key = metricas[0];
+    const Comp = key ? METRIC_COMPONENTS[key] : undefined;
+    if (!key || !Comp) return null; // WidgetGrid ya filtra esto vía enCatalogo — defensivo
+    const def = getMetricDef(key);
+    return <Comp ctx={ctx} viz={resolveViz(key, viz)} titulo={titulo} sub={sub} detalleHref={def?.detalleHref} personalizando={personalizando} />;
+  }
+
+  const combinables = metricas.filter(k => getMetricDef(k)?.shape === 'scalar');
+  const hrefs = new Set(combinables.map(k => getMetricDef(k)?.detalleHref).filter((h): h is string => !!h));
+  const href = hrefs.size === 1 ? [...hrefs][0] : undefined;
+
+  return (
+    <Card>
+      <CardHeader title={titulo} sub={sub} right={<VerDetalle href={href} personalizando={personalizando} />} />
+      <MetricModoContext.Provider value="compacto">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+          {combinables.map(k => {
+            const Comp = METRIC_COMPONENTS[k];
+            const def = getMetricDef(k);
+            return Comp && def ? <Comp key={k} ctx={ctx} viz="stat" titulo={def.titulo} personalizando={personalizando} /> : null;
+          })}
+        </div>
+      </MetricModoContext.Provider>
+    </Card>
+  );
+}

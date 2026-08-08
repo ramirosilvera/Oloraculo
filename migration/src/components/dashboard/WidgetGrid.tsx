@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardHeader } from '../ui';
-import { getMetricDef, getSeccionDef, resolveKey, resolveViz } from '../../engine/dashboardCatalog';
-import type { DashboardWidget, SeccionKey } from '../../types/domain';
-import { METRIC_COMPONENTS, type MetricContext } from './metrics';
+import { getMetricDef, getSeccionDef, resolveKey } from '../../engine/dashboardCatalog';
+import type { DashboardWidget, MetricKey, SeccionKey } from '../../types/domain';
+import { METRIC_COMPONENTS, MetricWidgetRenderer, type MetricContext } from './metrics';
 
 const ctrlBtn = 'w-7 h-7 inline-flex items-center justify-center rounded-full text-ink-600 hover:text-ink-900 hover:bg-canvas disabled:opacity-30 disabled:hover:bg-transparent';
 
@@ -49,21 +49,25 @@ export function WidgetGrid({
           sinDatosAhora = enCatalogo && nodo == null;
           contenido = nodo ?? null;
         } else {
-          const key = resolveKey(w.metrica) as typeof w.metrica;
-          const def = getMetricDef(key);
-          const Comp = METRIC_COMPONENTS[key];
-          enCatalogo = !!def && !!Comp;
-          titulo = w.titulo ?? def?.titulo ?? w.metrica;
-          sub = personalizando ? undefined : def?.descripcion || undefined;
-          const viz = resolveViz(key, w.viz);
-          // Las tarjetas 'metrica' siempre renderizan algo (Loading/Empty/valor real vía Render en
-          // metrics.tsx) — nunca quedan sin nodo, así que no aplica el caso "sinDatosAhora". Cada
-          // Comp arma su PROPIO Card+CardHeader (con badge/link — ver metrics.tsx), así que `sub`
-          // viaja como prop en vez de envolverse acá.
-          // detalleHref se pasa ya resuelto (no una key que el componente tendría que volver a
-          // buscar en el catálogo) — evita que un copy-paste entre componentes de metrics.tsx quede
-          // apuntando al link de OTRA métrica sin que TypeScript lo detecte.
-          contenido = enCatalogo && Comp ? <Comp ctx={ctx} viz={viz} titulo={titulo} sub={sub} detalleHref={def?.detalleHref} personalizando={personalizando} /> : null;
+          const metricas = w.metricas.map(m => resolveKey(m) as MetricKey);
+          const defs = metricas.map(k => getMetricDef(k));
+          // No alcanza con "todas existen en el catálogo": si es una combinación (2+), TODAS tienen
+          // que ser 'scalar' — una categórica mezclada en una grilla de números no tiene sentido
+          // (el constructor ya lo impide al armar la tarjeta; esto es la misma regla del lado de
+          // lectura, por si una fila vieja o corrupta la viola). Si CUALQUIER métrica de la
+          // combinación no está disponible, se trata la tarjeta ENTERA como no disponible — más
+          // simple y más seguro que degradarla parcialmente.
+          enCatalogo = metricas.length > 0 && defs.every(d => !!d && !!METRIC_COMPONENTS[d.key])
+            && (metricas.length === 1 || defs.every(d => d!.shape === 'scalar'));
+          titulo = w.titulo ?? defs.map((d, i) => d?.titulo ?? metricas[i]).join(' · ');
+          sub = personalizando ? undefined : (metricas.length === 1 ? defs[0]?.descripcion || undefined : undefined);
+          // Las tarjetas 'metrica' siempre renderizan algo (Loading/Empty/valor real, vía
+          // MetricWidgetRenderer → Render en metrics.tsx) — nunca quedan sin nodo, así que no aplica
+          // el caso "sinDatosAhora". MetricWidgetRenderer arma su PROPIO Card+CardHeader (con
+          // badge/link — ver metrics.tsx), así que `sub` viaja como prop en vez de envolverse acá.
+          contenido = enCatalogo
+            ? <MetricWidgetRenderer ctx={ctx} metricas={metricas} viz={w.viz} titulo={titulo} sub={sub} personalizando={personalizando} />
+            : null;
         }
 
         if (!enCatalogo) {

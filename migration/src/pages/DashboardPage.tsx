@@ -23,6 +23,7 @@ import { useChartTheme } from '../hooks/usePrefs';
 import { SEMAFOROS, resumenMacro, type Lectura, type ResumenMacro } from '../engine/semaforos';
 import { resumenFlujo } from '../engine/flujo';
 import { resumenCobros } from '../engine/cobros';
+import { resumenAportes } from '../engine/aportes';
 import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond, type CapitalMonthBucket } from '../engine/coupons';
 import { redondearPct, TOLERANCIA_OBJETIVO } from '../engine/rebalance';
 import { resumenPorBroker } from '../engine/brokers';
@@ -37,7 +38,7 @@ import type { MetricContext } from '../components/dashboard/metrics';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
-import type { Posicion, AssetType, SeccionKey, DashboardWidget } from '../types/domain';
+import type { Posicion, AssetType, SeccionKey, DashboardWidget, Aporte } from '../types/domain';
 
 export function DashboardPage() {
   const { active } = usePortfolios();
@@ -119,6 +120,10 @@ export function DashboardPage() {
   const anioActual = Number(hoy.slice(0, 10).slice(0, 4));
   // Capital aportado neto: aportes (aportes − retiros) si están cargados; si no, el costo de las
   // posiciones (mismo criterio que portfolioTir) para que el rendimiento se pueda calcular igual.
+  // NO reemplazar por resumenAportes(aportes).neto: ese helper (engine/aportes.ts, usado por la
+  // tarjeta "Aportes" del Dashboard personalizable y por AportesPage) da 0 con la lista vacía a
+  // propósito — acá el fallback a `costo` es necesario, porque snapshots/TIR/rendimiento por año no
+  // pueden calcularse con 0 aportado en un portfolio que sí tiene posiciones cargadas.
   const aportadoNeto = aportes.length
     ? aportes.reduce((s, a) => s + (a.tipo === 'retiro' ? -a.monto : a.monto), 0)
     : costo;
@@ -205,6 +210,7 @@ export function DashboardPage() {
     cobros: (cobros.length > 0 || proximoCapital) ? <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} proximoCapital={proximoCapital} /> : null,
     liquidez_fci: flujo.length > 0 ? <LiquidezFci resumen={flujoR} mep={mep} /> : null,
     macro: <MacroResumen resumen={resumen} />,
+    aportes: aportes.length > 0 ? <AportesResumen aportes={aportes} /> : null,
   };
 
   if (!active) return null;
@@ -280,9 +286,9 @@ export function DashboardPage() {
       {(agregando || editando) && (
         <AddWidgetModal key={editando?.id ?? 'nuevo'} layout={layout} editing={editando}
           onClose={() => { setAgregando(false); setEditando(null); }}
-          onAgregarMetrica={(metrica, viz, titulo) => agregar({ kind: 'metrica', metrica, viz, titulo })}
+          onAgregarMetrica={(metricas, viz, titulo) => agregar({ kind: 'metrica', metricas, viz, titulo })}
           onAgregarSeccion={agregarSeccion}
-          onActualizarMetrica={(id, viz, titulo) => actualizar(id, { viz, titulo })} />
+          onActualizarMetrica={(id, metricas, viz, titulo) => actualizar(id, { metricas, viz, titulo })} />
       )}
 
       <AdminResumen />
@@ -757,6 +763,23 @@ function LiquidezFci({ resumen, mep }: { resumen: ReturnType<typeof resumenFlujo
             <p className="text-[10px] text-ink-500 mt-0.5 truncate">{t.sub}</p>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+// Aportes: capital que entró/salió del portfolio, y neto. Mismo cálculo que AportesPage
+// (resumenAportes compartido) así los dos lugares nunca muestran números distintos.
+function AportesResumen({ aportes }: { aportes: Aporte[] }) {
+  const { aportado, retirado, neto } = resumenAportes(aportes);
+  return (
+    <Card>
+      <CardHeader title="Aportes" sub={`${aportes.length} movimiento${aportes.length > 1 ? 's' : ''} de capital registrados.`}
+        right={<Link to="/aportes" className="text-[11px] text-celeste-600 hover:underline">Ver historial →</Link>} />
+      <div className="grid grid-cols-3 gap-2 p-3">
+        <Stat label="Aportado" value={fmtUsdCompact(aportado)} hint="Suma de todos los aportes (inicial + recurrente + adelanto)" />
+        <Stat label="Retirado" value={fmtUsdCompact(retirado)} hint="Suma de todos los retiros de capital" />
+        <Stat label="Neto" value={<span className={neto >= 0 ? 'text-pos' : 'text-neg'}>{fmtUsdCompact(neto)}</span>} hint="Aportado − retirado" />
       </div>
     </Card>
   );
