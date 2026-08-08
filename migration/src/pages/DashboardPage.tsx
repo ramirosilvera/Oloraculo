@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Flame } from 'lucide-react';
+import { AlertTriangle, Flame, LayoutGrid, Plus, Check } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { usePortfolios } from '../hooks/usePortfolios';
 import { usePosiciones, useQuotes, useMacro, useDrawdowns } from '../hooks/usePosiciones';
@@ -29,11 +29,15 @@ import { resumenPorBroker } from '../engine/brokers';
 import { portfolioTir } from '../engine/irr';
 import { rendimientoPorAnio } from '../engine/rendimiento';
 import { useSnapshots, useRecordSnapshot } from '../hooks/useSnapshots';
+import { useDashboardLayout } from '../hooks/useDashboardLayout';
 import { Card, CardHeader, Stat, Badge, Field, AlertasBanner, inputCls, fmtUsd, fmtUsdCompact, fmtNum, fmtPct, fmtArs, fmtArsCompact, colorDeBroker } from '../components/ui';
+import { WidgetGrid } from '../components/dashboard/WidgetGrid';
+import { AddWidgetModal } from '../components/dashboard/AddWidgetModal';
+import type { MetricContext } from '../components/dashboard/metrics';
 import { UpdatedAt } from '../components/UpdatedAt';
 import { DistanciaMaximo } from '../components/DistanciaMaximo';
 import { unitValueUSD as unitUSD } from '../lib/valuation';
-import type { Posicion, AssetType } from '../types/domain';
+import type { Posicion, AssetType, SeccionKey, DashboardWidget } from '../types/domain';
 
 export function DashboardPage() {
   const { active } = usePortfolios();
@@ -171,6 +175,31 @@ export function DashboardPage() {
     }
   }, [active?.id, datosListos, patrimonio, aportadoNeto, snaps, hoy, record]);
 
+  // ── Dashboard personalizable: agregar/quitar/reordenar tarjetas ───────────────
+  const { widgets: layout, agregar, agregarSeccion, actualizar, eliminar, mover } = useDashboardLayout();
+  const [personalizando, setPersonalizando] = useState(false);
+  const [agregando, setAgregando] = useState(false);
+  const [editando, setEditando] = useState<Extract<DashboardWidget, { kind: 'metrica' }> | null>(null);
+
+  // Contexto compartido para las tarjetas atómicas de "Cartera" (distribución) — mismo alloc/
+  // patrimonio que ya usan el Hero y la sección Distribución, nunca recalculado distinto.
+  const metricCtx: MetricContext = useMemo(() => ({ alloc, patrimonio, isLoading: qPos.isLoading }), [alloc, patrimonio, qPos.isLoading]);
+
+  // Elementos YA armados (no ejecutan sus hooks hasta que React los monte de verdad — JSX es
+  // perezoso) — una sección que el usuario sacó del layout simplemente nunca corre sus queries.
+  const seccionNodes: Partial<Record<SeccionKey, ReactNode>> = {
+    objetivo_capital: <ObjetivoCapitalCard objetivo={objetivo} patrimonio={patrimonio} />,
+    rendimiento_por_anio: <RendimientoPorAnioCard porAnio={porAnio} anioActual={anioActual} hayDatos={tir.base !== 'sin-datos'} />,
+    distribucion: <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />,
+    cedears: <CedearsResumen />,
+    bonos: <BonosResumen />,
+    radar: <RadarResumen />,
+    patrimonio_broker: <PatrimonioBrokers posiciones={posiciones} quotes={quotes} isLoading={qPos.isLoading} />,
+    cobros: (cobros.length > 0 || proximoCapital) ? <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} proximoCapital={proximoCapital} /> : null,
+    liquidez_fci: flujo.length > 0 ? <LiquidezFci resumen={flujoR} mep={mep} /> : null,
+    macro: <MacroResumen resumen={resumen} />,
+  };
+
   if (!active) return null;
 
   return (
@@ -211,62 +240,38 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Progreso hacia el objetivo de capital. */}
-      {objetivo != null && objetivo > 0 && (
-        <Card>
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="font-semibold text-ink-800">Objetivo de capital</span>
-              <span className="tnum text-ink-600">{fmtUsdCompact(patrimonio)} / {fmtUsdCompact(objetivo)}</span>
-            </div>
-            <div className="h-2.5 rounded-full bg-canvas overflow-hidden">
-              <div className="h-full rounded-full bg-celeste-500" style={{ width: `${Math.min(100, (patrimonio / objetivo) * 100)}%` }} />
-            </div>
-            <p className="text-[11px] text-ink-600 mt-1.5 tnum">
-              {fmtPct(patrimonio / objetivo, 0)} alcanzado
-              {patrimonio < objetivo && <> · faltan {fmtUsdCompact(objetivo - patrimonio)}</>}
-            </p>
-          </div>
-        </Card>
-      )}
-
-      {/* Rendimiento por año calendario (estilo fondo). */}
-      {tir.base !== 'sin-datos' && (
-        <Card>
-          <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)." />
-          <div className="p-4 flex flex-wrap gap-2">
-            {[...porAnio].reverse().map(({ anio, rendimiento }) => (
-              <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
-                <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
-                <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
-                  {rendimiento != null ? fmtPct(rendimiento) : '—'}
-                </p>
-              </div>
-            ))}
-          </div>
-          {porAnio.some(r => r.rendimiento == null) && (
-            <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+      {/* Cuerpo personalizable: agregar/quitar/reordenar tarjetas — ver components/dashboard/. El
+          Hero y las Alertas de arriba quedan siempre fijos (identidad de la página / seguridad, no
+          contenido opcional); Administración queda fija abajo (gateada por rol, no es una preferencia). */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-ink-700 font-display">Tus tarjetas</h2>
+        <div className="flex items-center gap-2">
+          {personalizando && (
+            <button onClick={() => setAgregando(true)}
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-celeste-600 hover:underline">
+              <Plus className="w-3.5 h-3.5" /> Agregar tarjeta
+            </button>
           )}
-        </Card>
+          <button onClick={() => setPersonalizando(p => !p)}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-3 py-1.5 border ${personalizando ? 'bg-celeste-500 text-white border-celeste-500' : 'border-line bg-surface text-ink-700 hover:bg-canvas'}`}>
+            {personalizando ? <Check className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+            {personalizando ? 'Listo' : 'Personalizar'}
+          </button>
+        </div>
+      </div>
+
+      <WidgetGrid layout={layout} seccionNodes={seccionNodes} ctx={metricCtx} personalizando={personalizando}
+        onMover={(id, dir) => void mover(id, dir)}
+        onEliminar={id => void eliminar(id)}
+        onEditar={w => setEditando(w)} />
+
+      {(agregando || editando) && (
+        <AddWidgetModal layout={layout} editing={editando}
+          onClose={() => { setAgregando(false); setEditando(null); }}
+          onAgregarMetrica={(metrica, viz, titulo) => agregar({ kind: 'metrica', metrica, viz, titulo })}
+          onAgregarSeccion={agregarSeccion}
+          onActualizarMetrica={(id, viz, titulo) => actualizar(id, { viz, titulo })} />
       )}
-
-      {/* Distribución: donut + actual vs objetivo. */}
-      <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />
-
-      <CedearsResumen />
-
-      <BonosResumen />
-
-      <RadarResumen />
-
-      {/* Patrimonio por broker: dónde está físicamente cada posición. */}
-      <PatrimonioBrokers posiciones={posiciones} quotes={quotes} isLoading={qPos.isLoading} />
-
-      {(cobros.length > 0 || proximoCapital) && <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} proximoCapital={proximoCapital} />}
-
-      {flujo.length > 0 && <LiquidezFci resumen={flujoR} mep={mep} />}
-
-      <MacroResumen resumen={resumen} />
 
       <AdminResumen />
     </div>
@@ -299,6 +304,57 @@ function AlertasResumen({ alloc, patrimonio }: { alloc: { mkt: number; tipo: Ass
   if (alertas.length === 0) return null;
 
   return <AlertasBanner alertas={alertas} />;
+}
+
+// Progreso hacia el objetivo de capital del portfolio — extraído para poder agregarse/quitarse como
+// cualquier otra sección del Dashboard personalizable (ver seccionNodes en DashboardPage). Mismo
+// criterio que el resto de las secciones: se auto-oculta (null) cuando no aplica, en vez de
+// necesitar un `if` externo antes de renderizarse.
+function ObjetivoCapitalCard({ objetivo, patrimonio }: { objetivo: number | null; patrimonio: number }) {
+  if (objetivo == null || objetivo <= 0) return null;
+  return (
+    <Card>
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between text-sm mb-1.5">
+          <span className="font-semibold text-ink-800">Objetivo de capital</span>
+          <span className="tnum text-ink-600">{fmtUsdCompact(patrimonio)} / {fmtUsdCompact(objetivo)}</span>
+        </div>
+        <div className="h-2.5 rounded-full bg-canvas overflow-hidden">
+          <div className="h-full rounded-full bg-celeste-500" style={{ width: `${Math.min(100, (patrimonio / objetivo) * 100)}%` }} />
+        </div>
+        <p className="text-[11px] text-ink-600 mt-1.5 tnum">
+          {fmtPct(patrimonio / objetivo, 0)} alcanzado
+          {patrimonio < objetivo && <> · faltan {fmtUsdCompact(objetivo - patrimonio)}</>}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// Rendimiento por año calendario (estilo fondo) — extraído del Dashboard por el mismo motivo que
+// ObjetivoCapitalCard arriba.
+function RendimientoPorAnioCard({ porAnio, anioActual, hayDatos }: {
+  porAnio: { anio: number; rendimiento: number | null }[]; anioActual: number; hayDatos: boolean;
+}) {
+  if (!hayDatos) return null;
+  return (
+    <Card>
+      <CardHeader title="Rendimiento por año" sub="Cuánto rindió cada año calendario (del pasado, no anualizado)." />
+      <div className="p-4 flex flex-wrap gap-2">
+        {[...porAnio].reverse().map(({ anio, rendimiento }) => (
+          <div key={anio} className="rounded-xl bg-canvas ring-1 ring-inset ring-line px-3 py-2 min-w-[88px]">
+            <p className="text-[10px] uppercase tracking-wide text-ink-600 font-semibold">{anio}{anio === anioActual ? ' · en curso' : ''}</p>
+            <p className={`text-lg font-bold tnum mt-0.5 ${rendimiento == null ? 'text-ink-500' : rendimiento >= 0 ? 'text-pos' : 'text-neg'}`}>
+              {rendimiento != null ? fmtPct(rendimiento) : '—'}
+            </p>
+          </div>
+        ))}
+      </div>
+      {porAnio.some(r => r.rendimiento == null) && (
+        <p className="px-4 pb-3 text-[11px] text-ink-500">Los años en "—" se completan a medida que la app registra el valor diario; el histórico previo a esta función no se puede reconstruir.</p>
+      )}
+    </Card>
+  );
 }
 
 // Resumen de CEDEARs: capital, concentración (mayor posición + HHI sectorial) y diversificación
@@ -346,10 +402,14 @@ function BonosResumen() {
   const { active } = usePortfolios();
   const { bonos, bonosCalc, isLoading } = useBonosCalc(active?.id);
   const { maxDuracionAnios } = useObjetivoDuracion(active?.id);
+  // Mismo risk-free que AlertasResumen/BonosPage — sin esto, tirPromedio/spreadPromedio salían
+  // consistentes pero el spread quedaba siempre null acá (única diferencia real de omitir riskFree).
+  const { data: macro = {} } = useMacro();
+  const riskFree = (macro as Record<string, number | null>).dgs10 != null ? (macro as Record<string, number | null>).dgs10! / 100 : null;
 
   if (isLoading || bonos.length === 0) return null;
 
-  const { totalMkt, duracionPromedio, tirPromedio, distribucionGrado } = resumenBonos(bonosCalc);
+  const { totalMkt, duracionPromedio, tirPromedio, distribucionGrado } = resumenBonos(bonosCalc, riskFree);
   const cumpleObjetivo = duracionPromedio != null && duracionPromedio <= maxDuracionAnios;
 
   return (

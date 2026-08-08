@@ -1,0 +1,117 @@
+// =============================================================================
+// Catálogo del Dashboard personalizable — SOLO metadata (títulos, categorías, forma del dato,
+// visualizaciones compatibles). Los VALORES los calculan los mismos hooks/engine que ya usa cada
+// página hoy (regla de oro #1: nunca recalcular un número distinto acá) — ver
+// components/dashboard/*.tsx, que envuelve esos hooks para producir un MetricValue.
+//
+// Dos tipos de tarjeta:
+// - `kind:'seccion'`: envuelve un componente YA EXISTENTE tal cual (CedearsResumen, BonosResumen,
+//   etc.) — agregar/quitar/reordenar, sin tocar su cálculo ni su UI.
+// - `kind:'metrica'`: tarjeta atómica libre — el usuario elige una métrica de este catálogo + una
+//   visualización compatible con su `shape`.
+// =============================================================================
+
+import type { DashboardWidget, DashboardViz, MetricKey, SeccionKey } from '../types/domain';
+
+export type MetricShape = 'scalar' | 'categorico';
+export type Formato = 'usd' | 'usd-compact' | 'pct' | 'num' | 'ars-compact';
+export type Tono = 'pos' | 'neg' | 'warn' | 'neutral';
+
+export interface MetricDef {
+  key: MetricKey;
+  categoria: string;
+  titulo: string;
+  descripcion: string;
+  shape: MetricShape;
+  vizDisponibles: DashboardViz[];
+  vizDefault: DashboardViz;
+}
+
+export interface SeccionDef {
+  key: SeccionKey;
+  titulo: string;
+  descripcion: string;
+}
+
+export const SECCION_CATALOG: SeccionDef[] = [
+  { key: 'objetivo_capital', titulo: 'Objetivo de capital', descripcion: 'Progreso hacia tu meta de patrimonio — se muestra solo si cargaste un objetivo en el portfolio.' },
+  { key: 'rendimiento_por_anio', titulo: 'Rendimiento por año', descripcion: 'Cuánto rindió cada año calendario, a partir del historial diario de patrimonio.' },
+  { key: 'distribucion', titulo: 'Distribución', descripcion: 'Renta fija vs. variable, con objetivo editable y desvío por ticker.' },
+  { key: 'cedears', titulo: 'CEDEARs', descripcion: 'Capital, concentración y diversificación sectorial.' },
+  { key: 'bonos', titulo: 'Bonos', descripcion: 'Capital, TIR y duración promedio ponderada.' },
+  { key: 'radar', titulo: 'Radar', descripcion: 'Tickers en seguimiento y señales de compra agresiva (DCF).' },
+  { key: 'patrimonio_broker', titulo: 'Patrimonio por broker', descripcion: 'Dónde está físicamente cada posición.' },
+  { key: 'cobros', titulo: 'Cobros', descripcion: 'Dividendos, intereses y amortizaciones cobrados + próximo capital proyectado.' },
+  { key: 'liquidez_fci', titulo: 'Liquidez & FCI', descripcion: 'Fondos y billetera en pesos — compartido entre todos tus portfolios.' },
+  { key: 'macro', titulo: 'Contexto macro', descripcion: 'Semáforos de mercado, de un vistazo.' },
+];
+
+export const METRIC_CATALOG: MetricDef[] = [
+  { key: 'distribucion_categoria', categoria: 'Cartera', titulo: 'Distribución por categoría', descripcion: 'Renta fija / variable / liquidez — sin los controles de objetivo de la sección Distribución.', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut' },
+  { key: 'distribucion_tipo_activo', categoria: 'Cartera', titulo: 'Distribución por tipo de activo', descripcion: 'CEDEARs / bonos / ETFs / acciones (US y AR) / cash.', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut' },
+  { key: 'cedears_capital', categoria: 'CEDEARs', titulo: 'Capital en CEDEARs', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'cedears_mayor_posicion', categoria: 'CEDEARs', titulo: 'Mayor posición (CEDEARs)', descripcion: 'Ticker con mayor % del capital en CEDEARs.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'cedears_por_sector', categoria: 'CEDEARs', titulo: 'CEDEARs por sector', descripcion: '', shape: 'categorico', vizDisponibles: ['donut', 'bar', 'table'], vizDefault: 'donut' },
+  { key: 'bonos_capital', categoria: 'Bonos', titulo: 'Capital en bonos', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'bonos_tir_promedio', categoria: 'Bonos', titulo: 'TIR promedio', descripcion: 'Promedio ponderado por capital.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'bonos_duracion_promedio', categoria: 'Bonos', titulo: 'Duración promedio', descripcion: 'Duración de Macaulay, promedio ponderado por capital.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'bonos_grado_inversion', categoria: 'Bonos', titulo: '% grado inversión', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'bonos_proximo_capital', categoria: 'Bonos', titulo: 'Próximo capital proyectado', descripcion: 'Amortización o rescate al vencimiento — no es renta.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'radar_compra_agresiva', categoria: 'Radar', titulo: 'Compra agresiva (Radar)', descripcion: 'Tickers en seguimiento con margen de seguridad amplio (DCF).', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'cobros_total', categoria: 'Cobros', titulo: 'Cobrado total', descripcion: 'Dividendos + intereses + amortizaciones.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'cobros_disponible', categoria: 'Cobros', titulo: 'Disponible para reinvertir', descripcion: '', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+  { key: 'macro_semaforos', categoria: 'Macro', titulo: 'Semáforos macro', descripcion: 'Cuántos indicadores en verde / atención / estrés.', shape: 'categorico', vizDisponibles: ['donut', 'bar'], vizDefault: 'donut' },
+  { key: 'liquidez_fci', categoria: 'Liquidez', titulo: 'FCI + billetera', descripcion: 'En pesos — compartido entre todos tus portfolios.', shape: 'scalar', vizDisponibles: ['stat'], vizDefault: 'stat' },
+];
+
+// Layout que hoy está hardcodeado en el Dashboard — se usa cuando el usuario todavía no personalizó
+// (sin fila en dashboard_layout) O cuando personalizó y después le quedó un layout vacío. Se RENDERIZA
+// nomás, nunca se escribe a la base al leerlo — así se elimina cualquier carrera de "sembrar la
+// primera vez" (ver diseño). IDs fijos (no random) porque es una constante, no algo creado en runtime.
+export const DEFAULT_LAYOUT: DashboardWidget[] = [
+  { id: 'default-objetivo-capital', kind: 'seccion', seccion: 'objetivo_capital' },
+  { id: 'default-rendimiento-por-anio', kind: 'seccion', seccion: 'rendimiento_por_anio' },
+  { id: 'default-distribucion', kind: 'seccion', seccion: 'distribucion' },
+  { id: 'default-cedears', kind: 'seccion', seccion: 'cedears' },
+  { id: 'default-bonos', kind: 'seccion', seccion: 'bonos' },
+  { id: 'default-radar', kind: 'seccion', seccion: 'radar' },
+  { id: 'default-patrimonio-broker', kind: 'seccion', seccion: 'patrimonio_broker' },
+  { id: 'default-cobros', kind: 'seccion', seccion: 'cobros' },
+  { id: 'default-liquidez-fci', kind: 'seccion', seccion: 'liquidez_fci' },
+  { id: 'default-macro', kind: 'seccion', seccion: 'macro' },
+];
+
+// Renames futuros de key (métrica o sección) — vacío hoy, listo para cuando haga falta. Se resuelve
+// ANTES de buscar en el catálogo, así un layout viejo con una key renombrada sigue funcionando.
+export const ALIASES: Record<string, string> = {};
+
+export function resolveKey(key: string): string { return ALIASES[key] ?? key; }
+
+export function getMetricDef(key: string): MetricDef | undefined {
+  return METRIC_CATALOG.find(m => m.key === resolveKey(key));
+}
+export function getSeccionDef(key: string): SeccionDef | undefined {
+  return SECCION_CATALOG.find(s => s.key === resolveKey(key));
+}
+
+// Si el viz guardado ya no es válido para esa métrica (el catálogo cambió), cae en silencio al
+// default de la métrica — a diferencia de una métrica/sección que ya no existe en absoluto (eso lo
+// resuelve WidgetGrid con una tarjeta placeholder, nunca desapareciendo en silencio), esto es cosmético.
+export function resolveViz(metricKey: string, viz: DashboardViz): DashboardViz {
+  const def = getMetricDef(metricKey);
+  if (!def) return viz;
+  return def.vizDisponibles.includes(viz) ? viz : def.vizDefault;
+}
+
+// =============================================================================
+// MetricValue: lo que un componente de métrica atómica produce, para que el renderer genérico
+// (StatWidget/DonutWidget/BarWidget/TableWidget) lo pinte sin conocer de dónde salió el número.
+// `status` explícito (no "ausente = cargando") para no mostrar un guion/cero que se confunda con un
+// dato real mientras carga — mismo criterio que el resto de las secciones del Dashboard, que
+// retornan null mientras cargan en vez de mostrar un 0 provisorio.
+// =============================================================================
+export type MetricValue =
+  | { status: 'loading' }
+  | { status: 'empty'; motivo: string }
+  | { status: 'ok'; shape: 'scalar'; value: number | null; label?: string; sub?: string; format?: Formato; tone?: Tono }
+  | { status: 'ok'; shape: 'categorico'; items: { label: string; value: number; color?: string }[]; format?: Formato };

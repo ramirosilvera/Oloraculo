@@ -137,6 +137,37 @@ export interface CobroInversion {
   created_at: string;
 }
 
+// ── Dashboard personalizable (0029_dashboard_layout.sql) ──────────────────────
+// Layout = 1 fila JSONB por usuario (dashboard_layout.widgets), no 1 fila por tarjeta — ver
+// engine/dashboardCatalog.ts para el catálogo de secciones/métricas y el layout default.
+export type SeccionKey =
+  | 'objetivo_capital' | 'rendimiento_por_anio' | 'distribucion' | 'cedears' | 'bonos' | 'radar'
+  | 'patrimonio_broker' | 'cobros' | 'liquidez_fci' | 'macro';
+
+export type MetricKey =
+  | 'distribucion_categoria' | 'distribucion_tipo_activo'
+  | 'cedears_capital' | 'cedears_mayor_posicion' | 'cedears_por_sector'
+  | 'bonos_capital' | 'bonos_tir_promedio' | 'bonos_duracion_promedio' | 'bonos_grado_inversion' | 'bonos_proximo_capital'
+  | 'radar_compra_agresiva'
+  | 'cobros_total' | 'cobros_disponible'
+  | 'macro_semaforos'
+  | 'liquidez_fci';
+
+export type DashboardViz = 'stat' | 'donut' | 'bar' | 'table';
+
+// `kind:'seccion'` envuelve un componente YA EXISTENTE tal cual (mismos hooks, mismo cálculo, sin
+// cambios) — agregar/quitar/reordenar. `kind:'metrica'` es la tarjeta atómica libre: una métrica del
+// catálogo + una visualización compatible, con título opcional (default = el del catálogo).
+export type DashboardWidget =
+  | { id: string; kind: 'seccion'; seccion: SeccionKey }
+  | { id: string; kind: 'metrica'; metrica: MetricKey; viz: DashboardViz; titulo?: string };
+
+export interface DashboardLayout {
+  user_id: string;
+  widgets: DashboardWidget[];
+  updated_at: string;
+}
+
 export interface Aporte {
   id: string;
   portfolio_id: string;

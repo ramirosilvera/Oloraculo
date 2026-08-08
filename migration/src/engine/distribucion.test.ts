@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categoriaDe, pctRentaFija, alertasDistribucion } from './distribucion';
+import { categoriaDe, pctRentaFija, alertasDistribucion, agruparPorTipo, agruparPorCategoria } from './distribucion';
 
 describe('categoriaDe', () => {
   it('bono es fija, cash es liquidez, el resto es variable', () => {
@@ -57,5 +57,69 @@ describe('alertasDistribucion', () => {
   it('fijaPct null (portfolio vacío/sin valuar): sin alertas, no revienta — evita el falso positivo de "0% del patrimonio" en un portfolio recién creado', () => {
     expect(alertasDistribucion(null, 30, 10)).toHaveLength(0);
     expect(alertasDistribucion(pctRentaFija([], 0), 30, 10)).toHaveLength(0);
+  });
+});
+
+describe('agruparPorTipo', () => {
+  const alloc = [
+    { mkt: 300, tipo: 'bono' as const },
+    { mkt: 200, tipo: 'bono' as const },
+    { mkt: 500, tipo: 'cedear' as const },
+    { mkt: 100, tipo: 'cash' as const },
+  ];
+
+  it('agrupa y suma por tipo, ordenado descendente por valor', () => {
+    const grupos = agruparPorTipo(alloc);
+    expect(grupos.map(g => g.tipo)).toEqual(['cedear', 'bono', 'cash']);
+    expect(grupos.find(g => g.tipo === 'bono')?.value).toBe(500);
+    expect(grupos.find(g => g.tipo === 'cedear')?.value).toBe(500);
+  });
+
+  it('excluye tipos sin capital (value === 0)', () => {
+    const grupos = agruparPorTipo(alloc);
+    expect(grupos.some(g => g.tipo === 'etf')).toBe(false);
+    expect(grupos.some(g => g.tipo === 'accion')).toBe(false);
+    expect(grupos.some(g => g.tipo === 'accion_ar')).toBe(false);
+  });
+
+  it('cada grupo tiene label y color definidos (Record<AssetType,...> — no puede faltar ninguno)', () => {
+    for (const g of agruparPorTipo(alloc)) {
+      expect(g.label).toBeTruthy();
+      expect(g.color).toMatch(/^#/);
+    }
+  });
+
+  it('la suma por tipo coincide con la suma por categoría (mismo alloc, dos agrupaciones distintas)', () => {
+    const total = alloc.reduce((s, a) => s + a.mkt, 0);
+    const sumaTipo = agruparPorTipo(alloc).reduce((s, g) => s + g.value, 0);
+    const sumaCategoria = ['variable', 'fija', 'liquidez']
+      .map(cat => alloc.filter(a => categoriaDe(a.tipo) === cat).reduce((s, a) => s + a.mkt, 0))
+      .reduce((s, v) => s + v, 0);
+    expect(sumaTipo).toBe(total);
+    expect(sumaCategoria).toBe(total);
+  });
+
+  it('alloc vacío: array vacío, no revienta', () => {
+    expect(agruparPorTipo([])).toEqual([]);
+  });
+});
+
+describe('agruparPorCategoria', () => {
+  const alloc = [
+    { mkt: 300, tipo: 'bono' as const },
+    { mkt: 500, tipo: 'cedear' as const },
+    { mkt: 100, tipo: 'cash' as const },
+  ];
+
+  it('agrupa en fija/variable/liquidez, ordenado desc', () => {
+    const grupos = agruparPorCategoria(alloc);
+    expect(grupos.map(g => g.categoria)).toEqual(['variable', 'fija', 'liquidez']);
+    expect(grupos.find(g => g.categoria === 'fija')?.value).toBe(300);
+  });
+
+  it('suma total = suma de agruparPorTipo sobre el mismo alloc', () => {
+    const sumaCategoria = agruparPorCategoria(alloc).reduce((s, g) => s + g.value, 0);
+    const sumaTipo = agruparPorTipo(alloc).reduce((s, g) => s + g.value, 0);
+    expect(sumaCategoria).toBe(sumaTipo);
   });
 });

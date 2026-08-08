@@ -28,6 +28,49 @@ export function pctRentaFija(alloc: { mkt: number; tipo: AssetType }[], total: n
   return (fija / total) * 100;
 }
 
+// Etiqueta/color de cada AssetType — tipados como Record<AssetType, ...> a propósito: agregar un
+// AssetType nuevo sin sumarlo acá es un error de compilación, no una porción de donut sin color/label.
+const TIPO_LABEL: Record<AssetType, string> = {
+  cedear: 'CEDEARs', accion: 'Acciones (US)', accion_ar: 'Acciones (AR)', etf: 'ETFs', bono: 'Bonos/ONs', cash: 'Cash',
+};
+const TIPO_COLOR: Record<AssetType, string> = {
+  cedear: '#5FB49C', accion: '#7FA7D9', accion_ar: '#C98BD9', etf: '#E3B341', bono: '#4F97D4', cash: '#8B96A5',
+};
+const TODOS_LOS_TIPOS: AssetType[] = ['cedear', 'accion', 'accion_ar', 'etf', 'bono', 'cash'];
+
+// Etiqueta/color de cada categoría — mismos valores que ya usa el donut de Distribución en el
+// Dashboard (CATEGORIA_LABEL/CATEGORIA_COLOR locales de DashboardPage.tsx, no tocados acá para no
+// arriesgar esa pantalla ya en producción); esta copia es para el widget atómico "Distribución por
+// categoría" del Dashboard personalizable, que sí puede depender del engine directamente.
+const CATEGORIA_LABEL: Record<CategoriaPatrimonio, string> = { variable: 'Renta variable', fija: 'Renta fija', liquidez: 'Liquidez' };
+const CATEGORIA_COLOR: Record<CategoriaPatrimonio, string> = { variable: '#5FB49C', fija: '#4F97D4', liquidez: '#8B96A5' };
+const TODAS_LAS_CATEGORIAS: CategoriaPatrimonio[] = ['variable', 'fija', 'liquidez'];
+
+export interface GrupoCategoria { categoria: CategoriaPatrimonio; label: string; color: string; value: number }
+
+// Agrupa `alloc` por categoría (fija/variable/liquidez vía categoriaDe()) — mismo criterio de
+// orden/filtro que agruparPorTipo (desc, solo con capital > 0).
+export function agruparPorCategoria(alloc: { mkt: number; tipo: AssetType }[]): GrupoCategoria[] {
+  return TODAS_LAS_CATEGORIAS
+    .map(categoria => ({ categoria, label: CATEGORIA_LABEL[categoria], color: CATEGORIA_COLOR[categoria], value: alloc.filter(a => categoriaDe(a.tipo) === categoria).reduce((s, a) => s + a.mkt, 0) }))
+    .filter(g => g.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+export interface GrupoTipo { tipo: AssetType; label: string; color: string; value: number }
+
+// Agrupa `alloc` por tipo de activo (cedear/bono/etf/acción/acción AR/cash) — vista más granular que
+// categoriaDe() (que solo distingue fija/variable/liquidez), para el widget "Distribución por tipo de
+// activo" del Dashboard personalizable. Mismos datos de `alloc`, mismo criterio de orden/filtro
+// (desc, solo tipos con capital > 0) que el donut de categoría ya existente — ver el test que verifica
+// que ambas agrupaciones suman lo mismo.
+export function agruparPorTipo(alloc: { mkt: number; tipo: AssetType }[]): GrupoTipo[] {
+  return TODOS_LOS_TIPOS
+    .map(tipo => ({ tipo, label: TIPO_LABEL[tipo], color: TIPO_COLOR[tipo], value: alloc.filter(a => a.tipo === tipo).reduce((s, a) => s + a.mkt, 0) }))
+    .filter(g => g.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
 // Alerta cuando el % de renta fija se aleja (para cualquier lado) del objetivo personal en más de
 // `toleranciaPct` puntos porcentuales. `objetivoFijaPct`/`toleranciaPct` son umbrales PERSONALES
 // del usuario (0..100), no una constante fija del motor — obligatorios como parámetro, igual que
