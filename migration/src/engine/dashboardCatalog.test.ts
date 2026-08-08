@@ -42,6 +42,17 @@ describe('METRIC_CATALOG', () => {
     }
   });
 
+  // Mismas rutas que declara App.tsx (<Route path="...">) — un typo acá ("/cedars") no rompe el
+  // build (el catch-all de App.tsx lo manda silenciosamente a "/"), así que el único chequeo real es
+  // este: la ruta tiene que existir en la lista, no solo "empezar con /".
+  const RUTAS_APP = ['/cedears', '/bonos', '/cupones', '/radar', '/finanzas', '/macro'];
+
+  it('detalleHref apunta a una ruta que existe en App.tsx', () => {
+    for (const m of METRIC_CATALOG.filter(m => m.detalleHref)) {
+      expect(RUTAS_APP).toContain(m.detalleHref);
+    }
+  });
+
   it('solo las 2 métricas de Cartera (sin página propia) quedan sin detalleHref', () => {
     const sinHref = METRIC_CATALOG.filter(m => !m.detalleHref).map(m => m.key);
     expect(sinHref.sort()).toEqual(['distribucion_categoria', 'distribucion_tipo_activo']);

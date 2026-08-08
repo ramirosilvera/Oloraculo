@@ -198,9 +198,9 @@ export function DashboardPage() {
     objetivo_capital: <ObjetivoCapitalCard objetivo={objetivo} patrimonio={patrimonio} />,
     rendimiento_por_anio: <RendimientoPorAnioCard porAnio={porAnio} anioActual={anioActual} hayDatos={tir.base !== 'sin-datos'} />,
     distribucion: <Distribucion alloc={alloc} total={patrimonio} isLoading={qPos.isLoading} />,
-    cedears: <CedearsResumen />,
-    bonos: <BonosResumen />,
-    radar: <RadarResumen />,
+    cedears: <CedearsResumen personalizando={personalizando} />,
+    bonos: <BonosResumen personalizando={personalizando} />,
+    radar: <RadarResumen personalizando={personalizando} />,
     patrimonio_broker: <PatrimonioBrokers posiciones={posiciones} quotes={quotes} isLoading={qPos.isLoading} />,
     cobros: (cobros.length > 0 || proximoCapital) ? <CobrosResumen resumen={resumenCobrado} pendientesCount={pendientesCount} proximoCapital={proximoCapital} /> : null,
     liquidez_fci: flujo.length > 0 ? <LiquidezFci resumen={flujoR} mep={mep} /> : null,
@@ -393,7 +393,7 @@ function RestaurarDefault({ onRestaurar }: { onRestaurar: () => void }) {
 // Resumen de CEDEARs: capital, concentración (mayor posición + HHI sectorial) y diversificación
 // (sectores distintos). Mismo cálculo que CedearsPage (useCedearsCalc + resumenCedears
 // compartidos) así los dos lugares nunca muestran números distintos.
-function CedearsResumen() {
+function CedearsResumen({ personalizando }: { personalizando: boolean }) {
   const { active } = usePortfolios();
   const { cedears, cedearsCalc, isLoading } = useCedearsCalc(active?.id);
   const { sectorPct: concentracionSectorPct } = useObjetivoConcentracion(active?.id);
@@ -402,15 +402,16 @@ function CedearsResumen() {
 
   const { totalMkt, mayorPosicion, nSectores, hhiSector, porSector } = resumenCedears(cedearsCalc);
   const mayorSector = porSector.length > 0 ? porSector[0] : null;
+  const right = mayorSector
+    ? <Badge tone={mayorSector.pct * 100 >= concentracionSectorPct ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
+    : <span className="text-[11px] text-celeste-600 hover:underline">Ver CEDEARs →</span>;
 
   return (
     <Card>
       <CardHeader title="CEDEARs" sub={`${cedears.length} CEDEAR${cedears.length > 1 ? 's' : ''} en cartera · sector y estilo (Peter Lynch)`}
-        right={<Link to="/cedears" className="inline-flex items-center gap-1.5">
-          {mayorSector
-            ? <Badge tone={mayorSector.pct * 100 >= concentracionSectorPct ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
-            : <span className="text-[11px] text-celeste-600 hover:underline">Ver CEDEARs →</span>}
-        </Link>} />
+        // Sin link mientras se personaliza el layout — mismo criterio que las tarjetas atómicas: un
+        // click acá durante una reordenada navegaría afuera del Dashboard sin querer.
+        right={personalizando ? right : <Link to="/cedears" className="inline-flex items-center gap-1.5">{right}</Link>} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
         <Stat label="Capital" value={fmtUsdCompact(totalMkt)} />
         <Stat label="Mayor posición" value={mayorPosicion
@@ -431,7 +432,7 @@ function CedearsResumen() {
 // Resumen de Bonos: capital, TIR y duración promedio ponderada vs. el máximo personal definido en
 // /bonos. Mismo cálculo que BonosPage (useBonosCalc + resumenBonos compartidos) así los dos lugares
 // nunca muestran números distintos.
-function BonosResumen() {
+function BonosResumen({ personalizando }: { personalizando: boolean }) {
   const { active } = usePortfolios();
   const { bonos, bonosCalc, isLoading } = useBonosCalc(active?.id);
   const { maxDuracionAnios } = useObjetivoDuracion(active?.id);
@@ -443,15 +444,14 @@ function BonosResumen() {
   // negativo). Pasarlo acá sin usarlo agregaría una suscripción a useMacro() sin ningún efecto visible.
   const { totalMkt, duracionPromedio, tirPromedio, distribucionGrado } = resumenBonos(bonosCalc);
   const cumpleObjetivo = duracionPromedio != null && duracionPromedio <= maxDuracionAnios;
+  const right = duracionPromedio != null
+    ? <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>{fmtNum(duracionPromedio, 1)}a promedio (máx. {maxDuracionAnios}a)</Badge>
+    : <span className="text-[11px] text-celeste-600 hover:underline">Ver bonos →</span>;
 
   return (
     <Card>
       <CardHeader title="Bonos" sub={`${bonos.length} bono${bonos.length > 1 ? 's' : ''} en cartera · precio por nominal (data912)`}
-        right={<Link to="/bonos" className="inline-flex items-center gap-1.5">
-          {duracionPromedio != null
-            ? <Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>{fmtNum(duracionPromedio, 1)}a promedio (máx. {maxDuracionAnios}a)</Badge>
-            : <span className="text-[11px] text-celeste-600 hover:underline">Ver bonos →</span>}
-        </Link>} />
+        right={personalizando ? right : <Link to="/bonos" className="inline-flex items-center gap-1.5">{right}</Link>} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
         <Stat label="Capital" value={fmtUsdCompact(totalMkt)} />
         <Stat label="TIR promedio" value={tirPromedio != null
@@ -471,7 +471,7 @@ function BonosResumen() {
 // seguridad amplio, ver engine/dcf.ts). Cada RadarProbe es invisible — solo corre el mismo cálculo
 // que una fila de RadarPage (useRadarTicker, compartido) y reporta el resultado acá arriba, así el
 // criterio nunca se desincroniza entre el Dashboard y /radar.
-function RadarResumen() {
+function RadarResumen({ personalizando }: { personalizando: boolean }) {
   const { data: items = [], isLoading } = useWatchlist();
   const { map: cikMap, isLoading: cikLoading } = useCikMap();
   const { data: macro = {} } = useMacro();
@@ -498,11 +498,12 @@ function RadarResumen() {
           riskFree={riskFree} saved={dcfMap.get(T)} onResult={onProbe} />;
       })}
       <CardHeader title="Radar" sub={`${items.length} ticker${items.length > 1 ? 's' : ''} en seguimiento.`}
-        right={agresivos.size > 0
-          ? <Link to="/radar" className="inline-flex items-center gap-1.5">
-              <Badge tone="pos"><Flame className="w-3 h-3" /><span className="ml-1">{agresivos.size} compra agresiva{agresivos.size > 1 ? 's' : ''}</span></Badge>
-            </Link>
-          : <Link to="/radar" className="text-[11px] text-celeste-600 hover:underline">Ver radar →</Link>} />
+        right={(() => {
+          const contenido = agresivos.size > 0
+            ? <Badge tone="pos"><Flame className="w-3 h-3" /><span className="ml-1">{agresivos.size} compra agresiva{agresivos.size > 1 ? 's' : ''}</span></Badge>
+            : <span className="text-[11px] text-celeste-600 hover:underline">Ver radar →</span>;
+          return personalizando ? contenido : <Link to="/radar" className="inline-flex items-center gap-1.5">{contenido}</Link>;
+        })()} />
       <div className="grid grid-cols-2 gap-2 p-3">
         <Stat label="En seguimiento" value={items.length} />
         <Stat label="Compra agresiva" value={agresivos.size} />

@@ -25,7 +25,7 @@ import { useMacro } from '../../hooks/usePosiciones';
 import { useChartTheme } from '../../hooks/usePrefs';
 import { useCedearsCalc, resumenCedears, useObjetivoConcentracion } from '../../hooks/useCedears';
 import { SIN_CLASIFICAR_COLOR, CONCENTRACION_POSICION_ALERTA } from '../../engine/cedears';
-import { PIE_COLORS, Card, CardHeader, Badge } from '../ui';
+import { PIE_COLORS, Card, CardHeader, Badge, fmtPct } from '../ui';
 import { useBonosCalc, useObjetivoDuracion, resumenBonos } from '../../hooks/useBonos';
 import { useWatchlist } from '../../hooks/useWatchlist';
 import { useCikMap } from '../../hooks/useCikMap';
@@ -40,7 +40,7 @@ import { SEMAFOROS, resumenMacro, type Lectura } from '../../engine/semaforos';
 import { agruparPorCategoria, agruparPorTipo } from '../../engine/distribucion';
 import { capitalCalendar, agruparCuotasPorPosicion, type CapitalBond } from '../../engine/coupons';
 import { LoadingViz, EmptyViz, StatViz, DonutViz, BarViz, TableViz } from './viz';
-import { getMetricDef, type MetricValue } from '../../engine/dashboardCatalog';
+import type { MetricValue } from '../../engine/dashboardCatalog';
 import type { AssetType, DashboardViz, MetricKey } from '../../types/domain';
 
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -51,11 +51,12 @@ export interface MetricContext {
   isLoading: boolean;
 }
 
-// `titulo`/`sub` ya resueltos por WidgetGrid (título custom o default del catálogo; descripción solo
-// fuera de modo Personalizar) — cada componente los usa para armar su propio CardHeader.
-// `personalizando`: mientras se edita el layout, el link "Ver detalle →" se suprime (un click ahí
-// navega fuera del Dashboard a mitad de una reordenada) — el badge, si lo hay, se mantiene.
-export type MetricComponent = ComponentType<{ ctx: MetricContext; viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }>;
+// `titulo`/`sub`/`detalleHref` ya resueltos por WidgetGrid (a partir del catálogo — nunca un string
+// repetido a mano acá, para que no se pueda escribir la key de una métrica distinta por error al
+// copiar/pegar un componente). `personalizando`: mientras se edita el layout, el link "Ver detalle →"
+// se suprime (un click ahí navega fuera del Dashboard a mitad de una reordenada) — el badge, si lo
+// hay, se mantiene pero deja de ser clickeable.
+export type MetricComponent = ComponentType<{ ctx: MetricContext; viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }>;
 
 // Card+CardHeader compartido por las 15 tarjetas — mismo borde/spacing que las secciones, para que
 // una tarjeta atómica y una de sección se vean como parte del mismo sistema, no como dos productos.
@@ -65,19 +66,16 @@ function MetricCard({ titulo, sub, right, children }: { titulo: string; sub?: st
 
 // "Ver detalle →" — mismo texto/estilo que usa cada sección para su propio link. `null` cuando la
 // métrica no tiene página fuente (las 2 de Cartera) o mientras se está personalizando el layout.
-function VerDetalle({ metrica, personalizando }: { metrica: MetricKey; personalizando: boolean }) {
-  if (personalizando) return null;
-  const href = getMetricDef(metrica)?.detalleHref;
-  if (!href) return null;
+function VerDetalle({ href, personalizando }: { href: string | undefined; personalizando: boolean }) {
+  if (personalizando || !href) return null;
   return <Link to={href} className="text-[11px] text-celeste-600 hover:underline">Ver detalle →</Link>;
 }
 
 // Envuelve un badge en el link de detalle (mismo patrón que CedearsResumen/BonosResumen/RadarResumen:
 // el badge ENTERO es clickeable) — si no hay link (personalizando, o sin detalleHref), el badge se
 // muestra solo, sin envoltura.
-function BadgeConLink({ metrica, personalizando, children }: { metrica: MetricKey; personalizando: boolean; children: ReactNode }) {
-  const href = personalizando ? undefined : getMetricDef(metrica)?.detalleHref;
-  if (!href) return <>{children}</>;
+function BadgeConLink({ href, personalizando, children }: { href: string | undefined; personalizando: boolean; children: ReactNode }) {
+  if (personalizando || !href) return <>{children}</>;
   return <Link to={href} className="inline-flex items-center gap-1.5">{children}</Link>;
 }
 
@@ -114,33 +112,37 @@ function DistribucionTipoActivoMetric({ ctx, viz, titulo, sub }: { ctx: MetricCo
 function useCedearsResumenValue() {
   const { active } = usePortfolios();
   const { cedears, cedearsCalc, isLoading } = useCedearsCalc(active?.id);
-  const { sectorPct: concentracionSectorPct } = useObjetivoConcentracion(active?.id);
-  return { cedears, resumen: isLoading || cedears.length === 0 ? null : resumenCedears(cedearsCalc), concentracionSectorPct, isLoading };
+  return { resumen: isLoading || cedears.length === 0 ? null : resumenCedears(cedearsCalc), isLoading };
 }
 
-function CedearsCapitalMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function CedearsCapitalMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, isLoading } = useCedearsResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen ? { status: 'empty', motivo: 'Sin CEDEARs en este portfolio.' }
     : { status: 'ok', shape: 'scalar', value: resumen.totalMkt, format: 'usd-compact' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="cedears_capital" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
-function CedearsMayorPosicionMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function CedearsMayorPosicionMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, isLoading } = useCedearsResumenValue();
   // Mismo umbral que el Stat "Mayor posición" de CedearsResumen (tono warn si >= 40% del capital).
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen || !resumen.mayorPosicion ? { status: 'empty', motivo: 'Sin CEDEARs en este portfolio.' }
     : {
         status: 'ok', shape: 'scalar', value: resumen.mayorPosicion.pct, format: 'pct',
-        label: `${resumen.mayorPosicion.ticker} · ${(resumen.mayorPosicion.pct * 100).toFixed(0)}%`,
+        label: `${resumen.mayorPosicion.ticker} · ${fmtPct(resumen.mayorPosicion.pct, 0)}`,
         tone: resumen.mayorPosicion.pct >= CONCENTRACION_POSICION_ALERTA ? 'warn' : 'neutral',
       };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="cedears_mayor_posicion" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
-function CedearsPorSectorMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
-  const { resumen, concentracionSectorPct, isLoading } = useCedearsResumenValue();
+function CedearsPorSectorMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
+  const { resumen, isLoading } = useCedearsResumenValue();
+  // Umbral de concentración sectorial — solo esta tarjeta lo necesita (para el badge), así que el
+  // hook vive acá y no en useCedearsResumenValue (evita una suscripción a localStorage sin uso en
+  // las otras 2 tarjetas de CEDEARs).
+  const { active } = usePortfolios();
+  const { sectorPct: concentracionSectorPct } = useObjetivoConcentracion(active?.id);
   // Mismo criterio de color que CedearsPage.tsx: "Sin sector" en gris neutro (no compite por un
   // color de PIE_COLORS como si fuera un sector real), los sectores reales ciclan PIE_COLORS con su
   // propio contador — así el mismo dato se ve con los mismos colores acá y en /cedears.
@@ -157,10 +159,10 @@ function CedearsPorSectorMetric({ viz, titulo, sub, personalizando }: { viz: Das
   // Badge del mayor sector — mismo campo/umbral que el header de CedearsResumen.
   const mayorSector = resumen && resumen.porSector.length > 0 ? resumen.porSector[0] : null;
   const right = mayorSector
-    ? <BadgeConLink metrica="cedears_por_sector" personalizando={personalizando}>
-        <Badge tone={mayorSector.pct * 100 >= concentracionSectorPct ? 'warn' : 'accent'}>{mayorSector.sector} {(mayorSector.pct * 100).toFixed(0)}%</Badge>
+    ? <BadgeConLink href={detalleHref} personalizando={personalizando}>
+        <Badge tone={mayorSector.pct * 100 >= concentracionSectorPct ? 'warn' : 'accent'}>{mayorSector.sector} {fmtPct(mayorSector.pct, 0)}</Badge>
       </BadgeConLink>
-    : <VerDetalle metrica="cedears_por_sector" personalizando={personalizando} />;
+    : <VerDetalle href={detalleHref} personalizando={personalizando} />;
   return <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
@@ -168,30 +170,34 @@ function CedearsPorSectorMetric({ viz, titulo, sub, personalizando }: { viz: Das
 function useBonosResumenValue() {
   const { active } = usePortfolios();
   const { bonos, bonosCalc, isLoading } = useBonosCalc(active?.id);
-  const { maxDuracionAnios } = useObjetivoDuracion(active?.id);
   const { data: macro = {} } = useMacro();
   const riskFree = (macro as Record<string, number | null>).dgs10 != null ? (macro as Record<string, number | null>).dgs10! / 100 : null;
-  return { bonos, resumen: isLoading || bonos.length === 0 ? null : resumenBonos(bonosCalc, riskFree), maxDuracionAnios, isLoading };
+  return { bonos, resumen: isLoading || bonos.length === 0 ? null : resumenBonos(bonosCalc, riskFree), isLoading };
 }
 
-function BonosCapitalMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function BonosCapitalMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, isLoading } = useBonosResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen ? { status: 'empty', motivo: 'Sin bonos en este portfolio.' }
     : { status: 'ok', shape: 'scalar', value: resumen.totalMkt, format: 'usd-compact' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="bonos_capital" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
-function BonosTirPromedioMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function BonosTirPromedioMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, isLoading } = useBonosResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen || resumen.tirPromedio == null ? { status: 'empty', motivo: 'Sin TIR calculable (faltan datos de cupón/vencimiento).' }
     : { status: 'ok', shape: 'scalar', value: resumen.tirPromedio, format: 'pct', tone: resumen.tirPromedio >= 0 ? 'pos' : 'neg' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="bonos_tir_promedio" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
-function BonosDuracionPromedioMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
-  const { resumen, maxDuracionAnios, isLoading } = useBonosResumenValue();
+function BonosDuracionPromedioMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
+  const { resumen, isLoading } = useBonosResumenValue();
+  // Objetivo personal de duración máxima — solo esta tarjeta lo necesita (para el badge), así que el
+  // hook vive acá y no en useBonosResumenValue (evita una suscripción a localStorage sin uso en las
+  // otras 3 tarjetas de Bonos).
+  const { active } = usePortfolios();
+  const { maxDuracionAnios } = useObjetivoDuracion(active?.id);
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen || resumen.duracionPromedio == null ? { status: 'empty', motivo: 'Sin duración calculable (faltan datos de cupón/vencimiento).' }
     // dp:1 — mismo redondeo que BonosResumen (fmtNum(duracionPromedio, 1)), para no mostrar "6.30"
@@ -200,18 +206,18 @@ function BonosDuracionPromedioMetric({ viz, titulo, sub, personalizando }: { viz
   // Badge: solo el objetivo + tono (no repite la duración — ya es el número grande de la tarjeta).
   const cumpleObjetivo = resumen?.duracionPromedio != null && resumen.duracionPromedio <= maxDuracionAnios;
   const right = resumen?.duracionPromedio != null
-    ? <BadgeConLink metrica="bonos_duracion_promedio" personalizando={personalizando}><Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>máx. {maxDuracionAnios}a</Badge></BadgeConLink>
-    : <VerDetalle metrica="bonos_duracion_promedio" personalizando={personalizando} />;
+    ? <BadgeConLink href={detalleHref} personalizando={personalizando}><Badge tone={cumpleObjetivo ? 'pos' : 'warn'}>máx. {maxDuracionAnios}a</Badge></BadgeConLink>
+    : <VerDetalle href={detalleHref} personalizando={personalizando} />;
   return <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
-function BonosGradoInversionMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function BonosGradoInversionMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, isLoading } = useBonosResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !resumen ? { status: 'empty', motivo: 'Sin bonos en este portfolio.' }
     // dp:0 — mismo redondeo que BonosResumen (fmtPct(x, 0)).
     : { status: 'ok', shape: 'scalar', value: resumen.distribucionGrado.gradoInversion, format: 'pct', dp: 0 };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="bonos_grado_inversion" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
 // Mismo cálculo EXACTO que `proximoCapital` en DashboardPage.tsx (capitalCalendar sobre
@@ -236,7 +242,7 @@ function useBonosProximoCapitalValue() {
   return { bonos, proximoCapital, isLoading: bonosLoading || amortLoading };
 }
 
-function BonosProximoCapitalMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function BonosProximoCapitalMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { bonos, proximoCapital, isLoading } = useBonosProximoCapitalValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : bonos.length === 0 ? { status: 'empty', motivo: 'Sin bonos en este portfolio.' }
@@ -245,7 +251,7 @@ function BonosProximoCapitalMetric({ viz, titulo, sub, personalizando }: { viz: 
         status: 'ok', shape: 'scalar', value: proximoCapital.total, format: 'usd-compact',
         sub: `${MESES_CORTOS[proximoCapital.month - 1]} ${proximoCapital.year} — amortización o rescate, no es renta`,
       };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="bonos_proximo_capital" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
 // ── Radar (useWatchlist + useRadarTicker por probe, igual que RadarResumen) ───
@@ -277,16 +283,19 @@ function useRadarCompraAgresivaValue() {
   return { items, cikMap, cikLoading, riskFree, dcfMap, agresivos, onProbe, isLoading: isLoading || !probesListos };
 }
 
-function RadarCompraAgresivaMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function RadarCompraAgresivaMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { items, cikMap, cikLoading, riskFree, dcfMap, agresivos, onProbe, isLoading } = useRadarCompraAgresivaValue();
   const mv: MetricValue = items.length === 0 && !isLoading ? { status: 'empty', motivo: 'Sin tickers en seguimiento — agregalos en /radar.' }
     : isLoading ? { status: 'loading' }
     : { status: 'ok', shape: 'scalar', value: agresivos.size, format: 'int', sub: `de ${items.length} en seguimiento` };
-  // Badge: solo el ícono + link cuando hay compra agresiva (el conteo ya es el número grande de la
-  // tarjeta, no hace falta repetirlo) — mismo criterio que RadarResumen.
+  // Badge: solo el ícono (el conteo ya es el número grande de la tarjeta, no hace falta repetirlo) —
+  // mismo criterio que RadarResumen, pero con texto sr-only (el ícono solo no tiene nombre accesible:
+  // lucide-react le pone aria-hidden automáticamente al no tener hijos ni prop de accesibilidad).
   const right = !isLoading && agresivos.size > 0
-    ? <BadgeConLink metrica="radar_compra_agresiva" personalizando={personalizando}><Badge tone="pos"><Flame className="w-3 h-3" /></Badge></BadgeConLink>
-    : <VerDetalle metrica="radar_compra_agresiva" personalizando={personalizando} />;
+    ? <BadgeConLink href={detalleHref} personalizando={personalizando}>
+        <Badge tone="pos"><Flame className="w-3 h-3" /><span className="sr-only">{agresivos.size} compra agresiva{agresivos.size > 1 ? 's' : ''} — ver Radar</span></Badge>
+      </BadgeConLink>
+    : <VerDetalle href={detalleHref} personalizando={personalizando} />;
   return (
     <>
       {items.map(it => {
@@ -317,24 +326,24 @@ function useCobrosResumenValue() {
   return { resumen: resumenCobros(cobros), tieneCobros: cobros.length > 0, isLoading };
 }
 
-function CobrosTotalMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function CobrosTotalMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, tieneCobros, isLoading } = useCobrosResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !tieneCobros ? { status: 'empty', motivo: 'Sin cobros registrados todavía.' }
     : { status: 'ok', shape: 'scalar', value: resumen.total, format: 'usd-compact' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="cobros_total" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
-function CobrosDisponibleMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function CobrosDisponibleMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { resumen, tieneCobros, isLoading } = useCobrosResumenValue();
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : !tieneCobros ? { status: 'empty', motivo: 'Sin cobros registrados todavía.' }
     : { status: 'ok', shape: 'scalar', value: resumen.disponible, format: 'usd-compact', tone: resumen.disponible > 0 ? 'warn' : 'neutral' };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="cobros_disponible" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
 // ── Macro (SEMAFOROS + resumenMacro, igual que MacroResumen/MacroPage) ────────
-function MacroSemaforosMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function MacroSemaforosMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { data: macro = {}, isLoading } = useMacro();
   // Mismos hex que --pos/--warn/--neg por tema (useChartTheme, no un color de paleta categórica que
   // por casualidad se le parece) — así el semáforo se ve igual acá que en /macro y en cualquier
@@ -358,13 +367,13 @@ function MacroSemaforosMetric({ viz, titulo, sub, personalizando }: { viz: Dashb
   // Badge: mismo título/tono que el header de MacroResumen ("Todo en calma" / etc.).
   const tono = luz === 'rojo' ? 'neg' : luz === 'amarillo' ? 'warn' : 'pos';
   const right = conteo.total > 0
-    ? <BadgeConLink metrica="macro_semaforos" personalizando={personalizando}><Badge tone={tono}>{tituloSalud}</Badge></BadgeConLink>
-    : <VerDetalle metrica="macro_semaforos" personalizando={personalizando} />;
+    ? <BadgeConLink href={detalleHref} personalizando={personalizando}><Badge tone={tono}>{tituloSalud}</Badge></BadgeConLink>
+    : <VerDetalle href={detalleHref} personalizando={personalizando} />;
   return <MetricCard titulo={titulo} sub={sub} right={right}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
 // ── Liquidez (resumenFlujo, igual que LiquidezFci/finanzas) ───────────────────
-function LiquidezFciMetric({ viz, titulo, sub, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; personalizando: boolean }) {
+function LiquidezFciMetric({ viz, titulo, sub, detalleHref, personalizando }: { viz: DashboardViz; titulo: string; sub?: string; detalleHref?: string; personalizando: boolean }) {
   const { data: flujo = [], isLoading } = useFlujo();
   const { data: macro = {} } = useMacro();
   const mep = (macro as Record<string, number | null>).dolar_mep ?? (macro as Record<string, number | null>).dolar_ccl ?? null;
@@ -372,7 +381,7 @@ function LiquidezFciMetric({ viz, titulo, sub, personalizando }: { viz: Dashboar
   const mv: MetricValue = isLoading ? { status: 'loading' }
     : flujo.length === 0 ? { status: 'empty', motivo: 'Sin flujo de caja cargado — cargalo en /finanzas.' }
     : { status: 'ok', shape: 'scalar', value: fci, format: 'ars-compact', sub: mep ? `≈ US$${(fci / mep).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : undefined };
-  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle metrica="liquidez_fci" personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
+  return <MetricCard titulo={titulo} sub={sub} right={<VerDetalle href={detalleHref} personalizando={personalizando} />}><Render mv={mv} viz={viz} /></MetricCard>;
 }
 
 // ── Registro: MetricKey -> componente ──────────────────────────────────────────

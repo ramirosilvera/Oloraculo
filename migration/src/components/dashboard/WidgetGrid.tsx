@@ -60,7 +60,10 @@ export function WidgetGrid({
           // metrics.tsx) — nunca quedan sin nodo, así que no aplica el caso "sinDatosAhora". Cada
           // Comp arma su PROPIO Card+CardHeader (con badge/link — ver metrics.tsx), así que `sub`
           // viaja como prop en vez de envolverse acá.
-          contenido = enCatalogo && Comp ? <Comp ctx={ctx} viz={viz} titulo={titulo} sub={sub} personalizando={personalizando} /> : null;
+          // detalleHref se pasa ya resuelto (no una key que el componente tendría que volver a
+          // buscar en el catálogo) — evita que un copy-paste entre componentes de metrics.tsx quede
+          // apuntando al link de OTRA métrica sin que TypeScript lo detecte.
+          contenido = enCatalogo && Comp ? <Comp ctx={ctx} viz={viz} titulo={titulo} sub={sub} detalleHref={def?.detalleHref} personalizando={personalizando} /> : null;
         }
 
         if (!enCatalogo) {
